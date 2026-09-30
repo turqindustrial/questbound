@@ -8,7 +8,7 @@ import {fonts,colors} from './theme';
 // for each new round, and title cards for victory, defeat and a level gained. Flashes never take input; a title card
 // can be tapped away and leaves by itself after a few seconds.
 const web=Platform.OS==='web';
-export default function CinematicLayer(){
+export default function CinematicLayer({levelReady=false}){
  const [flash,setFlash]=useState(null),[banner,setBanner]=useState(null),[finale,setFinale]=useState(null),[area,setArea]=useState(null),timers=useRef([]),reduce=useRef(false),{width}=useWindowDimensions();
  useEffect(()=>{AccessibilityInfo.isReduceMotionEnabled().then(v=>{reduce.current=v;}).catch(()=>{});const t=timers.current;return()=>t.forEach(clearTimeout);},[]);
  const later=(fn,ms)=>{timers.current.push(setTimeout(fn,ms));};
@@ -51,6 +51,7 @@ export default function CinematicLayer(){
     <Text dataSet={{qb:dark?undefined:'title',sheen:'on'}} style={[s.title,{fontSize:fit(card.title,width,56,.78),lineHeight:Math.round(fit(card.title,width,56,.78)*1.25)},dark&&{color:'#f0c6b8'}]}>{card.title}</Text>
     <View style={[s.rule,dark&&{backgroundColor:'rgba(220,90,70,.6)'}]}/>
     {!!card.sub&&<Text style={s.sub}>{card.sub}</Text>}
+    {finale.kind==='victory'&&levelReady&&<View dataSet={{qb:'btn-primary'}} style={s.reward}><Icon name="star" size={14} color="#2a1a07"/><Text style={s.rewardText}>A new level awaits</Text></View>}
     <Text style={s.tap}>Tap to continue</Text>
    </View>
   </Pressable>}
@@ -76,5 +77,6 @@ const s=StyleSheet.create({
  title:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,letterSpacing:3,textAlign:'center',marginVertical:4},
  rule:{width:180,height:1,backgroundColor:'rgba(232,199,123,.7)',marginVertical:10},
  sub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:19,lineHeight:27,color:'#eadfc6',textAlign:'center'},
+ reward:{flexDirection:'row',alignItems:'center',gap:8,marginTop:16,paddingHorizontal:16,paddingVertical:8,borderRadius:18,borderWidth:1,borderColor:'#fff0c4',backgroundColor:'#d9ae5f'},rewardText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#2a1a07',textTransform:'uppercase'},
  tap:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.faint,textTransform:'uppercase',marginTop:18},
 });

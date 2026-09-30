@@ -9,6 +9,9 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- The typefaces start downloading with the page, not after the game script, so titles never flash in a fallback face. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&amp;family=Cinzel:wght@400;500;600;700;800&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;family=Inter:wght@400;500;600;700&amp;display=swap" />
+    <link id="qb-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&amp;family=Cinzel:wght@400;500;600;700;800&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;family=Inter:wght@400;500;600;700&amp;display=swap" media="print" onload="this.media='all'" />
     <!-- react-native-web's root reset, plus a dark loading card so a phone never sees a white page while the game downloads.
          Expo fills in the language and title placeholders and adds the game script; LaunchScreen.js removes #qb-boot. -->
     <style id="expo-reset">

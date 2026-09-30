@@ -13,6 +13,7 @@ import HealthTracker from './HealthTracker';
 import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
+import HeroPortrait from './HeroPortrait';
 import {fonts,colors,type} from './theme';
 
 export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame}) {
@@ -23,7 +24,7 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
   const tile = (label,value,description,icon) => <View key={label} dataSet={{qb:'plate'}} style={s.tile}><View style={s.tileHead}>{!!icon&&<Icon name={icon} size={14} color={colors.goldMid}/>}<PlainText style={s.label}>{label}</PlainText></View><PlainText style={s.value}>{value}</PlainText><Text style={[s.caption,s.center]}>{description}</Text></View>;
   return <View>
     <View style={s.header}>
-      <Crest icon={classIcons[hero.class]??'star'} size={72} level={hero.level}/>
+      <HeroPortrait hero={hero} size={72} level={hero.level}/>
       <View style={{flex:1,minWidth:0}}>
         <PlainText style={s.overline}>Character sheet</PlainText>
         <PlainText numberOfLines={2} style={s.name}>{hero.name}</PlainText>

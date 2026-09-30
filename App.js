@@ -34,8 +34,10 @@ import {setMood,setAmbience,setDanger,playSound} from './audio';
 import HomeScreen from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
+import HeroPortrait from './HeroPortrait';
 import CinematicLayer from './CinematicLayer';
 import StoryLoading from './StoryLoading';
+import {shortcutsBlocked} from './keyboard';
 import {cue,useCue} from './cinematics';
 // Page headings: overline, title and icon for the screens that have one.
 const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['Victory earned','Level up','star']};
@@ -202,6 +204,12 @@ function QuestboundApp() {
   useEffect(()=>{setMood(!launched?'silence':inGame?(fighting?'combat':'explore'):'menu');},[launched,inGame,fighting]);
   const ambienceKind=!launched?'none':inGame?(game.dungeon?.active?'cave':fighting?'battle':['inn','defeat','escaped'].includes(game.stage)?'hearth':'wild'):'menu';
   useEffect(()=>{setAmbience(ambienceKind);},[ambienceKind]);
+  // Esc on a page opened from the game (journal, sheet, party, settings) returns to the adventure.
+  const escapeRef=useRef(null);escapeRef.current=inGame&&screen!=='Adventure'&&screen!=='Level Up'?backToGame:null;
+  useEffect(()=>{if(typeof document==='undefined')return;const onKey=e=>{if(e.key!=='Escape'||!escapeRef.current||shortcutsBlocked())return;e.preventDefault();escapeRef.current();};document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);},[]);
+  // The browser tab names the hero and where they are, and marks a fight.
+  const tabTitle=inGame&&hero?(fighting?'⚔ ':'')+hero.name+(locationArtSubject(game)?.name?' · '+locationArtSubject(game).name:'')+' — Questbound':'Questbound';
+  useEffect(()=>{if(typeof document!=='undefined')document.title=tabTitle;},[tabTitle]);
   // Entering the game rises out of black and names the place (a new tale names the story first).
   const areaName=inGame?locationArtSubject(game)?.name??null:null,seenArea=useRef(null),[unveil,setUnveil]=useState(0);
   useEffect(()=>{
@@ -266,7 +274,7 @@ function QuestboundApp() {
       {screen === 'Character Selection' && <>
         {hero ? <>
           <View dataSet={{qb:'plate'}} style={[s.heroCard,compact&&{padding:14,gap:14}]}>
-            <Crest icon={classIcons[hero.class]??'star'} size={compact?54:68} level={hero.level}/>
+            <HeroPortrait hero={hero} size={compact?54:68} level={hero.level}/>
             <View style={{flex:1,minWidth:0}}>
               <Eyebrow>Your hero</Eyebrow>
               <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
@@ -323,7 +331,7 @@ function QuestboundApp() {
   </ScrollView>}</View>}
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
-  <CinematicLayer/>
+  <CinematicLayer levelReady={inGame&&game.stage==='victory'&&!!hero&&hero.level<20}/>
   {creatingStory&&selectedIntro!=='hostile'&&<StoryLoading introId={selectedIntro}/>}
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
   </View>;

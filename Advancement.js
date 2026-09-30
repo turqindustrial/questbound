@@ -10,6 +10,7 @@ import FeaturePanel from './FeaturePanel';
 import {GameButton,Crest,Section} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
+import HeroPortrait from './HeroPortrait';
 
 export default function Advancement({hero,onSave,onCancel,saving,error}) {
   const nextLevel=Math.min(20,hero.level+1);
@@ -26,7 +27,7 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
   }
   return <View>
     <View dataSet={{qb:'plate'}} style={s.levelCard}>
-      <Crest icon={classIcons[hero.class]??'star'} size={64} level={hero.level}/>
+      <HeroPortrait hero={hero} size={64} level={hero.level}/>
       <Icon name="forward" size={22} color={colors.gold}/>
       <View style={s.newLevel}><Text style={s.newLevelLabel}>Level</Text><Text dataSet={{qb:'title'}} style={s.newLevelValue}>{nextLevel}</Text></View>
       <View style={s.gains}>

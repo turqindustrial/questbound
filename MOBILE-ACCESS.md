@@ -65,6 +65,10 @@ Double-click **Questbound-Share.cmd** (or run `Questbound.cmd -Share`). It start
 - On the map, places you can reach have a **Travel** button.
 - After a victory, a gold **Level up** action appears first in the row.
 
+## Keyboard (computer)
+
+- **1–9** press the action buttons, **M** or **Esc** opens the game menu, **J** the journal, **C** the character sheet, **P** the party, **F** full screen. **Esc** on the journal, sheet or party returns to the adventure. **Enter** sends a typed message; **Shift+Enter** starts a new line.
+
 ## Story feed and big moments
 
 - Each roll appears as a card: the die with its natural roll (gold for a natural 20, red for a 1), the arithmetic, and a stamped verdict (Hit, Miss, Critical, Saved…). Damage and healing show as numbers with their type; HP changes list who went from what to what.

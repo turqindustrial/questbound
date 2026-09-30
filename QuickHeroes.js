@@ -5,6 +5,7 @@ import {combatBasics} from './combatRules';
 import {Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
+import HeroPortrait from './HeroPortrait';
 import {playSound} from './audio';
 import {fonts,colors,type} from './theme';
 // Four ready-made heroes: one tap and a new player is choosing their adventure. Replacing an existing hero takes a
@@ -16,7 +17,7 @@ export default function QuickHeroes({onChoose,disabled,replacing=null}){
   return <Pressable key={entry.key} accessibilityRole="button" accessibilityLabel={(confirm?'Confirm: ':'')+'Play as '+hero.name+', a level 1 '+hero.species+' '+hero.class} disabled={disabled}
    onPress={()=>{if(replacing&&!confirm){setArmed(entry.key);playSound('select');return;}playSound('select');onChoose(hero);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(confirm)}} style={[s.card,confirm&&s.confirm,disabled&&{opacity:.55}]}>
    <View style={s.top}>
-    <Crest icon={classIcons[hero.class]??'star'} size={54}/>
+    <HeroPortrait hero={hero} size={58}/>
     <View style={{flex:1,minWidth:0}}><Text style={s.role}>{entry.role}</Text><Text numberOfLines={1} style={s.name}>{hero.name}</Text><Text style={s.line}>{hero.species} {hero.class} · {hero.background}</Text></View>
    </View>
    <Text style={[s.tagline,confirm&&{color:colors.gold}]}>{confirm?'Tap again to replace '+replacing+' and your current adventure with '+hero.name+'.':entry.tagline}</Text>

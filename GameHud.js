@@ -1,4 +1,4 @@
-import React,{useState,useEffect} from 'react';
+import React,{useState,useEffect,useRef} from 'react';
 import {View,Text,Pressable,Modal,StyleSheet,useWindowDimensions} from 'react-native';
 import {CombatHealthButton} from './EncounterOverlay';
 import {FullscreenToggle} from './DisplayControls';
@@ -6,10 +6,12 @@ import {AudioToggle} from './AudioControls';
 import {GameButton,StatBar,IconButton,Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
+import HeroPortrait from './HeroPortrait';
 import FeedbackSheet from './Feedback';
 import {displayState,subscribeDisplay,toggleFullscreen} from './fullscreen';
 import {audioSettings,subscribeAudio,setAudio,playSound} from './audio';
 import {useShownHp} from './cinematics';
+import {shortcutsBlocked} from './keyboard';
 import {fonts,colors,type} from './theme';
 // The in-game heads-up display: always on screen, never scrolls away. HP follows the story as a turn plays out.
 export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,feedback={}}){
@@ -18,10 +20,19 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
  // Labels and the wordmark appear only when there is room, so every control stays on screen at any width.
  const {width,height}=useWindowDimensions(),wordmark=wide&&width>=1100,short=height<520,roomy=wide&&width>=900;
  const go=target=>{setMenu(false);playSound('page');onNavigate(target);};
+ // Keyboard, as in a PC game: M or Esc opens the menu, J the journal, C the character sheet, P the party.
+ const keys=useRef(null);keys.current={go,menu,open:()=>{setMenu(true);playSound('open');},close:()=>setMenu(false)};
+ useEffect(()=>{
+  if(typeof document==='undefined')return;
+  const onKey=e=>{if(e.key==='Escape'&&keys.current.menu){e.preventDefault();keys.current.close();return;}if(e.ctrlKey||e.metaKey||e.altKey||shortcutsBlocked())return;
+   const k=e.key.toLowerCase(),target={j:'Campaign Journal',c:'Character Sheet',p:'Followers'}[k];
+   if(k==='escape'||k==='m'){e.preventDefault();keys.current.open();}else if(target){e.preventDefault();keys.current.go(target);}};
+  document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
+ },[]);
  return <View dataSet={{qb:'hud'}} style={[s.bar,!wide&&s.barCompact,short&&{paddingVertical:4}]}>
   {wordmark&&<View style={s.brand}><Text dataSet={{qb:'title'}} style={s.wordmark}>Questbound</Text><View style={s.divider}/></View>}
   <Pressable accessibilityRole="button" accessibilityLabel={'Open '+hero.name+"'s character sheet"} onPress={()=>go('Character Sheet')} style={s.identity}>
-   <Crest icon={classIcons[hero.class]??'star'} size={wide&&!short?44:34} level={hero.level}/>
+   <HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/>
    <View style={[s.hero,!wide&&{flex:1}]}>
     <View style={s.heroTop}><Text numberOfLines={1} style={[s.name,!wide&&{fontSize:15}]}>{hero.name}</Text>{(wide||width>=400)&&<Text numberOfLines={1} style={s.meta}>{roomy?'Level '+hero.level+' '+hero.class:'Lv '+hero.level+' '+hero.class}</Text>}</View>
     <View style={s.hpRow}>
@@ -33,13 +44,13 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
   </Pressable>
   {levelUp&&<Pressable accessibilityRole="button" accessibilityLabel="Level up" onPress={onLevelUp} dataSet={{qb:'btn-primary'}} style={s.levelUp}><Icon name="star" size={14} color="#2a1a07"/>{wide&&<Text style={s.levelUpText}>Level up</Text>}</Pressable>}
   {wide?<View style={s.actions}>
-    <IconButton icon="journal" label="Journal" onPress={()=>go('Campaign Journal')}/>
-    <IconButton icon="sheet" label="Character sheet" onPress={()=>go('Character Sheet')}/>
-    <IconButton icon="party" label="Party" onPress={()=>go('Followers')}/>
+    <IconButton icon="journal" label="Journal" tip="Journal · J" onPress={()=>go('Campaign Journal')}/>
+    <IconButton icon="sheet" label="Character sheet" tip="Character sheet · C" onPress={()=>go('Character Sheet')}/>
+    <IconButton icon="party" label="Party" tip="Party · P" onPress={()=>go('Followers')}/>
     <CombatHealthButton hud/>
     <View style={s.divider}/>
     <FullscreenToggle compact/><AudioToggle compact/>
-    <IconButton icon="menu" label="Game menu" onPress={()=>{setMenu(true);playSound('open');}}/>
+    <IconButton icon="menu" label="Game menu" tip="Menu · M" onPress={()=>{setMenu(true);playSound('open');}}/>
    </View>
    :<View style={s.actions}><CombatHealthButton hud/><AudioToggle compact/><IconButton icon="menu" label="Game menu" onPress={()=>{setMenu(true);playSound('open');}}/></View>}
   <GameMenu visible={menu} hero={hero} hp={hp} maxHp={maxHp} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setNotes(true);}}/>
@@ -52,7 +63,7 @@ function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){
  const cell=(icon,label,onPress)=><Pressable key={label} accessibilityRole="button" onPress={onPress} dataSet={{qb:'btn'}} style={s.cell}><Icon name={icon} size={20} color={colors.gold}/><Text style={s.cellText}>{label}</Text></Pressable>;
  return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}><Pressable accessibilityLabel="Close menu" onPress={onClose} dataSet={{qb:'scrim'}} style={s.scrim}><Pressable onPress={()=>{}} dataSet={{qb:'sheet'}} style={s.sheet} accessibilityViewIsModal>
   <View style={s.menuHead}>
-   <Crest icon={classIcons[hero.class]??'star'} size={52} level={hero.level}/>
+   <HeroPortrait hero={hero} size={52} level={hero.level}/>
    <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={s.menuTitle}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {hero.species??hero.race} {hero.class} · {hp}/{maxHp} HP</Text></View>
   </View>
   <GameButton variant="primary" icon="play" label="Resume" onPress={onClose}/>

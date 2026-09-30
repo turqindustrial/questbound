@@ -3,6 +3,7 @@ import {View,Text,Pressable,StyleSheet} from 'react-native';
 import {MenuItem,Crest,StatBar,Ornament} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
+import HeroPortrait from './HeroPortrait';
 import {combatBasics} from './combatRules';
 import {fonts,colors} from './theme';
 import {playSound} from './audio';
@@ -28,7 +29,7 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
  const slot=!!hero&&stats?.available&&<Pressable accessibilityRole="button" accessibilityLabel={'Continue as '+hero.name} disabled={disabled} onPress={()=>{playSound('page');onContinue();}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'slot'}} style={[s.slot,!wide&&s.slotNarrow]}>
   <Text style={s.slotOverline}>{saved?'Your adventure':'Your hero'}</Text>
   <View style={s.slotTop}>
-   <Crest icon={classIcons[hero.class]??'star'} size={wide?64:48} level={hero.level}/>
+   <HeroPortrait hero={hero} size={wide?64:48} level={hero.level}/>
    <View style={{flex:1,minWidth:0}}>
     <Text numberOfLines={1} style={[s.slotName,!wide&&{fontSize:19}]}>{hero.name}</Text>
     <Text numberOfLines={1} style={s.slotLine}>Level {hero.level} {hero.species??hero.race} {hero.class}</Text>

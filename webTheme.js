@@ -255,9 +255,12 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 export function initializeWebTheme(){
  if(typeof document==='undefined'||document.getElementById('questbound-theme'))return;
  for(const href of ['https://fonts.googleapis.com','https://fonts.gstatic.com']){const l=document.createElement('link');l.rel='preconnect';l.href=href;if(href.includes('gstatic'))l.crossOrigin='anonymous';document.head.appendChild(l);}
- const fontsLink=document.createElement('link');fontsLink.rel='stylesheet';
+ // The page template already requests the typefaces; add them here only when it did not (for example the dev server).
+ const early=document.getElementById('qb-fonts');
+ if(early)early.media='all';
+ else{const fontsLink=document.createElement('link');fontsLink.rel='stylesheet';
  fontsLink.href='https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;500;600;700;800&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&display=swap';
- document.head.appendChild(fontsLink);
+ document.head.appendChild(fontsLink);}
  const style=document.createElement('style');style.id='questbound-theme';style.textContent=css;document.head.appendChild(style);
  document.querySelector('meta[name="theme-color"]')?.setAttribute('content','#06080c');
  document.title='Questbound';

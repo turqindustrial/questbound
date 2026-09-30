@@ -40,8 +40,8 @@ export function Crest({icon='star',size=56,level,style,color=colors.goldBright})
  </View>;
 }
 // Round icon buttons for the HUD and top bars. `tip` shows a label on hover with a mouse.
-export function IconButton({icon,label,onPress,hot=false,size=40,disabled,style,children,active=false}){
- return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:label}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
+export function IconButton({icon,label,tip,onPress,hot=false,size=40,disabled,style,children,active=false}){
+ return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:tip??label}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
   <Icon name={icon} size={Math.round(size*.46)} color={hot?'#ffd2c2':active?colors.goldBright:colors.gold}/>{children}
  </Pressable>;
 }

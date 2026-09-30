@@ -14,6 +14,7 @@ import {dmCommand} from './dmCommands';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
 import {KeyHint} from './ui';
+import {shortcutsBlocked} from './keyboard';
 import {View,Text as PlainText,TextInput,Pressable,ScrollView,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
 import {dmContext,dmChoices,commitDmTurn} from './dmContext';
 import {fonts,colors,type} from './theme';
@@ -166,11 +167,11 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const keysRef=useRef({});keysRef.current={actions,disabled:actionsDisabled,run:a=>runAction(a)};
   useEffect(()=>{
     if(typeof document==='undefined')return;
-    const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[1-9]$/.test(e.key))return;const el=document.activeElement;if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.isContentEditable))return;if(document.querySelector('[aria-modal=true]'))return;
+    const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[1-9]$/.test(e.key)||shortcutsBlocked())return;
       const {actions,disabled,run}=keysRef.current,a=actions[Number(e.key)-1];if(!a||disabled)return;e.preventDefault();playSound('click');run(a);};
     document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
   },[]);
-  const actionChips=actions.map((a,i)=>{const lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} dataSet={{qb:lead?'btn-primary':'chip'}} style={[s.action,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
+  const actionChips=actions.map((a,i)=>{const lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip'}} style={[s.action,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
     <Icon name={a.icon??'star'} size={16} color={lead?'#2a1a07':colors.gold}/>
     <PlainText numberOfLines={1} style={[s.actionText,lead&&s.actionPrimaryText]}>{a.label}</PlainText>
     {!!a.detail&&<PlainText style={s.actionDetail}>{a.detail}</PlainText>}

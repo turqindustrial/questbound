@@ -11,6 +11,14 @@ export function locationArtSubject(game){
  if(!place)return null;
  return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
 }
+// The player's own hero, painted in the same style as everyone they meet. The identity follows who the hero is
+// (name, species, class, look), not their level, so levelling up keeps the portrait.
+export function heroArtSubject(hero){
+ if(!hero?.name||!hero.class)return null;
+ const species=hero.species??hero.race??'',look=[hero.description,(species+' '+hero.class).trim(),hero.background?'Former '+String(hero.background).toLowerCase():null,hero.age?'Age '+hero.age:null].filter(Boolean).join('. ');
+ let h=7;for(const c of [hero.name,species,hero.class,hero.description??''].join('|').toLowerCase())h=(h*31+c.charCodeAt(0))>>>0;
+ return {campaignId:'hero-'+h.toString(36),kind:'portrait',id:'hero',name:String(hero.name).slice(0,100),description:('The player character, an adventurer. '+look).slice(0,1800),setting:'An original high-fantasy world of roads, inns, ruins and wild places.'};
+}
 // The painting of a named place in this adventure (the same subject the scene uses when you are there), for the
 // illustrated arrival plates in the story feed. Only surface places; the vaults have their own scenes.
 export function placeArtSubject(game,name){

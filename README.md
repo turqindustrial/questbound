@@ -24,6 +24,7 @@ You don't install anything. The host runs the game on their PC and sends you a *
 - On a phone, the tabs along the bottom switch between the **Story**, your **Quest**, the **Map** and the **Log**. On a wider screen they sit beside the story.
 - The menu button (☰, top right) opens the game menu: journal, character sheet, party, settings, full screen, sound and **Send feedback**.
 - Every roll shows its die and result as it happens, your HP bar drops when a blow lands, and victories, defeats and level-ups get their own moment on screen.
+- On a computer: number keys 1–9 press the actions, **M** or **Esc** opens the menu, **J** the journal, **C** your character sheet, **P** your party and **F** full screen.
 - Want it to feel like an app? On iPhone: Share → **Add to Home Screen**. On Android: ⋮ → **Add to Home screen**.
 
 Your hero and progress are saved **in your browser, for that link**. If the link stops working, the host's PC is off or
