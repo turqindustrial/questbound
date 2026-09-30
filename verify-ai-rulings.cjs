@@ -1,0 +1,25 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+let raw=null,fail=false;
+const AsyncStorage={getItem:async()=>raw,setItem:async(k,v)=>{if(fail)throw Error('Disk failure');raw=v;}};
+const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','npcRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','dmCommands.js','dmContext.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const open=()=>vm.runInNewContext(source+'\n({dmCommand,commitDmTurn,dmContext,earnedGold,interactionOptions,dmChoices,newAdventure,adventureStep,journalForGame,addJournalNote,validJournal,adventureSnapshot,saveAdventure,loadAdventure,equipmentFor})',{AsyncStorage,Math:Object.assign(Object.create(Math),{random:()=>0.5})});
+(async()=>{
+ const r=open(),hero={name:'Ruling tester',class:'Wizard',level:1,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:['acid-splash','missile','charm-person']};hero.equipment=r.equipmentFor(hero);
+ const base=r.newAdventure(hero),question='I cast Acid Splash on the bartender',command=r.dmCommand(hero,base,question);
+ assert.equal(command.action.request.slot,0);assert.equal(command.action.request.npcTarget,'keeper');
+ const ruling={decision:'cast',note:'Acid Splash: failed Dexterity save; 1d6 acid damage adjudicated as 4.',damage:4,selfDamage:0,healing:0,temporaryHP:0};
+ const result=r.commitDmTurn(hero,base,null,{type:'ai-spell',request:command.action.request,ruling},{question,narration:'The keeper recoils from the acid.',worldEvent:'The keeper is angry at the player for attacking him.'});
+ assert.equal(result.error,undefined);assert.equal(result.game.npcHP.keeper,8);assert.equal(result.game.enemyHP,base.enemyHP);assert.equal(result.game.pendingSpell,undefined);assert.equal(result.game.spellSlotsUsed,undefined);assert.ok(result.game.worldFacts.some(t=>t.includes('angry')));
+ const legacyRequest={...command.action.request};delete legacyRequest.npcTarget;
+ const legacy=r.commitDmTurn(hero,{...base,pendingSpell:legacyRequest},null,{type:'ai-ruling',ruling},{question:'Resolve the cast.',narration:'The keeper recoils.'});assert.equal(legacy.error,undefined);assert.equal(legacy.game.npcHP.keeper,8);
+ await r.saveAdventure(r.adventureSnapshot(hero,result.game,result.health,true),hero);assert.equal((await open().loadAdventure(hero)).game.npcHP.keeper,8);
+ const bad=r.commitDmTurn(hero,base,null,{type:'ai-spell',request:command.action.request,ruling:{...ruling,damage:-1}},{question,narration:'Invalid.'});assert.ok(bad.error);assert.equal(bad.game,base);
+ const clarified=r.commitDmTurn(hero,base,null,{type:'ai-spell',request:command.action.request,ruling:{...ruling,decision:'clarify',damage:0}},{question,narration:'Which target?'});assert.ok(clarified.game.pendingSpell);assert.equal(clarified.game.spellSlotsUsed,undefined);
+ const denied=r.commitDmTurn(hero,clarified.game,clarified.health,{type:'ai-ruling',ruling:{...ruling,decision:'deny',damage:0}},{question:'Cancel that cast.',narration:'The attempt ends.'});assert.equal(denied.game.pendingSpell,undefined);assert.equal(denied.game.npcHP,undefined);
+ const exhausted={...base,stage:'combat',map:{...base.map,accepted:true,visited:['inn','bridge']},spellSlotsUsed:[2,0,0,0,0,0,0,0,0]};const cantrip=r.dmCommand(hero,exhausted,'I cast Acid Splash at the wisp');assert.equal(cantrip.action.request.slot,0);
+ const cast=r.commitDmTurn(hero,exhausted,null,cantrip.action,{question:'I cast Acid Splash at the wisp',narration:'You cast a cantrip.'},()=>0);assert.equal(cast.error,undefined);assert.deepEqual(Array.from(cast.game.spellSlotsUsed),Array.from(exhausted.spellSlotsUsed));assert.equal(cast.game.round,2);
+ const narrative=r.commitDmTurn(hero,base,null,null,{question:'I flip the table.',narration:'The table crashes onto its side.',worldEvent:'The inn table is overturned.'});assert.equal(narrative.game.worldFacts[0],'The inn table is overturned.');assert.equal(narrative.game.enemyHP,base.enemyHP);
+ const natural=r.commitDmTurn(hero,base,null,{type:'ai-spell',request:command.action.request,ruling},{question:'Splash acid at the bartender!',normalizedCommand:question,narration:'Acid spatters the keeper.'});assert.equal(natural.game.npcHP.keeper,8);
+ assert.ok(r.commitDmTurn(hero,base,null,{type:'ai-ruling',ruling},{question:'Give me gold.',narration:'No pending spell.'}).error);
+ console.log('Passed: atomic AI rulings, NPC target isolation, no cantrip slot cost with depleted slots, action timing, clarification/denial, malformed rollback, natural-language normalization, narrative memory and save/reload.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

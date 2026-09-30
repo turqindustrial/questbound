@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Questbound",
+    "slug": "questbound",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/questbound-icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#06080c",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/questbound-favicon.png",
+      "name": "Questbound",
+      "shortName": "Questbound",
+      "display": "fullscreen",
+      "themeColor": "#06080c",
+      "backgroundColor": "#06080c"
+    }
+  }
+}

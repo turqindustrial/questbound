@@ -1,0 +1,31 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','spellOptions.js','characterRules.js','weaponRules.js','spellRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const r=vm.runInNewContext(source+'\n({requestSpell,resolveSpellRuling,concentrationAfterDamage})');
+const hero={class:'Wizard',level:5,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:['acid-splash','missile']};
+const request={id:'acid-splash',slot:0,intent:'At the enemy',componentsConfirmed:true,forceDM:true};
+const game={stage:'combat',concentration:{id:'detect-magic',remaining:100},pendingSpell:request};
+const hp={current:20,temp:0};const ruling={note:'Spell adjudication for test.',damage:0,selfDamage:2,healing:0,temporaryHP:0};
+for(const flag of ['silenced','handsBound','incapacitated']){
+ const restricted={...game,castingConditions:{[flag]:true}};
+ const before=JSON.stringify(restricted);
+ assert.ok(r.resolveSpellRuling(hero,restricted,hp,30,ruling).error,flag);
+ assert.equal(JSON.stringify(restricted),before);
+ assert.ok(r.requestSpell(hero,{...restricted,pendingSpell:undefined},hp,30,request).error,flag);
+}
+assert.ok(r.requestSpell(hero,{stage:'combat'},{current:0,temp:4},30,request).error);
+let result=r.resolveSpellRuling(hero,game,hp,30,ruling,()=>0);
+assert.equal(result.health.current,18);assert.equal(result.game.concentration,undefined);
+assert.ok(result.logs.some(s=>s.includes('Concentration:')));
+result=r.resolveSpellRuling(hero,game,{current:20,temp:5},30,ruling,()=>0);
+assert.equal(result.health.current,20);assert.equal(result.health.temp,3);assert.equal(result.game.concentration,undefined,'damage to temporary HP still requires a save');
+result=r.resolveSpellRuling(hero,game,hp,30,ruling,()=>0.99);assert.ok(result.game.concentration);
+result=r.resolveSpellRuling(hero,game,hp,30,{...ruling,selfDamage:0},()=>{throw Error('No save for no damage');});assert.ok(result.game.concentration);
+result=r.resolveSpellRuling(hero,game,{current:1,temp:0},30,{...ruling,healing:5},()=>0.99);assert.equal(result.game.concentration,undefined,'healing does not undo concentration loss at zero HP');
+assert.equal(r.concentrationAfterDamage(hero,{...game,castingConditions:{incapacitated:true}},0).game.concentration,undefined);
+const normal=r.requestSpell(hero,{stage:'combat'},hp,30,{...request,forceDM:false},()=>0,{ac:10,saves:{Dexterity:0},distance:10});
+const immune=r.requestSpell(hero,{stage:'combat'},hp,30,{...request,forceDM:false},()=>0,{ac:10,saves:{Dexterity:0},distance:10,immunities:['Acid']});
+assert.equal(normal.damage,2);assert.equal(immune.damage,0);assert.ok(immune.logs.some(s=>s.includes('0 damage applied')));
+const spent={stage:'combat',slotSpentThisTurn:true};
+assert.equal(r.requestSpell(hero,spent,hp,30,{...request,forceDM:false},()=>0).error,undefined);
+assert.ok(r.requestSpell(hero,spent,hp,30,{...request,id:'missile',slot:1}).error);
+console.log('Passed: commit-time restrictions, zero HP casting, concentration after ruling damage including temporary HP and knockout, no-damage/no-roll, incapacity, truthful defense logs, cantrips after a slot and second-slot rejection.');

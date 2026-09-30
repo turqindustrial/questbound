@@ -1,0 +1,7 @@
+const assert=require('node:assert/strict'),fs=require('fs'),r=require('./verify-dm-integration.cjs');
+for(const cls of r.characterDraftContext().classes){
+ const choices=cls.spells.filter(s=>!cls.granted.includes(s.id)),cantrips=choices.filter(s=>s.level===0).slice(0,cls.limits?.cantrips??0).map(s=>s.id),leveled=choices.filter(s=>s.level>0).map(s=>s.id);
+ const draft={name:'Complete hero',species:'Human',class:cls.name,background:'Sage',plannedSubclass:cls.subclasses[0],baseScores:[8,14,13,15,12,10],plusTwo:'Intelligence',plusOne:'Constitution',age:'25',description:'A thoughtful traveler.',backstory:'A scholar leaving home to recover a lost text.',connections:'Mara, a trusted courier, carried my letters. Keeper Rowan gave me shelter during a storm.',ideals:'Knowledge should be shared.',bonds:'My mentor taught me courage.',flaws:'I am too curious.',spells:[...cantrips,...leveled.slice(0,cls.limits?.prepared??0)],spellbook:cls.limits?.book?leveled.slice(0,cls.limits.book):[]};
+ const hero=r.validateCharacterDraft(draft);assert.equal(hero.level,1);assert.ok(hero.equipment.items.length>0);assert.equal(hero.connections,draft.connections);assert.throws(()=>r.validateCharacterDraft({...draft,spells:['not-a-spell']}));assert.throws(()=>r.validateCharacterDraft({...draft,baseScores:[20,20,20,20,20,20]}));
+}
+console.log('Passed: complete character drafts for all 13 classes, legal spell counts/books, starter gear, background scores, full biography and invalid draft rejection.');

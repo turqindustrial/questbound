@@ -1,0 +1,23 @@
+Questbound
+Copyright (c) 2026 turqindustrial (https://github.com/turqindustrial). All rights reserved.
+
+This repository is published so that invited playtesters can play, review and report
+on Questbound. No license is granted to copy, modify, merge, publish, distribute,
+sublicense or sell the software, its text or its artwork, in whole or in part, without
+the copyright holder's prior written permission. Viewing and forking on GitHub are
+governed by GitHub's Terms of Service.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+Third-party material
+--------------------
+This work includes material from the System Reference Document 5.2 ("SRD 5.2") by
+Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is
+licensed under the Creative Commons Attribution 4.0 International License, available
+at https://creativecommons.org/licenses/by/4.0/legalcode. That material remains
+available under its own license.
+
+Open-source dependencies listed in package.json are used under their own licenses.

@@ -1,0 +1,7 @@
+# Crossroads artwork
+
+Generated with the built-in image generation tool. Saved as `crossroads-landscape.png`. The map and location thumbnails share the image; measured overlays remain authoritative because painted landmarks and roads are illustrative.
+
+## Final prompt
+
+Use case: illustration-story. Asset type: illustrated fantasy game world map background for Questbound. Create ONE richly painted overhead landscape, portrait aspect ratio 7:8. Quiet misty temperate countryside, muted evergreen woods, meadow, winding stream and old roads, parchment-like atmospheric fantasy art readable behind UI. Depict exactly three distinct landmarks: a cozy timber-and-stone inn with amber windows centered at x=14.3%, y=87.5%; a single old stone bridge crossing a narrow stream centered at x=78.6%, y=87.5%; a ruined ivy-covered watchtower centered at x=78.6%, y=12.5%. North is up. Each building small enough to fit its local area and recognizable. A straight walking path connects inn to bridge east-west, bridge to tower north-south, and inn to tower diagonally. Terrain supports these paths. No other buildings. Flat overhead cartographic view, no perspective distortion. NO text, numbers, labels, borders, compass, scale, markers or interface; these will be added with code. Moody cinematic landscape, gentle daylight, subtle blues and warm ochre, readable detail. Output a usable art asset, not a screen mockup.

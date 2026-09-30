@@ -1,0 +1,33 @@
+name: Bug report
+description: Something broke, froze or showed an error.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Please don't paste invite codes, save codes or anything private here — this page is public.
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: e.g. Pixel 8, Chrome · MacBook, Safari
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: The steps right before the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened?
+      description: Include any error message word for word. A screenshot is ideal.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?

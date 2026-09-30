@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+let raw=null,fail=false;
+const AsyncStorage={getItem:async()=>raw,setItem:async(k,v)=>{if(fail)throw Error('Disk failure');raw=v;}};
+const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','npcRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const open=()=>vm.runInNewContext(source+'\n({newAdventure,adventureStep,journalForGame,addJournalNote,validJournal,adventureSnapshot,saveAdventure,loadAdventure,equipmentFor})',{AsyncStorage});
+(async()=>{
+ const r=open(),hero={name:'Rewards tester',class:'Fighter',level:1,scores:{Strength:16,Dexterity:14,Constitution:14,Intelligence:12,Wisdom:12,Charisma:10}};hero.equipment=r.equipmentFor(hero);
+ let game=r.newAdventure(hero),health=null;
+ const act=a=>{const out=r.adventureStep(game,health,hero,a,()=>0);assert.equal(out.error,undefined);game=out.game;health=out.health;};
+ assert.ok(r.adventureStep(game,health,hero,'claim-reward').error);
+ act('listen');act({type:'travel',destination:'tower'});act('inspect-tower');act({type:'travel',destination:'bridge'});act('call-wisp');act('claim-reward');
+ assert.equal(game.campaign.bridgeReward,true);assert.ok(r.adventureStep(game,health,hero,'claim-reward').error);
+ act('start-lens');assert.equal(game.stage,'inn');act('long-rest');assert.equal(game.campaign.lensQuest,'active');
+ act({type:'travel',destination:'bridge'});assert.ok(r.adventureStep(game,health,hero,'approach').error);
+ act({type:'travel',destination:'tower'});act('find-lens');assert.ok(r.adventureStep(game,health,hero,'find-lens').error);
+ await r.saveAdventure(r.adventureSnapshot(hero,game,health,true),hero);game=(await open().loadAdventure(hero)).game;assert.equal(game.campaign.lensQuest,'found');
+ act({type:'travel',destination:'inn'});act('deliver-lens');assert.equal(game.campaign.lensQuest,'complete');assert.ok(r.adventureStep(game,health,hero,'deliver-lens').error);
+ game=r.newAdventure(hero,game);assert.equal(game.campaign.bridgeReward,true);assert.equal(game.campaign.lensQuest,'complete');
+ await r.saveAdventure(r.adventureSnapshot(hero,game,health,true),hero);
+ assert.ok(game.journal.entries.some(e=>e.title==='A beacon for travelers'));
+ console.log('Passed: one-time bridge/lens rewards, playable follow-up, journal, save/reload, rest/replay persistence, and repeated claim/encounter rejection.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

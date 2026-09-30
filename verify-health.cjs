@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const r=vm.runInNewContext(fs.readFileSync('healthRules.js','utf8').replace(/export /g,'')+'\n({healthAmount,updateHealth})');
+for(const bad of ['', ' ', '-1','1.5','1e2','Infinity','10000','0','abc']) assert.equal(r.healthAmount(bad),null,bad);
+assert.equal(r.healthAmount(' 5 '),5);
+let h=r.updateHealth(null,9,'temporary',5);assert.equal(h.current,9);assert.equal(h.temp,5);
+h=r.updateHealth(h,9,'damage',7);assert.equal(h.current,7);assert.equal(h.temp,0);assert.equal(h.previous.current,9);assert.equal(h.previous.temp,5);
+h=r.updateHealth(h,9,'heal',20);assert.equal(h.current,9);
+h=r.updateHealth(h,9,'temporary',8);h=r.updateHealth(h,9,'temporary',3);assert.equal(h.temp,3);
+h=r.updateHealth(h,9,'heal',1);assert.equal(h.temp,3);
+h=r.updateHealth(h,9,'damage',50);assert.equal(h.current,0);assert.equal(h.temp,0);
+h=r.updateHealth(h,9,'temporary',5);assert.equal(h.current,0);
+h=r.updateHealth(h,9,'heal',2);assert.equal(h.current,2);assert.equal(h.temp,5);
+assert.throws(()=>r.updateHealth(h,9,'damage',-1));
+console.log('Passed: input validation, temporary HP absorption/replacement, healing cap, zero HP, healing from zero and undo snapshots.');

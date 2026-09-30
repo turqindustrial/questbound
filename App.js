@@ -1,0 +1,336 @@
+import AdventureIntros from './AdventureIntros';
+import {findDmEndpoint} from './dmConnection';
+import Followers from './Followers';
+import DiceRoller from './DiceRoller';
+import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
+import {sceneArtSubjects,npcArtSubject} from './worldArtRules';
+import {usePageWheel} from './usePageWheel';
+import DynamicArt from './DynamicArt';
+import {locationArtSubject} from './worldArtRules';
+import EncounterProvider,{CombatHealthButton,EntityText} from './EncounterOverlay';
+import {freshStoryGame} from './storyRules';
+import {hostileEncounterGame} from './hostileEncounter';
+import CampaignJournal from './CampaignJournal';
+import {addJournalNote,appendJournal} from './journalRules';
+import Advancement from './Advancement';
+import {spellSelectionError} from './spellOptions';
+import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure} from './adventureStorage';
+import {useSharedTable} from './useSharedTable';
+import {backupLocalSave} from './tableClient';
+import SharedTable from './SharedTable';
+import Adventure from './Adventure';
+import {newAdventure} from './adventureRules';
+import CharacterSheet from './CharacterSheet';
+import {combatBasics} from './combatRules';
+import CharacterBuilder from './CharacterBuilder';
+import { blankBuild, buildError, makeCharacter, abilities, modifier } from './characterRules';
+import React, { useEffect, useState, useRef } from 'react';
+import { loadCharacter, saveCharacter, isValidCharacter } from './characterStorage';
+import { StatusBar } from 'expo-status-bar';
+import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, useWindowDimensions } from 'react-native';
+import {Panel,GameButton,Ornament,Eyebrow,StatBar} from './ui';
+import {fonts,colors,type} from './theme';
+import {setMood,setAmbience,setDanger} from './audio';
+import {AudioToggle,AudioSettings} from './AudioControls';
+import {FullscreenToggle,DisplaySettings} from './DisplayControls';
+import GameHud from './GameHud';
+import LaunchScreen from './LaunchScreen';
+import SaveTransfer from './SaveTransfer';
+const titleArt=require('./assets/map/crossroads-landscape.png');
+
+export default function App(){return <SceneTransitionProvider><QuestboundApp/></SceneTransitionProvider>;}
+function QuestboundApp() {
+  const {width:windowWidth,height:windowHeight}=useWindowDimensions(),compact=windowWidth<600;
+  // Short, wide windows (a phone on its side, a small full-screen window) put the title beside the menu.
+  const shortHome=windowHeight<640&&windowWidth>windowHeight*1.2,denseHome=windowHeight<700;
+  // The title lettering scales with the space it has so the full word always fits.
+  const logoSize=Math.max(28,Math.min(76,Math.floor(((shortHome?windowWidth/2:windowWidth)-48)/9),Math.floor(windowHeight/9)));
+  const scrollRef = useRef(null);
+  usePageWheel(scrollRef);
+  const transition=useSceneTransition();
+  const [creatingStory,setCreatingStory]=useState(false),[newStoryRequested,setNewStoryRequested]=useState(false);
+  const storyLock=useRef(false);
+  const [selectedIntro,setSelectedIntro]=useState('surprise');
+  const [screen, setScreenState] = useState('Home');
+  const [form, setForm] = useState(blankBuild);
+  const [hero, setHero] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [game, setGame] = useState(newAdventure);
+  const heroStats = hero ? combatBasics(hero) : null;
+  const [characterChosen, setCharacterChosen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [storageError, setStorageError] = useState('');
+  const [adventureBlocked,setAdventureBlocked] = useState(false);
+  const [saveStatus,setSaveStatus] = useState('');
+  const [saveRetry,setSaveRetry] = useState(0);
+  useEffect(() => {
+    loadCharacter().then(async saved => {
+      if (saved) {
+        setHero(saved);
+        setForm({...blankBuild(), ...saved, species: saved.species ?? saved.race});
+        try {
+          const adventure = await loadAdventure(saved);
+          if(adventure){setGame(adventure.game);setHealth(adventure.health);setCharacterChosen(adventure.chosen);}
+        } catch {setAdventureBlocked(true);setSaveStatus('Your adventure could not be loaded. Reopen the app to retry. Its saved progress has been protected.');}
+      }
+    }).catch(() => setStorageError('Your saved character could not be loaded. Reopen the app to retry. Saving is disabled to protect the existing save.'))
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    if(loading || !hero || storageError || adventureBlocked) return;
+    let current=true;
+    setSaveStatus('Saving adventure...');
+    saveAdventure(adventureSnapshot(hero,game,health,characterChosen),hero)
+      .then(()=>{if(current)setSaveStatus('Adventure saved on this device.');})
+      .catch(()=>{if(current)setSaveStatus('Adventure not saved. Your progress is still open; retry before closing the app.');});
+    return ()=>{current=false;};
+  },[loading,hero,game,health,characterChosen,storageError,adventureBlocked,saveRetry]);
+  const [error, setError] = useState('');
+  // The shared table's adventure replaces this device's only after it passes the same checks as a local save.
+  async function applyRemote(snapshot,isCurrent=()=>true){
+    let remoteHero;try{remoteHero=JSON.parse(snapshot.character);}catch{throw Error('The shared adventure could not be read.');}
+    if(!isValidCharacter(remoteHero)||!validAdventure(snapshot,remoteHero))throw Error('The shared adventure did not pass validation. This device kept its own save.');
+    if(!isCurrent())return;
+    backupLocalSave();
+    await saveCharacter(remoteHero);
+    if(!isCurrent())return;
+    setHero(remoteHero);setForm({...blankBuild(),...remoteHero,species:remoteHero.species??remoteHero.race});
+    setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(false);
+  }
+  const table=useSharedTable({ready:!loading&&!storageError&&!adventureBlocked,hero,game,health,characterChosen,applyRemote});
+  async function setScreen(target){
+    try{if(['Adventure','Character Sheet','Campaign Journal','Followers'].includes(target)&&hero)await transition.prepare([...sceneArtSubjects(game),...(target==='Followers'?Object.keys(game.followers??{}).map(id=>npcArtSubject(game,id)):[])]);setScreenState(target);}
+    catch(e){setError(e.message);}
+  }
+  const button = (label, onPress, variant='secondary', style) => <GameButton key={label} label={label} variant={variant} disabled={loading||creatingStory} onPress={onPress} style={style}/>;
+  async function playCharacter(begin=false){
+    if(storyLock.current||loading||storageError||adventureBlocked||!hero)return;
+    if(!newStoryRequested){setCharacterChosen(true);setScreen('Adventure');return;}
+    if(begin!==true){setScreen('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});return;}
+    storyLock.current=true;setCreatingStory(true);setError('');
+    try{
+      let next;
+      if(selectedIntro==='hostile')next=hostileEncounterGame(hero,newAdventure(hero));
+      else{
+      const endpoint=await findDmEndpoint();
+      const response=await fetch(endpoint+'/dm',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(90000),body:JSON.stringify({input:'Create a fresh adventure for my character.',context:{mode:'adventure',introId:selectedIntro,choices:[],player:{name:hero.name,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}})});
+      const body=await response.json();if(!response.ok)throw Error(body.error||'The story could not be created.');
+      next=freshStoryGame(hero,{...body.story,introId:selectedIntro},newAdventure(hero));
+      if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
+      }
+      next.storyHistory=[...new Set([...(game.storyHistory??[]),game.story?.title,next.story.title].filter(Boolean))].slice(-100);
+      await transition.prepare(sceneArtSubjects(next));
+      await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
+      setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
+    }catch(e){setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
+    finally{storyLock.current=false;setCreatingStory(false);}
+  }
+  async function saveHero() {
+    if (loading || saving || storageError) return;
+    if (buildError(form) || spellSelectionError(form)) {
+      setError(buildError(form) || spellSelectionError(form)); return;
+    }
+    const character = makeCharacter(form);
+    setSaving(true);
+    setError('');
+    try {
+      await saveCharacter(character);
+      setHero(character);
+      setHealth(null); setGame(newAdventure(character));
+      setCharacterChosen(false);setNewStoryRequested(true);
+      setScreen('Character Selection');
+      scrollRef.current?.scrollTo({y:0,animated:false});
+    } catch {
+      setError('Could not save your character. Your entries are still here; please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function saveAdvancement(character) {
+    if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
+    setSaving(true);setError('');
+    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}
+    catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
+    finally {setSaving(false);}
+  }
+  const gameScreen=['Adventure','Character Sheet','Campaign Journal','Followers'].includes(screen)&&characterChosen&&hero;
+  const saved=characterChosen&&!!hero;
+  // Settings opened from the game menu, and a level-up, stay inside the adventure: same scene, same score, a way back.
+  const [returnToGame,setReturnToGame]=useState(false);
+  const inGame=!!gameScreen||(saved&&(screen==='Level Up'||(screen==='Settings'&&returnToGame)));
+  const openFromGame=target=>{setReturnToGame(target==='Settings');setScreen(target);};
+  const backToGame=()=>{setReturnToGame(false);setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});};
+  const fighting=inGame&&(game.stage==='combat'||!!game.npcCombat?.active);
+  // The score waits for the launch screen; after that it follows the scene. Ambience follows the location,
+  // and a heartbeat rises when the hero is at 30% HP or less.
+  const [launched,setLaunched]=useState(false);
+  const playing=screen==='Adventure'&&characterChosen&&!!hero&&!!heroStats?.available;
+  // Side-by-side play on large screens and on any landscape screen (a phone on its side has height for one column only).
+  const wideGame=windowWidth>=960||(windowWidth>=560&&windowWidth>windowHeight*1.25);
+  useEffect(()=>{setMood(!launched?'silence':inGame?(fighting?'combat':'explore'):'menu');},[launched,inGame,fighting]);
+  const ambienceKind=!launched?'none':inGame?(game.dungeon?.active?'cave':fighting?'battle':['inn','defeat','escaped'].includes(game.stage)?'hearth':'wild'):'menu';
+  useEffect(()=>{setAmbience(ambienceKind);},[ambienceKind]);
+  const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;
+  useEffect(()=>{setDanger(launched&&inGame&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio]);
+  // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
+  const saveProblem=saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
+  return <View dataSet={{qb:'root'}} style={s.root}>
+  <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
+    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titleArt} dataSet={{qb:'backdrop'}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/>}
+    <View dataSet={{qb:inGame?'atmosphere-game':'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?'rgba(5,10,16,.35)':'rgba(6,8,12,.72)'}]}/>
+    <View dataSet={{qb:'vignette'}} style={StyleSheet.absoluteFillObject}/>
+    <View dataSet={{qb:'embers'}} style={StyleSheet.absoluteFillObject}/>
+  </View>
+  <EncounterProvider hero={hero} game={game} health={health}>
+  <StatusBar style="light" />
+  {playing?<View style={s.shell}>
+    {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. */}
+    <GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}}/>
+    {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
+      {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
+      {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
+      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><Text numberOfLines={1} style={s.tableText}>⚑  Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
+    </View>}
+    <View style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
+      <Adventure layout={wideGame?'wide':'narrow'} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
+    </View>
+  </View>:<View style={s.shell}>
+    {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
+    <View style={[s.topBar,compact&&{paddingHorizontal:12}]}>
+      {screen==='Home'?<View/>:inGame&&!['Level Up','Adventure'].includes(screen)?<Pressable accessibilityRole="button" accessibilityLabel="Back to the adventure" onPress={backToGame} dataSet={{qb:'chip'}} style={s.backChip}><Text style={s.backChipText}>‹  Adventure</Text></Pressable>:<Pressable accessibilityRole="button" accessibilityLabel="Main menu" onPress={()=>setScreen('Home')}><Text dataSet={{qb:'title'}} style={[s.logoSmall,compact&&{fontSize:20}]}>Questbound</Text></Pressable>}
+      <View style={s.controls}><FullscreenToggle compact={compact}/><AudioToggle compact={compact}/></View>
+    </View>
+  <ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <View style={shortHome&&screen==='Home'?s.homeRow:null}>
+    {screen==='Home'&&<View style={[s.hero,compact&&{paddingTop:8,paddingBottom:18},shortHome&&{flex:1,paddingTop:0,paddingBottom:0}]}>
+      <Eyebrow style={s.heroEyebrow}>A tabletop adventure companion</Eyebrow>
+      <Text accessibilityRole="header" dataSet={{qb:'title',glow:'on'}} style={[s.logo,{fontSize:logoSize,lineHeight:Math.round(logoSize*1.22),letterSpacing:compact?2:6}]}>Questbound</Text>
+      <Ornament style={s.heroRule}/>
+      <Text style={s.tagline}>Stories worth rolling for.</Text>
+    </View>}
+    <Panel variant={inGame?'glass':'panel'} style={[s.card,compact&&{padding:14},denseHome&&screen==='Home'&&{padding:16},shortHome&&screen==='Home'&&{flex:1.1}]}>{loading && <Text style={s.note}>Loading saved character…</Text>}{!!storageError && <Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
+      {(saveProblem||(screen==='Home'&&!denseHome&&saveStatus.startsWith('Adventure saved')))&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,compact&&{marginBottom:10},saveProblem&&{color:'#ffd49a'}]}>{saveProblem?saveStatus:'✦ '+saveStatus}</Text>}
+      {saveStatus.startsWith('Adventure not saved') && button('Retry adventure save',()=>setSaveRetry(value=>value+1))}
+        {table.joined && <View dataSet={{qb:'plate'}} style={s.tableBar}><Text style={s.tableText}>⚑  Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
+      {!['Character Creation','Adventure','Adventure Opening','Multiplayer','Character Sheet','Campaign Journal','Followers'].includes(screen) && <Text accessibilityRole="header" style={[s.heading,screen==='Home'&&s.homeHeading,screen==='Home'&&denseHome&&{marginBottom:6,fontSize:18}]}>{screen === 'Home' ? 'Gather your courage' : screen}</Text>}
+      {screen === 'Home' && <>
+        {!denseHome&&<Text style={[s.body,s.center]}>Create your hero, roll the dice, and step into your next adventure.</Text>}
+        {!!hero&&button('Continue', () => {setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen ? 'Adventure' : 'Character Selection');}, saved?'primary':'secondary', denseHome&&s.denseButton)}
+        {button('New Adventure', () => {setNewStoryRequested(true);setError('');setScreen('Character Selection');}, saved?'secondary':'primary', denseHome&&s.denseButton)}
+        <Ornament glyph="✦" style={{marginVertical:denseHome?8:18}}/>
+        <View style={[s.menuGrid,denseHome&&{gap:6}]}>{['Character Selection', 'Dice Roller', 'Multiplayer', 'Settings'].map(label => <GameButton key={label} label={label} onPress={() => setScreen(label)} disabled={loading||creatingStory} style={[s.menuCell,denseHome&&s.denseCell]} textStyle={s.menuCellText}/>)}</View>
+      </>}
+      {screen === 'Character Selection' && <>
+        <Text style={s.body}>Choose your character to enter the adventure. Your full character sheet is available inside the game.</Text>
+        {hero ? <>
+          <View dataSet={{qb:'plate'}} style={s.heroCard}>
+            <Eyebrow>Your hero</Eyebrow>
+            <Text style={s.heroName}>{hero.name}</Text>
+            <Text style={s.heroLine}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+            {!!hero.background && <Text style={s.heroBackground}>{hero.background}</Text>}
+          </View>
+          {newStoryRequested&&<Text style={s.note}>{characterChosen?'A fresh story will be created for this character. It replaces your current adventure only when it is ready and saved.':'Next, choose where your story begins.'}</Text>}
+          {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+          {button(creatingStory?'Creating your new adventure…':'Play as '+hero.name,playCharacter,'primary')}
+          {button('Edit character', () => {setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');})}
+        </> : <Text style={s.note}>No saved character yet. Create your first hero below.</Text>}
+        {button('Create new character', () => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}, hero?'secondary':'primary')}
+      </>}
+      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error}/>}
+      {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
+      {screen === 'Level Up' && hero && <Advancement hero={hero} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
+      {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
+      {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
+      {screen === 'Followers' && hero && <Followers game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}
+      {screen === 'Dice Roller' && <DiceRoller/>}
+      {screen === 'Adventure' && <>
+        {characterChosen && heroStats?.available && <View dataSet={{qb:'plate'}} style={s.hud}>
+          <View style={s.hudIdentity}>
+            <EntityText style={s.hudName}>{hero.name}</EntityText>
+            <Text style={s.hudClass}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+          </View>
+          <View style={s.hudVitals}>
+            <View style={s.hudRow}><Text style={s.hudLabel}>HIT POINTS</Text><Text style={s.hudValue}>{health?.current ?? heroStats.hp}<Text style={s.hudMax}> / {heroStats.hp}</Text>{(health?.temp??0)>0?<Text style={s.hudTemp}>  +{health.temp} temp</Text>:null}</Text></View>
+            <StatBar value={health?.current ?? heroStats.hp} maximum={heroStats.hp} height={9}/>
+          </View>
+        </View>}
+        {characterChosen && hero && <View style={s.quickTabs}>{[['Journal','Campaign Journal','❦'],['Character Sheet','Character Sheet','⚔'],['Followers','Followers','♞']].map(([label,target,glyph])=><Pressable key={target} accessibilityRole="button" accessibilityLabel={'Open '+label.toLowerCase()} dataSet={{qb:'chip'}} onPress={()=>{setScreen(target);scrollRef.current?.scrollTo({y:0,animated:false});}} style={s.quickTab}><Text style={s.quickTabText}><Text style={s.quickGlyph}>{glyph}</Text>  {label}</Text></Pressable>)}<CombatHealthButton/></View>}
+        {characterChosen && hero && game.stage==='victory' && hero.level<20 && button('✦ Review earned level-up',()=>{setError('');setScreen('Level Up');scrollRef.current?.scrollTo({y:0,animated:false});},'primary')}
+
+        {characterChosen && hero && <Adventure table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
+      </>}
+      {screen === 'Multiplayer' && <SharedTable table={table} hero={hero} characterChosen={characterChosen} onPlay={()=>{setNewStoryRequested(false);setScreen(characterChosen?'Adventure':'Character Selection');}}/>}
+      {screen === 'Settings' && <DisplaySettings/>}
+      {screen === 'Settings' && <AudioSettings/>}
+      {screen === 'Settings' && <SaveTransfer/>}
+      {screen === 'Settings' && <View style={s.about}><Eyebrow>About</Eyebrow><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>This work includes material from the System Reference Document 5.2 (“SRD 5.2”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.</Text></View>}
+      {/* Screens inside the adventure have their own way back; Settings opened from the game returns there. */}
+      {screen === 'Character Creation' ? button('‹ Back to Character Selection', () => setScreen('Character Selection')) : screen==='Settings'&&returnToGame&&saved ? button('‹ Back to the adventure', backToGame, 'primary') : screen !== 'Home' && !(gameScreen&&screen!=='Adventure') && screen!=='Level Up' && button('‹ Back to main menu', () => setScreen('Home'))}
+    </Panel>
+    </View>
+    {screen==='Home'&&<Text style={s.footer}>QUESTBOUND · EARLY ACCESS 0.1 · YOUR STORY, ONE STEP AT A TIME</Text>}
+  </ScrollView></View>}
+  </EncounterProvider>
+  {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
+  </View>;
+}
+const s = StyleSheet.create({
+  root:{flex:1,backgroundColor:colors.ink,overflow:'hidden'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},
+  topBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,minHeight:52,paddingHorizontal:20,paddingVertical:8},
+  shell:{flex:1,minHeight:0},play:{flex:1,minHeight:0,paddingHorizontal:0,paddingTop:6},playWide:{paddingHorizontal:16,paddingTop:14,paddingBottom:14,width:'100%',maxWidth:1500,alignSelf:'center'},
+  notices:{paddingHorizontal:16,paddingTop:6,gap:6},centred:{flexGrow:1,justifyContent:'center'},
+  homeRow:{flexDirection:'row',alignItems:'center',gap:32},
+  denseButton:{minHeight:42,paddingVertical:9,marginTop:6},denseCell:{minHeight:40,paddingVertical:8},
+  page:{flex:1,backgroundColor:'transparent'},
+  content:{padding:24,paddingTop:18,paddingBottom:48,width:'100%',maxWidth:760,alignSelf:'center'},
+  hero:{alignItems:'center',paddingTop:28,paddingBottom:34},
+  heroEyebrow:{marginBottom:18,textAlign:'center'},
+  logo:{fontFamily:fonts.logo,fontSize:76,fontWeight:'900',letterSpacing:6,color:colors.gold,textAlign:'center',lineHeight:92},
+  heroRule:{width:'72%',maxWidth:380,alignSelf:'center',marginVertical:12},
+  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:'#e9dcbd',textAlign:'center',letterSpacing:.5},
+  header:{alignItems:'center',marginBottom:22},
+    logoMedium:{fontFamily:fonts.logo,fontSize:40,fontWeight:'900',letterSpacing:4,color:colors.gold,textAlign:'center'},
+  logoSmall:{fontFamily:fonts.logo,fontSize:24,fontWeight:'900',letterSpacing:3,color:colors.gold},
+  headerRule:{width:'60%',maxWidth:300,alignSelf:'center',marginVertical:8},
+  card:{padding:28},
+  heading:{...type.heading,fontSize:26,marginBottom:16},
+  homeHeading:{textAlign:'center',fontSize:22,letterSpacing:3,textTransform:'uppercase',color:colors.gold},
+  center:{textAlign:'center'},
+  body:{...type.body,fontSize:16,lineHeight:26,marginBottom:18},
+  menuGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
+  menuCell:{flexGrow:1,flexBasis:'45%',marginTop:0,minHeight:48},
+  menuCellText:{fontSize:12,letterSpacing:1.6},
+  heroCard:{padding:20,borderWidth:1,borderColor:colors.goldLine,borderRadius:4,marginBottom:16,gap:4},
+  heroName:{fontFamily:fonts.display,fontSize:30,fontWeight:'700',color:colors.parchment,letterSpacing:1,marginTop:6},
+  heroLine:{fontFamily:fonts.ui,fontSize:14,color:colors.gold,letterSpacing:.5},
+  heroBackground:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,color:colors.muted,marginTop:4},
+  hud:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:18,padding:16,borderWidth:1,borderColor:colors.goldLine,borderRadius:4,marginBottom:12},
+  hudIdentity:{flexGrow:1,flexShrink:1,minWidth:170},
+  hudName:{fontFamily:fonts.display,fontSize:22,fontWeight:'700',color:colors.parchment,letterSpacing:1},
+  hudClass:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.6,marginTop:3},
+  hudVitals:{flexGrow:2,flexBasis:220,gap:6},
+  hudRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'},
+  hudLabel:{...type.label},
+  hudValue:{fontFamily:fonts.display,fontSize:18,fontWeight:'700',color:colors.parchment},
+  hudMax:{fontSize:13,color:colors.muted,fontWeight:'400'},
+  hudTemp:{fontSize:12,color:colors.arcane},
+  quickTabs:{flexDirection:'row',gap:8,marginBottom:8,flexWrap:'wrap'},
+  quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:'rgba(201,164,92,.4)',backgroundColor:'rgba(20,25,36,.9)',justifyContent:'center'},
+  quickTabText:{fontFamily:fonts.display,color:'#ecdcb8',fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+  quickGlyph:{color:colors.gold},
+  tableBar:{padding:12,borderRadius:3,borderWidth:1,borderColor:'rgba(111,208,196,.35)',marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:'#9fe3d8',fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:'#ffd49a',fontSize:13,lineHeight:19},
+  saveStatus:{fontFamily:fonts.ui,color:colors.goldMid,fontSize:12,letterSpacing:.4,marginBottom:16},
+  error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
+  note:{fontFamily:fonts.ui,color:'#d9bd84',fontSize:13,lineHeight:20,marginBottom:18},
+  footer:{fontFamily:fonts.display,color:'rgba(201,164,92,.55)',fontSize:10,letterSpacing:2.4,textAlign:'center',marginTop:30},
+  about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.2)'},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},
+  backChip:{minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(12,16,24,.8)',justifyContent:'center'},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+});
+
+
+
+
+
+
+

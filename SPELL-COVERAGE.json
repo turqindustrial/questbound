@@ -1,0 +1,2721 @@
+{
+  "catalogCount": 339,
+  "automaticCount": 25,
+  "dmCount": 314,
+  "fullRulesAutomation": false,
+  "scope": "Casting routes, cost accounting, save/restore and selected effect boundaries. A passing DM route is not a passing automated spell implementation.",
+  "spells": [
+    {
+      "id": "acid-arrow",
+      "name": "Acid Arrow",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "acid-splash",
+      "name": "Acid Splash",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "aid",
+      "name": "Aid",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "alarm",
+      "name": "Alarm",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "alter-self",
+      "name": "Alter Self",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "animal-friendship",
+      "name": "Animal Friendship",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "animal-messenger",
+      "name": "Animal Messenger",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "animal-shapes",
+      "name": "Animal Shapes",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "animate-dead",
+      "name": "Animate Dead",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "animate-objects",
+      "name": "Animate Objects",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "antilife-shell",
+      "name": "Antilife Shell",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "antimagic-field",
+      "name": "Antimagic Field",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "antipathysympathy",
+      "name": "Antipathy/Sympathy",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "arcane-eye",
+      "name": "Arcane Eye",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "arcane-hand",
+      "name": "Arcane Hand",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "arcane-lock",
+      "name": "Arcane Lock",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "arcane-sword",
+      "name": "Arcane Sword",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "arcanists-magic-aura",
+      "name": "Arcanist's Magic Aura",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "astral-projection",
+      "name": "Astral Projection",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "augury",
+      "name": "Augury",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "aura-of-life",
+      "name": "Aura of Life",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "awaken",
+      "name": "Awaken",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "bane",
+      "name": "Bane",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "banishment",
+      "name": "Banishment",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "barkskin",
+      "name": "Barkskin",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "beacon-of-hope",
+      "name": "Beacon of Hope",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "befuddlement",
+      "name": "Befuddlement",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "bestow-curse",
+      "name": "Bestow Curse",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "black-tentacles",
+      "name": "Black Tentacles",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "blade-barrier",
+      "name": "Blade Barrier",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "bless",
+      "name": "Bless",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "blight",
+      "name": "Blight",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "blindnessdeafness",
+      "name": "Blindness/Deafness",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "blink",
+      "name": "Blink",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "blur",
+      "name": "Blur",
+      "level": 2,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "burning-hands",
+      "name": "Burning Hands",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "call-lightning",
+      "name": "Call Lightning",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "calm-emotions",
+      "name": "Calm Emotions",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "chain-lightning",
+      "name": "Chain Lightning",
+      "level": 6,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "charm-monster",
+      "name": "Charm Monster",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "charm-person",
+      "name": "Charm Person",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "chill-touch",
+      "name": "Chill Touch",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "chromatic-orb",
+      "name": "Chromatic Orb",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "circle-of-death",
+      "name": "Circle of Death",
+      "level": 6,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "clairvoyance",
+      "name": "Clairvoyance",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "clone",
+      "name": "Clone",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "cloudkill",
+      "name": "Cloudkill",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "color-spray",
+      "name": "Color Spray",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "command",
+      "name": "Command",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "commune",
+      "name": "Commune",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "commune-with-nature",
+      "name": "Commune with Nature",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "comprehend-languages",
+      "name": "Comprehend Languages",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "compulsion",
+      "name": "Compulsion",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "cone-of-cold",
+      "name": "Cone of Cold",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "confusion",
+      "name": "Confusion",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "conjure-animals",
+      "name": "Conjure Animals",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "conjure-celestial",
+      "name": "Conjure Celestial",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "conjure-elemental",
+      "name": "Conjure Elemental",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "conjure-fey",
+      "name": "Conjure Fey",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "conjure-minor-elementals",
+      "name": "Conjure Minor Elementals",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "conjure-woodland-beings",
+      "name": "Conjure Woodland Beings",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "contact-other-plane",
+      "name": "Contact Other Plane",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "contagion",
+      "name": "Contagion",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "contingency",
+      "name": "Contingency",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "continual-flame",
+      "name": "Continual Flame",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "control-water",
+      "name": "Control Water",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "control-weather",
+      "name": "Control Weather",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "counterspell",
+      "name": "Counterspell",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "create-food-and-water",
+      "name": "Create Food and Water",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "create-or-destroy-water",
+      "name": "Create or Destroy Water",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "create-undead",
+      "name": "Create Undead",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "creation",
+      "name": "Creation",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "cure",
+      "name": "Cure Wounds",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "dancing-lights",
+      "name": "Dancing Lights",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "darkness",
+      "name": "Darkness",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "darkvision",
+      "name": "Darkvision",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "daylight",
+      "name": "Daylight",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "death-ward",
+      "name": "Death Ward",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "delayed-blast-fireball",
+      "name": "Delayed Blast Fireball",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "demiplane",
+      "name": "Demiplane",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "detect-evil-and-good",
+      "name": "Detect Evil and Good",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "detect-magic",
+      "name": "Detect Magic",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "detect-poison-and-disease",
+      "name": "Detect Poison and Disease",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "detect-thoughts",
+      "name": "Detect Thoughts",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dimension-door",
+      "name": "Dimension Door",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "disguise-self",
+      "name": "Disguise Self",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "disintegrate",
+      "name": "Disintegrate",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dispel-evil-and-good",
+      "name": "Dispel Evil and Good",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dispel-magic",
+      "name": "Dispel Magic",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dissonant-whispers",
+      "name": "Dissonant Whispers",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "divination",
+      "name": "Divination",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "divine-favor",
+      "name": "Divine Favor",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "divine-smite",
+      "name": "Divine Smite",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "divine-word",
+      "name": "Divine Word",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dominate-beast",
+      "name": "Dominate Beast",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dominate-monster",
+      "name": "Dominate Monster",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dominate-person",
+      "name": "Dominate Person",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dragons-breath",
+      "name": "Dragon's Breath",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "dream",
+      "name": "Dream",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "druidcraft",
+      "name": "Druidcraft",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "earthquake",
+      "name": "Earthquake",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "blast",
+      "name": "Eldritch Blast",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "elementalism",
+      "name": "Elementalism",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "enhance-ability",
+      "name": "Enhance Ability",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "enlargereduce",
+      "name": "Enlarge/Reduce",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "ensnaring-strike",
+      "name": "Ensnaring Strike",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "entangle",
+      "name": "Entangle",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "enthrall",
+      "name": "Enthrall",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "etherealness",
+      "name": "Etherealness",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "expeditious-retreat",
+      "name": "Expeditious Retreat",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "eyebite",
+      "name": "Eyebite",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "fabricate",
+      "name": "Fabricate",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "faerie-fire",
+      "name": "Faerie Fire",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "faithful-hound",
+      "name": "Faithful Hound",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "false-life",
+      "name": "False Life",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "fear",
+      "name": "Fear",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "feather-fall",
+      "name": "Feather Fall",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "find-familiar",
+      "name": "Find Familiar",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "find-steed",
+      "name": "Find Steed",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "find-the-path",
+      "name": "Find the Path",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "find-traps",
+      "name": "Find Traps",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "finger-of-death",
+      "name": "Finger of Death",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "fireball",
+      "name": "Fireball",
+      "level": 3,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "fire-bolt",
+      "name": "Fire Bolt",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "fire-shield",
+      "name": "Fire Shield",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "fire-storm",
+      "name": "Fire Storm",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "flame-blade",
+      "name": "Flame Blade",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "flame-strike",
+      "name": "Flame Strike",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "flaming-sphere",
+      "name": "Flaming Sphere",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "flesh-to-stone",
+      "name": "Flesh to Stone",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "floating-disk",
+      "name": "Floating Disk",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "fly",
+      "name": "Fly",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "fog-cloud",
+      "name": "Fog Cloud",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "forbiddance",
+      "name": "Forbiddance",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "forcecage",
+      "name": "Forcecage",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "foresight",
+      "name": "Foresight",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "freedom-of-movement",
+      "name": "Freedom of Movement",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "freezing-sphere",
+      "name": "Freezing Sphere",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "gaseous-form",
+      "name": "Gaseous Form",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "gate",
+      "name": "Gate",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "geas",
+      "name": "Geas",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "gentle-repose",
+      "name": "Gentle Repose",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "giant-insect",
+      "name": "Giant Insect",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "glibness",
+      "name": "Glibness",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "globe-of-invulnerability",
+      "name": "Globe of Invulnerability",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "glyph-of-warding",
+      "name": "Glyph of Warding",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "goodberry",
+      "name": "Goodberry",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "grease",
+      "name": "Grease",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "greater-invisibility",
+      "name": "Greater Invisibility",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "greater-restoration",
+      "name": "Greater Restoration",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "guardian-of-faith",
+      "name": "Guardian of Faith",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "guards-and-wards",
+      "name": "Guards and Wards",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "guidance",
+      "name": "Guidance",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "guiding-bolt",
+      "name": "Guiding Bolt",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "gust-of-wind",
+      "name": "Gust of Wind",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hallow",
+      "name": "Hallow",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hallucinatory-terrain",
+      "name": "Hallucinatory Terrain",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "harm",
+      "name": "Harm",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "haste",
+      "name": "Haste",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "heal",
+      "name": "Heal",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "healing-word",
+      "name": "Healing Word",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "heat-metal",
+      "name": "Heat Metal",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hellish-rebuke",
+      "name": "Hellish Rebuke",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "heroes-feast",
+      "name": "Heroes' Feast",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "heroism",
+      "name": "Heroism",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hex",
+      "name": "Hex",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hideous-laughter",
+      "name": "Hideous Laughter",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hold-monster",
+      "name": "Hold Monster",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hold-person",
+      "name": "Hold Person",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "holy-aura",
+      "name": "Holy Aura",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hunters-mark",
+      "name": "Hunter's Mark",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "hypnotic-pattern",
+      "name": "Hypnotic Pattern",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "ice-knife",
+      "name": "Ice Knife",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "ice-storm",
+      "name": "Ice Storm",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "identify",
+      "name": "Identify",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "illusory-script",
+      "name": "Illusory Script",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "imprisonment",
+      "name": "Imprisonment",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "incendiary-cloud",
+      "name": "Incendiary Cloud",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "inflict-wounds",
+      "name": "Inflict Wounds",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "insect-plague",
+      "name": "Insect Plague",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "instant-summons",
+      "name": "Instant Summons",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "irresistible-dance",
+      "name": "Irresistible Dance",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "invisibility",
+      "name": "Invisibility",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "jump",
+      "name": "Jump",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "knock",
+      "name": "Knock",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "legend-lore",
+      "name": "Legend Lore",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "lesser-restoration",
+      "name": "Lesser Restoration",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "levitate",
+      "name": "Levitate",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "light",
+      "name": "Light",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "lightning-bolt",
+      "name": "Lightning Bolt",
+      "level": 3,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "locate-animals-or-plants",
+      "name": "Locate Animals or Plants",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "locate-creature",
+      "name": "Locate Creature",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "locate-object",
+      "name": "Locate Object",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "longstrider",
+      "name": "Longstrider",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mage-armor",
+      "name": "Mage Armor",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mage-hand",
+      "name": "Mage Hand",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "magic-circle",
+      "name": "Magic Circle",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "magic-jar",
+      "name": "Magic Jar",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "missile",
+      "name": "Magic Missile",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "magic-mouth",
+      "name": "Magic Mouth",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "magic-weapon",
+      "name": "Magic Weapon",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "magnificent-mansion",
+      "name": "Magnificent Mansion",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "major-image",
+      "name": "Major Image",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mass-cure-wounds",
+      "name": "Mass Cure Wounds",
+      "level": 5,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "mass-heal",
+      "name": "Mass Heal",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mass-healing-word",
+      "name": "Mass Healing Word",
+      "level": 3,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "mass-suggestion",
+      "name": "Mass Suggestion",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "maze",
+      "name": "Maze",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "meld-into-stone",
+      "name": "Meld into Stone",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mending",
+      "name": "Mending",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "message",
+      "name": "Message",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "meteor-swarm",
+      "name": "Meteor Swarm",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mind-blank",
+      "name": "Mind Blank",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mind-spike",
+      "name": "Mind Spike",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "minor-illusion",
+      "name": "Minor Illusion",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mirage-arcane",
+      "name": "Mirage Arcane",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mirror-image",
+      "name": "Mirror Image",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "mislead",
+      "name": "Mislead",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "misty-step",
+      "name": "Misty Step",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "modify-memory",
+      "name": "Modify Memory",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "moonbeam",
+      "name": "Moonbeam",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "move-earth",
+      "name": "Move Earth",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "nondetection",
+      "name": "Nondetection",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "passwall",
+      "name": "Passwall",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "pass-without-trace",
+      "name": "Pass without Trace",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "phantasmal-force",
+      "name": "Phantasmal Force",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "phantasmal-killer",
+      "name": "Phantasmal Killer",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "phantom-steed",
+      "name": "Phantom Steed",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "planar-ally",
+      "name": "Planar Ally",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "planar-binding",
+      "name": "Planar Binding",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "plane-shift",
+      "name": "Plane Shift",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "plant-growth",
+      "name": "Plant Growth",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "poison-spray",
+      "name": "Poison Spray",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "polymorph",
+      "name": "Polymorph",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "power-word-heal",
+      "name": "Power Word Heal",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "power-word-kill",
+      "name": "Power Word Kill",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "power-word-stun",
+      "name": "Power Word Stun",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "prayer-of-healing",
+      "name": "Prayer of Healing",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "prestidigitation",
+      "name": "Prestidigitation",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "prismatic-spray",
+      "name": "Prismatic Spray",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "prismatic-wall",
+      "name": "Prismatic Wall",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "private-sanctum",
+      "name": "Private Sanctum",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "produce-flame",
+      "name": "Produce Flame",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "programmed-illusion",
+      "name": "Programmed Illusion",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "project-image",
+      "name": "Project Image",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "protection-from-energy",
+      "name": "Protection from Energy",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "protection-from-evil-and-good",
+      "name": "Protection from Evil and Good",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "protection-from-poison",
+      "name": "Protection from Poison",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "purify-food-and-drink",
+      "name": "Purify Food and Drink",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "raise-dead",
+      "name": "Raise Dead",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "ray-of-enfeeblement",
+      "name": "Ray of Enfeeblement",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "ray-of-frost",
+      "name": "Ray of Frost",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "regenerate",
+      "name": "Regenerate",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "ray-of-sickness",
+      "name": "Ray of Sickness",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "reincarnate",
+      "name": "Reincarnate",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "remove-curse",
+      "name": "Remove Curse",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "resilient-sphere",
+      "name": "Resilient Sphere",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "resistance",
+      "name": "Resistance",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "resurrection",
+      "name": "Resurrection",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "reverse-gravity",
+      "name": "Reverse Gravity",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "revivify",
+      "name": "Revivify",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "rope-trick",
+      "name": "Rope Trick",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sacred-flame",
+      "name": "Sacred Flame",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "sanctuary",
+      "name": "Sanctuary",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "scorching-ray",
+      "name": "Scorching Ray",
+      "level": 2,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "scrying",
+      "name": "Scrying",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "searing-smite",
+      "name": "Searing Smite",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "secret-chest",
+      "name": "Secret Chest",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "see-invisibility",
+      "name": "See Invisibility",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "seeming",
+      "name": "Seeming",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sending",
+      "name": "Sending",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sequester",
+      "name": "Sequester",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "shapechange",
+      "name": "Shapechange",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "shatter",
+      "name": "Shatter",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "shield",
+      "name": "Shield",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "shield-of-faith",
+      "name": "Shield of Faith",
+      "level": 1,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "shillelagh",
+      "name": "Shillelagh",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "shining-smite",
+      "name": "Shining Smite",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "shock",
+      "name": "Shocking Grasp",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "silence",
+      "name": "Silence",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "silent-image",
+      "name": "Silent Image",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "simulacrum",
+      "name": "Simulacrum",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sleep",
+      "name": "Sleep",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sleet-storm",
+      "name": "Sleet Storm",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "slow",
+      "name": "Slow",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sorcerous-burst",
+      "name": "Sorcerous Burst",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "spare-the-dying",
+      "name": "Spare the Dying",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "speak-with-animals",
+      "name": "Speak with Animals",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "speak-with-dead",
+      "name": "Speak with Dead",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "speak-with-plants",
+      "name": "Speak with Plants",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "spider-climb",
+      "name": "Spider Climb",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "spike-growth",
+      "name": "Spike Growth",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "spirit-guardians",
+      "name": "Spirit Guardians",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "spiritual-weapon",
+      "name": "Spiritual Weapon",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "starry-wisp",
+      "name": "Starry Wisp",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "stinking-cloud",
+      "name": "Stinking Cloud",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "stone-shape",
+      "name": "Stone Shape",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "stoneskin",
+      "name": "Stoneskin",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "storm-of-vengeance",
+      "name": "Storm of Vengeance",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "suggestion",
+      "name": "Suggestion",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "summon-dragon",
+      "name": "Summon Dragon",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sunbeam",
+      "name": "Sunbeam",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "sunburst",
+      "name": "Sunburst",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "symbol",
+      "name": "Symbol",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "telekinesis",
+      "name": "Telekinesis",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "telepathic-bond",
+      "name": "Telepathic Bond",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "teleport",
+      "name": "Teleport",
+      "level": 7,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "teleportation-circle",
+      "name": "Teleportation Circle",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "thaumaturgy",
+      "name": "Thaumaturgy",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "thunderwave",
+      "name": "Thunderwave",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "time-stop",
+      "name": "Time Stop",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "tiny-hut",
+      "name": "Tiny Hut",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "tongues",
+      "name": "Tongues",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "transport-via-plants",
+      "name": "Transport via Plants",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "tree-stride",
+      "name": "Tree Stride",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "true-polymorph",
+      "name": "True Polymorph",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "true-resurrection",
+      "name": "True Resurrection",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "true-seeing",
+      "name": "True Seeing",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "true-strike",
+      "name": "True Strike",
+      "level": 0,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "tsunami",
+      "name": "Tsunami",
+      "level": 8,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "unseen-servant",
+      "name": "Unseen Servant",
+      "level": 1,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "vampiric-touch",
+      "name": "Vampiric Touch",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "vicious-mockery",
+      "name": "Vicious Mockery",
+      "level": 0,
+      "mode": "automatic",
+      "castingRoute": "passed",
+      "effectsVerified": "supported single-encounter effect only"
+    },
+    {
+      "id": "vitriolic-sphere",
+      "name": "Vitriolic Sphere",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wall-of-fire",
+      "name": "Wall of Fire",
+      "level": 4,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wall-of-force",
+      "name": "Wall of Force",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wall-of-ice",
+      "name": "Wall of Ice",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wall-of-stone",
+      "name": "Wall of Stone",
+      "level": 5,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wall-of-thorns",
+      "name": "Wall of Thorns",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "warding-bond",
+      "name": "Warding Bond",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "water-breathing",
+      "name": "Water Breathing",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "water-walk",
+      "name": "Water Walk",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "web",
+      "name": "Web",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "weird",
+      "name": "Weird",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wind-walk",
+      "name": "Wind Walk",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wind-wall",
+      "name": "Wind Wall",
+      "level": 3,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "wish",
+      "name": "Wish",
+      "level": 9,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "word-of-recall",
+      "name": "Word of Recall",
+      "level": 6,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    },
+    {
+      "id": "zone-of-truth",
+      "name": "Zone of Truth",
+      "level": 2,
+      "mode": "dm",
+      "castingRoute": "passed",
+      "effectsVerified": "DM adjudication; spell-specific mechanics not automated"
+    }
+  ]
+}

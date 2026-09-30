@@ -1,0 +1,17 @@
+import React,{useState} from 'react';
+import {View,Text,TextInput,StyleSheet} from 'react-native';
+import {fonts,colors} from './theme';
+import {knownSpells,spellMode} from './spellRules';
+import {spellSlots,slotUsed} from './spellOptions';
+export default function MagicPanel({hero,game}){
+ const [query,setQuery]=useState('');const spells=knownSpells(hero);if(!spells.length)return null;
+ return <View style={s.panel}><Text style={s.heading}>Spell reference</Text>
+ <Text style={s.caption}>{spellSlots(hero).flatMap((count,i)=>count?[`Level ${i+1}: ${Math.max(0,count-slotUsed(game,i+1))}/${count}`]:[]).join(' · ')||'No spell slots'}</Text>
+ <Text style={s.caption}>Cast through Send to DM: “I cast Cure Wounds on myself.” Name a slot for upcasting; otherwise the lowest available slot is used. The game checks recorded gear, resources and target conditions. Untracked material requirements may need clarification from you.</Text>
+ {!!game.concentration&&<Text style={s.text}>Concentrating: {game.concentration.id}. Send “End concentration” to stop.</Text>}
+ {!!game.pendingSpell&&<><Text style={s.heading}>Awaiting a DM ruling: {game.pendingSpell.id}</Text><Text style={s.text}>{game.pendingSpell.intent}</Text><Text style={s.caption}>No resources spent yet. Send “Cancel spell” or ask the AI to resolve the ruling. You can also record an outcome using “DM ruling: [outcome]; damage=0; selfDamage=0; healing=0; temporaryHP=0”. Other world effects stay in the written ruling.</Text></>}
+ <TextInput accessibilityLabel="Search spell reference" value={query} onChangeText={setQuery} placeholder="Search to read a spell’s description" placeholderTextColor="#aab3c7" style={s.input}/>
+ {spells.filter(s=>s.name.toLowerCase().includes(query.toLowerCase())).map(spell=><View key={spell.id}><Text style={s.heading}>{spell.name}</Text><Text style={s.caption}>{spell.castingTime} · {spell.range} · {spell.duration}{spell.concentration?' · Concentration':''}</Text><Text style={s.text}>Cost: {spell.level===0?'Cantrip — no spell slot':`One level ${spell.level} or higher spell slot`}{spell.ritual?' · Ritual option: no slot, 10 extra minutes':''}. Components: {spell.components}{spell.material?` — ${spell.material}`:''}</Text><Text style={s.text}>{spell.description.replace(/[*_]/g,'')}</Text><Text style={s.caption}>{spell.higherLevel??''} {spellMode(spell.id)==='automatic'?'Supported targets use calculated effects; other situations go to the Dungeon Master.':'The Dungeon Master resolves this spell using its rules.'}</Text></View>)}
+ </View>;
+}
+const s=StyleSheet.create({panel:{backgroundColor:'rgba(14,18,28,.9)',borderWidth:1,borderColor:'rgba(111,208,196,.3)',padding:18,borderRadius:4,marginVertical:16},heading:{fontFamily:fonts.display,color:'#9fe3d8',fontSize:18,fontWeight:'700',letterSpacing:.8,marginVertical:12},text:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:16.5,lineHeight:26},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginVertical:10},button:{backgroundColor:'#1a202d',borderColor:'rgba(201,164,92,.35)',borderWidth:1,borderRadius:3,padding:13,minHeight:48,marginTop:8},active:{borderColor:colors.gold,backgroundColor:'rgba(58,46,26,.92)'},input:{fontFamily:fonts.ui,color:'#f5efe1',backgroundColor:'rgba(4,6,10,.75)',fontSize:16,padding:13,borderWidth:1,borderColor:'rgba(111,208,196,.4)',borderRadius:3,marginVertical:8,minHeight:48},row:{flexDirection:'row',flexWrap:'wrap',gap:8}});

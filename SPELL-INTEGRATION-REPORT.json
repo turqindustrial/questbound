@@ -1,0 +1,2378 @@
+{
+  "scope": "339 catalog handoffs, costs, ruling commits and saves; not full spell-effect certification",
+  "spells": [
+    {
+      "id": "acid-arrow",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "acid-splash",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "aid",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "alarm",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "alter-self",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "animal-friendship",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "animal-messenger",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "animal-shapes",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "animate-dead",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "animate-objects",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "antilife-shell",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "antimagic-field",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "antipathysympathy",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "arcane-eye",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "arcane-hand",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "arcane-lock",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "arcane-sword",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "arcanists-magic-aura",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "astral-projection",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "augury",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "aura-of-life",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "awaken",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "bane",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "banishment",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "barkskin",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "beacon-of-hope",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "befuddlement",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "bestow-curse",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "black-tentacles",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "blade-barrier",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "bless",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "blight",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "blindnessdeafness",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "blink",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "blur",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "burning-hands",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "call-lightning",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "calm-emotions",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "chain-lightning",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "charm-monster",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "charm-person",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "chill-touch",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "chromatic-orb",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "circle-of-death",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "clairvoyance",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "clone",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "cloudkill",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "color-spray",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "command",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "commune",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "commune-with-nature",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "comprehend-languages",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "compulsion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "cone-of-cold",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "confusion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "conjure-animals",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "conjure-celestial",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "conjure-elemental",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "conjure-fey",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "conjure-minor-elementals",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "conjure-woodland-beings",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "contact-other-plane",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "contagion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "contingency",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "continual-flame",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "control-water",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "control-weather",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "counterspell",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "create-food-and-water",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "create-or-destroy-water",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "create-undead",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "creation",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "cure",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dancing-lights",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "darkness",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "darkvision",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "daylight",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "death-ward",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "delayed-blast-fireball",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "demiplane",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "detect-evil-and-good",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "detect-magic",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "detect-poison-and-disease",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "detect-thoughts",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dimension-door",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "disguise-self",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "disintegrate",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dispel-evil-and-good",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dispel-magic",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dissonant-whispers",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "divination",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "divine-favor",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "divine-smite",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "divine-word",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dominate-beast",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dominate-monster",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dominate-person",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dragons-breath",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "dream",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "druidcraft",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "earthquake",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "blast",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "elementalism",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "enhance-ability",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "enlargereduce",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "ensnaring-strike",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "entangle",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "enthrall",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "etherealness",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "expeditious-retreat",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "eyebite",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fabricate",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "faerie-fire",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "faithful-hound",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "false-life",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fear",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "feather-fall",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "find-familiar",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "find-steed",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "find-the-path",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "find-traps",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "finger-of-death",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fireball",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fire-bolt",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fire-shield",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fire-storm",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "flame-blade",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "flame-strike",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "flaming-sphere",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "flesh-to-stone",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "floating-disk",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fly",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "fog-cloud",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "forbiddance",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "forcecage",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "foresight",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "freedom-of-movement",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "freezing-sphere",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "gaseous-form",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "gate",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "geas",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "gentle-repose",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "giant-insect",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "glibness",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "globe-of-invulnerability",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "glyph-of-warding",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "goodberry",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "grease",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "greater-invisibility",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "greater-restoration",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "guardian-of-faith",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "guards-and-wards",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "guidance",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "guiding-bolt",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "gust-of-wind",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hallow",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hallucinatory-terrain",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "harm",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "haste",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "heal",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "healing-word",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "heat-metal",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hellish-rebuke",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "heroes-feast",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "heroism",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hex",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hideous-laughter",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hold-monster",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hold-person",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "holy-aura",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hunters-mark",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "hypnotic-pattern",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "ice-knife",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "ice-storm",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "identify",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "illusory-script",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "imprisonment",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "incendiary-cloud",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "inflict-wounds",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "insect-plague",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "instant-summons",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "irresistible-dance",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "invisibility",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "jump",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "knock",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "legend-lore",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "lesser-restoration",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "levitate",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "light",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "lightning-bolt",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "locate-animals-or-plants",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "locate-creature",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "locate-object",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "longstrider",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mage-armor",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mage-hand",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "magic-circle",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "magic-jar",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "missile",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "magic-mouth",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "magic-weapon",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "magnificent-mansion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "major-image",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mass-cure-wounds",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mass-heal",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mass-healing-word",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mass-suggestion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "maze",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "meld-into-stone",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mending",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "message",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "meteor-swarm",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mind-blank",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mind-spike",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "minor-illusion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mirage-arcane",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mirror-image",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "mislead",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "misty-step",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "modify-memory",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "moonbeam",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "move-earth",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "nondetection",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "passwall",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "pass-without-trace",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "phantasmal-force",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "phantasmal-killer",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "phantom-steed",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "planar-ally",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "planar-binding",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "plane-shift",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "plant-growth",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "poison-spray",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "polymorph",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "power-word-heal",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "power-word-kill",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "power-word-stun",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "prayer-of-healing",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "prestidigitation",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "prismatic-spray",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "prismatic-wall",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "private-sanctum",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "produce-flame",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "programmed-illusion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "project-image",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "protection-from-energy",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "protection-from-evil-and-good",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "protection-from-poison",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "purify-food-and-drink",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "raise-dead",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "ray-of-enfeeblement",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "ray-of-frost",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "regenerate",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "ray-of-sickness",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "reincarnate",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "remove-curse",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "resilient-sphere",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "resistance",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "resurrection",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "reverse-gravity",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "revivify",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "rope-trick",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sacred-flame",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sanctuary",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "scorching-ray",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "scrying",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "searing-smite",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "secret-chest",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "see-invisibility",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "seeming",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sending",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sequester",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shapechange",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shatter",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shield",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shield-of-faith",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shillelagh",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shining-smite",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "shock",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "silence",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "silent-image",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "simulacrum",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sleep",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sleet-storm",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "slow",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sorcerous-burst",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "spare-the-dying",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "speak-with-animals",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "speak-with-dead",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "speak-with-plants",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "spider-climb",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "spike-growth",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "spirit-guardians",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "spiritual-weapon",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "starry-wisp",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "stinking-cloud",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "stone-shape",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "stoneskin",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "storm-of-vengeance",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "suggestion",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "summon-dragon",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sunbeam",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "sunburst",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "symbol",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "telekinesis",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "telepathic-bond",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "teleport",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "teleportation-circle",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "thaumaturgy",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "thunderwave",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "time-stop",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "tiny-hut",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "tongues",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "transport-via-plants",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "tree-stride",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "true-polymorph",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "true-resurrection",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "true-seeing",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "true-strike",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "tsunami",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "unseen-servant",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "vampiric-touch",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "vicious-mockery",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "vitriolic-sphere",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wall-of-fire",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wall-of-force",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wall-of-ice",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wall-of-stone",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wall-of-thorns",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "warding-bond",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "water-breathing",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "water-walk",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "web",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "weird",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wind-walk",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wind-wall",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "wish",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "word-of-recall",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    },
+    {
+      "id": "zone-of-truth",
+      "descriptionProvided": true,
+      "dmHandoff": true,
+      "commitAndSave": true,
+      "fullEffectVerified": false
+    }
+  ]
+}

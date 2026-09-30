@@ -1,0 +1,23 @@
+import React,{useState} from 'react';
+import {View,Text,Pressable,StyleSheet} from 'react-native';
+import {fonts,colors} from './theme';
+import featureCatalog from './classFeatureCatalog.json';
+import {subclassOptions} from './subclassOptions';
+
+const automaticNames=['Second Wind','Lay on Hands','Extra Attack','Improved Critical','Superior Critical','Draconic Resilience','Disciple of Life','Supreme Healing','Dark One\'s Blessing','Life Domain Spells','Oath of Devotion Spells','Draconic Spells','Fiend Spells'];
+export default function FeaturePanel({hero}) {
+  const [open,setOpen]=useState(null);
+  const features=featureCatalog.filter(f=>f.class===hero.class && f.level<=hero.level && (!f.subclass || f.subclass===hero.plannedSubclass));
+  return <View>
+    <Text style={s.heading}>Abilities at level {hero.level}</Text>
+    {hero.level>=3&&!!hero.plannedSubclass&&<><Text style={s.name}>{hero.plannedSubclass}</Text><Text style={s.text}>{subclassOptions[hero.class]?.[hero.plannedSubclass]??'Previously saved subclass.'}</Text></>}
+    {!features.length && <Text style={s.caption}>Your level, hit points, proficiency and spell slots are all tracked for you.</Text>}
+    {features.map((feature,index)=><View key={`${feature.name}-${feature.level}`} style={s.card}>
+      <Pressable accessibilityRole="button" accessibilityState={{expanded:open===index}} onPress={()=>setOpen(open===index?null:index)} style={s.button}><Text style={s.name}>{feature.name} · Level {feature.level}</Text></Pressable>
+      <Text style={[s.caption,automaticNames.includes(feature.name)&&{color:colors.gold}]}>{automaticNames.includes(feature.name)?'✦ Applied automatically in combat':'Played through the Dungeon Master: describe using it in your action.'}</Text>
+      {open===index&&<Text style={s.text}>{feature.description.replace(/[*_]/g,'')}</Text>}
+    </View>)}
+    {hero.level>=3 && !features.some(f=>f.subclass) && <Text style={s.caption}>Your subclass is recorded on your sheet. Describe its powers to the Dungeon Master when you use them.</Text>}
+  </View>;
+}
+const s=StyleSheet.create({heading:{fontFamily:fonts.display,color:colors.gold,fontSize:19,fontWeight:'700',letterSpacing:1.2,marginVertical:16},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:16,fontWeight:'700',letterSpacing:.6},text:{fontFamily:fonts.ui,color:'#dde1ea',fontSize:14,lineHeight:23,marginVertical:8},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:20,marginVertical:8},card:{padding:14,backgroundColor:'rgba(255,236,190,.03)',borderWidth:1,borderColor:'rgba(201,164,92,.2)',borderRadius:3,marginVertical:6},button:{minHeight:44,justifyContent:'center'}});

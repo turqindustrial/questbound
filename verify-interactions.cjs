@@ -1,0 +1,23 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+let raw=null,fail=false;
+const AsyncStorage={getItem:async()=>raw,setItem:async(k,v)=>{if(fail)throw Error('Disk failure');raw=v;}};
+const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','npcRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','dmCommands.js','dmContext.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const open=()=>vm.runInNewContext(source+'\n({earnedGold,interactionOptions,dmChoices,newAdventure,adventureStep,journalForGame,addJournalNote,validJournal,adventureSnapshot,saveAdventure,loadAdventure,equipmentFor})',{AsyncStorage});
+(async()=>{
+ const r=open(),hero={name:'Interaction tester',class:'Fighter',level:1,scores:{Strength:16,Dexterity:14,Constitution:14,Intelligence:12,Wisdom:12,Charisma:10}};hero.equipment=r.equipmentFor(hero);
+ let game=r.newAdventure(hero),health=null;
+ const act=action=>{const result=r.adventureStep(game,health,hero,action,()=>0);assert.equal(result.error,undefined);game=result.game;health=result.health;};
+ assert.equal(r.interactionOptions(game).length,2);act('ask-rumors');act('share-supper');assert.equal(r.interactionOptions(game).length,0);
+ assert.ok(r.adventureStep(game,health,hero,'ask-rumors').error);assert.ok(r.adventureStep(game,health,hero,'secure-ropes').error);
+ act('listen');assert.ok(r.dmChoices(hero,game).some(c=>c.id==='secure-ropes'));act('secure-ropes');assert.equal(r.earnedGold(game),3);
+ assert.ok(r.adventureStep(game,health,hero,'secure-ropes').error);act({type:'travel',destination:'tower'});act('read-logbook');
+ assert.equal(game.map.clue,false);assert.equal(game.campaign.interactions.length,4);
+ await r.saveAdventure(r.adventureSnapshot(hero,game,health,true),hero);game=(await open().loadAdventure(hero)).game;assert.equal(game.campaign.interactions.length,4);
+ game=r.newAdventure(hero,game);assert.equal(r.interactionOptions(game).length,0);assert.equal(r.earnedGold(game),3);
+ const fresh=r.newAdventure(hero);assert.equal(r.earnedGold(fresh),0);
+ assert.ok(r.adventureStep({...fresh,pendingSpell:{id:'test'}},null,hero,'share-supper').error);
+ assert.equal(r.interactionOptions({...game,stage:'combat'}).length,0);
+ await assert.rejects(r.saveAdventure(r.adventureSnapshot(hero,{...game,campaign:{...game.campaign,interactions:['fake']}},null,true),hero));
+ assert.ok(game.journal.entries.some(e=>e.title==='The last watch'));
+ console.log('Passed: four interactions, location/pending guards, one-time reward, journal, save/reload/replay, AI action choices, and invalid save rejection.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

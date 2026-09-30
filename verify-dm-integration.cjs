@@ -1,0 +1,28 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','npcRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','dmCommands.js','dmContext.js','characterDraft.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const r=vm.runInNewContext(source+'\n({requestSpell,rollAttack,weaponAttacks,resolveRecruitment,recruitmentTargets,manageFollower,validFollowers,encounterFoe,npcScene,spellDefense,dungeonRooms,characterDraftContext,validateCharacterDraft,dmCommand,commitDmTurn,dmContext,newAdventure,adventureStep,validAdventure,adventureSnapshot,equipmentFor,spellCostOptions,combatBasics,spellLibrary,knownSpells})');
+const hero={name:'Test wizard',class:'Wizard',race:'Human',species:'Human',level:1,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:['detect-magic','burning-hands','acid-splash']};hero.equipment=r.equipmentFor(hero);
+const game=r.newAdventure(hero),health={current:8,temp:2};
+let command=r.dmCommand(hero,game,'I cast Detect Magic');assert.equal(command.action.request.forceDM,false);let result=r.adventureStep(game,health,hero,command.action,()=>0);assert.equal(result.game.concentration.id,'detect-magic');assert.equal(result.game.spellSlotsUsed[0],1);assert.ok(result.game.log.some(l=>l.includes('blue lantern')));
+command=r.dmCommand(hero,game,'I cast Detect Magic as a ritual');result=r.adventureStep(game,health,hero,command.action,()=>0);assert.equal(result.game.spellSlotsUsed,undefined);assert.equal(result.game.map.minutes,10);assert.equal(result.game.concentration.remaining,100);
+assert.ok(r.dmCommand(hero,{...game,castingConditions:{silenced:true}},'I cast Detect Magic').error);
+const combat={...game,stage:'combat'};command=r.dmCommand(hero,combat,'I cast Burning Hands toward the wisp');assert.equal(command.action.request.forceDM,false);result=r.adventureStep(combat,health,hero,command.action,()=>0);assert.equal(result.game.enemyHP,7);assert.equal(result.game.spellSlotsUsed[0],1);assert.ok(r.dmCommand(hero,{...combat,castingConditions:{targetDistance:16}},'I cast Burning Hands at the wisp').error);
+assert.ok(r.dmCommand(hero,combat,'I cast Burning Hands').error);
+const plan={ability:'Dexterity',dc:15,mode:'normal',reason:'Cross the slippery ledge',success:'You cross safely.',failure:'You slip from the low ledge.',damageCount:2,damageDie:6,damageOn:'failure'};
+result=r.commitDmTurn(hero,game,health,{type:'ai-check',check:plan},{question:'I cross the slippery ledge.',narration:'You test your footing.'},()=>0);assert.equal(result.health.current,8);assert.equal(result.health.temp,0);assert.ok(result.game.log[0].includes('Failure'));assert.ok(r.validAdventure(r.adventureSnapshot(hero,result.game,result.health,true),hero));
+const success=r.commitDmTurn(hero,game,health,{type:'ai-check',check:plan},{question:'I cross the ledge.',narration:'You test your footing.'},()=>0.99);assert.equal(success.health.current,8);assert.equal(success.health.temp,2);
+assert.ok(r.commitDmTurn(hero,game,health,{type:'ai-check',check:{...plan,damageCount:200}},{question:'Jump',narration:'Test'}).error);
+const report=[];
+for(const spell of r.spellLibrary){
+ const cls=spell.classes.find(c=>!['Artificer','Warlock'].includes(c))??spell.classes[0];const h={...hero,class:cls,level:20,spells:[spell.id],spellbook:[]};h.equipment=r.equipmentFor(h);if(cls==='Warlock'&&spell.level>=6)h.arcanum={[spell.level]:spell.id};
+ const g={...r.newAdventure(h),stage:'combat',map:{visited:['inn','bridge'],accepted:true,clue:false,peaceful:false,minutes:3}},cost=r.spellCostOptions(h,g,spell).find(v=>v!=='ritual');
+ const req={id:spell.id,slot:cost,intent:'I cast '+spell.name+' on an eligible target.',componentsConfirmed:true,forceDM:true};
+ const prepared=r.adventureStep(g,null,h,{type:'spell',request:req},()=>0.5);assert.equal(prepared.waiting,true,spell.name);const context=r.dmContext(h,prepared.game,prepared.health);assert.equal(context.pendingSpell.spell.description,spell.description);assert.ok(JSON.stringify({input:'Resolve the cast.',context}).length<64000,spell.name);
+ const ruling={decision:'cast',note:'Narrative effect adjudicated for integration test; no numeric effect claimed.',damage:0,selfDamage:0,healing:0,temporaryHP:0};
+ const resolved=r.commitDmTurn(h,prepared.game,prepared.health,{type:'ai-ruling',ruling},{question:'Resolve the cast.',narration:'The spell is resolved.'},()=>0.5);assert.equal(resolved.error,undefined,spell.name);assert.equal(resolved.game.pendingSpell,undefined);assert.ok(r.validAdventure(r.adventureSnapshot(h,resolved.game,resolved.health,true),h),spell.name);if(spell.level===0)assert.equal(resolved.game.spellSlotsUsed,undefined,spell.name);
+ report.push({id:spell.id,descriptionProvided:true,dmHandoff:true,commitAndSave:true,fullEffectVerified:false});
+}
+fs.writeFileSync('SPELL-INTEGRATION-REPORT.json',JSON.stringify({scope:'339 catalog handoffs, costs, ruling commits and saves; not full spell-effect certification',spells:report},null,2));
+console.log('Passed: Detect Magic self/ritual, Burning Hands direction/range/save/damage, hazard checks and damage, 339 full-description DM handoffs and committed/saveable rulings. Full effect semantics remain separately adjudicated.');
+module.exports=r;
+

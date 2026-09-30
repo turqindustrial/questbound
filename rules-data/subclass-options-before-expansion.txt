@@ -1,0 +1,18 @@
+export const subclassOptions = {
+  Artificer: {Alchemist:'Experiment with magical mixtures and restorative elixirs.',Armorer:'Make enchanted armor the center of your adventuring craft.',Artillerist:'Build magical artillery to support your party in battle.','Battle Smith':'Pair martial invention with a constructed companion.',Cartographer:'Use magical maps to guide and protect fellow explorers.'},
+  Barbarian:{'Path of the Berserker':'Channel your fury into relentless close combat.'},
+  Bard:{'College of Lore':'Gather knowledge and use wit and magic to influence a scene.'},
+  Cleric:{'Life Domain':'Devote your divine magic to healing and protecting life.'},
+  Druid:{'Circle of the Land':'Draw deeper magic from the landscapes around you.'},
+  Fighter:{Champion:'Refine athletic prowess and reliable weapon skills.'},
+  Monk:{'Warrior of the Open Hand':'Master precise unarmed techniques and control the flow of a fight.'},
+  Paladin:{'Oath of Devotion':'Commit yourself to honesty, courage, and protecting others.'},
+  Ranger:{Hunter:'Study dangerous prey and adapt your combat techniques to the hunt.'},
+  Rogue:{Thief:'Develop agility and a talent for making use of objects and opportunities.'},
+  Sorcerer:{'Draconic Sorcery':'Develop the draconic power behind your innate magic.'},
+  Warlock:{'Fiend Patron':'Explore a pact with a powerful being from the Lower Planes.'},
+  Wizard:{Evoker:'Specialize in shaping magical energy into potent spell effects.'},
+};
+export function validPlannedSubclass(hero) {
+  return hero.plannedSubclass===undefined || hero.plannedSubclass==='' || Object.hasOwn(subclassOptions[hero.class]??{},hero.plannedSubclass);
+}

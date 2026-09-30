@@ -1,0 +1,70 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Private AI service configuration
+.env
+.env.*
+!.env.example
+
+# Locally generated campaign art and prompt metadata
+.questbound-art/
+.questbound-phone-session.json
+dist-phone/
+
+# Local diagnostics, shared-table saves and the encrypted launcher key
+.questbound-diagnostics.jsonl*
+.questbound-table/
+.questbound-key.dpapi
+.questbound-model
+.questbound-logs/
+.questbound-share-session.json
+
+# Game builds (the launcher builds dist-phone locally)
+dist-*/
+
+# Personal and working material that stays on this PC
+project-memory/
+*-conversation-backup-*.zip
+PROGRESS-NOTE.md
+assets/art/
+LIVE-*-REPORT.json
+AI-CHARACTER-*.json

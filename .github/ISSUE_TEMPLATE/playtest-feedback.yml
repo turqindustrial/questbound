@@ -1,0 +1,45 @@
+name: Playtest feedback
+description: Tell us how a play session went — what was fun, confusing, slow or broken.
+title: "[Playtest] "
+labels: ["playtest"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for playing Questbound! Short notes are perfect. Please don't paste invite codes, save codes or anything private here — this page is public.
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: e.g. iPhone 15, Safari · Windows laptop, Chrome
+    validations:
+      required: true
+  - type: dropdown
+    id: played
+    attributes:
+      label: What did you play?
+      multiple: true
+      options:
+        - Created a character
+        - Random hostile encounter
+        - A story opening
+        - Talked with characters
+        - Travelled / used the map
+        - Levelled up
+        - Shared table (multiplayer)
+  - type: textarea
+    id: highlights
+    attributes:
+      label: What worked well?
+  - type: textarea
+    id: problems
+    attributes:
+      label: What was confusing, slow, too loud/quiet, or broken?
+      description: Say what you did and what happened. Screenshots help.
+  - type: dropdown
+    id: again
+    attributes:
+      label: Would you play another session?
+      options:
+        - "Yes"
+        - Maybe
+        - "No"
