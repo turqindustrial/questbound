@@ -220,6 +220,10 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=unveil]{background:#030405 !important;animation:qb-unveil 1.1s ease .1s both;}
 @keyframes qb-unveil{from{opacity:1;}to{opacity:0;}}
 [data-qb=art-img]{animation:qb-fade .9s ease both;}
+[data-qb=burst-text]{animation:qb-bursttext 1s cubic-bezier(.2,.8,.2,1) both;}
+@keyframes qb-bursttext{0%{opacity:0;transform:scale(1.7);}18%{opacity:1;transform:scale(1);}70%{opacity:1;}100%{opacity:0;transform:scale(.97) translate3d(0,-8px,0);}}
+[data-qb=floater]{animation:qb-float 1.35s cubic-bezier(.2,.8,.2,1) both;}
+@keyframes qb-float{0%{opacity:0;transform:translate3d(0,6px,0) scale(.7);}15%{opacity:1;transform:translate3d(0,0,0) scale(1.15);}30%{transform:scale(1);}100%{opacity:0;transform:translate3d(0,-30px,0);}}
 [data-qb=art-wait]{background:linear-gradient(100deg,#0f141e 30%,#1d2536 50%,#0f141e 70%) !important;background-size:220% 100% !important;animation:qb-shimmer 1.8s linear infinite;}
 /* Low HP: a red ring pulses around the hero's portrait. */
 [data-qb=low-ring]{border-radius:50%;animation:qb-lowring 1.1s ease-in-out infinite;}

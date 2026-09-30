@@ -3,7 +3,7 @@ import {View,Text,Pressable,Modal,StyleSheet,useWindowDimensions} from 'react-na
 import {CombatHealthButton} from './EncounterOverlay';
 import {FullscreenToggle} from './DisplayControls';
 import {AudioToggle} from './AudioControls';
-import {GameButton,StatBar,IconButton,Crest} from './ui';
+import {GameButton,StatBar,IconButton,Crest,useCountTo,HpFloaters} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
@@ -16,7 +16,7 @@ import {fonts,colors,type} from './theme';
 // The in-game heads-up display: always on screen, never scrolls away. HP follows the story as a turn plays out.
 export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,feedback={}}){
  const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),shown=useShownHp();
- const hp=shown.hero??health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3;
+ const hp=shown.hero??health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3,hpCount=useCountTo(hp);
  // Labels and the wordmark appear only when there is room, so every control stays on screen at any width.
  const {width,height}=useWindowDimensions(),wordmark=wide&&width>=1100,short=height<520,roomy=wide&&width>=900;
  const go=target=>{setMenu(false);playSound('page');onNavigate(target);};
@@ -38,7 +38,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
     <View style={s.hpRow}>
      <Icon name="heart" size={wide?14:12} color={low?colors.bloodBright:colors.heal}/>
      <View style={{flex:1}}><StatBar value={hp} maximum={maxHp} height={wide?10:8}/></View>
-     <Text style={[s.hp,low&&{color:colors.bloodBright}]}>{hp}<Text style={s.hpMax}>/{maxHp}</Text>{temp>0?<Text style={s.temp}> +{temp}</Text>:null}</Text>
+     <View><Text style={[s.hp,low&&{color:colors.bloodBright}]}>{hpCount}<Text style={s.hpMax}>/{maxHp}</Text>{temp>0?<Text style={s.temp}> +{temp}</Text>:null}</Text><HpFloaters value={hp}/></View>
     </View>
    </View>
   </Pressable>

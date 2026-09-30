@@ -9,12 +9,12 @@ import {fonts,colors} from './theme';
 // can be tapped away and leaves by itself after a few seconds.
 const web=Platform.OS==='web';
 export default function CinematicLayer({levelReady=false}){
- const [flash,setFlash]=useState(null),[banner,setBanner]=useState(null),[finale,setFinale]=useState(null),[area,setArea]=useState(null),timers=useRef([]),reduce=useRef(false),{width}=useWindowDimensions();
+ const [flash,setFlash]=useState(null),[banner,setBanner]=useState(null),[finale,setFinale]=useState(null),[area,setArea]=useState(null),[burst,setBurst]=useState(null),timers=useRef([]),reduce=useRef(false),{width}=useWindowDimensions();
  useEffect(()=>{AccessibilityInfo.isReduceMotionEnabled().then(v=>{reduce.current=v;}).catch(()=>{});const t=timers.current;return()=>t.forEach(clearTimeout);},[]);
  const later=(fn,ms)=>{timers.current.push(setTimeout(fn,ms));};
  const handler=useCallback(event=>{
   if(!web)return;
-  if(['hurt','crit','heal'].includes(event.kind)){setFlash({kind:event.kind,id:event.id});later(()=>setFlash(f=>f?.id===event.id?null:f),1000);return;}
+  if(['hurt','crit','heal'].includes(event.kind)){setFlash({kind:event.kind,id:event.id});later(()=>setFlash(f=>f?.id===event.id?null:f),1000);if(event.kind==='crit'){setBurst({id:event.id});later(()=>setBurst(b=>b?.id===event.id?null:b),1000);}return;}
   // Arriving somewhere (or a new tale beginning) names the place in large letters, then fades; it never takes input.
   if(event.kind==='area'){playSound('arrive');setArea({...event});later(()=>setArea(a=>a?.id===event.id?null:a),3700);return;}
   if(event.kind==='round'){playSound('round');setBanner({id:event.id,title:'Round '+event.round,sub:event.sub??'Roll for it'});later(()=>setBanner(b=>b?.id===event.id?null:b),1950);return;}
@@ -26,6 +26,7 @@ export default function CinematicLayer({levelReady=false}){
  const card=finale&&{victory:{icon:'crown',over:'The dust settles',title:'Victory',sub:finale.sub},complete:{icon:'star',over:'Your tale is told',title:'Adventure complete',sub:finale.sub},defeat:{icon:'skull',over:'Darkness takes you',title:'Defeated',sub:finale.sub},levelup:{icon:'star',over:'Your legend grows',title:'Level '+finale.level,sub:finale.sub}}[finale.kind];
  return <View style={[StyleSheet.absoluteFill,s.layer,{pointerEvents:'box-none'}]}>
   {!!flash&&<View key={flash.id} dataSet={{qb:'flash-'+flash.kind}} style={[StyleSheet.absoluteFill,s.none]}/>}
+  {!!burst&&<View key={'burst'+burst.id} style={[StyleSheet.absoluteFill,s.none,s.center]}><Text dataSet={{qb:'burst-text'}} style={[s.burst2,{fontSize:fit('Critical hit!',width,60,.75)}]}>Critical hit!</Text></View>}
   {!!banner&&<View key={banner.id} style={[StyleSheet.absoluteFill,s.none,s.center]} accessibilityLiveRegion="polite">
    <View dataSet={{qb:'cine-band'}} style={s.band}>
     <View dataSet={{qb:'cine-rule'}} style={s.bandRule}/>
@@ -60,6 +61,7 @@ export default function CinematicLayer({levelReady=false}){
 // Largest size (up to max) at which a title fits the screen width on one line, roughly.
 const fit=(text,width,max,em)=>Math.max(26,Math.min(max,Math.floor((width-48)/Math.max(4,String(text).length*em))));
 const s=StyleSheet.create({
+ burst2:{fontFamily:fonts.logo,fontWeight:'900',color:colors.goldBright,letterSpacing:2,textAlign:'center',...(web?{textShadow:'0 0 28px rgba(236,170,84,.9),0 3px 0 rgba(40,20,4,.9)'}:{})},
  area:{alignItems:'center',paddingHorizontal:40,paddingVertical:34,maxWidth:'100%'},
  areaOver:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:'#e2c890',textTransform:'uppercase',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
  areaTitle:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center',letterSpacing:3,marginTop:6},

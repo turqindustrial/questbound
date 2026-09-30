@@ -1,4 +1,4 @@
-import React from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {View,Text,Pressable,StyleSheet,Platform,useWindowDimensions} from 'react-native';
 import {fonts,colors,type} from './theme';
 import Icon from './Icon';
@@ -71,6 +71,27 @@ export function StatBar({value,maximum,kind='hp',height=10,style}){
   <View dataSet={{qb:tone}} style={[s.fill,{width:pct+'%',backgroundColor:kind==='enemy'?colors.blood:kind==='temp'?colors.arcane:kind==='gold'?colors.gold:pct<=30?colors.blood:colors.heal}]}/>
  </View>;
 }
+// A number that counts to its new value instead of jumping (HP readouts).
+export function useCountTo(value,duration=450){
+ const [shown,setShown]=useState(value),from=useRef(value),frame=useRef(null);
+ useEffect(()=>{
+  if(value==null||typeof requestAnimationFrame==='undefined'){setShown(value);return;}
+  const start=from.current??value,t0=Date.now();cancelAnimationFrame(frame.current);
+  const step=()=>{const p=Math.min(1,(Date.now()-t0)/duration),v=Math.round(start+(value-start)*(1-Math.pow(1-p,3)));from.current=v;setShown(v);if(p<1)frame.current=requestAnimationFrame(step);};
+  frame.current=requestAnimationFrame(step);return()=>cancelAnimationFrame(frame.current);
+ },[value]);
+ return shown;
+}
+// Damage and healing float up from an HP readout ("−7" in red, "+5" in green) whenever the value changes.
+export function HpFloaters({value,style}){
+ const [items,setItems]=useState([]),settled=useRef(value),pending=useRef(null),timers=useRef([]);
+ useEffect(()=>()=>{clearTimeout(pending.current);timers.current.forEach(clearTimeout);},[]);
+ // A value only counts once it has held for a moment, so an instant flip (a turn's result arriving just before its
+ // replay takes over the bars) never shows as a pair of numbers.
+ useEffect(()=>{clearTimeout(pending.current);pending.current=setTimeout(()=>{const previous=settled.current;settled.current=value;if(previous==null||value==null||previous===value)return;
+  const id=Date.now()+Math.random();setItems(list=>[...list.slice(-2),{id,delta:value-previous}]);timers.current.push(setTimeout(()=>setItems(list=>list.filter(i=>i.id!==id)),1400));},90);},[value]);
+ return <View style={[s.floaters,{pointerEvents:'none'},style]}>{items.map(i=><Text key={i.id} dataSet={{qb:'floater'}} style={[s.floater,{color:i.delta<0?colors.bloodBright:colors.heal}]}>{i.delta<0?'−':'+'}{Math.abs(i.delta)}</Text>)}</View>;
+}
 // An on/off switch with a label and an optional description underneath.
 export function Toggle({value,onChange,label,description,style}){
  return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value}} accessibilityLabel={label} onPress={()=>onChange(!value)} style={[s.toggleRow,style]}>
@@ -114,6 +135,7 @@ const s=StyleSheet.create({
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
  track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(201,164,92,.35)',overflow:'hidden'},
  fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:'rgba(255,236,190,.4)'},
+ floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:'0 2px 6px rgba(0,0,0,.9)'}:{})},
  toggleRow:{flexDirection:'row',alignItems:'center',gap:14,minHeight:48,paddingVertical:4},toggleLabel:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.parchment},
  toggleDescription:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,marginTop:2},
  track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(6,8,12,.7)',justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},
