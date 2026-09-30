@@ -182,7 +182,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
   const actionBar=short?row([...actionChips,...extraChips],false,actionScroll):<>{row(extraChips,false)}{row(actionChips,!swipe,actionScroll)}</>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
-  const composer=<TextInput ref={inputRef} dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':'Describe your next move…'} placeholderTextColor="#7f889c" style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9}]}/>;
+  const composer=<TextInput ref={inputRef} dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':game.stage==='combat'||game.npcCombat?.active?(compact?'Your move…':'Your move: attack, cast a spell, dodge, or try something bold…'):'Describe your next move…'} placeholderTextColor="#7f889c" style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9}]}/>;
   const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting?'Waiting…':'Send';
   const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color="#2a1a07"/>:<Icon name="send" size={20} color="#2a1a07" strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color="#2a1a07" strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>
@@ -195,8 +195,13 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>The Dungeon Master</Text></View>
       {statusPill}
     </View>}
-    {!connected&&checked&&<Text style={[s.caption,{marginBottom:6},unpaired&&{color:colors.gold}]}>{status}</Text>}
-    {unpaired&&<Pressable accessibilityRole="button" onPress={()=>globalThis.location?.reload()} dataSet={{qb:'btn-primary'}} style={[s.button,{alignSelf:'flex-start',marginBottom:8}]}><Text style={s.buttonText}>Reload and rejoin</Text></Pressable>}
+    {!connected&&checked&&<View accessibilityLiveRegion="polite" style={[s.notice,unpaired&&{borderColor:'rgba(232,199,123,.55)'}]}>
+      <Icon name={unpaired?'key':'wait'} size={16} color={unpaired?colors.gold:colors.muted}/>
+      <View style={{flex:1,minWidth:0,gap:8}}>
+        <PlainText style={[s.noticeText,unpaired&&{color:'#f0dfb6'}]}>{status}</PlainText>
+        {unpaired&&<Pressable accessibilityRole="button" onPress={()=>globalThis.location?.reload()} dataSet={{qb:'btn-primary'}} style={[s.button,{alignSelf:'flex-start',minHeight:40,paddingVertical:8}]}><View style={s.sendRow}><Icon name="key" size={15} color="#2a1a07"/><PlainText style={s.buttonText}>Reload and rejoin</PlainText></View></Pressable>}
+      </View>
+    </View>}
     <TurnPlayback fill names={names} avatarFor={avatarFor} sceneFor={sceneFor} openingScene={!person&&game.story?locationArtSubject(game):null} intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
       <View style={s.tipsHead}><Icon name="star" size={14} color={colors.gold}/><PlainText style={s.tipsTitle}>How to play</PlainText></View>
       <View style={s.tipRow}><Icon name="swords" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an action below{compact?'':' (or press its number key)'}, or type anything you want to do or say.</PlainText></View>
@@ -243,6 +248,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  fillHeading:{fontSize:18},fillBack:{minWidth:36,minHeight:44,justifyContent:'center',alignItems:'center'},
  fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:'#cdbf9f',fontSize:14,marginBottom:3},
  effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12,flexShrink:1},
+ notice:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12,marginBottom:8,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.3)',backgroundColor:'rgba(14,18,27,.85)'},noticeText:{fontFamily:fonts.ui,fontSize:13,lineHeight:20,color:colors.muted},
  errorRow:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingVertical:8,paddingHorizontal:10,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.35)',backgroundColor:'rgba(60,18,14,.5)'},
  sendRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},chipSpeak:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:4},
  dmMark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(232,199,123,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(58,46,26,.45)'},
