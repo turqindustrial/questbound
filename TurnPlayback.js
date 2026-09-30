@@ -144,7 +144,7 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
   <View style={s.fillBar}><View style={s.fillTitleRow}><Icon name={busy?'quill':playing?'d20':'journal'} size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
   <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onScroll={e=>{const n=e.nativeEvent,y=n.contentOffset.y;if(y+n.layoutMeasurement.height>=n.contentSize.height-80)follow.current=true;else if(y<lastY.current-2)follow.current=false;lastY.current=y;}} onContentSizeChange={()=>{if(!follow.current)return;scroll.current?.scrollToEnd({animated:settled.current&&!reduceMotion});settled.current=true;}}>
    {intro}
-   {!turn&&!!openingScene&&<ScenePlate subject={openingScene} over="Where your tale begins"/>}
+   {!!openingScene&&(!turn||turns[0]?.id===1)&&<ScenePlate subject={openingScene} over="Where your tale begins"/>}
    {!turn&&<Text style={s.opening}>{opening}</Text>}
    {turns.slice(0,-1).map(t=><View key={t.id} style={s.pastTurn}><Divider label={'Turn '+t.id}/>{t.events.map((e,i)=>row(t,e,i,false))}</View>)}
    {turn&&<View accessibilityLiveRegion="polite">{turns.length>1&&<Divider label={'Turn '+turn.id}/>}{turn.events.slice(0,count).map((e,i)=>row(turn,e,i,turn.id===animateId))}</View>}

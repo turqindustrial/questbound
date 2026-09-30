@@ -62,10 +62,10 @@ export default function CinematicLayer({levelReady=false}){
 // Largest size (up to max) at which a title fits the screen width on one line, roughly.
 const fit=(text,width,max,em)=>Math.max(26,Math.min(max,Math.floor((width-48)/Math.max(4,String(text).length*em))));
 const s=StyleSheet.create({
- burst2:{fontFamily:fonts.logo,fontWeight:'900',color:colors.goldBright,letterSpacing:2,textAlign:'center',...(web?{textShadow:'0 0 28px rgba(236,170,84,.9),0 3px 0 rgba(40,20,4,.9)'}:{})},
+ burst2:{fontFamily:fonts.display,fontWeight:'800',color:colors.goldBright,letterSpacing:2,textAlign:'center',...(web?{textShadow:'0 0 28px rgba(236,170,84,.9),0 3px 0 rgba(40,20,4,.9)'}:{})},
  area:{alignItems:'center',paddingHorizontal:40,paddingVertical:34,maxWidth:'100%'},
  areaOver:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:'#e2c890',textTransform:'uppercase',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
- areaTitle:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center',letterSpacing:3,marginTop:6},
+ areaTitle:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',letterSpacing:3,marginTop:6},
  areaRule:{flexDirection:'row',alignItems:'center',gap:10,width:280,maxWidth:'80%',marginVertical:10},areaLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
  areaSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,color:'#eadfc6',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
  layer:{zIndex:60},none:{pointerEvents:'none'},center:{alignItems:'center',justifyContent:'center'},
@@ -77,7 +77,7 @@ const s=StyleSheet.create({
  card:{alignItems:'center',paddingHorizontal:28,maxWidth:520},
  emblem:{width:76,height:76,borderRadius:38,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,10,6,.8)',marginBottom:14},
  over:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase'},
- title:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,letterSpacing:3,textAlign:'center',marginVertical:4},
+ title:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,letterSpacing:4,textAlign:'center',marginVertical:4},
  rule:{width:180,height:1,backgroundColor:'rgba(232,199,123,.7)',marginVertical:10},
  sub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:19,lineHeight:27,color:'#eadfc6',textAlign:'center'},
  reward:{flexDirection:'row',alignItems:'center',gap:8,marginTop:16,paddingHorizontal:16,paddingVertical:8,borderRadius:18,borderWidth:1,borderColor:'#fff0c4',backgroundColor:'#d9ae5f'},rewardText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#2a1a07',textTransform:'uppercase'},

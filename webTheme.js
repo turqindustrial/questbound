@@ -72,7 +72,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=title]{background:linear-gradient(180deg,#fff8e2 0%,#f5dc9c 38%,#c89642 62%,#f3d68f 82%,#fff0c4 100%);-webkit-background-clip:text;background-clip:text;color:transparent !important;
  filter:drop-shadow(0 2px 0 rgba(20,12,4,.9)) drop-shadow(0 0 28px rgba(236,170,84,.35));}
 /* Decorative capitals join some letter pairs; words other than the logo keep their letters separate. */
-[data-lig=off]{font-variant-ligatures:none;font-feature-settings:"liga" 0,"dlig" 0,"clig" 0;}
+[data-lig=off]{font-variant-ligatures:none;font-feature-settings:"liga" 0,"dlig" 0,"clig" 0,"calt" 0,"hlig" 0,"salt" 0;}
 [data-qb=title][data-glow=on]{animation:qb-breathe 6s ease-in-out infinite;}
 @keyframes qb-breathe{0%,100%{filter:drop-shadow(0 2px 0 rgba(20,12,4,.9)) drop-shadow(0 0 22px rgba(236,170,84,.28));}50%{filter:drop-shadow(0 2px 0 rgba(20,12,4,.9)) drop-shadow(0 0 38px rgba(236,170,84,.5));}}
 [data-qb=title][data-sheen=on]{background:linear-gradient(100deg,#c89642 0%,#f5dc9c 30%,#fff8e2 45%,#f5dc9c 60%,#c89642 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;animation:qb-sheen 7s ease-in-out infinite;}

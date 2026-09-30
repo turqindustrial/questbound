@@ -44,7 +44,7 @@ const s=StyleSheet.create({
  bezel:{position:'absolute',width:150,height:150,pointerEvents:'none'},
  seal:{width:104,height:104,borderRadius:52,borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},
  overline:{fontFamily:fonts.display,fontSize:11,letterSpacing:4.5,color:colors.goldMid,textTransform:'uppercase',textAlign:'center'},
- title:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center',marginTop:8,letterSpacing:1.5},
+ title:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',marginTop:8,letterSpacing:2.5},
  setting:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:26,color:'#e6dac0',textAlign:'center',marginTop:8},
  track:{width:'70%',maxWidth:320,height:2,borderRadius:1,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden',marginTop:22},fill:{width:'100%',height:'100%',backgroundColor:colors.gold},
  time:{fontFamily:fonts.ui,fontSize:12,color:colors.faint,textAlign:'center',marginTop:10},
