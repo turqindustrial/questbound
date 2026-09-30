@@ -32,7 +32,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
  return <View dataSet={{qb:'hud'}} style={[s.bar,!wide&&s.barCompact,short&&{paddingVertical:4}]}>
   {wordmark&&<View style={s.brand}><Text dataSet={{qb:'title'}} style={s.wordmark}>Questbound</Text><View style={s.divider}/></View>}
   <Pressable accessibilityRole="button" accessibilityLabel={'Open '+hero.name+"'s character sheet"} onPress={()=>go('Character Sheet')} style={s.identity}>
-   <HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/>
+   <View dataSet={{qb:low?'low-ring':undefined}}><HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/></View>
    <View style={[s.hero,!wide&&{flex:1}]}>
     <View style={s.heroTop}><Text numberOfLines={1} style={[s.name,!wide&&{fontSize:15}]}>{hero.name}</Text>{(wide||width>=400)&&<Text numberOfLines={1} style={s.meta}>{roomy?'Level '+hero.level+' '+hero.class:'Lv '+hero.level+' '+hero.class}</Text>}</View>
     <View style={s.hpRow}>

@@ -4,6 +4,8 @@ import {MenuItem,Crest,StatBar,Ornament} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
+import DynamicArt from './DynamicArt';
+import {locationArtSubject} from './worldArtRules';
 import {combatBasics} from './combatRules';
 import {fonts,colors} from './theme';
 import {playSound} from './audio';
@@ -27,6 +29,7 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
   </View>
  </View>;
  const slot=!!hero&&stats?.available&&<Pressable accessibilityRole="button" accessibilityLabel={'Continue as '+hero.name} disabled={disabled} onPress={()=>{playSound('page');onContinue();}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'slot'}} style={[s.slot,!wide&&s.slotNarrow]}>
+  {saved&&!!game&&<><DynamicArt quiet subject={locationArtSubject(game)} style={[StyleSheet.absoluteFill,{opacity:.45,backgroundColor:'transparent'}]}/><View dataSet={{qb:'slot-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/></>}
   <Text style={s.slotOverline}>{saved?'Your adventure':'Your hero'}</Text>
   <View style={s.slotTop}>
    <HeroPortrait hero={hero} size={wide?64:48} level={hero.level}/>
@@ -82,7 +85,7 @@ const s=StyleSheet.create({
  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:20,color:'#e9dcbd',letterSpacing:.4},
  menu:{marginTop:14,paddingLeft:22,gap:2},menuNarrow:{paddingLeft:0,alignItems:'stretch',marginTop:6},
  menuGroup:{marginTop:10,gap:0},
- slot:{width:340,maxWidth:'100%',padding:20,paddingTop:16,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.45)',gap:10},
+ slot:{width:340,maxWidth:'100%',padding:20,paddingTop:16,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:'rgba(201,164,92,.45)',gap:10},
  slotNarrow:{alignSelf:'center',width:'100%',maxWidth:420,padding:14,paddingTop:12,gap:8,marginBottom:8},
  slotOverline:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.goldMid,textTransform:'uppercase'},
  slotTop:{flexDirection:'row',alignItems:'center',gap:14},

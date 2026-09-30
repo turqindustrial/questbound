@@ -135,6 +135,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=slot]{position:relative;background:linear-gradient(160deg,rgba(28,33,46,.86),rgba(10,12,19,.9)) !important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
  box-shadow:inset 0 1px 0 rgba(255,236,190,.07),inset 0 0 0 1px rgba(0,0,0,.4),0 24px 60px rgba(0,0,0,.55),0 0 60px rgba(236,164,84,.06);}
 [data-qb=slot]::before{content:"";position:absolute;inset:3px;pointer-events:none;opacity:.75;background:${corners.tl} top left/34px 34px no-repeat,${corners.tr} top right/34px 34px no-repeat,${corners.bl} bottom left/34px 34px no-repeat,${corners.br} bottom right/34px 34px no-repeat;}
+[data-qb=slot-shade]{background:linear-gradient(90deg,rgba(10,12,19,.92) 0%,rgba(10,12,19,.72) 55%,rgba(10,12,19,.45) 100%),linear-gradient(0deg,rgba(10,12,19,.85),transparent 60%) !important;}
 [data-qb=slot]:hover{border-color:rgba(236,204,132,.8) !important;box-shadow:0 0 0 1px rgba(236,204,132,.12),0 24px 60px rgba(0,0,0,.6),0 0 50px rgba(232,199,123,.14);transform:translateY(-2px);}
 /* Class crests: a gilded medallion around a line emblem. */
 [data-qb=crest]{background:radial-gradient(circle at 50% 35%,#3a3222 0%,#1a1710 55%,#0b0a07 100%) !important;box-shadow:0 0 0 1px rgba(0,0,0,.85),0 0 0 3px rgba(40,30,14,.95),0 0 0 4px rgba(217,181,110,.85),inset 0 2px 6px rgba(255,236,190,.12),inset 0 -6px 12px rgba(0,0,0,.6),0 8px 22px rgba(0,0,0,.55),0 0 26px rgba(236,164,84,.18);}
@@ -219,6 +220,13 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=unveil]{background:#030405 !important;animation:qb-unveil 1.1s ease .1s both;}
 @keyframes qb-unveil{from{opacity:1;}to{opacity:0;}}
 [data-qb=art-img]{animation:qb-fade .9s ease both;}
+[data-qb=art-wait]{background:linear-gradient(100deg,#0f141e 30%,#1d2536 50%,#0f141e 70%) !important;background-size:220% 100% !important;animation:qb-shimmer 1.8s linear infinite;}
+/* Low HP: a red ring pulses around the hero's portrait. */
+[data-qb=low-ring]{border-radius:50%;animation:qb-lowring 1.1s ease-in-out infinite;}
+@keyframes qb-lowring{0%,100%{box-shadow:0 0 0 2px rgba(240,106,79,.35),0 0 8px rgba(240,106,79,.3);}50%{box-shadow:0 0 0 3px rgba(240,106,79,.9),0 0 20px rgba(240,106,79,.7);}}
+/* Your move: the main action breathes gently while the game waits for you in a fight. */
+[data-qb=btn-primary][data-pulse=on]{animation:qb-yourmove 2.2s ease-in-out infinite;}
+@keyframes qb-yourmove{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 0 0 1px rgba(50,32,8,.9),0 6px 18px rgba(236,164,84,.25);}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 0 0 1px rgba(50,32,8,.9),0 0 26px rgba(236,164,84,.7);}}
 [data-qb=rays-spin]{background:repeating-conic-gradient(from 0deg,rgba(255,214,150,.12) 0deg 4deg,transparent 4deg 18deg) !important;-webkit-mask-image:radial-gradient(circle,#000 10%,transparent 65%);mask-image:radial-gradient(circle,#000 10%,transparent 65%);animation:qb-spin 40s linear infinite;}
 @keyframes qb-spin{to{transform:rotate(360deg);}}
 
