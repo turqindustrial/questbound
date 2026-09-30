@@ -1,4 +1,5 @@
 import {freshStoryGame} from './storyRules';
+import {combatBasics} from './combatRules';
 // Written locally so combat can be tested instantly without story generation.
 // Stat blocks are tuned for a level-1 hero and scale with level; groups share one HP pool and every standing member attacks.
 const saves=(Strength,Dexterity,Constitution,Intelligence,Wisdom,Charisma)=>({Strength,Dexterity,Constitution,Intelligence,Wisdom,Charisma});
@@ -19,7 +20,9 @@ export function foeStatsFor(f,level=1){
  return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/2),die:f.die,count:1+Math.floor(up/5),bonus:f.bonus+Math.floor(up/2),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
 }
 export function hostileEncounterGame(hero,base,random=Math.random){
- const f=hostileFoes[Math.floor(random()*hostileFoes.length)],stats=foeStatsFor(f,hero.level??1),many=f.group?f.group.count+' '+f.group.plural.replace(/^./,c=>c.toUpperCase()):'A '+f.foe;
+ // Fragile low-level heroes (under 10 HP, such as a new wizard) meet a single foe, never a pack or the orc.
+ const hp=combatBasics(hero)?.hp,pool=Number.isFinite(hp)&&hp<10&&(hero.level??1)<=2?hostileFoes.filter(f=>!f.group&&f.key!=='orc'):hostileFoes;
+ const f=pool[Math.floor(random()*pool.length)],stats=foeStatsFor(f,hero.level??1),many=f.group?f.group.count+' '+f.group.plural.replace(/^./,c=>c.toUpperCase()):'A '+f.foe;
  const story={id:'hostile-encounter-'+f.key,introId:'hostile',status:'active',title:'Random hostile encounter: '+(f.group?f.group.count+' '+f.group.plural:f.foe),
   premise:'A combat test: '+(f.group?f.group.count.toLowerCase()+' '+f.group.plural:'a '+f.foe)+(f.group?' ambush ':' ambushes ')+hero.name+' at the '+f.place+' while travelling with a small caravan.',
   opening:many+' burst from cover at the '+f.place+' and '+(f.group?'close in':'lunge for you')+'. '+(f.group?'They haven\'t':'It hasn\'t')+' closed the gap yet — you have the first move. Describe your attack, spell or other action.',

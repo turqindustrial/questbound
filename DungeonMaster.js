@@ -1,5 +1,6 @@
 import {useSceneTransition} from './SceneTransition';
-import {dmEndpoints} from './dmConnection';
+import {dmEndpoints,askDm} from './dmConnection';
+import {spellActions} from './quickActions';
 import {recruitmentTargets} from './followerRules';
 import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
@@ -28,22 +29,24 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const people=conversationPeople(game),person=people.find(n=>n.id===conversationId);
   useEffect(()=>{if(conversationId&&!person)setConversationId(null);onConversationChange(!!person);},[conversationId,!!person,onConversationChange]);
   const [endpoint,setEndpoint]=useState(lastReady??endpoints[0]);
-  const [connected,setConnected]=useState(false),[protocol,setProtocol]=useState(0),[checked,setChecked]=useState(false);
+  const [connected,setConnected]=useState(false),[protocol,setProtocol]=useState(0),[checked,setChecked]=useState(false),[unpaired,setUnpaired]=useState(false);
   const inputRef=useRef(null);
   const [input,setInput]=useState(''),[reply,setReply]=useState(null),[busy,setBusy]=useState(false),[status,setStatus]=useState('Checking AI connection…'),[error,setError]=useState('');
   const fingerprint=JSON.stringify({hero,game,health}),latest=useRef(fingerprint),lock=useRef(false),alive=useRef(true),triedCue=useRef(null);latest.current=fingerprint;
   useEffect(()=>{
     alive.current=true;let checking=false,known=lastReady;
     // Once a ready service answers, only it is polled; the full list is scanned again if it stops answering.
-    const probe=async list=>(await Promise.all(list.map(async url=>{try{const response=await fetch(url+'/health',{signal:AbortSignal.timeout(3000)});return response.ok?{url,state:await response.json()}:null;}catch{return null;}}))).filter(Boolean).sort((a,b)=>Number(b.state.ready)-Number(a.state.ready)||(b.state.actionProtocol??0)-(a.state.actionProtocol??0))[0];
+    // A shared-link gateway answers 401 when this browser's invite has lapsed (or the host restarted sharing).
+    const probe=async list=>(await Promise.all(list.map(async url=>{try{const response=await fetch(url+'/health',{signal:AbortSignal.timeout(3000)});return response.status===401?{url,state:{ready:false,unpaired:true}}:response.ok?{url,state:await response.json()}:null;}catch{return null;}}))).filter(Boolean).sort((a,b)=>Number(b.state.ready)-Number(a.state.ready)||(b.state.actionProtocol??0)-(a.state.actionProtocol??0))[0];
     const check=async()=>{if(checking)return;checking=true;try{
       let found=known?await probe([known]):null;if(!found?.state.ready)found=await probe(endpoints);
       lastReady=known=found?.state.ready?found.url:null;if(!found)throw Error('Unavailable');
-      if(alive.current){setEndpoint(found.url);setConnected(!!found.state.ready);setProtocol(found.state.actionProtocol??0);setStatus(!found.state.ready?'AI DM needs your private setup.':found.state.actionProtocol>=3?'AI DM connected · rulings enabled':found.state.actionProtocol===2?'AI DM connected · actions enabled':'AI DM connected · private service upgrade needed for rulings');}
+      if(alive.current)setUnpaired(!!found.state.unpaired);
+      if(alive.current){setEndpoint(found.url);setConnected(!!found.state.ready);setProtocol(found.state.actionProtocol??0);setStatus(found.state.unpaired?'Your invite has lapsed or the host restarted sharing. Reload the page and enter the invite code to continue; your hero is safe in this browser.':!found.state.ready?'AI DM needs your private setup.':found.state.actionProtocol>=3?'AI DM connected · rulings enabled':found.state.actionProtocol===2?'AI DM connected · actions enabled':'AI DM connected · private service upgrade needed for rulings');}
     }catch{if(alive.current){setConnected(false);setProtocol(0);setStatus('AI DM server is not running. Reconnecting automatically…');}}finally{checking=false;if(alive.current)setChecked(true);}};
     check();const timer=setInterval(check,5000);return()=>{alive.current=false;clearInterval(timer);};
   },[]);
-  const post=async(input,scene,hp,talkingTo,extra)=>{const response=await fetch(endpoint+'/dm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input,context:{...dmContext(hero,scene,hp),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -63,14 +66,19 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
   useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined)setAnimateId(lastTurnId);seenTurn.current=lastTurnId;},[lastTurnId]);
   // Each new turn brings the action row back to its first (main) action.
-  const actionScroll=useRef(null);
-  useEffect(()=>{actionScroll.current?.scrollTo?.({x:0,animated:true});},[lastTurnId]);
+  const actionScroll=useRef(null),[spellsOpen,setSpellsOpen]=useState(false);
+  // A one-time "How to play" card for new players; dismissed once per device.
+  const [tips,setTips]=useState(()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}});
+  const dismissTips=()=>{setTips(false);try{globalThis.localStorage?.setItem('questbound.tips.v1','seen');}catch{}};
+  useEffect(()=>{if(tips&&lastTurnId>=3)dismissTips();},[lastTurnId]);
+  useEffect(()=>{actionScroll.current?.scrollTo?.({x:0,animated:true});setSpellsOpen(false);},[lastTurnId]);
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
   const waiting=table?.joined?table.otherActing:null; const tableSyncing=!!table?.joined&&!table.synchronized;
   // A quick action arrives as {question, action}: the sentence the DM hears and the engine action it resolves.
   async function ask(preset){
-    preset=preset?.question&&preset.action?preset:null;
+    // A preset with `parse` is a complete typed sentence (a spell from the Cast… picker) read by the normal parser.
+    preset=preset?.question&&(preset.action||preset.parse)?preset:null;
     const question=preset?.question??input.trim();
     if(lock.current||playing||!question||waiting||tableSyncing)return;const priorReply=reply,snapshot=fingerprint;if(compact)Keyboard.dismiss();lock.current=true;setBusy(true);setError('');playSound('send');
     const target=preset?null:conversationTarget(game,question,conversationId);
@@ -98,7 +106,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       }
     };
     try{
-      const command=preset?{action:preset.action}:dmCommand(hero,game,question,health,conversationId);
+      const command=preset?.action?{action:preset.action}:dmCommand(hero,game,question,health,preset?null:conversationId);
       if(command?.action){await cast(command,command.normalizedCommand??question);return;}
       if(/^confirm action[.!]?$/i.test(question)){if(!priorReply?.pending||priorReply.snapshot!==snapshot)throw Error('There is no current action to confirm.');await finish(priorReply.pending.action,{narration:'Your action is resolved below.'});return;}
       if(command?.error&&protocol<3)throw Error(command.error);
@@ -136,12 +144,20 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const hint=tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':null;
   // Quick actions: one tap sends; Cast… starts the sentence so the player names the spell and target.
   if(sendRef)sendRef.current=preset=>ask(preset);
-  const actions=person?[]:quick,actionsDisabled=busy||playing||!!waiting||tableSyncing;
-  const runAction=a=>{if(a.run){a.run();return;}if(a.prefill){setInput(a.prefill);setTimeout(()=>inputRef.current?.focus(),30);return;}ask(a);};
+  // Cast… swaps the row for the hero's spells; a spell casts in one tap (or starts the sentence when it needs a target).
+  const spellRow=[{key:'spells-back',glyph:'‹',label:'Back',run:()=>setSpellsOpen(false)},...spellActions(hero,game)];
+  const actions=person?[]:spellsOpen?spellRow:quick,actionsDisabled=busy||playing||!!waiting||tableSyncing;
+  const runAction=a=>{
+    if(a.key==='cast'){setSpellsOpen(true);return;}
+    if(a.run){a.run();return;}
+    if(a.key.startsWith('spell:'))setSpellsOpen(false);
+    if(a.prefill){setInput(a.prefill);setTimeout(()=>inputRef.current?.focus(),30);return;}
+    ask(a.action?a:{question:a.question,parse:true});
+  };
   // Phones and short windows scroll the row sideways; roomy screens wrap it. On a short screen (a phone on its
   // side) people and effects join the same row so the story keeps its height.
   const swipe=compact||short;
-  const actionChips=actions.map(a=><Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} dataSet={{qb:a.primary&&!a.prefill?'btn-primary':'chip'}} style={[s.action,a.primary&&!a.prefill&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}><PlainText style={[s.actionGlyph,a.primary&&!a.prefill&&s.actionPrimaryText]}>{a.glyph}</PlainText><PlainText numberOfLines={1} style={[s.actionText,a.primary&&!a.prefill&&s.actionPrimaryText]}>{a.label}</PlainText></Pressable>);
+  const actionChips=actions.map(a=><Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} dataSet={{qb:a.primary&&!a.prefill?'btn-primary':'chip'}} style={[s.action,a.primary&&!a.prefill&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}><PlainText style={[s.actionGlyph,a.primary&&!a.prefill&&s.actionPrimaryText]}>{a.glyph}</PlainText><PlainText numberOfLines={1} style={[s.actionText,a.primary&&!a.prefill&&s.actionPrimaryText]}>{a.label}</PlainText>{!!a.detail&&<PlainText style={s.actionDetail}>{a.detail}</PlainText>}</Pressable>);
   const extraChips=[...effects.map(line=><View key={'effect:'+line} style={s.effectChip}><Text numberOfLines={1} style={s.effectChipText}>✧ {line}</Text></View>),
     ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><PlainText style={s.chipAction}>{person?'Address':'Speak'} ›</PlainText></Pressable>)];
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
@@ -158,8 +174,14 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading]}>The Dungeon Master</Text></View>
       {statusPill}
     </View>}
-    {!connected&&checked&&<Text style={[s.caption,{marginBottom:6}]}>{status}</Text>}
-    <TurnPlayback fill aside={short&&!person?statusPill:null} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
+    {!connected&&checked&&<Text style={[s.caption,{marginBottom:6},unpaired&&{color:colors.gold}]}>{status}</Text>}
+    {unpaired&&<Pressable accessibilityRole="button" onPress={()=>globalThis.location?.reload()} dataSet={{qb:'btn-primary'}} style={[s.button,{alignSelf:'flex-start',marginBottom:8}]}><Text style={s.buttonText}>Reload and rejoin</Text></Pressable>}
+    <TurnPlayback fill intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
+      <PlainText style={s.tipsTitle}>✦  How to play</PlainText>
+      <PlainText style={s.tipsText}>Tap an action below, or type anything you want to do or say. The Dungeon Master decides what happens; the dice decide how it goes.</PlainText>
+      <PlainText style={s.tipsText}>Tap an underlined name to learn more. ☰ holds your character sheet, journal, settings and feedback.</PlainText>
+      <Pressable accessibilityRole="button" onPress={dismissTips} style={s.tipsButton}><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
+    </View>:null} aside={short&&!person?statusPill:null} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
     {actionBar}
     <View style={s.composer}>{composer}{sendButton}</View>
@@ -203,7 +225,9 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  composer:{flexDirection:'row',alignItems:'flex-end',gap:8,marginTop:8},
  actionBar:{flexGrow:0,flexShrink:0,marginTop:8},actionContent:{gap:8,alignItems:'center',paddingRight:40},actionWrap:{flexDirection:'row',flexWrap:'wrap',paddingRight:0},
  action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(20,25,36,.92)',maxWidth:260},
- actionPrimary:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},actionGlyph:{fontSize:14,color:colors.gold},
+ tips:{padding:12,paddingBottom:6,marginTop:4,marginBottom:10,borderRadius:4,borderWidth:1,borderColor:'rgba(232,199,123,.45)',gap:4},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
+ tipsText:{fontFamily:fonts.ui,color:'#d5dae3',fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',minHeight:36,paddingHorizontal:12,justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+ actionPrimary:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
  actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:'#ecdcb8',textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:'#2a1a07'},
  fillInput:{flex:1,minHeight:48,maxHeight:130,paddingVertical:12,fontSize:17,lineHeight:24},
  fillSend:{minHeight:48,paddingHorizontal:18,justifyContent:'center',alignItems:'center'},

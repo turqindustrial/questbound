@@ -4,29 +4,34 @@ import {ensureArt,artIdentity} from './artClient';
 import {fonts} from './theme';
 const Context=createContext(null),decoded=new Set();
 export const useSceneTransition=()=>useContext(Context);
+// A scene waits briefly for its illustrations so it usually arrives fully painted, but never holds play hostage:
+// after a few seconds (or "Continue now") the story moves on and unfinished art fades in by itself when it's ready.
+// Art that fails shows its own retry button where it appears.
+const GRACE=5000,SHOW_AFTER=600;
 export default function SceneTransitionProvider({children}){
  const {height}=useWindowDimensions();
  const [state,setState]=useState(null),active=useRef(null),alive=useRef(true),last=useRef(null);
  if(state)last.current=state;const display=state??last.current;
- useEffect(()=>{alive.current=true;return()=>{alive.current=false;active.current?.reject(Error('Scene preparation ended before it was applied.'));active.current=null;};},[]);
- async function load(job,retry){
-  if(job.running)return;job.running=true;let completed=0;
-  setState({total:job.subjects.length,completed:0,error:null});
-  try{
-   const results=await Promise.allSettled(job.subjects.map(async subject=>{const data=await ensureArt(subject,{retry});if(active.current!==job)return;await Image.prefetch(data);decoded.add(artIdentity(subject));completed++;if(alive.current&&active.current===job)setState({total:job.subjects.length,completed,error:null});}));
-   if(active.current!==job)return;const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;active.current=null;last.current={total:job.subjects.length,completed:job.subjects.length,error:null};setState(null);job.resolve();
-  }catch(error){if(active.current===job&&alive.current)setState({total:job.subjects.length,completed,error:error.message});}
-  finally{job.running=false;}
- }
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;active.current?.finish();active.current=null;};},[]);
  function prepare(subjects){
   const unique=[...new Map(subjects.filter(Boolean).map(s=>[artIdentity(s),s])).values()].filter(s=>!decoded.has(artIdentity(s)));
   if(!unique.length)return Promise.resolve();
-  if(active.current)return Promise.reject(Error('A scene is already being prepared.'));
-  return new Promise((resolve,reject)=>{const job={subjects:unique,resolve,reject,running:false};active.current=job;void load(job,false);});
+  return new Promise(resolve=>{
+   const job={total:unique.length,completed:0,done:false};
+   job.finish=()=>{if(job.done)return;job.done=true;clearTimeout(job.timer);clearTimeout(job.show);if(active.current===job){active.current=null;if(alive.current)setState(null);}resolve();};
+   active.current=job;
+   job.show=setTimeout(()=>{if(!job.done&&alive.current&&active.current===job)setState({total:job.total,completed:job.completed});},SHOW_AFTER);
+   job.timer=setTimeout(job.finish,GRACE);
+   for(const subject of unique)ensureArt(subject).then(data=>Image.prefetch(data).catch(()=>{})).then(()=>decoded.add(artIdentity(subject)),()=>{}).finally(()=>{
+    job.completed++;
+    if(!job.done&&alive.current&&active.current===job)setState(current=>current?{...current,completed:job.completed}:current);
+    if(job.completed===job.total)job.finish();
+   });
+  });
  }
- function cancel(){const job=active.current;active.current=null;setState(null);job?.reject(Error('Scene preparation cancelled. Your action was not applied.'));}
+ const proceed=()=>active.current?.finish();
  const progress=display?.total?Math.round(100*(display.completed??0)/display.total):0;
- return <Context.Provider value={{prepare}}>{children}<Modal transparent visible={!!state} animationType="fade" onRequestClose={cancel}><View style={s.shade}><View dataSet={{qb:'panel'}} style={[s.panel,{maxHeight:Math.max(180,height-32)}]} accessibilityViewIsModal><ScrollView style={{flexShrink:1}} contentContainerStyle={{gap:14,alignItems:'stretch'}}><Text style={s.overline}>{display?.error?'A moment, traveler':'The world takes shape'}</Text><Text accessibilityRole="header" style={s.title}>{display?.error?'The scene isn’t ready yet':'Preparing the next scene'}</Text>{!display?.error&&<ActivityIndicator color="#e8c77b" size="large"/>}{!display?.error&&<View style={s.track}><View dataSet={{qb:'bar-hp'}} style={[s.fill,{width:Math.max(6,progress)+'%'}]}/></View>}<Text accessibilityLiveRegion="polite" style={s.text}>{display?.error??'Painting the scene… '+display?.completed+' of '+display?.total+' illustrations ready'}</Text><Text style={s.note}>Your current scene stays in place until every image is ready.</Text>{!!display?.error&&<Pressable accessibilityRole="button" dataSet={{qb:'btn-primary'}} onPress={()=>active.current&&load(active.current,true)} style={[s.button,s.primary]}><Text style={[s.label,{color:'#2a1a07'}]}>Retry illustrations</Text></Pressable>}<Pressable accessibilityRole="button" dataSet={{qb:'btn'}} onPress={cancel} style={s.button}><Text style={s.label}>Stay here</Text></Pressable></ScrollView></View></View></Modal></Context.Provider>;
+ return <Context.Provider value={{prepare}}>{children}<Modal transparent visible={!!state} animationType="fade" onRequestClose={proceed}><View style={s.shade}><View dataSet={{qb:'panel'}} style={[s.panel,{maxHeight:Math.max(180,height-32)}]} accessibilityViewIsModal><ScrollView style={{flexShrink:1}} contentContainerStyle={{gap:14,alignItems:'stretch'}}><Text style={s.overline}>The world takes shape</Text><Text accessibilityRole="header" style={s.title}>Preparing the next scene</Text><ActivityIndicator color="#e8c77b" size="large"/><View style={s.track}><View dataSet={{qb:'bar-hp'}} style={[s.fill,{width:Math.max(6,progress)+'%'}]}/></View><Text accessibilityLiveRegion="polite" style={s.text}>Painting the scene… {display?.completed??0} of {display?.total??0} illustrations ready</Text><Text style={s.note}>The story continues in a moment; anything still being painted appears when it’s ready.</Text><Pressable accessibilityRole="button" dataSet={{qb:'btn'}} onPress={proceed} style={s.button}><Text style={s.label}>Continue now</Text></Pressable></ScrollView></View></View></Modal></Context.Provider>;
 }
 const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'rgba(2,3,6,.8)',padding:24},panel:{width:'100%',maxWidth:460,padding:28,borderRadius:4,backgroundColor:'rgba(13,17,26,.98)',borderWidth:1,borderColor:'rgba(201,164,92,.45)',gap:14},
  overline:{fontFamily:fonts.display,color:'#c9a45c',fontSize:10,fontWeight:'700',letterSpacing:3,textTransform:'uppercase',textAlign:'center'},

@@ -5,7 +5,7 @@ import React,{useState} from 'react';
 import {View,Image,Pressable,Platform,StyleSheet} from 'react-native';
 import {mapPlaces,mapState,mapLocation,mapRoute} from './mapRules';
 import {fonts,colors,type} from './theme';
-const landscape=require('./assets/map/crossroads-landscape.png');
+const landscape=require('./assets/map/crossroads-landscape.jpg');
 const centers={inn:{x:0.14,y:0.60},bridge:{x:0.80,y:0.66},tower:{x:0.80,y:0.015},dungeon:{x:0.78,y:0.90}};
 const artCenters={inn:{x:0.14,y:0.73},bridge:{x:0.80,y:0.78},tower:{x:0.80,y:0.11}};
 export default function AdventureMap({game,travelTo=[],onTravel}){

@@ -57,6 +57,8 @@ dist-phone/
 .questbound-model
 .questbound-logs/
 .questbound-share-session.json
+.questbound-share-sessions.json
+playtest-feedback.md
 
 # Game builds (the launcher builds dist-phone locally)
 dist-*/

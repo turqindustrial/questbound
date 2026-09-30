@@ -1,5 +1,5 @@
 import {dmChoices} from './dmContext';
-import {knownSpells} from './spellRules';
+import {knownSpells,automaticEffects} from './spellRules';
 import {mapPlaces} from './mapRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
@@ -27,6 +27,19 @@ export function quickActions(hero,game){
  }
  if(!game.pendingSpell&&knownSpells(hero).length)primary.push({key:'cast',glyph:'✧',label:'Cast…',prefill:'I cast '});
  return [...primary,...rest,...backup];
+}
+// The Cast… picker: every spell the hero knows, cantrips first. Spells the rules resolve on their own cast in one tap:
+// healing, protection and detection on yourself; attacks and blasts at the enemy during a fight. Anything else starts
+// the sentence so the player says how and at whom. The words are parsed exactly like typed casting.
+export function spellActions(hero,game){
+ const fighting=game.stage==='combat',foe=game.story||game.dungeon?.active?'the enemy':'the wisp';
+ return knownSpells(hero).filter(spell=>!fighting||['Action','Bonus Action'].includes(spell.castingTime)).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).map(spell=>{
+  const effect=automaticEffects[spell.id],self=!!(effect&&(effect.heal||effect.temp||effect.protection||effect.detection));
+  const base={key:'spell:'+spell.id,glyph:'✧',label:spell.name,detail:spell.level?'Level '+spell.level:'Cantrip'};
+  if(self)return {...base,question:'I cast '+spell.name+' on me.'};
+  if(effect&&fighting)return {...base,question:'I cast '+spell.name+' at '+foe+'.'};
+  return {...base,prefill:'I cast '+spell.name+' '+(spell.range==='Self'?'':'on ')};
+ });
 }
 function dungeonLabels(id,label){
  const short={'dungeon:enter':['◈','Enter the vaults'],'dungeon:leave':['↩','Leave the vaults'],'dungeon:disarm':['⚙','Disarm the trap'],'dungeon:search':['⌕','Search the archive'],'dungeon:dawn':['✦','Speak “Dawn”'],'dungeon:basin':['✚','Drink from the basin'],'dungeon:claim':['✦','Claim the treasure']};

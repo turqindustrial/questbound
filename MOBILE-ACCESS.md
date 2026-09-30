@@ -28,6 +28,7 @@ Double-click **Questbound-Share.cmd** (or run `Questbound.cmd -Share`). It start
 - The link is a random `https://….trycloudflare.com` address. It lasts until sharing stops (for example after a reboot); run Questbound-Share.cmd again for a new link and code. While sharing runs, the launcher just shows the current ones.
 - The invite code lasts 7 days and admits up to 40 browsers. Testers' play uses your OpenAI key; each player is limited to 60 Dungeon Master requests per 10 minutes, and up to 3 replies are written at once (others wait their turn).
 - Only the paired gateway is reachable from the internet. The Dungeon Master, shared table, desktop game and your key stay on this PC.
+- Testers can send notes from **☰ → Send feedback**; they collect in `playtest-feedback.md` in the Questbound folder.
 - Browser saves belong to one web address. When the link changes, testers can move their hero with **Settings → Move your hero** (copy a save code on the old link, load it on the new one); otherwise they start a new hero.
 
 ## Phones

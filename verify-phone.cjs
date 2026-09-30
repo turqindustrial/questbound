@@ -1,6 +1,15 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
 const {createPhoneServer}=require('./phone-server.cjs');
 const endpoints=vm.runInNewContext(fs.readFileSync('dmConnection.js','utf8').replace(/export /g,'')+'\n dmEndpoints');
+const askDm=vm.runInNewContext(fs.readFileSync('dmConnection.js','utf8').replace(/export /g,'')+'\n askDm',{AbortSignal,Math,JSON,Date});
+// The game asks a busy DM again (it refused before doing any work) and gives up after its wait; other errors return at once.
+(async()=>{
+ let replies=[{status:429,error:'Please wait before asking the DM again.'},{status:429,error:'The Dungeon Master is busy with other players.'},{status:200}],calls=0;
+ const fake=async()=>{const r=replies[calls++]??{status:200};return {ok:r.status===200,status:r.status,json:async()=>r.status===200?{narration:'Done.'}:{error:r.error}};};
+ let r=await askDm('/api',{input:'x'},{fetchImpl:fake,pause:async()=>{}});assert.equal(r.status,200);assert.equal(calls,3);
+ replies=[{status:429,error:'The Dungeon Master needs a short rest.'}];calls=0;r=await askDm('/api',{input:'x'},{fetchImpl:fake,pause:async()=>{}});assert.equal(r.status,429,'A per-player cap is not retried');assert.equal(calls,1);
+ let clock=0;replies=Array(50).fill({status:429,error:'Please wait before asking the DM again.'});calls=0;r=await askDm('/api',{input:'x'},{fetchImpl:fake,now:()=>clock,pause:async()=>{clock+=10000;},wait:60000});assert.equal(r.status,429,'Gives up after the wait');assert.ok(calls<=8);
+})().catch(e=>{console.error(e);process.exitCode=1;});
 assert.equal(endpoints({hostname:'localhost',port:'8081'})[0],'http://localhost:8084');
 assert.equal(endpoints({hostname:'10.0.0.169',port:'8085'})[0],'/api');
 assert.equal(endpoints({hostname:'example.test',port:''})[0],'/api');
@@ -54,6 +63,30 @@ async function sharedLink(){
   const r=await hit('/api/dm',{method:'POST',headers:{Cookie:paired.headers['set-cookie'][0].split(';')[0],Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({input:'Hi',context:{choices:[]}})});
   assert.equal(r.status,200);assert.equal(JSON.parse(r.text).narration,'Your turn.');assert.equal(dmCalls,3,'Two busy replies, then the answer');
  }finally{await new Promise(resolve=>patient.server.close(resolve));}
+ // Paired browsers survive a gateway restart (only cookie hashes are stored), built files are cached and compressed,
+ // and feedback notes land in the host's file.
+ const store=path.join(root,'sessions.json'),notes=path.join(root,'feedback.md'),zlib=require('node:zlib');
+ fs.mkdirSync(path.join(root,'_expo','static'),{recursive:true});const bundle='console.log("questbound");'.repeat(200);fs.writeFileSync(path.join(root,'_expo','static','index-0123456789abcdef0123.js'),bundle);
+ const open=options=>{const s=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'24681357',sessionStore:store,feedbackFile:notes,fetchImpl,...options});return new Promise(resolve=>s.server.listen(0,'127.0.0.1',()=>resolve(s)));};
+ const via=(s,route,opts={})=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:s.server.address().port,path:route,method:opts.method??'GET',headers:{Host:new URL(opts.origin??'https://quest.example.com').host,...opts.headers}},res=>{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,raw:Buffer.concat(chunks)}));});req.on('error',reject);req.end(opts.body);});
+ let first=await open();let cookieJar;
+ try{
+  const joined=await via(first,'/pair',{method:'POST',headers:{Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({code:'24681357'})});cookieJar=joined.headers['set-cookie'][0].split(';')[0];
+  assert.ok(!fs.readFileSync(store,'utf8').includes(cookieJar.split('=')[1]),'The raw cookie is never stored');
+  const index=await via(first,'/',{headers:{Cookie:cookieJar}});assert.equal(index.headers['cache-control'],'no-store');
+  const js=await via(first,'/_expo/static/index-0123456789abcdef0123.js',{headers:{Cookie:cookieJar,'Accept-Encoding':'gzip, br'}});
+  assert.match(js.headers['cache-control'],/immutable/);assert.equal(js.headers['content-encoding'],'gzip');assert.equal(zlib.gunzipSync(js.raw).toString(),bundle);assert.ok(js.raw.length<bundle.length/5,'Compressed');
+  const plain=await via(first,'/_expo/static/index-0123456789abcdef0123.js',{headers:{Cookie:cookieJar}});assert.equal(plain.headers['content-encoding'],undefined);assert.equal(plain.raw.toString(),bundle);
+  const send=(body,cookie=cookieJar)=>via(first,'/api/feedback',{method:'POST',headers:{Cookie:cookie,Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify(body)});
+  assert.equal((await send({text:'Loved the bandit fight!\nThe map was confusing.',rating:4,context:{player:'Sam',hero:'Brenna (Level 2 Fighter)',device:'Pixel 8 · Chrome',where:'Overgrown Roadside, in combat',screen:'Adventure'}})).status,200);
+  const saved=fs.readFileSync(notes,'utf8');assert.match(saved,/Loved the bandit fight/);assert.match(saved,/★★★★☆/);assert.match(saved,/Sam · Brenna/);assert.match(saved,/> The map was confusing/);
+  assert.equal((await send({text:''})).status,400);assert.equal((await send({text:'hi'},'questbound_phone='+'0'.repeat(64))).status,401,'Unpaired browsers cannot send notes');
+  for(let i=0;i<9;i++)await send({text:'note '+i});assert.equal((await send({text:'one too many'})).status,429);
+ }finally{await new Promise(resolve=>first.server.close(resolve));}
+ const second=await open();
+ try{assert.equal((await via(second,'/',{headers:{Cookie:cookieJar}})).raw.toString(),'<h1>Test game</h1>','Still paired after a restart');}finally{await new Promise(resolve=>second.server.close(resolve));}
+ const moved=await open({publicOrigin:'https://new-link.example.com'});
+ try{assert.match((await via(moved,'/',{origin:'https://new-link.example.com',headers:{Cookie:cookieJar}})).raw.toString(),/Invite code/,'A new link starts fresh');}finally{await new Promise(resolve=>moved.server.close(resolve));}
 }
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -79,6 +112,6 @@ async function sharedLink(){
   clock+=61000;for(let i=0;i<5;i++)assert.equal((await pair('00000000')).status,401);assert.equal((await pair('12345678')).status,429);
   clock+=86400000;assert.equal((await request('/api/health',{headers})).status,401);assert.equal((await pair('12345678')).status,401);
   await sharedLink();
-  console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap that spares illustrations, busy-DM retries, invite kept across gateway restarts).');
+  console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap that spares illustrations, busy-DM retries, invite and paired browsers kept across gateway restarts, cached and compressed game files, in-game feedback notes).');
  }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

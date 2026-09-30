@@ -9,6 +9,8 @@ export default function LaunchScreen({ready,onBegin}){
  const {width,height}=useWindowDimensions(),size=Math.min(width,height);
  const emblem=useRef(new Animated.Value(0)).current,title=useRef(new Animated.Value(0)).current,prompt=useRef(new Animated.Value(0)).current,exit=useRef(new Animated.Value(1)).current;
  const [armed,setArmed]=useState(false),started=useRef(false);
+ // The page's own loading card (public/index.html) steps aside once the title card is drawn.
+ useEffect(()=>{globalThis.document?.getElementById('qb-boot')?.remove();},[]);
  useEffect(()=>{
   let reduce=false,alive=true;
   AccessibilityInfo.isReduceMotionEnabled().then(v=>{reduce=v;}).finally(()=>{

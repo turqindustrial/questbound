@@ -11,7 +11,7 @@ function validRuling(r){return r===null||(r&&['cast','deny','clarify'].includes(
 
 function validRequest(body){return body&&typeof body.input==='string'&&body.input.trim().length>0&&body.input.length<=1000&&body.context&&Array.isArray(body.context.choices)&&body.context.choices.length<=30&&body.context.choices.every(c=>typeof c.id==='string'&&c.id.length<=100&&typeof c.label==='string'&&c.label.length<=150);}
 async function generate(body,{apiKey,model,fetchImpl=fetch}){
-  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==2)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true});}
+  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==3)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true});}
   if(body.context.mode==='diagnostics')return diagnose({apiKey,model,fetchImpl});
   if(body.context.mode==='adventure'){delete require.cache[require.resolve('./adventure-generator.cjs')];return require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model,fetchImpl});}
   if(body.context.mode==='character'){delete require.cache[require.resolve('./character-generator.cjs')];return require('./character-generator.cjs').generateCharacter(body,{apiKey,model,fetchImpl});}

@@ -120,7 +120,8 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   } else if(effect.attack){
     const beams=effect.beams?cantripDice(hero.level):effect.rays?effect.rays+level-spell.level:1;
     for(let i=0;i<beams;i++){
-      const nearbyThreat=(game.castingConditions?.targetDistance??target.distance??5)<=5 && target.canSeeAttacker!==false && !target.incapacitated;
+      // During the opening strike the foe has not closed the gap yet, so a ranged spell carries no close-range penalty.
+      const nearbyThreat=!game.openingAttackAvailable && (game.castingConditions?.targetDistance??target.distance??5)<=5 && target.canSeeAttacker!==false && !target.incapacitated;
       const attack=rollAttack({attackBonus:bonus},effect.attack==='ranged' && nearbyThreat?'disadvantage':'normal',random);
       const hit=!attack.miss && (attack.critical || attack.total>=target.ac);
       const diceCount=(effect.beams?1:count)*(attack.critical?2:1);

@@ -18,7 +18,7 @@ function EventRow({event,reduceMotion,sound,me}){
   <Text style={[s.text,prose&&s.prose,event.kind==='dialogue'&&s.quote,dice&&s.diceText]}>{event.kind==='dialogue'?'“'+event.text.replace(/^[“"]|[”"]$/g,'')+'”':event.text}</Text>
  </Animated.View>;
 }
-export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening,busy,me=null,fill=false,aside=null}){
+export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening,busy,me=null,fill=false,aside=null,intro=null}){
  const turn=turns.at(-1),[phase,setPhase]=useState({id:null,count:0}),[history,setHistory]=useState(false),[reduceMotion,setReduceMotion]=useState(false),scroll=useRef(null),follow=useRef(true),{height,width}=useWindowDimensions();
  const count=turn?(phase.id===turn.id?phase.count:turn.id===animateId&&!reduceMotion?1:turn.events.length):0;
  const playing=!!turn&&count<turn.events.length;
@@ -37,6 +37,7 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  if(fill)return <View style={s.fillPanel}>
   <View style={s.fillBar}><PlainText style={[s.title,{marginVertical:4}]}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all ›</PlainText></Pressable>:aside}</View>
   <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onScroll={e=>{const n=e.nativeEvent;follow.current=n.contentOffset.y+n.layoutMeasurement.height>=n.contentSize.height-80;}} onContentSizeChange={()=>{if(follow.current)scroll.current?.scrollToEnd({animated:!reduceMotion});}}>
+   {intro}
    {!turn&&<Text style={s.opening}>{opening}</Text>}
    {turns.slice(0,-1).map(t=><View key={t.id} style={s.pastTurn}><PlainText style={s.divider}>— Turn {t.id} —</PlainText>{t.events.map((e,i)=><EventRow key={t.id+'-'+i} event={e} reduceMotion me={me}/>)}</View>)}
    {turn&&<View accessibilityLiveRegion="polite">{turns.length>1&&<PlainText style={s.divider}>— Turn {turn.id} —</PlainText>}{turn.events.slice(0,count).map((e,i)=><EventRow key={turn.id+'-'+i} event={e} reduceMotion={reduceMotion||turn.id!==animateId} sound={turn.id===animateId} me={me}/>)}</View>}

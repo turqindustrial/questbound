@@ -1,6 +1,6 @@
 # Crossroads artwork
 
-Generated with the built-in image generation tool. Saved as `crossroads-landscape.png`. The map and location thumbnails share the image; measured overlays remain authoritative because painted landmarks and roads are illustrative.
+Generated with the built-in image generation tool. Saved as `crossroads-landscape.jpg`. The map and location thumbnails share the image; measured overlays remain authoritative because painted landmarks and roads are illustrative.
 
 ## Final prompt
 

@@ -1,5 +1,5 @@
 import AdventureIntros from './AdventureIntros';
-import {findDmEndpoint} from './dmConnection';
+import {findDmEndpoint,askDm} from './dmConnection';
 import Followers from './Followers';
 import DiceRoller from './DiceRoller';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
@@ -36,7 +36,9 @@ import {FullscreenToggle,DisplaySettings} from './DisplayControls';
 import GameHud from './GameHud';
 import LaunchScreen from './LaunchScreen';
 import SaveTransfer from './SaveTransfer';
-const titleArt=require('./assets/map/crossroads-landscape.png');
+import QuickHeroes from './QuickHeroes';
+import FeedbackSheet from './Feedback';
+const titleArt=require('./assets/map/crossroads-landscape.jpg');
 
 export default function App(){return <SceneTransitionProvider><QuestboundApp/></SceneTransitionProvider>;}
 function QuestboundApp() {
@@ -50,7 +52,7 @@ function QuestboundApp() {
   const transition=useSceneTransition();
   const [creatingStory,setCreatingStory]=useState(false),[newStoryRequested,setNewStoryRequested]=useState(false);
   const storyLock=useRef(false);
-  const [selectedIntro,setSelectedIntro]=useState('surprise');
+  const [selectedIntro,setSelectedIntro]=useState('surprise'),[showReady,setShowReady]=useState(false);
   const [screen, setScreenState] = useState('Home');
   const [form, setForm] = useState(blankBuild);
   const [hero, setHero] = useState(null);
@@ -114,8 +116,8 @@ function QuestboundApp() {
       if(selectedIntro==='hostile')next=hostileEncounterGame(hero,newAdventure(hero));
       else{
       const endpoint=await findDmEndpoint();
-      const response=await fetch(endpoint+'/dm',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(90000),body:JSON.stringify({input:'Create a fresh adventure for my character.',context:{mode:'adventure',introId:selectedIntro,choices:[],player:{name:hero.name,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}})});
-      const body=await response.json();if(!response.ok)throw Error(body.error||'The story could not be created.');
+      const {ok,body}=await askDm(endpoint,{input:'Create a fresh adventure for my character.',context:{mode:'adventure',introId:selectedIntro,choices:[],player:{name:hero.name,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      if(!ok)throw Error(body.error||'The story could not be created.');
       next=freshStoryGame(hero,{...body.story,introId:selectedIntro},newAdventure(hero));
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
@@ -147,6 +149,24 @@ function QuestboundApp() {
       setSaving(false);
     }
   }
+  // A ready-made hero skips the builder: saved, then straight to choosing where the story begins.
+  async function useReadyHero(character) {
+    if (loading || saving || storageError) return;
+    setSaving(true); setError('');
+    try {
+      if (hero) backupLocalSave();
+      await saveCharacter(character);
+      setHero(character); setForm({...blankBuild(), ...character, species: character.species ?? character.race});
+      setHealth(null); setGame(newAdventure(character));
+      setCharacterChosen(false); setNewStoryRequested(true); setShowReady(false);
+      setScreenState('Adventure Opening');
+      scrollRef.current?.scrollTo({y:0,animated:false});
+    } catch {
+      setError('Could not save that hero. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
   async function saveAdvancement(character) {
     if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
@@ -173,6 +193,10 @@ function QuestboundApp() {
   useEffect(()=>{setAmbience(ambienceKind);},[ambienceKind]);
   const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;
   useEffect(()=>{setDanger(launched&&inGame&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio]);
+  // What a playtest note carries along automatically (the device is added by the feedback form itself).
+  const [feedbackOpen,setFeedbackOpen]=useState(false);
+  const feedbackContext={hero:hero?hero.name+' (Level '+hero.level+' '+(hero.species??hero.race)+' '+hero.class+')':'',story:game.story?.title??'',screen,
+    where:[game.story?.locations?.[['inn','bridge','tower'].includes(game.stage)?game.stage:'bridge']?.name,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating'}[game.stage]].filter(Boolean).join(', ')};
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
   return <View dataSet={{qb:'root'}} style={s.root}>
@@ -186,7 +210,7 @@ function QuestboundApp() {
   <StatusBar style="light" />
   {playing?<View style={s.shell}>
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. */}
-    <GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}}/>
+    <GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/>
     {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
@@ -220,6 +244,8 @@ function QuestboundApp() {
         {button('New Adventure', () => {setNewStoryRequested(true);setError('');setScreen('Character Selection');}, saved?'secondary':'primary', denseHome&&s.denseButton)}
         <Ornament glyph="✦" style={{marginVertical:denseHome?8:18}}/>
         <View style={[s.menuGrid,denseHome&&{gap:6}]}>{['Character Selection', 'Dice Roller', 'Multiplayer', 'Settings'].map(label => <GameButton key={label} label={label} onPress={() => setScreen(label)} disabled={loading||creatingStory} style={[s.menuCell,denseHome&&s.denseCell]} textStyle={s.menuCellText}/>)}</View>
+        <Pressable accessibilityRole="button" onPress={()=>setFeedbackOpen(true)} style={[s.feedbackLink,denseHome&&{marginTop:6,minHeight:36}]}><Text style={s.feedbackText}>✎  Send playtest feedback</Text></Pressable>
+        <FeedbackSheet visible={feedbackOpen} onClose={()=>setFeedbackOpen(false)} context={feedbackContext}/>
       </>}
       {screen === 'Character Selection' && <>
         <Text style={s.body}>Choose your character to enter the adventure. Your full character sheet is available inside the game.</Text>
@@ -234,8 +260,14 @@ function QuestboundApp() {
           {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
           {button(creatingStory?'Creating your new adventure…':'Play as '+hero.name,playCharacter,'primary')}
           {button('Edit character', () => {setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');})}
-        </> : <Text style={s.note}>No saved character yet. Create your first hero below.</Text>}
-        {button('Create new character', () => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}, hero?'secondary':'primary')}
+        </> : <>
+          <Eyebrow style={s.quickEyebrow}>Quick start · pick a hero and play</Eyebrow>
+          <QuickHeroes onChoose={useReadyHero} disabled={saving||loading}/>
+          {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+          <Eyebrow style={s.quickEyebrow}>Or make your own</Eyebrow>
+        </>}
+        {button('Create new character', () => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}, 'secondary')}
+        {!!hero&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero replaces {hero.name} and the current adventure (a backup is kept under Multiplayer).</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:button('Try a ready-made hero',()=>setShowReady(true)))}
       </>}
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
@@ -324,6 +356,8 @@ const s = StyleSheet.create({
   error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
   note:{fontFamily:fonts.ui,color:'#d9bd84',fontSize:13,lineHeight:20,marginBottom:18},
   footer:{fontFamily:fonts.display,color:'rgba(201,164,92,.55)',fontSize:10,letterSpacing:2.4,textAlign:'center',marginTop:30},
+  quickEyebrow:{marginTop:4,marginBottom:10},
+  feedbackLink:{alignSelf:'center',marginTop:12,minHeight:44,paddingHorizontal:12,justifyContent:'center'},feedbackText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
   about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.2)'},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},
   backChip:{minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(12,16,24,.8)',justifyContent:'center'},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
 });

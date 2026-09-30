@@ -4,12 +4,13 @@ import {CombatHealthButton} from './EncounterOverlay';
 import {FullscreenToggle} from './DisplayControls';
 import {AudioToggle} from './AudioControls';
 import {GameButton,StatBar} from './ui';
+import FeedbackSheet from './Feedback';
 import {displayState,subscribeDisplay,toggleFullscreen} from './fullscreen';
 import {audioSettings,subscribeAudio,setAudio,playSound} from './audio';
 import {fonts,colors,type} from './theme';
 // The in-game heads-up display: always on screen, never scrolls away.
-export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp}){
- const [menu,setMenu]=useState(false),hp=health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3;
+export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,feedback={}}){
+ const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),hp=health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3;
  // Labels and the wordmark appear only when there is room, so every control stays on screen at any width.
  const {width,height}=useWindowDimensions(),labels=wide&&width>=1180,wordmark=wide&&width>=1000,short=height<520;
  const go=target=>{setMenu(false);playSound('page');onNavigate(target);};
@@ -23,11 +24,12 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
   {levelUp&&<Pressable accessibilityRole="button" onPress={onLevelUp} dataSet={{qb:'btn-primary'}} style={s.levelUp}><Text style={s.levelUpText}>✦ {wide?'Level up':'Lv'}</Text></Pressable>}
   {wide?<View style={s.actions}>{icon('❦','Journal','Campaign Journal')}{icon('⚔','Sheet','Character Sheet')}{icon('♞','Party','Followers')}<CombatHealthButton hud label={labels}/><FullscreenToggle compact/><AudioToggle compact/>{menuButton()}</View>
    :<View style={s.actions}><AudioToggle compact/>{menuButton()}</View>}
-  <GameMenu visible={menu} onClose={()=>setMenu(false)} go={go}/>
+  <GameMenu visible={menu} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setNotes(true);}}/>
+  <FeedbackSheet visible={notes} onClose={()=>setNotes(false)} context={feedback}/>
  </View>;
  function menuButton(){return <Pressable accessibilityRole="button" accessibilityLabel="Game menu" onPress={()=>{setMenu(true);playSound('page');}} dataSet={{qb:'chip'}} style={s.icon}><Text style={s.iconGlyph}>☰</Text></Pressable>;}
 }
-function GameMenu({visible,onClose,go}){
+function GameMenu({visible,onClose,go,onFeedback}){
  const [display,setDisplay]=useState(displayState),[audio,setAudioState]=useState(audioSettings);
  useEffect(()=>subscribeDisplay(setDisplay),[]);useEffect(()=>subscribeAudio(setAudioState),[]);
  return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}><Pressable accessibilityLabel="Close menu" onPress={onClose} style={s.scrim}><Pressable onPress={()=>{}} dataSet={{qb:'panel'}} style={s.sheet} accessibilityViewIsModal>
@@ -40,6 +42,7 @@ function GameMenu({visible,onClose,go}){
    <GameButton label="⚙  Settings" onPress={()=>go('Settings')} style={s.cell}/>
    {display.supported&&<GameButton label={display.fullscreen?'⛶  Exit full screen':'⛶  Full screen'} onPress={toggleFullscreen} style={s.cell}/>}
    <GameButton label={audio.muted?'♪  Sound on':'♪  Mute'} onPress={()=>setAudio({muted:!audio.muted})} style={s.cell}/>
+   <GameButton label="✎  Send feedback" onPress={onFeedback} style={s.cell}/>
   </View>
   <GameButton label="‹  Main menu" onPress={()=>go('Home')}/>
  </Pressable></Pressable></Modal>;

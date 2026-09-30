@@ -1,5 +1,5 @@
 import {characterDraftContext,validateCharacterDraft} from './characterDraft';
-import {findDmEndpoint} from './dmConnection';
+import {findDmEndpoint,askDm} from './dmConnection';
 import {subclassOptions} from './subclassOptions';
 import SpellSelector from './SpellSelector';
 import {spellsForClass,spellSelectionError} from './spellOptions';
@@ -34,8 +34,8 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     let repair='';
     for(let attempt=0;attempt<2;attempt++){
       const endpoint=await findDmEndpoint();
-      const response=await fetch(endpoint+'/dm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:idea.trim()||'Surprise me with a complete hero.',context:{...characterDraftContext(),validationFeedback:repair}}),signal:AbortSignal.timeout(90000)});
-      const result=await response.json();if(!response.ok)throw Error(result.error||'Generation failed.');
+      const {ok,body:result}=await askDm(endpoint,{input:idea.trim()||'Surprise me with a complete hero.',context:{...characterDraftContext(),validationFeedback:repair}});
+      if(!ok)throw Error(result.error||'Generation failed.');
       try{const draft=validateCharacterDraft(result.draft);setForm(draft);setPage(0);return;}catch(e){repair=e.message;if(attempt===1)throw e;}
     }
   }catch(e){setPageError(e.message);}finally{setGenerating(false);}}

@@ -44,7 +44,7 @@ Verified all existing verification scripts plus command tests (prepared spell re
 
 ## Illustrated map, automatic spell preflight, Lantern Vaults — 2026-09-15
 
-Integrated built-in generated landscape with matching cropped location art. Authoritative map overlay retains exact distances; art is illustrative. Location cards sort current place first, then nearer destinations, with the beyond-bridge dungeon last. Asset and full prompt: assets/map/crossroads-landscape.png and ART-NOTES.md.
+Integrated built-in generated landscape with matching cropped location art. Authoritative map overlay retains exact distances; art is illustrative. Location cards sort current place first, then nearer destinations, with the beyond-bridge dungeon last. Asset and full prompt: assets/map/crossroads-landscape.jpg and ART-NOTES.md.
 
 Spell commands no longer require “components ready”. They check prepared/granted spell, eligible slots, action use, current HP, known self/enemy range, recorded silence/bound hands/incapacitation/obstruction, material focus in inventory, casting time, and concentration replacement. Normal speech/free casting hand remain explicit baseline assumptions where no restrictions are recorded. World condition flags are supported and tested, but current encounters do not yet generate most conditions. Costly/consumed components, other targets, rituals/reaction triggers, and unimplemented effects use recorded human rulings; no resources are spent on pending rulings. Existing 24 automatic effects remain a limited single-target implementation. The 339-spell catalog is not 339 fully automated spells. Source: https://www.dndbeyond.com/sources/dnd/br-2024/spells
 

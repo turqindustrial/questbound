@@ -12,7 +12,7 @@ assert.equal(guardian.name,'Stone Sentinel');assert.match(guardian.description,/
  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'questbound-art-tests-'));
  try{
   let calls=0,releases=[],maximum=0,active=0;
-  const store=createArtStore({directory,fetchImpl:async(url,options)=>{
+  const store=createArtStore({directory,concurrency:1,fetchImpl:async(url,options)=>{
    assert.equal(url,'https://api.openai.com/v1/responses');const payload=JSON.parse(options.body);assert.equal(payload.store,false);assert.equal(payload.tools.length,1);assert.equal(payload.tools[0].quality,'low');assert.equal(payload.tools[0].output_format,'jpeg');assert.ok(payload.input.includes('Orin')||payload.input.includes('Vessa'));
    calls++;active++;maximum=Math.max(maximum,active);await new Promise(resolve=>releases.push(resolve));active--;return {ok:true,json:async()=>({status:'completed',output:[{type:'image_generation_call',status:'completed',result:Buffer.from([255,216,255,217]).toString('base64')}]})};
   }});
@@ -24,6 +24,12 @@ assert.equal(guardian.name,'Stone Sentinel');assert.match(guardian.description,/
   for(let i=0;i<100;i++){ready=await store.request(sample,{apiKey:'test-only',model:'test-model'});if(ready.status==='ready')break;await wait();}assert.equal(ready.status,'ready');assert.match(ready.dataUrl,/^data:image\/jpeg;base64,/);
   assert.equal(calls,2);assert.equal(maximum,1);releases.shift()();
   for(let i=0;i<100;i++){if((await store.request(other,{apiKey:'test-only',model:'test-model'})).status==='ready')break;await wait();}
+  // With the default of two painters, two illustrations run at once and a third waits.
+  let running2=0,peak2=0;const gates2=[];
+  const pair=createArtStore({directory,fetchImpl:async()=>{running2++;peak2=Math.max(peak2,running2);await new Promise(resolve=>gates2.push(resolve));running2--;return {ok:true,json:async()=>({status:'completed',output:[{type:'image_generation_call',status:'completed',result:Buffer.from([255,216,255,217]).toString('base64')}]})};}});
+  for(const id of ['p1','p2','p3'])await pair.request({...sample,id,campaignId:'parallel'},{apiKey:'test-only',model:'test-model'});
+  await wait();assert.equal(running2,2,'Two illustrations paint at once');
+  while(gates2.length||running2){gates2.shift()?.();await wait();}assert.equal(peak2,2,'Never more than two at once');
   const restarted=createArtStore({directory,fetchImpl:async()=>{throw Error('Cache should prevent provider calls');}});
   const reloaded=await restarted.request({...sample,description:'A transient expression does not change the character identity.'},{apiKey:'test-only',model:'test-model'});assert.equal(reloaded.dataUrl,ready.dataUrl);
   assert.ok((await fs.readFile(path.join(directory,first.key+'.json'),'utf8')).includes('copper apron'));
