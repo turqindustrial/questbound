@@ -27,7 +27,7 @@ export default function CinematicLayer({levelReady=false}){
  const card=finale&&{victory:{icon:'crown',over:'The dust settles',title:'Victory',sub:finale.sub},complete:{icon:'star',over:'Your tale is told',title:'Adventure complete',sub:finale.sub},defeat:{icon:'skull',over:'Darkness takes you',title:'Defeated',sub:finale.sub},levelup:{icon:'star',over:'Your legend grows',title:'Level '+finale.level,sub:finale.sub}}[finale.kind];
  return <View style={[StyleSheet.absoluteFill,s.layer,{pointerEvents:'box-none'}]}>
   {!!flash&&<View key={flash.id} dataSet={{qb:'flash-'+flash.kind}} style={[StyleSheet.absoluteFill,s.none]}/>}
-  {!!burst&&<View key={'burst'+burst.id} style={[StyleSheet.absoluteFill,s.none,s.center]}><Text dataSet={{qb:'burst-text'}} style={[s.burst2,{fontSize:fit('Critical hit!',width,60,.75)}]}>Critical hit!</Text></View>}
+  {!!burst&&<View key={'burst'+burst.id} style={[StyleSheet.absoluteFill,s.none,s.center]}><Text dataSet={{qb:'burst-text',lig:'off'}} style={[s.burst2,{fontSize:fit('Critical hit!',width,60,.75)}]}>Critical hit!</Text></View>}
   {!!banner&&<View key={banner.id} style={[StyleSheet.absoluteFill,s.none,s.center]} accessibilityLiveRegion="polite">
    <View dataSet={{qb:'cine-band'}} style={s.band}>
     <View dataSet={{qb:'cine-rule'}} style={s.bandRule}/>
@@ -39,7 +39,7 @@ export default function CinematicLayer({levelReady=false}){
   {!!area&&<View key={area.id} dataSet={{qb:'area'}} style={[StyleSheet.absoluteFill,s.none,s.center]} accessibilityLiveRegion="polite">
    <View style={s.area}>
     <Text style={s.areaOver}>{area.over}</Text>
-    <Text dataSet={{qb:'title'}} style={[s.areaTitle,{fontSize:fit(area.title,width,52,.7),lineHeight:Math.round(fit(area.title,width,52,.7)*1.2)}]}>{area.title}</Text>
+    <Text dataSet={{qb:'title',lig:'off'}} style={[s.areaTitle,{fontSize:fit(area.title,width,52,.7),lineHeight:Math.round(fit(area.title,width,52,.7)*1.2)}]}>{area.title}</Text>
     <View style={s.areaRule}><View dataSet={{qb:'rule-left'}} style={s.areaLine}/><View style={s.lozenge}/><View dataSet={{qb:'rule-right'}} style={s.areaLine}/></View>
     {!!area.sub&&<Text style={s.areaSub}>{area.sub}</Text>}
    </View>
@@ -50,7 +50,7 @@ export default function CinematicLayer({levelReady=false}){
    <View dataSet={{qb:'finale-card'}} style={s.card}>
     <View style={[s.emblem,dark&&{borderColor:'rgba(220,90,70,.8)'}]}><Icon name={card.icon} size={34} color={dark?'#ff9f86':colors.goldBright}/></View>
     <Text style={[s.over,dark&&{color:'#d99a8a'}]}>{card.over}</Text>
-    <Text dataSet={{qb:dark?undefined:'title',sheen:'on'}} style={[s.title,{fontSize:fit(card.title,width,56,.78),lineHeight:Math.round(fit(card.title,width,56,.78)*1.25)},dark&&{color:'#f0c6b8'}]}>{card.title}</Text>
+    <Text dataSet={{qb:dark?undefined:'title',sheen:'on',lig:'off'}} style={[s.title,{fontSize:fit(card.title,width,56,.78),lineHeight:Math.round(fit(card.title,width,56,.78)*1.25)},dark&&{color:'#f0c6b8'}]}>{card.title}</Text>
     <View style={[s.rule,dark&&{backgroundColor:'rgba(220,90,70,.6)'}]}/>
     {!!card.sub&&<Text style={s.sub}>{card.sub}</Text>}
     {finale.kind==='victory'&&levelReady&&<View dataSet={{qb:'btn-primary'}} style={s.reward}><Icon name="star" size={14} color="#2a1a07"/><Text style={s.rewardText}>A new level awaits</Text></View>}

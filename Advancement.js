@@ -29,7 +29,7 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
     <View dataSet={{qb:'plate'}} style={s.levelCard}>
       <HeroPortrait hero={hero} size={64} level={hero.level}/>
       <Icon name="forward" size={22} color={colors.gold}/>
-      <View style={s.newLevel}><Text style={s.newLevelLabel}>Level</Text><Text dataSet={{qb:'title'}} style={s.newLevelValue}>{nextLevel}</Text></View>
+      <View style={s.newLevel}><Text style={s.newLevelLabel}>Level</Text><Text dataSet={{qb:'title',lig:'off'}} style={s.newLevelValue}>{nextLevel}</Text></View>
       <View style={s.gains}>
         <View style={s.gain}><Icon name="heart" size={14} color={colors.heal}/><Text style={s.gainText}>Max HP {before.hp} → <Text style={s.gainUp}>{stats.hp}</Text></Text></View>
         <View style={s.gain}><Icon name="star" size={14} color={colors.gold}/><Text style={s.gainText}>Proficiency +{before.proficiency} → <Text style={s.gainUp}>+{stats.proficiency}</Text></Text></View>

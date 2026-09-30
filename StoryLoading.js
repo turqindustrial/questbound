@@ -14,10 +14,12 @@ const tips=[
  ['sound','Headphones bring out the score and the side each blow lands on.'],
  ['transfer','Settings → Move your hero copies a save code, a handy backup.'],
 ];
-export default function StoryLoading({introId}){
+// `hero` mode covers the Dungeon Master drafting a complete character from the player's idea.
+export default function StoryLoading({introId,hero=null}){
  const {width}=useWindowDimensions(),intro=intros.find(i=>i.id===introId),[tip,setTip]=useState(()=>Math.floor(Math.random()*tips.length)),[seconds,setSeconds]=useState(0);
  useEffect(()=>{const a=setInterval(()=>setTip(t=>(t+1)%tips.length),5200),b=setInterval(()=>setSeconds(s=>s+1),1000);return()=>{clearInterval(a);clearInterval(b);};},[]);
- const title=intro?.id==='surprise'?'A tale of your own':intro?.title??'Your next adventure';
+ const title=hero!=null?'Your hero':intro?.id==='surprise'?'A tale of your own':intro?.title??'Your next adventure';
+ const detail=hero!=null?(hero.trim()?'“'+hero.trim().slice(0,160)+'”':'Anyone the dice allow'):intro?.setting;
  const size=Math.max(24,Math.min(40,Math.floor((width-48)/(title.length*.62))));
  return <View dataSet={{qb:'scrim'}} style={[StyleSheet.absoluteFill,s.root]} accessibilityViewIsModal accessibilityLiveRegion="polite">
   <View dataSet={{qb:'launch-glow'}} style={[StyleSheet.absoluteFill,{opacity:.55,pointerEvents:'none'}]}/>
@@ -26,11 +28,11 @@ export default function StoryLoading({introId}){
     <View dataSet={{qb:'bezel'}} style={s.bezel}/>
     <View dataSet={{qb:'launch-ring'}} style={s.seal}><Icon name="quill" size={40} color={colors.goldBright}/></View>
    </View>
-   <Text style={s.overline}>The Dungeon Master is writing</Text>
-   <Text dataSet={{qb:'title'}} style={[s.title,{fontSize:size,lineHeight:Math.round(size*1.25)}]}>{title}</Text>
-   {!!intro?.setting&&<Text style={s.setting}>{intro.setting}</Text>}
+   <Text style={s.overline}>{hero!=null?'The Dungeon Master is shaping':'The Dungeon Master is writing'}</Text>
+   <Text dataSet={{qb:'title',lig:'off'}} style={[s.title,{fontSize:size,lineHeight:Math.round(size*1.25)}]}>{title}</Text>
+   {!!detail&&<Text style={s.setting}>{detail}</Text>}
    <View style={s.track}><View dataSet={{qb:'shimmer'}} style={s.fill}/></View>
-   <Text style={s.time}>{seconds<25?'Names, places and a first conflict, made for your hero':seconds<60?'Still writing: a good opening takes a moment':'Taking longer than usual; it will appear as soon as it is ready'}</Text>
+   <Text style={s.time}>{hero!=null?(seconds<25?'Species, class, abilities, spells, gear and a backstory':'Still shaping: you can review everything before saving'):seconds<25?'Names, places and a first conflict, made for your hero':seconds<60?'Still writing: a good opening takes a moment':'Taking longer than usual; it will appear as soon as it is ready'}</Text>
    <View key={tip} dataSet={{qb:'enter'}} style={s.tip}><Icon name={tips[tip][0]} size={16} color={colors.gold}/><Text style={s.tipText}>{tips[tip][1]}</Text></View>
   </View>
  </View>;

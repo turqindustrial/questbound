@@ -5,8 +5,9 @@ import SpellSelector from './SpellSelector';
 import {spellsForClass,spellSelectionError} from './spellOptions';
 import { equipmentFor, instruments } from './equipmentRules';
 import LoadoutSummary from './LoadoutSummary';
+import StoryLoading from './StoryLoading';
 import React, {useState} from 'react';
-import {View, Text, TextInput, Pressable, StyleSheet} from 'react-native';
+import {View, Text, TextInput, Pressable, StyleSheet, Modal} from 'react-native';
 import {fonts,colors,type} from './theme';
 import {Crest} from './ui';
 import Icon from './Icon';
@@ -87,6 +88,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     return <View style={s.reviewRow}><View style={{flex:1}}><Text style={s.detail}>{label}</Text><Text style={s.optionTitle}>{value}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${label}`} onPress={() => go(target)} style={s.chip}><Text style={s.text}>Edit</Text></Pressable></View>;
   }
   return <View>
+    <Modal transparent visible={generating} animationType="fade"><StoryLoading hero={idea}/></Modal>
     <View style={s.stepRow}><Text style={s.progress}>Step {page + 1} of {pages.length}</Text>{page < reviewPage && <Text style={s.nextHint}>Next: {pages[page+1].title}</Text>}</View>
     <View style={s.progressTrack}>{pages.map((item, i) => <Pressable key={item.title} accessibilityRole="button" accessibilityLabel={'Step '+(i+1)+': '+item.title} disabled={i >= page} onPress={() => go(i)} style={s.progressHit}><View dataSet={{qb:i < page ? 'bar-gold' : undefined}} style={[s.progressSegment, i < page && {backgroundColor:'#d8b879'}, i === page && s.progressNow]}/></Pressable>)}</View>
     <Text accessibilityRole="header" style={s.heading}>{pages[page].title}</Text>
