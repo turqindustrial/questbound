@@ -1,5 +1,5 @@
 import React from 'react';
-import {View,Text,Pressable,StyleSheet,Platform} from 'react-native';
+import {View,Text,Pressable,StyleSheet,Platform,useWindowDimensions} from 'react-native';
 import {fonts,colors,type} from './theme';
 import Icon from './Icon';
 import {playSound} from './audio';
@@ -58,7 +58,9 @@ export function MenuItem({label,sub,icon,onPress,primary=false,disabled=false,ce
 }
 // Segmented tabs (character sheet, journal, settings).
 export function Segmented({options,value,onChange,style}){
- return <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.seg,style]}>{options.map(([id,label,icon])=>{const on=value===id;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on){playSound('page');onChange(id);}}} dataSet={{qb:on?'seg-on':undefined}} style={[s.segItem,on&&s.segOn]}>{!!icon&&<Icon name={icon} size={15} color={on?colors.goldBright:colors.muted}/>}<Text numberOfLines={1} style={[s.segText,on&&{color:colors.goldBright}]}>{label}</Text></Pressable>;})}</View>;
+ // On a phone the tabs drop their icons and capitals so every tab stays on one row.
+ const narrow=useWindowDimensions().width<520;
+ return <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.seg,narrow&&{flexWrap:'nowrap'},style]}>{options.map(([id,label,icon])=>{const on=value===id;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on){playSound('page');onChange(id);}}} dataSet={{qb:on?'seg-on':undefined}} style={[s.segItem,narrow&&s.segNarrow,on&&s.segOn]}>{!!icon&&!narrow&&<Icon name={icon} size={15} color={on?colors.goldBright:colors.muted}/>}<Text numberOfLines={1} style={[s.segText,narrow&&s.segTextNarrow,on&&{color:colors.goldBright}]}>{label}</Text></Pressable>;})}</View>;
 }
 export function StatBar({value,maximum,kind='hp',height=10,style}){
  const pct=Math.max(0,Math.min(100,100*(value??0)/Math.max(1,maximum)));
@@ -107,6 +109,7 @@ const s=StyleSheet.create({
  menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:'#b9ae95',marginTop:1},
  seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(6,8,12,.55)',marginVertical:14},
  segItem:{flexGrow:1,flexBasis:0,minWidth:96,minHeight:42,paddingHorizontal:10,borderRadius:4,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:'transparent'},
+ segNarrow:{minWidth:0,paddingHorizontal:4},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
  segOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
  track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(201,164,92,.35)',overflow:'hidden'},

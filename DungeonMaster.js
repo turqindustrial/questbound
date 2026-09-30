@@ -13,7 +13,7 @@ import {adventureStep} from './adventureRules';
 import {dmCommand} from './dmCommands';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
-import {KeyHint} from './ui';
+import {KeyHint,IconButton} from './ui';
 import {shortcutsBlocked} from './keyboard';
 import {View,Text as PlainText,TextInput,Pressable,ScrollView,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
 import {dmContext,dmChoices,commitDmTurn} from './dmContext';
@@ -45,8 +45,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       let found=known?await probe([known]):null;if(!found?.state.ready)found=await probe(endpoints);
       lastReady=known=found?.state.ready?found.url:null;if(!found)throw Error('Unavailable');
       if(alive.current)setUnpaired(!!found.state.unpaired);
-      if(alive.current){setEndpoint(found.url);setConnected(!!found.state.ready);setProtocol(found.state.actionProtocol??0);setStatus(found.state.unpaired?'Your invite has lapsed or the host restarted sharing. Reload the page and enter the invite code to continue; your hero is safe in this browser.':!found.state.ready?'AI DM needs your private setup.':found.state.actionProtocol>=3?'AI DM connected · rulings enabled':found.state.actionProtocol===2?'AI DM connected · actions enabled':'AI DM connected · private service upgrade needed for rulings');}
-    }catch{if(alive.current){setConnected(false);setProtocol(0);setStatus('AI DM server is not running. Reconnecting automatically…');}}finally{checking=false;if(alive.current)setChecked(true);}};
+      if(alive.current){setEndpoint(found.url);setConnected(!!found.state.ready);setProtocol(found.state.actionProtocol??0);setStatus(found.state.unpaired?'Your invite has lapsed or the host restarted sharing. Reload the page and enter the invite code to continue; your hero is safe in this browser.':!found.state.ready?'The Dungeon Master is not set up yet on the host’s PC.':found.state.actionProtocol>=3?'AI DM connected · rulings enabled':found.state.actionProtocol===2?'AI DM connected · actions enabled':'AI DM connected · private service upgrade needed for rulings');}
+    }catch{if(alive.current){setConnected(false);setProtocol(0);setStatus('The Dungeon Master is not answering. Reconnecting automatically…');}}finally{checking=false;if(alive.current)setChecked(true);}};
     check();const timer=setInterval(check,5000);return()=>{alive.current=false;clearInterval(timer);};
   },[]);
   const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
@@ -187,7 +187,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color="#2a1a07"/>:<Icon name="send" size={20} color="#2a1a07" strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color="#2a1a07" strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>
     {person?<View style={s.fillHeader}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back to adventure" disabled={busy||playing} onPress={()=>setConversationId(null)} style={s.fillBack}><Text style={s.backText}>‹</Text></Pressable>
+      <IconButton icon="back" label="Back to adventure" size={36} disabled={busy||playing} onPress={()=>setConversationId(null)}/>
       <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
       <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
     </View>:!short&&!compact&&<View style={s.fillHeader}>

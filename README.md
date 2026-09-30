@@ -45,7 +45,7 @@ You need:
 
 - Windows 10 or 11, kept awake while people play.
 - [Node.js LTS](https://nodejs.org).
-- An **OpenAI API key** whose project can use the text model you choose (the launcher suggests a default) and image generation. **Your key pays for everyone's play**: each turn is one or two short requests, and each new character, place or creature gets one illustration.
+- An **OpenAI API key** whose project can use the text model you choose (the launcher suggests a default) and image generation. **Your key pays for everyone's play**: each turn is one or two short requests, and each new character, place or creature (including each player's own hero) gets one illustration. Illustrations are kept on your PC and reused, so the four ready-made heroes are painted only once.
 - Cloudflare's free tunnel tool, installed once: `winget install --id Cloudflare.cloudflared -e`
 
 Then:

@@ -6,6 +6,8 @@ import {journalForGame,journalObjective} from './journalRules';
 import {GameButton,ScreenTitle,Segmented,Section} from './ui';
 import Icon from './Icon';
 import {fonts,colors,type} from './theme';
+// Stored entry titles are kept as written; the page shows friendlier names.
+const shownTitle=title=>({'AI DM conversation':'Conversation','AI spell ruling':'Spell ruling'})[title]??title;
 const kinds={ruling:['DM ruling','spell',colors.arcane],quest:['Quest','scroll',colors.gold],encounter:['Encounter','swords',colors.bloodBright],level:['Level gained','star',colors.goldBright]};
 export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
   const [note,setNote]=useState(''),[visible,setVisible]=useState(20),[folder,setFolder]=useState('dm');
@@ -22,7 +24,7 @@ export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
     {!entries.length&&<View style={s.empty}><Icon name="journal" size={26} color={colors.goldMid}/><PlainText style={s.emptyText}>Nothing recorded here yet.</PlainText></View>}
     {entries.slice(0,visible).map(e=>{const [label,icon,tone]=folder==='player'?['Player note','feedback',colors.gold]:kinds[e.kind]??['Dungeon Master','quill',colors.goldMid];return <View key={e.id} dataSet={{qb:'plate'}} style={[s.entry,{borderLeftColor:tone}]}>
       <View style={s.entryHead}><Icon name={icon} size={13} color={tone}/><PlainText style={s.entryMeta}>{label} · Chapter {e.chapter}</PlainText></View>
-      <Text style={s.entryTitle}>{e.title}</Text><Text style={s.text}>{e.text}</Text></View>;})}
+      <Text style={s.entryTitle}>{shownTitle(e.title)}</Text><Text style={s.text}>{String(e.text).replace(/^AI DM: /gm,'Dungeon Master: ')}</Text></View>;})}
     {entries.length>visible&&<GameButton icon="forward" label="Show older entries" onPress={()=>setVisible(v=>v+20)}/>}
     <Text style={s.caption}>Milestones and confirmed DM rulings stay here even when the combat log gets shorter. Continue and earned level-ups keep this journal; a new adventure or a new character starts a fresh one.</Text>
     <GameButton variant="primary" icon="back" label="Back to adventure" onPress={onBack}/>
