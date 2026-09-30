@@ -38,7 +38,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  (listeners.pointerdown??[]).forEach(fn=>fn({target:{closest:()=>null}}));
  const built=name=>{const before=nodes;audio.playSound(name,0,{speaker:'mara'});return nodes-before;};
  // Every effect and every damage type on both sides builds real sound.
- const effects=['click','send','dice','swing','miss','hit','crit','hurt','heal','fall','victory','defeat','chime','voice','whoosh','page','boot','spell','tick','open','select','round','levelup'];
+ const effects=['click','send','dice','swing','miss','hit','crit','hurt','heal','fall','victory','defeat','chime','voice','whoosh','page','boot','spell','tick','open','select','round','levelup','arrive'];
  for(const name of effects){now+=3;assert.ok(built(name)>0,name+' makes sound');}
  for(const type of ['slashing','piercing','bludgeoning','fire','cold','poison','necrotic','radiant','lightning','thunder','acid','psychic','force'])for(const side of ['foe','me']){now+=2;assert.ok(built('impact:'+type+':'+side)>0,type+' '+side);}
  const unknown=nodes;audio.playSound('no-such-sound');assert.equal(nodes,unknown,'Unknown sounds are ignored safely');

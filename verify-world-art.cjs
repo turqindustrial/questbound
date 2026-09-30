@@ -2,9 +2,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
 const {createArtStore,artKey,artPrompt,validateSubject}=require('./world-art.cjs');
 const sample={campaignId:'test-campaign',id:'keeper',kind:'portrait',name:'Orin',description:'An old dwarf potter with silver braids and a burnished copper apron.',setting:'A riverside pottery.'};
 const vm=require('node:vm'),syncFs=require('node:fs');
-const subjectRules=vm.runInNewContext(['mapRules.js','dungeonRules.js','worldArtRules.js'].map(f=>syncFs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({npcArtSubject,locationArtSubject,creatureArtSubject})');
+const subjectRules=vm.runInNewContext(['mapRules.js','dungeonRules.js','worldArtRules.js'].map(f=>syncFs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({npcArtSubject,locationArtSubject,creatureArtSubject,placeArtSubject})');
 const storyGame={stage:'inn',story:{id:'story-alpha',premise:'A snowbound harbor.',locations:{inn:{name:'Harbor Camp',description:'An icy camp.'}},npcs:{keeper:{name:'Orin',appearance:'A dwarf with copper spectacles.',role:'Potter'},mara:{name:'Vessa',appearance:'A dragonborn with silver horns.',role:'Cartographer'}},foe:'Ice crawler',foeAppearance:'A small six-legged translucent crustacean.'}};
 assert.match(subjectRules.npcArtSubject(storyGame,'keeper').description,/copper spectacles/);assert.match(subjectRules.npcArtSubject(storyGame,'mara').description,/dragonborn/);assert.notEqual(artKey(subjectRules.npcArtSubject(storyGame,'keeper')),artKey(subjectRules.npcArtSubject(storyGame,'mara')));assert.equal(subjectRules.locationArtSubject(storyGame).name,'Harbor Camp');assert.equal(subjectRules.creatureArtSubject(storyGame),null);assert.match(subjectRules.creatureArtSubject({...storyGame,stage:'combat'}).description,/six-legged/);
+// Arrival plates in the story feed reuse the exact scene painting of the place (same key: no second paid image).
+assert.equal(artKey(subjectRules.placeArtSubject(storyGame,'Harbor Camp')),artKey(subjectRules.locationArtSubject(storyGame)));
+assert.equal(artKey(subjectRules.placeArtSubject({stage:'inn'},'the Crossroads Inn')),artKey(subjectRules.locationArtSubject({stage:'inn'})));
+assert.equal(subjectRules.placeArtSubject(storyGame,'Nowhere'),null);
 const wait=()=>new Promise(resolve=>setTimeout(resolve,10));
 const guardian=subjectRules.creatureArtSubject({...storyGame,stage:'combat',dungeon:{active:true,room:2}});
 assert.equal(guardian.name,'Stone Sentinel');assert.match(guardian.description,/stone sentinel/i);assert.ok(!guardian.description.includes('crustacean'),'A dungeon guardian must not inherit the unrelated main foe appearance');

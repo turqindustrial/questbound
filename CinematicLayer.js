@@ -16,7 +16,7 @@ export default function CinematicLayer(){
   if(!web)return;
   if(['hurt','crit','heal'].includes(event.kind)){setFlash({kind:event.kind,id:event.id});later(()=>setFlash(f=>f?.id===event.id?null:f),1000);return;}
   // Arriving somewhere (or a new tale beginning) names the place in large letters, then fades; it never takes input.
-  if(event.kind==='area'){setArea({...event});later(()=>setArea(a=>a?.id===event.id?null:a),3700);return;}
+  if(event.kind==='area'){playSound('arrive');setArea({...event});later(()=>setArea(a=>a?.id===event.id?null:a),3700);return;}
   if(event.kind==='round'){playSound('round');setBanner({id:event.id,title:'Round '+event.round,sub:event.sub??'Roll for it'});later(()=>setBanner(b=>b?.id===event.id?null:b),1950);return;}
   if(['victory','defeat','levelup','complete'].includes(event.kind)){if(event.kind==='levelup')playSound('levelup');setBanner(null);setArea(null);setFinale({...event});later(()=>setFinale(f=>f?.id===event.id?null:f),event.kind==='levelup'?3600:3400);}
  },[]);

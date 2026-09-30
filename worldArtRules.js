@@ -11,6 +11,14 @@ export function locationArtSubject(game){
  if(!place)return null;
  return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
 }
+// The painting of a named place in this adventure (the same subject the scene uses when you are there), for the
+// illustrated arrival plates in the story feed. Only surface places; the vaults have their own scenes.
+export function placeArtSubject(game,name){
+ const plain=text=>String(text??'').toLowerCase().replace(/^the\s+/,'').trim();
+ const places=game.story?.locations??mapPlaces,id=Object.keys(places).find(key=>key!=='dungeon'&&plain(places[key]?.name)===plain(name));
+ if(!id)return null;
+ return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:places[id].name,description:places[id].description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
+}
 export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';

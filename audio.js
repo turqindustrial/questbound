@@ -225,6 +225,8 @@ const effects={
  tick:t=>{noise(t,{bus:out.sfx,peak:.022,attack:.001,release:.014,filter:{type:'bandpass',freq:vary(5200,.08),q:5}});osc('sine',vary(2300,.03),t,{bus:out.sfx,peak:.012,attack:.001,release:.03,glide:1800});},
  open:t=>{noise(t,{bus:out.sfx,peak:.05,attack:.08,release:.22,filter:{type:'bandpass',freq:500,to:2400,time:.25,q:.9}});bell(hz(81),t+.08,{bus:out.sfx,peak:.016,release:.9,ratio:3.5,index:.8,send:.5,reverb:out.room});},
  select:t=>{pluck(74,t,{bus:out.sfx,peak:.2,bright:.6,send:.45,reverb:out.room});pluck(81,t+.07,{bus:out.sfx,peak:.12,bright:.6,send:.45,reverb:out.room});},
+ // Arriving somewhere: a low swell under two soft, open bells, as the place's name appears.
+ arrive:t=>{swell(t,.9,.06);osc('sine',hz(38),t,{bus:out.sfx,peak:.14,attack:.4,hold:.4,release:1.6,send:.4,reverb:out.room});[74,81].forEach((m,i)=>bell(hz(m),t+.35+i*.22,{bus:out.sfx,peak:.026,attack:.01,release:2.2,ratio:3.5,index:.8,send:.7,reverb:out.room,panTo:i?.2:-.2}));},
  // A new round: one deep drum and a short brass call.
  round:t=>{taiko(t,1.1);brassStab([50,57,62],t+.02,.1,.45);},
  // Level up: a rising bell run into a brass and choir chord.

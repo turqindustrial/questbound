@@ -185,6 +185,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 @keyframes qb-numpop{from{transform:scale(.4) translateY(6px);opacity:0;}to{transform:none;opacity:1;}}
 [data-qb=portrait]{box-shadow:0 0 0 1px rgba(0,0,0,.8),0 0 0 4px rgba(20,16,10,.9),0 0 0 5px rgba(201,164,92,.6),0 14px 40px rgba(0,0,0,.6),0 0 40px rgba(236,164,84,.15);}
 [data-qb=portrait-hot]{box-shadow:0 0 0 1px rgba(0,0,0,.8),0 0 0 4px rgba(24,10,8,.9),0 0 0 5px rgba(220,90,70,.7),0 14px 40px rgba(0,0,0,.6),0 0 40px rgba(200,65,47,.25);}
+[data-qb=plate-shade]{background:linear-gradient(180deg,rgba(6,8,12,0) 30%,rgba(6,8,12,.55) 60%,rgba(6,8,12,.94) 100%) !important;}
 [data-qb=foe-shade]{background:linear-gradient(180deg,rgba(12,6,6,0) 30%,rgba(12,6,6,.55) 58%,rgba(12,6,6,.96) 100%) !important;}
 [data-qb=avatar]{box-shadow:0 0 0 2px rgba(201,164,92,.7),0 4px 10px rgba(0,0,0,.5);}
 [data-qb=banner]{background:linear-gradient(90deg,transparent,rgba(120,24,16,.55) 20%,rgba(120,24,16,.55) 80%,transparent) !important;}

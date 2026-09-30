@@ -4,7 +4,7 @@ import {spellActions} from './quickActions';
 import {recruitmentTargets} from './followerRules';
 import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
-import {npcArtSubject,creatureArtSubject} from './worldArtRules';
+import {npcArtSubject,creatureArtSubject,placeArtSubject,locationArtSubject} from './worldArtRules';
 import {subscribeArt,artIdentity} from './artClient';
 import {storyText} from './storyRules';
 import TurnPlayback from './TurnPlayback';
@@ -140,7 +140,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const effects=activeEffectLines(game,health);
   // Names the playback uses to move the HUD's HP bars in step with the story, and portraits for speakers.
   const names=useMemo(()=>({hero:hero.name,foe:game.story?.foe??'Encounter opponent'}),[hero.name,game.story?.foe]);
-  const avatarFor=id=>id?npcArtSubject(game,id):null;
+  const avatarFor=id=>id?npcArtSubject(game,id):null,sceneFor=name=>placeArtSubject(game,name);
   const previousNarration=(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').at(-1)?.text.split(/\n(?:AI DM|Dungeon Master): /).at(-1)?.split('\nResult:')[0];
   const attitude=person?.attitude==='hostile'?{label:'Hostile · remembers what happened',color:colors.bloodBright}:person?.attitude==='unfriendly'?{label:'Unfriendly',color:'#e0a860'}:{label:'Listening',color:colors.heal};
   const sendDisabled=busy||playing||!input.trim()||!!waiting||tableSyncing;
@@ -196,7 +196,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     </View>}
     {!connected&&checked&&<Text style={[s.caption,{marginBottom:6},unpaired&&{color:colors.gold}]}>{status}</Text>}
     {unpaired&&<Pressable accessibilityRole="button" onPress={()=>globalThis.location?.reload()} dataSet={{qb:'btn-primary'}} style={[s.button,{alignSelf:'flex-start',marginBottom:8}]}><Text style={s.buttonText}>Reload and rejoin</Text></Pressable>}
-    <TurnPlayback fill names={names} avatarFor={avatarFor} intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
+    <TurnPlayback fill names={names} avatarFor={avatarFor} sceneFor={sceneFor} openingScene={!person&&game.story?locationArtSubject(game):null} intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
       <View style={s.tipsHead}><Icon name="star" size={14} color={colors.gold}/><PlainText style={s.tipsTitle}>How to play</PlainText></View>
       <View style={s.tipRow}><Icon name="swords" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an action below{compact?'':' (or press its number key)'}, or type anything you want to do or say.</PlainText></View>
       <View style={s.tipRow}><Icon name="d20" size={15} color={colors.gold}/><PlainText style={s.tipsText}>The Dungeon Master decides what happens; the dice decide how it goes.</PlainText></View>

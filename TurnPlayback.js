@@ -20,7 +20,7 @@ function cueFor(event,sounds,view){
   else if(name==='heal')at(()=>cue('heal'));
   else if(name==='victory')at(()=>cue(/Adventure complete/i.test(event.text)?'complete':'victory',{sub:first}));
   else if(name==='defeat')at(()=>cue('defeat',{sub:first}));
-  else if(name==='whoosh'){const place=String(event.text??'').match(/^You (?:arrive at|return to|fall back to|travel to|reach) (.+?)[.!]?$/)?.[1];if(place)at(()=>cue('area',{over:'You arrive at',title:place}));}
+  else if(name==='whoosh'){const place=String(event.text??'').match(arrivalLine)?.[1]?.trim();if(place)at(()=>cue('area',{over:'You arrive at',title:place}));}
  }
  if(view.type==='round')cue('round',{round:view.round,sub:view.round===1?'Steel is drawn':'The fight goes on'});
 }
@@ -36,7 +36,7 @@ function Verdict({kind,actor}){
  const tone=bad?colors.bloodBright:good?(kind==='success'?colors.heal:colors.gold):colors.muted;
  return <View dataSet={{qb:'verdict'}} style={[s.verdict,{borderColor:tone},filled&&{backgroundColor:tone}]}><PlainText style={[s.verdictText,{color:filled?'#1a0f05':tone}]}>{verdictLabels[kind]??kind}</PlainText></View>;
 }
-function EventRow({event,reduceMotion,sound,me,avatarFor,lead=false}){
+function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
  const view=describeEvent(event);
  useEffect(()=>{if(!sound)return;const sounds=eventSounds(event);sounds.forEach(([name,delay=0,options])=>playSound(name,delay,options));try{cueFor(event,sounds,view);}catch{}},[]);
  const opacity=useRef(new Animated.Value(reduceMotion?1:0)).current,rise=useRef(new Animated.Value(reduceMotion?0:8)).current;
@@ -89,6 +89,9 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,lead=false}){
   case 'note':return wrap(<><Icon name="spell" size={13} color={colors.arcane}/><Text style={s.noteText}>{view.text}</Text></>,s.noteRow);
  }
  const kind=event.kind;
+ // Arriving somewhere shows that place's painting as an illustrated plate, like a page in a storybook.
+ const arrival=kind==='action'&&String(event.text??'').match(arrivalLine)?.[1],scene=arrival&&sceneFor?.(arrival);
+ if(scene)return wrap(<ScenePlate subject={scene} over="You arrive at"/>,s.plateWrap);
  if(kind==='player'){const who=event.speakerName&&event.speakerName!==me?event.speakerName:'You';return wrap(<>
   <View style={s.playerHead}><Icon name="quill" size={12} color="#a9bdf0"/><PlainText style={s.playerLabel}>{who}</PlainText></View>
   <Text style={s.playerText}>{event.text}</Text>
@@ -102,10 +105,19 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,lead=false}){
  </>,s.narration);}
  return wrap(<><Icon name="star" size={12} color={colors.gold}/><Text style={s.actionText}>{event.text}</Text></>,s.actionRow);
 }
+// "You travel to Lookout Rock. 900 ft; 3 minutes pass." names the place up to the first full stop.
+const arrivalLine=/^You (?:arrive at|return to|fall back to|travel to|reach) ([^.!;]+)/;
+function ScenePlate({subject,over}){
+ return <View style={s.plate}>
+  <DynamicArt subject={subject} style={StyleSheet.absoluteFill} compact/>
+  <View dataSet={{qb:'plate-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/>
+  <View style={s.plateCaption}><PlainText style={s.plateOver}>{over}</PlainText><PlainText numberOfLines={1} style={s.plateName}>{subject.name}</PlainText></View>
+ </View>;
+}
 function Divider({label}){return <View style={s.divider}><View dataSet={{qb:'rule-left'}} style={s.dividerRule}/><PlainText style={s.dividerText}>{label}</PlainText><View dataSet={{qb:'rule-right'}} style={s.dividerRule}/></View>;}
 function Writing(){return <View dataSet={{qb:'typing'}} style={s.writing} accessibilityLabel="The Dungeon Master is writing"><Icon name="quill" size={14} color={colors.gold}/><PlainText style={s.writingText}>The Dungeon Master is writing</PlainText><View style={s.dots}>{[0,1,2].map(i=><View key={i} dataSet={{qb:'dot'}} style={s.dot}/>)}</View></View>;}
 const leadIndex=events=>events.findIndex(e=>e.kind==='narration');
-export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening,busy,me=null,fill=false,aside=null,intro=null,names=null,avatarFor=null}){
+export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening,busy,me=null,fill=false,aside=null,intro=null,names=null,avatarFor=null,sceneFor=null,openingScene=null}){
  const turn=turns.at(-1),[phase,setPhase]=useState({id:null,count:0}),[history,setHistory]=useState(false),[reduceMotion,setReduceMotion]=useState(false),scroll=useRef(null),follow=useRef(true),{height,width}=useWindowDimensions();
  // The feed follows the newest line until the player scrolls up (its own scrolling only ever moves down), and the
  // first jump to the end, when the game opens, is instant rather than animated.
@@ -126,12 +138,13 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  // While this turn plays, the HUD's HP bars follow the story instead of jumping straight to the result.
  useLayoutEffect(()=>{if(!fill||!names)return;const animating=!!turn&&turn.id===animateId&&!reduceMotion&&playing;setShownHp(animating?shownHp(turn.events,count,names):null);},[fill,turn?.id,count,animateId,reduceMotion,playing,names?.hero,names?.foe]);
  useEffect(()=>()=>{if(fill)setShownHp(null);},[fill]);
- const row=(t,e,i,live)=><EventRow key={t.id+'-'+i} event={e} reduceMotion={!live||reduceMotion} sound={live} me={me} avatarFor={avatarFor} lead={i===leadIndex(t.events)}/>;
+ const row=(t,e,i,live)=><EventRow key={t.id+'-'+i} event={e} reduceMotion={!live||reduceMotion} sound={live} me={me} avatarFor={avatarFor} sceneFor={sceneFor} lead={i===leadIndex(t.events)}/>;
  // Fill mode: one continuous chronicle. Earlier turns sit above; the newest plays out at the bottom and the view follows it.
  if(fill)return <View style={s.fillPanel}>
   <View style={s.fillBar}><View style={s.fillTitleRow}><Icon name={busy?'quill':playing?'d20':'journal'} size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
   <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onScroll={e=>{const n=e.nativeEvent,y=n.contentOffset.y;if(y+n.layoutMeasurement.height>=n.contentSize.height-80)follow.current=true;else if(y<lastY.current-2)follow.current=false;lastY.current=y;}} onContentSizeChange={()=>{if(!follow.current)return;scroll.current?.scrollToEnd({animated:settled.current&&!reduceMotion});settled.current=true;}}>
    {intro}
+   {!turn&&!!openingScene&&<ScenePlate subject={openingScene} over="Where your tale begins"/>}
    {!turn&&<Text style={s.opening}>{opening}</Text>}
    {turns.slice(0,-1).map(t=><View key={t.id} style={s.pastTurn}><Divider label={'Turn '+t.id}/>{t.events.map((e,i)=>row(t,e,i,false))}</View>)}
    {turn&&<View accessibilityLiveRegion="polite">{turns.length>1&&<Divider label={'Turn '+turn.id}/>}{turn.events.slice(0,count).map((e,i)=>row(turn,e,i,turn.id===animateId))}</View>}
@@ -200,6 +213,9 @@ const s=StyleSheet.create({panel:{marginBottom:6},
  dropCap:{fontFamily:fonts.logo,fontSize:30,fontWeight:'900',color:colors.gold,lineHeight:29},
  actionRow:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:7,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.22)',backgroundColor:'rgba(14,19,29,.55)'},
  actionText:{flex:1,fontFamily:fonts.ui,fontSize:13.5,lineHeight:20,color:'#e2e6ec'},
+ plateWrap:{marginVertical:8},plate:{height:170,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:'rgba(232,199,123,.45)',backgroundColor:'#101520',justifyContent:'flex-end'},
+ plateCaption:{padding:14,paddingTop:24},plateOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:2.4,color:colors.goldMid,textTransform:'uppercase'},
+ plateName:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:1,color:'#fff4dc',marginTop:2},
  writing:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:10,paddingHorizontal:6},writingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15.5,color:'#cdbf9f'},
  dots:{flexDirection:'row',gap:4,marginLeft:2},dot:{width:5,height:5,borderRadius:3,backgroundColor:colors.gold},
  skip:{paddingVertical:12,paddingHorizontal:6,minHeight:44},link:{fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'}});
