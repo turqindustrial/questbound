@@ -14,8 +14,8 @@ export function EntityText({children,...props}){
 }
 export const useEncounter=()=>useContext(EncounterContext);
 // hud: a round button sized like the other HUD controls, with or without its label.
-export function CombatHealthButton({hud=false,label=true}){
- const context=useContext(EncounterContext);if(!context?.roster.length)return null;
+export function CombatHealthButton({hud=false,label=true,activeOnly=false}){
+ const context=useContext(EncounterContext);if(!context?.roster.length||(activeOnly&&!context.active))return null;
  if(hud)return context.active?<IconButton hot icon="swords" label="Combat: everyone's HP" onPress={()=>context.open('combat')}/>:<IconButton icon="heart" label="Last encounter: everyone's HP" onPress={()=>context.open('combat')}/>;
  return <Pressable accessibilityRole="button" accessibilityLabel="Show everyone's combat HP" onPress={()=>context.open('combat')} dataSet={{qb:'chip-hot'}} style={s.trigger}><View style={s.triggerRow}><Icon name="swords" size={16} color="#ffd2c2"/><Text style={s.triggerText}>Combat HP</Text></View></Pressable>;
 }

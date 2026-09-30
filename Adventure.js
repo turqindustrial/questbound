@@ -22,7 +22,7 @@ import {mapState} from './mapRules';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
-import {Ornament,StatBar,useCountTo,HpFloaters} from './ui';
+import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
 import {fonts,colors,type} from './theme';
 export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp}){
  const transition=useSceneTransition();
@@ -33,7 +33,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
  const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game);
  const [inConversation,setInConversation]=useState(false);
- const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP);
+ const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  const act=async(action,conversation,random=Math.random)=>{const tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,game,health,action,conversation,random):adventureStep(game,health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,game,health,result,conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger)result.game=withSceneTrigger(game,result.game,action);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}setGame(result.game);setHealth(result.health);setError('');return result;};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
@@ -45,7 +45,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
  const foeName=game.story?.foe??foe.name,foeHp=shown.foe??game.enemyHP,creature=creatureArtSubject(game),hitDice=foe.count+'d'+foe.die+(foe.bonus?'+'+foe.bonus:'');
  const combatStrip=game.stage==='combat'&&<Pressable accessibilityRole="button" accessibilityLabel="Show everyone's combat HP" disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} dataSet={{qb:'plate-hot'}} style={s.strip}>
-  {!!creature&&<DynamicArt dataSet={{qb:'portrait-hot'}} subject={creature} style={s.stripAvatar} compact/>}
+  {!!creature&&<View dataSet={{hit:foeHit}}><DynamicArt dataSet={{qb:'portrait-hot'}} subject={creature} style={s.stripAvatar} compact/></View>}
   <View style={{flex:1,minWidth:0,gap:5}}>
    <View style={s.stripTop}><PlainText numberOfLines={1} style={s.stripName}>{foe.group?standing+'× ':''}{foeName}</PlainText><View><PlainText style={s.stripStat}>{foeCount}/{foe.maximum}</PlainText><HpFloaters value={foeHp}/></View><View style={s.acBadge}><Icon name="shield" size={11} color="#ffc9b8"/><PlainText style={s.acText}>{foe.ac}</PlainText></View></View>
    <StatBar value={foeHp} maximum={foe.maximum} kind="enemy" height={7}/>
@@ -56,7 +56,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const combatPlate=game.stage==='combat'&&<View dataSet={{qb:'plate-hot'}} style={[s.combat,{marginTop:0}]}>
   <View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText numberOfLines={1} style={s.bannerText}>Round {game.round} · Your turn</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View>
   <Pressable accessibilityRole="button" accessibilityLabel={'Show everyone\'s combat HP'} disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} style={[s.foeArt,{height:Math.round(Math.min(200,sideWidth*.62,Math.max(110,windowHeight*.3)))}]}>
-   {!!creature&&<DynamicArt subject={creature} style={StyleSheet.absoluteFill} compact/>}
+   {!!creature&&<View dataSet={{hit:foeHit}} style={StyleSheet.absoluteFill}><DynamicArt subject={creature} style={StyleSheet.absoluteFill} compact/></View>}
    <View dataSet={{qb:'foe-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/>
    <View style={s.foeCaption}><PlainText style={s.foeOver}>Opponent{foe.group?' · '+standing+' of '+foe.group.size+' standing':''}</PlainText><PlainText numberOfLines={2} style={[s.foeName,sideWidth<300&&{fontSize:20}]}>{foeName}</PlainText></View>
   </Pressable>

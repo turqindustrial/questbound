@@ -3,6 +3,7 @@ import {View,Text,Pressable,StyleSheet,Platform,useWindowDimensions} from 'react
 import {fonts,colors,type} from './theme';
 import Icon from './Icon';
 import {playSound} from './audio';
+import {displayState} from './fullscreen';
 const web=Platform.OS==='web';
 // Building blocks for the gilded look. On web, dataSet hooks add gradients, glows and corner filigree from webTheme.js.
 export function Panel({children,style,variant='panel',...props}){
@@ -81,6 +82,13 @@ export function useCountTo(value,duration=450){
   frame.current=requestAnimationFrame(step);return()=>cancelAnimationFrame(frame.current);
  },[value]);
  return shown;
+}
+// A portrait flinches when its HP drops: returns 'a' or 'b' (alternating, so each hit restarts the animation) for a
+// dataSet `hit` value, once the new value has held for a moment.
+export function useHitReaction(value){
+ const [count,setCount]=useState(0),settled=useRef(value),timer=useRef(null);
+ useEffect(()=>{clearTimeout(timer.current);timer.current=setTimeout(()=>{const previous=settled.current;settled.current=value;if(previous!=null&&value!=null&&value<previous&&displayState().screenEffects)setCount(c=>c+1);},90);return()=>clearTimeout(timer.current);},[value]);
+ return count?(count%2?'a':'b'):undefined;
 }
 // Damage and healing float up from an HP readout ("−7" in red, "+5" in green) whenever the value changes.
 export function HpFloaters({value,style}){

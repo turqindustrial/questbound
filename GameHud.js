@@ -3,7 +3,7 @@ import {View,Text,Pressable,Modal,StyleSheet,useWindowDimensions} from 'react-na
 import {CombatHealthButton} from './EncounterOverlay';
 import {FullscreenToggle} from './DisplayControls';
 import {AudioToggle} from './AudioControls';
-import {GameButton,StatBar,IconButton,Crest,useCountTo,HpFloaters} from './ui';
+import {GameButton,StatBar,IconButton,Crest,useCountTo,HpFloaters,useHitReaction} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
@@ -16,7 +16,7 @@ import {fonts,colors,type} from './theme';
 // The in-game heads-up display: always on screen, never scrolls away. HP follows the story as a turn plays out.
 export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,feedback={}}){
  const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),shown=useShownHp();
- const hp=shown.hero??health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3,hpCount=useCountTo(hp);
+ const hp=shown.hero??health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3,hpCount=useCountTo(hp),hit=useHitReaction(hp);
  // Labels and the wordmark appear only when there is room, so every control stays on screen at any width.
  const {width,height}=useWindowDimensions(),wordmark=wide&&width>=1100,short=height<520,roomy=wide&&width>=900;
  const go=target=>{setMenu(false);playSound('page');onNavigate(target);};
@@ -32,7 +32,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
  return <View dataSet={{qb:'hud'}} style={[s.bar,!wide&&s.barCompact,short&&{paddingVertical:4}]}>
   {wordmark&&<View style={s.brand}><Text dataSet={{qb:'title'}} style={s.wordmark}>Questbound</Text><View style={s.divider}/></View>}
   <Pressable accessibilityRole="button" accessibilityLabel={'Open '+hero.name+"'s character sheet"} onPress={()=>go('Character Sheet')} style={s.identity}>
-   <View dataSet={{qb:low?'low-ring':undefined}}><HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/></View>
+   <View dataSet={{qb:low?'low-ring':undefined,hit}}><HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/></View>
    <View style={[s.hero,!wide&&{flex:1}]}>
     <View style={s.heroTop}><Text numberOfLines={1} style={[s.name,!wide&&{fontSize:15}]}>{hero.name}</Text>{(wide||width>=400)&&<Text numberOfLines={1} style={s.meta}>{roomy?'Level '+hero.level+' '+hero.class:'Lv '+hero.level+' '+hero.class}</Text>}</View>
     <View style={s.hpRow}>
@@ -52,7 +52,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
     <FullscreenToggle compact/><AudioToggle compact/>
     <IconButton icon="menu" label="Game menu" tip="Menu · M" onPress={()=>{setMenu(true);playSound('open');}}/>
    </View>
-   :<View style={s.actions}><CombatHealthButton hud/><AudioToggle compact/><IconButton icon="menu" label="Game menu" onPress={()=>{setMenu(true);playSound('open');}}/></View>}
+   :<View style={s.actions}><CombatHealthButton hud activeOnly/><AudioToggle compact/><IconButton icon="menu" label="Game menu" onPress={()=>{setMenu(true);playSound('open');}}/></View>}
   <GameMenu visible={menu} hero={hero} hp={hp} maxHp={maxHp} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setNotes(true);}}/>
   <FeedbackSheet visible={notes} onClose={()=>setNotes(false)} context={feedback}/>
  </View>;

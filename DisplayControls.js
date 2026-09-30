@@ -35,7 +35,7 @@ export function DisplaySettings(){
    <Text style={s.caption}>On iPhone, add Questbound to your Home Screen to play full screen.</Text>
    <GameButton variant="primary" icon="info" label="Show me how" onPress={()=>setHelp(true)} style={{marginTop:0}}/>
   </>:<Text style={s.caption}>This browser doesn’t support full screen for web pages.</Text>}
-  <Toggle value={d.screenEffects} onChange={value=>setDisplayPrefs({screenEffects:value})} label="Screen flashes and shake" description="The red flash and shake when you are hit, gold flares and the critical-hit burst. Turn off if flashing effects bother you."/>
+  <Toggle value={d.screenEffects} onChange={value=>setDisplayPrefs({screenEffects:value})} label="Screen flashes and shake" description="The red flash and shake when you are hit, portraits flinching, gold flares and the critical-hit burst. Turn off if flashing effects bother you."/>
   <HomeScreenHelp visible={help} onClose={()=>setHelp(false)}/>
  </View>;
 }

@@ -224,6 +224,11 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=art-img]{animation:qb-fade .9s ease both;}
 [data-qb=burst-text]{animation:qb-bursttext 1s cubic-bezier(.2,.8,.2,1) both;}
 @keyframes qb-bursttext{0%{opacity:0;transform:scale(1.7);}18%{opacity:1;transform:scale(1);}70%{opacity:1;}100%{opacity:0;transform:scale(.97) translate3d(0,-8px,0);}}
+/* A struck portrait flinches: a short shake with a red flare (two identical keyframes so each hit restarts it). */
+[data-hit=a]{animation:qb-hit-a .6s ease-out both;}
+[data-hit=b]{animation:qb-hit-b .6s ease-out both;}
+@keyframes qb-hit-a{0%{transform:none;filter:none;}12%{transform:translate3d(-4px,0,0) scale(1.03);filter:brightness(1.5) sepia(.9) hue-rotate(-45deg) saturate(3.5);}30%{transform:translate3d(4px,0,0);}50%{transform:translate3d(-2px,0,0);filter:brightness(1.15) sepia(.4) hue-rotate(-45deg) saturate(2);}100%{transform:none;filter:none;}}
+@keyframes qb-hit-b{0%{transform:none;filter:none;}12%{transform:translate3d(-4px,0,0) scale(1.03);filter:brightness(1.5) sepia(.9) hue-rotate(-45deg) saturate(3.5);}30%{transform:translate3d(4px,0,0);}50%{transform:translate3d(-2px,0,0);filter:brightness(1.15) sepia(.4) hue-rotate(-45deg) saturate(2);}100%{transform:none;filter:none;}}
 [data-qb=floater]{animation:qb-float 1.35s cubic-bezier(.2,.8,.2,1) both;}
 @keyframes qb-float{0%{opacity:0;transform:translate3d(0,6px,0) scale(.7);}15%{opacity:1;transform:translate3d(0,0,0) scale(1.15);}30%{transform:scale(1);}100%{opacity:0;transform:translate3d(0,-30px,0);}}
 [data-qb=art-wait]{background:linear-gradient(100deg,#0f141e 30%,#1d2536 50%,#0f141e 70%) !important;background-size:220% 100% !important;animation:qb-shimmer 1.8s linear infinite;}
