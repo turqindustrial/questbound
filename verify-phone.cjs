@@ -43,6 +43,17 @@ async function sharedLink(){
   // The invite lasts a week.
   now+=7*86400000;assert.equal((await join('87654321','198.51.100.100')).status,401);
  }finally{await new Promise(resolve=>share.server.close(resolve));}
+ // A busy Dungeon Master (one reply at a time) is retried until it answers, and a restarted gateway keeps its invite's expiry.
+ let busy=2,dmCalls=0;const until=Date.now()+3*86400000;
+ const patient=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'13572468',expiresAt:until,dmLimit:5,fetchImpl:async(url,options={})=>{if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true})};dmCalls++;return busy-->0?{ok:false,status:429,json:async()=>({error:'Please wait before asking the DM again.'})}:{ok:true,status:200,json:async()=>({narration:'Your turn.'})};}});
+ assert.equal(patient.info.expiresAt,new Date(until).toISOString());
+ await new Promise(resolve=>patient.server.listen(0,'127.0.0.1',resolve));
+ try{
+  const hit=(route,opts={})=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:patient.server.address().port,path:route,method:opts.method??'GET',headers:{Host:'quest.example.com',...opts.headers}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:t}));});req.on('error',reject);req.end(opts.body);});
+  const paired=await hit('/pair',{method:'POST',headers:{Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({code:'13572468'})});assert.equal(paired.status,200);
+  const r=await hit('/api/dm',{method:'POST',headers:{Cookie:paired.headers['set-cookie'][0].split(';')[0],Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({input:'Hi',context:{choices:[]}})});
+  assert.equal(r.status,200);assert.equal(JSON.parse(r.text).narration,'Your turn.');assert.equal(dmCalls,3,'Two busy replies, then the answer');
+ }finally{await new Promise(resolve=>patient.server.close(resolve));}
 }
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -68,6 +79,6 @@ async function sharedLink(){
   clock+=61000;for(let i=0;i<5;i++)assert.equal((await pair('00000000')).status,401);assert.equal((await pair('12345678')).status,429);
   clock+=86400000;assert.equal((await request('/api/health',{headers})).status,401);assert.equal((await pair('12345678')).status,401);
   await sharedLink();
-  console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap that spares illustrations).');
+  console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap that spares illustrations, busy-DM retries, invite kept across gateway restarts).');
  }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});
