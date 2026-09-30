@@ -13,7 +13,7 @@ Use headphones if you have them.
 
 ## 2. Combat test (5 min)
 New Adventure → pick a **ready-made hero** (or play your own) → tap **Random hostile encounter** → **Begin the encounter** (right under the card).
-- [ ] A ready-made hero takes one tap and goes straight to choosing a story.
+- [ ] The four ready-made heroes show painted portraits (the first viewer may wait a moment while they are painted). A ready-made hero takes one tap and goes straight to choosing a story, and their portrait sits in the top bar.
 - [ ] A "How to play" card greets you in the story; **Got it** hides it for good.
 - [ ] The game fills the screen with no page scrolling: your HP bar at the top, the story in the middle, the message box above the Story/Quest/Map/Log tabs.
 - [ ] The foe's HP strip (HP bar, AC) sits above the story; tapping it shows everyone's HP. The Quest tab has the full nameplate; for a group, it shows how many are standing.
@@ -21,7 +21,7 @@ New Adventure → pick a **ready-made hero** (or play your own) → tap **Random
 - [ ] Above the message box: your weapon in gold, then Dodge, Retreat and Potion. Swipe the row for more.
 - [ ] Each roll shows as a card with a die face and a stamped Hit/Miss; damage shows as a number. When the foe hits you, the screen flashes red and your HP bar drops at that moment, not before.
 - [ ] Use the action buttons (or number keys on a computer) to attack, dodge and drink the potion. Wizard or Cleric: tap **Cast…** and pick a spell; attacks fly at the enemy and healing lands on you in one tap. Dice, swings and misses sound right. With headphones, your hits land on the right (the foe) and the foe's hits on the left (you); fire, cold and lightning each sound different.
-- [ ] Drop below 30% HP: the HP bar pulses red and a heartbeat starts.
+- [ ] Damage numbers float up from the HP readouts and the struck portrait flinches. Drop below 30% HP: the HP bar pulses red, a red ring pulses around your portrait and a heartbeat starts. (If flashes bother you: Settings → Display → Screen flashes and shake.)
 - [ ] Turn the phone on its side: the story and the side column sit next to each other and still fit.
 - [ ] Retreat, or get knocked out: you end up at the Caravan Camp and the captain or scout speaks first.
 - [ ] Walk back and win: a **Victory** card appears with the victory sound (tap it away), then the camp greets you when you return.
