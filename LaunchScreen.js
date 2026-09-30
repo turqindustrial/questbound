@@ -37,8 +37,12 @@ export default function LaunchScreen({ready,onBegin}){
  return <Animated.View style={[StyleSheet.absoluteFill,s.root,{opacity:exit}]}>
   <Pressable accessibilityRole="button" accessibilityLabel="Tap to begin Questbound" onPress={begin} style={[s.fill,short&&{gap:8,padding:12}]}>
    <View dataSet={{qb:'launch-glow'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
+   <View dataSet={{qb:'rays'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
    <View dataSet={{qb:'embers'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
-   <Animated.View style={{opacity:emblem,transform:[{scale:emblem.interpolate({inputRange:[0,1],outputRange:[.82,1]})}]}}>
+   <View dataSet={{qb:'grain'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
+   <Animated.View style={{marginVertical:Math.round(ring*.2),opacity:emblem,transform:[{scale:emblem.interpolate({inputRange:[0,1],outputRange:[.82,1]})}]}}>
+    <View dataSet={{qb:'bezel',dir:'back'}} style={[s.bezel,{width:ring*1.42,height:ring*1.42,left:-ring*.21,top:-ring*.21}]}/>
+    <View dataSet={{qb:'bezel'}} style={[s.bezel,{width:ring*1.28,height:ring*1.28,left:-ring*.14,top:-ring*.14}]}/>
     <View dataSet={{qb:'launch-ring'}} style={[s.ring,{width:ring,height:ring,borderRadius:ring/2}]}>
      <View style={[s.inner,{width:ring-18,height:ring-18,borderRadius:(ring-18)/2}]}/>
      <Text dataSet={{qb:'title'}} style={[s.q,{fontSize:q,lineHeight:Math.round(q*1.15)}]}>Q</Text>
@@ -58,7 +62,7 @@ export default function LaunchScreen({ready,onBegin}){
 }
 const s=StyleSheet.create({
  root:{zIndex:100,backgroundColor:colors.ink},passThrough:{pointerEvents:'none'},fill:{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:18,overflow:'hidden'},
- ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},inner:{position:'absolute',borderWidth:1,borderColor:'rgba(201,164,92,.45)'},
+ ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},bezel:{position:'absolute',pointerEvents:'none'},inner:{position:'absolute',borderWidth:1,borderColor:'rgba(201,164,92,.45)'},
  q:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center'},
  eyebrow:{fontFamily:fonts.display,fontSize:11,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase',marginBottom:6},
  logo:{fontFamily:fonts.logo,fontWeight:'900',letterSpacing:5,color:colors.gold,textAlign:'center'},

@@ -9,12 +9,14 @@ import {playSound} from './audio';
 // The title screen: the painted world behind, the gilded name, and a console-style menu. Wide screens put the menu in a
 // column on the left and the saved hero's "slot" on the right; phones stack the name above a thumb-reach menu.
 export default function HomeScreen({hero,game,health,saved,disabled,onContinue,onNew,onOpen,onFeedback,width,height,notice}){
- const wide=width>=860&&height>=560,short=height<700,tiny=height<560;
- const logo=Math.max(34,Math.min(wide?96:72,Math.floor((wide?Math.min(width*.58,860):width-40)/9.6),Math.floor(height/(short?8.5:7.2))));
+ // A phone on its side (or any short, wide window) puts the name on the left and the menu on the right.
+ const landscape=!(width>=860&&height>=560)&&width>=600&&width>height*1.3;
+ const wide=(width>=860&&height>=560)||landscape,short=height<700,tiny=height<560&&!landscape;
+ const logo=Math.max(34,Math.min(wide?96:72,Math.floor((landscape?width*.44:wide?Math.min(width*.58,860):width-40)/9.6),Math.floor(height/(landscape?5.2:short?8.5:7.2))));
  const stats=hero?combatBasics(hero):null,hp=health?.current??stats?.hp;
  const where=game?.story?.title??(saved?'The Lantern at the Crossroads':null);
  const menu=<View style={[s.menu,!wide&&s.menuNarrow]}>
-  {!!hero&&<MenuItem primary={saved} icon="play" label="Continue" sub={hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide}/>}
+  {!!hero&&<MenuItem primary={saved} icon="play" label="Continue" sub={!wide&&!short&&stats?.available?null:hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide}/>}
   <MenuItem primary={!saved} icon="compass" label="New Adventure" sub={saved?null:'Pick a hero and choose where the story begins'} onPress={onNew} disabled={disabled} center={!wide}/>
   <View style={[s.menuGroup,!wide&&{alignItems:'center'}]}>
    <MenuItem icon="sheet" label="Heroes" size={short?'small':'large'} onPress={()=>onOpen('Character Selection')} disabled={disabled} center={!wide}/>
@@ -36,7 +38,7 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
   <View style={s.slotHp}><Icon name="heart" size={13} color={colors.heal}/><View style={{flex:1}}><StatBar value={hp} maximum={stats.hp} height={6}/></View><Text style={s.slotHpText}>{hp}/{stats.hp}</Text></View>
   <View style={s.slotFoot}><Text style={s.slotGo}>{saved?'Continue':'Choose your story'}</Text><Icon name="forward" size={14} color={colors.gold}/></View>
  </Pressable>;
- const brand=<View style={[s.brand,!wide&&{alignItems:'center'},wide&&{width:Math.min(width*.6,880)}]}>
+ const brand=<View style={[s.brand,!wide&&{alignItems:'center'},wide&&!landscape&&{width:Math.min(width*.6,880)}]}>
   <Text style={[s.overline,!wide&&{textAlign:'center'}]}>A tabletop adventure</Text>
   <Text accessibilityRole="header" dataSet={{qb:'title',glow:'on'}} style={[s.logo,{fontSize:logo,lineHeight:Math.round(logo*1.2),letterSpacing:Math.max(2,Math.round(logo/14))},!wide&&{textAlign:'center'}]}>Questbound</Text>
   {!tiny&&<><Ornament style={[s.rule,!wide&&{alignSelf:'center'}]}/>
@@ -44,7 +46,11 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
  </View>;
  const footer=<View style={[s.footer,!wide&&{justifyContent:'center'}]}>
   <Pressable accessibilityRole="button" onPress={onFeedback} onHoverIn={()=>playSound('tick')} style={s.feedback}><Icon name="feedback" size={15} color={colors.gold}/><Text style={s.feedbackText}>Send playtest feedback</Text></Pressable>
-  {wide&&<Text style={s.version}>Early access 0.1 · Playtest</Text>}
+  {wide&&!landscape&&<Text style={s.version}>Early access 0.1 · Playtest</Text>}
+ </View>;
+ if(landscape)return <View dataSet={{qb:'enter-slow'}} style={s.landscape}>
+  <View style={s.landLeft}>{brand}</View>
+  <View style={s.landRight}>{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{footer}</View>
  </View>;
  if(wide)return <View dataSet={{qb:'enter-slow'}} style={s.wide}>
   <View style={s.left}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}</View>
@@ -62,6 +68,8 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
 }
 const s=StyleSheet.create({
  wide:{flex:1,minHeight:0,flexDirection:'row',paddingHorizontal:'6%',paddingTop:20,paddingBottom:56},
+ landscape:{flex:1,minHeight:0,flexDirection:'row',alignItems:'center',paddingHorizontal:'5%',paddingVertical:8,gap:24},
+ landLeft:{flex:1.1,justifyContent:'center'},landRight:{flex:1,justifyContent:'center'},
  left:{width:'48%',maxWidth:560,justifyContent:'center',gap:10},
  right:{flex:1,alignItems:'flex-end',justifyContent:'flex-end',paddingBottom:8},
  footerWide:{position:'absolute',left:'6%',right:'6%',bottom:14},

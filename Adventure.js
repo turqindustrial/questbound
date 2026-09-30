@@ -27,7 +27,7 @@ import {fonts,colors,type} from './theme';
 export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp}){
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
- const {width:windowWidth}=useWindowDimensions();
+ const {width:windowWidth,height:windowHeight}=useWindowDimensions();
  // New turns (yours, the table's or a scene moment) bring a phone player back to the story.
  const lastTurn=game.playback?.at(-1)?.id??0;
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
@@ -39,7 +39,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
  // One-tap actions for this moment; the map's Travel buttons send through the same Dungeon Master turn.
- const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game)];
+ const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game)];
  const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
  const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
@@ -55,7 +55,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const statChip=(icon,text)=><View key={text} style={s.statChip}><Icon name={icon} size={12} color="#ffc9b8"/><PlainText style={s.statChipText}>{text}</PlainText></View>;
  const combatPlate=game.stage==='combat'&&<View dataSet={{qb:'plate-hot'}} style={[s.combat,{marginTop:0}]}>
   <View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText numberOfLines={1} style={s.bannerText}>Round {game.round} · Your turn</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View>
-  <Pressable accessibilityRole="button" accessibilityLabel={'Show everyone\'s combat HP'} disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} style={[s.foeArt,{height:Math.round(Math.min(200,sideWidth*.62))}]}>
+  <Pressable accessibilityRole="button" accessibilityLabel={'Show everyone\'s combat HP'} disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} style={[s.foeArt,{height:Math.round(Math.min(200,sideWidth*.62,Math.max(110,windowHeight*.3)))}]}>
    {!!creature&&<DynamicArt subject={creature} style={StyleSheet.absoluteFill} compact/>}
    <View dataSet={{qb:'foe-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/>
    <View style={s.foeCaption}><PlainText style={s.foeOver}>Opponent{foe.group?' · '+standing+' of '+foe.group.size+' standing':''}</PlainText><PlainText numberOfLines={2} style={[s.foeName,sideWidth<300&&{fontSize:20}]}>{foeName}</PlainText></View>
@@ -83,7 +83,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const logPanel=!!game.log.length&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.log}><View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>Adventure log</PlainText></View>{game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}</View>;
  const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>;
  const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel}/>;
- const toast=!!error&&<Pressable accessibilityRole="alert" onPress={()=>setError('')} style={s.toast}><Text style={s.toastText}>{error}  ✕</Text></Pressable>;
+ const toast=!!error&&<Pressable accessibilityRole="alert" accessibilityHint="Tap to dismiss" onPress={()=>setError('')} dataSet={{qb:'enter'}} style={s.toast}><Icon name="info" size={16} color="#ffb39e"/><Text style={s.toastText}>{error}</Text><Icon name="close" size={14} color="#ffd2c2"/></Pressable>;
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
@@ -135,7 +135,7 @@ const s=StyleSheet.create({
  stripName:{flex:1,fontFamily:fonts.display,color:'#ffe6d6',fontSize:15,fontWeight:'700',letterSpacing:.4},stripStat:{fontFamily:fonts.display,color:'#ffe6d6',fontSize:13,fontWeight:'800',fontVariant:['tabular-nums']},
  acBadge:{flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:6,paddingVertical:1,borderRadius:9,borderWidth:1,borderColor:'rgba(255,180,160,.35)'},acText:{fontFamily:fonts.ui,fontSize:11,fontWeight:'700',color:'#ffc9b8'},
  roundBadge:{alignItems:'center',justifyContent:'center',minWidth:36,paddingLeft:8,borderLeftWidth:1,borderLeftColor:'rgba(255,180,160,.25)'},roundBadgeLabel:{fontFamily:fonts.display,fontSize:8.5,letterSpacing:1.4,color:'#e79a86',textTransform:'uppercase'},roundBadgeText:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:'#ffe6d6'},
- toast:{paddingHorizontal:12,paddingVertical:8,marginBottom:6,borderRadius:3,borderWidth:1,borderColor:'rgba(240,106,79,.5)',backgroundColor:'rgba(60,18,14,.85)'},toastText:{fontFamily:fonts.ui,color:'#ffd2c2',fontSize:13,lineHeight:19},
+ toast:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,paddingVertical:9,marginBottom:6,marginHorizontal:6,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.5)',backgroundColor:'rgba(60,18,14,.92)'},toastText:{flex:1,fontFamily:fonts.ui,color:'#ffd2c2',fontSize:13,lineHeight:19},
  tabBar:{position:'relative',flexDirection:'row',backgroundColor:'rgba(8,10,16,.96)',paddingTop:2,paddingBottom:2},
  tab:{flex:1,alignItems:'center',justifyContent:'center',minHeight:54,gap:3,borderTopWidth:2,borderTopColor:'transparent'},tabOn:{borderTopColor:colors.gold},
  tabAlert:{position:'absolute',top:-2,right:-5,width:8,height:8,borderRadius:4,backgroundColor:colors.bloodBright,borderWidth:1,borderColor:'#1a0a08'},

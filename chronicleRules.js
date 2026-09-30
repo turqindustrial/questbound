@@ -24,7 +24,7 @@ function verdictOf(text,save){
 function mathOf(text,natural){
  const start=text.search(/d20 /);if(start<0)return '';
  const end=text.indexOf(' vs ',start);
- return text.slice(start,end<0?undefined:end).replace(/d20 (?:\[[\d, ]+\]|\d+)/,String(natural)).replace(/\s*\((?:normal|advantage|disadvantage)[^)]*\)/,'').replace(/\+(\d)/g,'+ $1').replace(/\s+/g,' ').replace(/\.$/,'').trim();
+ return text.slice(start,end<0?undefined:end).replace(/d20 (?:\[[\d, ]+\]|\d+)/,String(natural)).replace(/\s*\((?:normal|advantage|disadvantage)[^)]*\)/,'').replace(/\+(\d)/g,'+ $1').replace(/\+\s*-\s*(\d)/g,'− $1').replace(/\s+/g,' ').replace(/\.$/,'').trim();
 }
 export function describeEvent(event){
  const text=String(event?.text??'').trim(),kind=event?.kind;

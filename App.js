@@ -35,6 +35,7 @@ import HomeScreen from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import CinematicLayer from './CinematicLayer';
+import StoryLoading from './StoryLoading';
 import {cue,useCue} from './cinematics';
 // Page headings: overline, title and icon for the screens that have one.
 const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['Victory earned','Level up','star']};
@@ -201,6 +202,16 @@ function QuestboundApp() {
   useEffect(()=>{setMood(!launched?'silence':inGame?(fighting?'combat':'explore'):'menu');},[launched,inGame,fighting]);
   const ambienceKind=!launched?'none':inGame?(game.dungeon?.active?'cave':fighting?'battle':['inn','defeat','escaped'].includes(game.stage)?'hearth':'wild'):'menu';
   useEffect(()=>{setAmbience(ambienceKind);},[ambienceKind]);
+  // Entering the game rises out of black and names the place (a new tale names the story first).
+  const areaName=inGame?locationArtSubject(game)?.name??null:null,seenArea=useRef(null),[unveil,setUnveil]=useState(0);
+  useEffect(()=>{
+    if(!launched)return;
+    const previous=seenArea.current;seenArea.current=areaName;
+    if(!areaName||previous)return;
+    const stamp=Date.now();setUnveil(stamp);setTimeout(()=>setUnveil(value=>value===stamp?0:value),1600);
+    const hostile=game.story?.introId==='hostile',fresh=!(game.playback?.length);
+    cue('area',fresh?(hostile?{over:'Steel is drawn',title:areaName}:{over:'A new tale begins',title:game.story?.title??areaName,sub:game.story?areaName:null}):{over:game.story?.title??'The Lantern at the Crossroads',title:areaName});
+  },[areaName,launched]);
   const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;
   useEffect(()=>{setDanger(launched&&inGame&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio]);
   // What a playtest note carries along automatically (the device is added by the feedback form itself).
@@ -208,7 +219,7 @@ function QuestboundApp() {
   const feedbackContext={hero:hero?hero.name+' (Level '+hero.level+' '+(hero.species??hero.race)+' '+hero.class+')':'',story:game.story?.title??'',screen,
     where:[game.story?.locations?.[['inn','bridge','tower'].includes(game.stage)?game.stage:'bridge']?.name,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating'}[game.stage]].filter(Boolean).join(', ')};
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
-  const saveProblem=saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
+  const saveProblem=!!saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
   const home=screen==='Home'&&!inGame,wideHome=home&&windowWidth>=860&&windowHeight>=560;
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
@@ -311,7 +322,9 @@ function QuestboundApp() {
     </View>
   </ScrollView>}</View>}
   </EncounterProvider>
+  {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer/>
+  {creatingStory&&selectedIntro!=='hostile'&&<StoryLoading introId={selectedIntro}/>}
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
   </View>;
 }

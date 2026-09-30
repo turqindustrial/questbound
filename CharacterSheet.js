@@ -4,41 +4,47 @@ import MagicPanel from './MagicPanel';
 import {earnedGold,campaignState} from './campaignRules';
 import {spellDefense} from './spellRules';
 import FeaturePanel from './FeaturePanel';
-import {spellLibrary,automaticSpells} from './spellOptions';
 import React, {useState} from 'react';
 import LoadoutSummary from './LoadoutSummary';
 import {View, Text as PlainText, Pressable, StyleSheet} from 'react-native';
 import {abilities, modifier} from './characterRules';
 import {combatBasics, signed} from './combatRules';
-import WeaponAttacks from './WeaponAttacks';
 import HealthTracker from './HealthTracker';
-import {GameButton,Ornament} from './ui';
+import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
+import Icon from './Icon';
+import {classIcons} from './iconPaths';
 import {fonts,colors,type} from './theme';
 
 export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame}) {
   const [tab,setTab]=useState('Overview');
   const [showCalculations,setShowCalculations] = useState(false);
   const stats = combatBasics(hero);
-  const tile = (label,value,description) => <View key={label} dataSet={{qb:'plate'}} style={s.tile}><Text style={s.label}>{label}</Text><Text style={s.value}>{value}</Text><Text style={[s.caption,s.center]}>{description}</Text></View>;
+  const hp=health?.current??stats.hp;
+  const tile = (label,value,description,icon) => <View key={label} dataSet={{qb:'plate'}} style={s.tile}><View style={s.tileHead}>{!!icon&&<Icon name={icon} size={14} color={colors.goldMid}/>}<PlainText style={s.label}>{label}</PlainText></View><PlainText style={s.value}>{value}</PlainText><Text style={[s.caption,s.center]}>{description}</Text></View>;
   return <View>
-    <PlainText style={s.overline}>Character sheet</PlainText>
-    <PlainText style={s.name}>{hero.name}</PlainText>
-    <Text style={s.subtitle}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
-    <Ornament style={{marginVertical:12}}/>
+    <View style={s.header}>
+      <Crest icon={classIcons[hero.class]??'star'} size={72} level={hero.level}/>
+      <View style={{flex:1,minWidth:0}}>
+        <PlainText style={s.overline}>Character sheet</PlainText>
+        <PlainText numberOfLines={2} style={s.name}>{hero.name}</PlainText>
+        <Text style={s.subtitle}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+        {!!hero.background && <View style={s.tags}><View style={s.tag}><Icon name="scroll" size={12} color={colors.gold}/><Text style={s.tagText}>{hero.background}</Text></View>{!!hero.originFeat&&<View style={s.tag}><Icon name="star" size={12} color={colors.gold}/><Text style={s.tagText}>{hero.originFeat}</Text></View>}</View>}
+      </View>
+    </View>
+    {stats.available&&<View style={s.hpBlock}><Icon name="heart" size={16} color={hp/Math.max(1,stats.hp)<=.3?colors.bloodBright:colors.heal}/><View style={{flex:1}}><StatBar value={hp} maximum={stats.hp} height={10}/></View><PlainText style={s.hpText}>{hp}<PlainText style={s.hpMax}> / {stats.hp} HP</PlainText></PlainText></View>}
     {!!hero.plannedSubclass && <Text style={s.caption}>{hero.level>=3?'Subclass':'Planned subclass'}: {hero.plannedSubclass}{hero.level<3?' · Unlocks at level 3':''}</Text>}
-    {!!hero.background && <Text style={s.gold}>{hero.background} · {hero.originFeat}</Text>}
-    <View accessibilityRole="tablist" style={s.grid}>{['Overview','Spells','Skills & Abilities','Inventory'].map(name=><Pressable key={name} accessibilityRole="tab" accessibilityState={{selected:tab===name}} onPress={()=>setTab(name)} dataSet={{qb:tab===name?'btn-primary':'chip'}} style={[s.tab,tab===name&&s.tabActive]}><Text style={[s.tabText,tab===name&&{color:'#2a1a07'}]}>{name}</Text></Pressable>)}</View>
+    <Segmented value={tab} onChange={setTab} options={[['Overview','Overview','sheet'],['Spells','Spells','spell'],['Skills & Abilities','Skills','star'],['Inventory','Inventory','bag']]}/>
     {tab==='Overview'&&<>
     {stats.available ? <>
       <View style={s.grid}>
-        {tile('Maximum HP',stats.hp,'Your hit-point maximum at this level')}
-        {tile('Armor class',spellDefense(game,stats.ac).ac ?? '—',spellDefense(game,stats.ac).ac!==stats.ac?'Includes active spell protection':'From your armor and gear')}
-        {tile('Initiative',signed(stats.initiative),'Add this to your initiative d20')}
-        {tile('Proficiency',signed(stats.proficiency),'Bonus for trained abilities')}
+        {tile('Maximum HP',stats.hp,'Your hit-point maximum at this level','heart')}
+        {tile('Armor class',spellDefense(game,stats.ac).ac ?? '—',spellDefense(game,stats.ac).ac!==stats.ac?'Includes active spell protection':'From your armor and gear','shield')}
+        {tile('Initiative',signed(stats.initiative),'Add this to your initiative d20','bolt')}
+        {tile('Proficiency',signed(stats.proficiency),'Bonus for trained abilities','star')}
       </View>
-      <View style={s.panel}><Text style={s.section}>Starter defense</Text><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>Assumes the listed armor is worn and any starter shield is wielded. Spell effects and optional fighting styles are not included.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
-      <Pressable accessibilityRole="button" accessibilityState={{expanded:showCalculations}} onPress={() => setShowCalculations(!showCalculations)} dataSet={{qb:'btn'}} style={s.secondary}><Text style={s.buttonText}>{showCalculations ? 'Hide calculations' : 'How are these calculated?'}</Text></Pressable>
-      {showCalculations && <View style={s.panel}>
+      <View dataSet={{qb:'plate'}} style={s.panel}><Section icon="shield" title="Starter defense" style={{marginTop:0}}/><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>Assumes the listed armor is worn and any starter shield is wielded. Spell effects and optional fighting styles are not included.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
+      <GameButton icon="info" label={showCalculations ? 'Hide calculations' : 'How are these calculated?'} onPress={() => setShowCalculations(!showCalculations)}/>
+      {showCalculations && <View dataSet={{qb:'plate'}} style={s.panel}>
         <Text style={s.text}>Maximum HP: {stats.hpFormula} = {stats.hp}</Text>
         <Text style={s.text}>Hit Point Die: {stats.hitDie}</Text>
         <Text style={s.text}>Armor class: {stats.ac === null ? 'Equipment not saved yet.' : `${stats.acFormula}${spellDefense(game,stats.ac).ac!==stats.ac?' + 2 Shield of Faith':''} = ${spellDefense(game,stats.ac).ac}`}</Text>
@@ -47,44 +53,49 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
       </View>}
       <HealthTracker maximum={stats.hp} health={health} setHealth={setHealth} readOnly={true}/>
     </> : <Text style={s.gold}>{stats.reason}</Text>}
-    {['age','backstory','connections','ideals','bonds','flaws'].map(key=>hero[key]?<View key={key}><Text style={s.section}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{hero[key]}</Text></View>:null)}
-    {!!hero.description && <><Text style={s.section}>Appearance & personality</Text><Text style={s.text}>{hero.description}</Text></>}
+    {['age','backstory','connections','ideals','bonds','flaws'].map(key=>hero[key]?<View key={key}><Section title={key.charAt(0).toUpperCase()+key.slice(1)}/><Text style={s.text}>{hero[key]}</Text></View>:null)}
+    {!!hero.description && <><Section title="Appearance & personality"/><Text style={s.text}>{hero.description}</Text></>}
     </>}
     {tab==='Spells'&&<><MagicPanel hero={hero} game={game}/>{!hero.spells?.length&&<Text style={s.caption}>Granted spells, if any, appear above. Choose prepared spells during character creation or advancement.</Text>}</>}
     {tab==='Skills & Abilities'&&<>
+    <Section icon="star" title="Ability scores" style={{marginTop:4}}/>
+    {hero.scores ? <View style={s.grid}>{abilities.map(name => <View key={name} dataSet={{qb:'plate'}} style={s.ability}><PlainText style={s.label}>{name}</PlainText><PlainText style={s.abilityValue}>{hero.scores[name]}</PlainText><View style={s.modPill}><PlainText style={s.modText}>{signed(modifier(hero.scores[name]))}</PlainText></View></View>)}</View> : <Text style={s.text}>Complete character creation to add your abilities.</Text>}
     <SkillPanel hero={hero} game={game} setGame={setGame} locked={healthLocked||game.stage==='combat'||!!game.pendingSpell}/>
     <FeaturePanel hero={hero}/>
-    <Text style={s.section}>Ability scores</Text>
-    {hero.scores ? <View style={s.grid}>{abilities.map(name => tile(name,hero.scores[name],`Modifier ${signed(modifier(hero.scores[name]))}`))}</View> : <Text style={s.text}>Complete character creation to add your abilities.</Text>}
     </>}
     {tab==='Inventory'&&<>
-    <Text style={s.section}>Starting equipment</Text>
+    <Section icon="bag" title="Starting equipment" style={{marginTop:4}}/>
     {hero.equipment ? <>
       <LoadoutSummary hero={hero}/>
-      {hero.equipment.items.map(item => <View key={item.name} style={s.item}><Text style={[s.text,{flex:1}]}>{item.name}</Text><Text style={s.gold}>×{item.quantity}</Text></View>)}
-      <Text style={s.gold}>Starting gold: {hero.equipment.totalGold} GP</Text>
-      <Text style={s.caption}>Class kit: {hero.equipment.classGold} GP · Background: {hero.equipment.backgroundGold} GP</Text>
+      {hero.equipment.items.map(item => <View key={item.name} style={s.item}><Icon name="bag" size={14} color={colors.goldMid}/><Text style={[s.text,{flex:1}]}>{item.name}</Text><PlainText style={s.qty}>×{item.quantity}</PlainText></View>)}
     </> : <Text style={s.text}>Review and save equipment through Character Selection to add your starter kit.</Text>}
-    <Text style={s.gold}>Quest earnings: {earnedGold(game)} GP</Text>
-    <Text style={s.gold}>Total gold: {(hero.equipment?.totalGold??0)+earnedGold(game)} GP</Text>
-    <Text style={s.text}>Healing draughts remaining: {game.potions??0}</Text>
-    {campaignState(game).lensQuest==='found'&&<Text style={s.text}>Quest item: signal lens</Text>}
-    {game.dungeon?.complete&&<Text style={s.text}>Quest relic: Lantern Heart</Text>}
+    <View style={s.purse}>
+      <View style={s.purseCell}><Icon name="coin" size={18} color={colors.gold}/><View><PlainText style={s.label}>Total gold</PlainText><PlainText style={s.purseValue}>{(hero.equipment?.totalGold??0)+earnedGold(game)} GP</PlainText></View></View>
+      <View style={s.purseCell}><Icon name="potion" size={18} color={colors.heal}/><View><PlainText style={s.label}>Healing draughts</PlainText><PlainText style={s.purseValue}>{game.potions??0}</PlainText></View></View>
+    </View>
+    <Text style={s.caption}>Starting gold {hero.equipment?.totalGold??0} GP (class kit {hero.equipment?.classGold??0}, background {hero.equipment?.backgroundGold??0}) · Quest earnings {earnedGold(game)} GP</Text>
+    {campaignState(game).lensQuest==='found'&&<View style={s.item}><Icon name="gem" size={14} color={colors.gold}/><Text style={s.text}>Quest item: signal lens</Text></View>}
+    {game.dungeon?.complete&&<View style={s.item}><Icon name="gem" size={14} color={colors.gold}/><Text style={s.text}>Quest relic: Lantern Heart</Text></View>}
     <Text style={s.caption}>Describe item use to the DM. Gear changes and shopping are not automated yet.</Text>
     </>}
-    <GameButton variant="primary" label="‹ Back to adventure" onPress={onBack} style={{marginTop:24}}/>
+    <GameButton variant="primary" icon="back" label="Back to adventure" onPress={onBack} style={{marginTop:24}}/>
   </View>;
 }
-const s = StyleSheet.create({overline:{...type.label},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:34,fontWeight:'700',letterSpacing:1,marginTop:6,marginBottom:6},subtitle:{fontFamily:fonts.ui,color:colors.gold,fontSize:15,lineHeight:24,letterSpacing:.4},
- gold:{fontFamily:fonts.ui,color:'#dfc18e',fontSize:14,lineHeight:23,marginVertical:8},grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:16},
- tile:{flexBasis:145,flexGrow:1,padding:16,borderRadius:4,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},
- label:{...type.label,fontSize:10,textAlign:'center'},value:{fontFamily:fonts.display,color:colors.gold,fontSize:36,fontWeight:'800',marginVertical:6},
+const s = StyleSheet.create({overline:{...type.label},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:32,lineHeight:38,fontWeight:'700',letterSpacing:1,marginTop:4},subtitle:{fontFamily:fonts.ui,color:colors.gold,fontSize:14.5,lineHeight:22,letterSpacing:.4},
+ header:{flexDirection:'row',alignItems:'center',gap:20,marginBottom:14},
+ tags:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tag:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:'rgba(201,164,92,.3)',backgroundColor:'rgba(0,0,0,.2)'},tagText:{fontFamily:fonts.ui,fontSize:12,color:'#e2d6bb'},
+ hpBlock:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.3)',backgroundColor:'rgba(10,20,16,.45)',marginBottom:4},
+ hpText:{fontFamily:fonts.display,fontSize:18,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},hpMax:{fontSize:12,color:colors.muted,fontWeight:'400'},
+ gold:{fontFamily:fonts.ui,color:'#dfc18e',fontSize:14,lineHeight:23,marginVertical:8},grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:12},
+ tile:{flexBasis:145,flexGrow:1,padding:16,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},tileHead:{flexDirection:'row',alignItems:'center',gap:6},
+ label:{...type.label,fontSize:10,textAlign:'center'},value:{fontFamily:fonts.display,color:colors.goldBright,fontSize:36,fontWeight:'800',marginVertical:4},
+ ability:{flexBasis:96,flexGrow:1,paddingVertical:12,paddingHorizontal:8,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},
+ abilityValue:{fontFamily:fonts.display,color:colors.goldBright,fontSize:30,fontWeight:'800',marginVertical:2},
+ modPill:{paddingHorizontal:10,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:'rgba(232,199,123,.5)',backgroundColor:'rgba(58,46,26,.6)'},modText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'700',color:colors.gold},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginTop:6},center:{textAlign:'center'},
- section:{fontFamily:fonts.display,color:colors.parchment,fontSize:19,fontWeight:'700',letterSpacing:1,marginTop:20,marginBottom:10},
- panel:{padding:16,backgroundColor:'rgba(255,236,190,.03)',borderWidth:1,borderColor:'rgba(201,164,92,.2)',borderRadius:3,marginVertical:10},
+ panel:{padding:16,borderWidth:1,borderColor:'rgba(201,164,92,.22)',borderRadius:6,marginVertical:10},
  text:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:17,lineHeight:27},
- item:{flexDirection:'row',gap:12,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.15)'},
- tab:{paddingHorizontal:16,paddingVertical:11,minHeight:44,borderRadius:3,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.9)',justifyContent:'center',flexGrow:1},
- tabActive:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},tabText:{fontFamily:fonts.display,color:'#ecdcb8',fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase',textAlign:'center'},
- secondary:{backgroundColor:'#1a202d',borderWidth:1,borderColor:'rgba(201,164,92,.35)',borderRadius:3,padding:14,minHeight:48,marginVertical:8,justifyContent:'center'},
- buttonText:{fontFamily:fonts.display,color:colors.parchment,fontWeight:'700',letterSpacing:1.4,fontSize:13,textTransform:'uppercase',textAlign:'center'}});
+ item:{flexDirection:'row',gap:10,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.15)'},qty:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',color:colors.gold},
+ purse:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},purseCell:{flexGrow:1,flexBasis:160,flexDirection:'row',alignItems:'center',gap:12,padding:14,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(0,0,0,.2)'},
+ purseValue:{fontFamily:fonts.display,fontSize:20,fontWeight:'800',color:colors.parchment,marginTop:2},
+});

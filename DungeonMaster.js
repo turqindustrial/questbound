@@ -150,7 +150,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // Quick actions: one tap sends; Cast… starts the sentence so the player names the spell and target.
   if(sendRef)sendRef.current=preset=>ask(preset);
   // Cast… swaps the row for the hero's spells; a spell casts in one tap (or starts the sentence when it needs a target).
-  const spellRow=[{key:'spells-back',glyph:'‹',label:'Back',run:()=>setSpellsOpen(false)},...spellActions(hero,game)];
+  const spellRow=[{key:'spells-back',glyph:'‹',icon:'back',label:'Back',run:()=>setSpellsOpen(false)},...spellActions(hero,game)];
   const actions=person?[]:spellsOpen?spellRow:quick,actionsDisabled=busy||playing||!!waiting||tableSyncing;
   const runAction=a=>{
     if(a.key==='cast'){setSpellsOpen(true);return;}
@@ -206,7 +206,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
     {actionBar}
     <View style={s.composer}>{composer}{sendButton}</View>
-    {!!error&&<Text accessibilityRole="alert" style={[s.error,{marginTop:6}]}>{error}</Text>}
+    {!!error&&<View accessibilityRole="alert" style={s.errorRow}><Icon name="info" size={15} color={colors.danger}/><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text></View>}
     {reply?.pending&&<Text style={s.caption}>Suggested action: {reply.pending.label}. Send “confirm action” to carry it out.</Text>}
   </View>;
   return <View dataSet={{qb:'plate'}} style={[s.panel,person&&s.conversation,compact&&{padding:14}]}>
@@ -242,6 +242,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  fillHeading:{fontSize:18},fillBack:{minWidth:36,minHeight:44,justifyContent:'center',alignItems:'center'},
  fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:'#cdbf9f',fontSize:14,marginBottom:3},
  effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12,flexShrink:1},
+ errorRow:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingVertical:8,paddingHorizontal:10,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.35)',backgroundColor:'rgba(60,18,14,.5)'},
  sendRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},chipSpeak:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:4},
  dmMark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(232,199,123,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(58,46,26,.45)'},
  tipsHead:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:4},tipRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:4},

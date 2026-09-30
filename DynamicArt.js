@@ -9,7 +9,7 @@ export default function DynamicArt({subject,style,compact=false,quiet=false,stat
  const current=state.key===key?state:cachedArt(subject)??{status:'pending'};
  if(statusOnly&&current.status==='ready')return null;
  return <View dataSet={dataSet} style={[s.frame,quiet&&{borderRadius:0},style]}>
- {current.status==='ready'?<Image source={{uri:current.dataUrl}} accessibilityLabel={(subject.kind==='landscape'?'Scene: ':'Portrait of ')+subject.name} style={StyleSheet.absoluteFillObject} resizeMode={resizeMode}/>:<View style={s.placeholder}>
+ {current.status==='ready'?<Image dataSet={{qb:'art-img'}} source={{uri:current.dataUrl}}accessibilityLabel={(subject.kind==='landscape'?'Scene: ':'Portrait of ')+subject.name} style={StyleSheet.absoluteFillObject} resizeMode={resizeMode}/>:<View style={s.placeholder}>
  {quiet?null:current.status==='pending'?<><ActivityIndicator size="small" color="#d6b582"/>{!compact&&<Text style={s.text}>Illustrating {subject.name}…</Text>}</>:compact?<Text accessibilityLabel="Portrait unavailable" style={s.symbol}>◇</Text>:<><Text accessibilityRole="alert" style={s.text}>{current.error}</Text><Pressable accessibilityRole="button" onPress={()=>retryArt(subject)} style={s.retry}><Text style={s.retryText}>Retry illustration</Text></Pressable></>}
  </View>}
  </View>;

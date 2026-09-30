@@ -20,6 +20,7 @@ function cueFor(event,sounds,view){
   else if(name==='heal')at(()=>cue('heal'));
   else if(name==='victory')at(()=>cue(/Adventure complete/i.test(event.text)?'complete':'victory',{sub:first}));
   else if(name==='defeat')at(()=>cue('defeat',{sub:first}));
+  else if(name==='whoosh'){const place=String(event.text??'').match(/^You (?:arrive at|return to|fall back to|travel to|reach) (.+?)[.!]?$/)?.[1];if(place)at(()=>cue('area',{over:'You arrive at',title:place}));}
  }
  if(view.type==='round')cue('round',{round:view.round,sub:view.round===1?'Steel is drawn':'The fight goes on'});
 }
@@ -56,7 +57,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,lead=false}){
     </View>
     <View style={s.cardSide}>
      {view.verdict?<Verdict kind={view.verdict} actor={view.actor}/>:view.total!=null&&<PlainText style={s.total}>{view.total}</PlainText>}
-     {!!view.damage&&<View style={s.inlineDamage}><Icon name={damageIcon(view.damage.damageType)} size={13} color={colors.gold}/><PlainText dataSet={{qb:live?'num-pop':undefined}} style={s.inlineDamageText}>{view.damage.amount}</PlainText></View>}
+     {view.damage?.amount>0&&<View style={s.inlineDamage}><Icon name={damageIcon(view.damage.damageType)} size={13} color={colors.gold}/><PlainText dataSet={{qb:live?'num-pop':undefined}} style={s.inlineDamageText}>{view.damage.amount}</PlainText></View>}
     </View>
    </>,[s.card,foe&&s.cardFoe,crit&&s.cardCrit],{qb:crit?'feed-crit':foe?'feed-hurt':'feed-roll'});
   }
@@ -106,6 +107,9 @@ function Writing(){return <View dataSet={{qb:'typing'}} style={s.writing} access
 const leadIndex=events=>events.findIndex(e=>e.kind==='narration');
 export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening,busy,me=null,fill=false,aside=null,intro=null,names=null,avatarFor=null}){
  const turn=turns.at(-1),[phase,setPhase]=useState({id:null,count:0}),[history,setHistory]=useState(false),[reduceMotion,setReduceMotion]=useState(false),scroll=useRef(null),follow=useRef(true),{height,width}=useWindowDimensions();
+ // The feed follows the newest line until the player scrolls up (its own scrolling only ever moves down), and the
+ // first jump to the end, when the game opens, is instant rather than animated.
+ const lastY=useRef(0),settled=useRef(false);
  const count=turn?(phase.id===turn.id?phase.count:turn.id===animateId&&!reduceMotion?1:turn.events.length):0;
  const playing=!!turn&&count<turn.events.length;
  const feedLimit=width<600?Math.max(150,Math.min(260,height*.3)):Math.max(230,Math.min(400,height*.43));
@@ -126,7 +130,7 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  // Fill mode: one continuous chronicle. Earlier turns sit above; the newest plays out at the bottom and the view follows it.
  if(fill)return <View style={s.fillPanel}>
   <View style={s.fillBar}><View style={s.fillTitleRow}><Icon name={busy?'quill':playing?'d20':'journal'} size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
-  <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onScroll={e=>{const n=e.nativeEvent;follow.current=n.contentOffset.y+n.layoutMeasurement.height>=n.contentSize.height-80;}} onContentSizeChange={()=>{if(follow.current)scroll.current?.scrollToEnd({animated:!reduceMotion});}}>
+  <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onScroll={e=>{const n=e.nativeEvent,y=n.contentOffset.y;if(y+n.layoutMeasurement.height>=n.contentSize.height-80)follow.current=true;else if(y<lastY.current-2)follow.current=false;lastY.current=y;}} onContentSizeChange={()=>{if(!follow.current)return;scroll.current?.scrollToEnd({animated:settled.current&&!reduceMotion});settled.current=true;}}>
    {intro}
    {!turn&&<Text style={s.opening}>{opening}</Text>}
    {turns.slice(0,-1).map(t=><View key={t.id} style={s.pastTurn}><Divider label={'Turn '+t.id}/>{t.events.map((e,i)=>row(t,e,i,false))}</View>)}

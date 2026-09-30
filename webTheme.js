@@ -212,6 +212,12 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=finale-burst]{background:radial-gradient(circle at 50% 50%,rgba(255,214,140,.35),rgba(236,164,84,.08) 35%,transparent 65%) !important;animation:qb-burst 2.4s ease-out both;}
 [data-qb=finale-burst][data-tone=dark]{background:radial-gradient(circle at 50% 50%,rgba(120,20,14,.35),rgba(20,4,4,.2) 40%,transparent 70%) !important;}
 @keyframes qb-burst{0%{opacity:0;transform:scale(.3);}30%{opacity:1;}100%{opacity:.6;transform:scale(1.4);}}
+[data-qb=area]{background:radial-gradient(ellipse 80% 46% at 50% 50%,rgba(3,4,6,.95),rgba(3,4,6,.82) 45%,rgba(3,4,6,.5) 80%,rgba(3,4,6,.3)) !important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:qb-area 3.7s ease both;}
+@keyframes qb-area{0%{opacity:0;transform:scale(1.03);}18%{opacity:1;transform:none;}78%{opacity:1;}100%{opacity:0;transform:scale(.99);}}
+/* Entering the game rises out of black; paintings fade in as they finish. */
+[data-qb=unveil]{background:#030405 !important;animation:qb-unveil 1.1s ease .1s both;}
+@keyframes qb-unveil{from{opacity:1;}to{opacity:0;}}
+[data-qb=art-img]{animation:qb-fade .9s ease both;}
 [data-qb=rays-spin]{background:repeating-conic-gradient(from 0deg,rgba(255,214,150,.12) 0deg 4deg,transparent 4deg 18deg) !important;-webkit-mask-image:radial-gradient(circle,#000 10%,transparent 65%);mask-image:radial-gradient(circle,#000 10%,transparent 65%);animation:qb-spin 40s linear infinite;}
 @keyframes qb-spin{to{transform:rotate(360deg);}}
 
@@ -241,6 +247,8 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 @keyframes qb-typing{0%,60%,100%{opacity:.25;transform:translateY(0);}30%{opacity:1;transform:translateY(-3px);}}
 [data-qb=shimmer]{background:linear-gradient(90deg,rgba(232,199,123,.15) 0%,rgba(255,236,190,.85) 50%,rgba(232,199,123,.15) 100%) !important;background-size:200% 100% !important;animation:qb-shimmer 1.6s linear infinite;}
 @keyframes qb-shimmer{from{background-position:100% 0;}to{background-position:-100% 0;}}
+/* Touch devices keep the grain and light shafts still: the look stays, the battery is spared. */
+@media (hover:none){[data-qb=grain],[data-qb=rays]{animation:none !important;}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;}}
 `;
 export function initializeWebTheme(){

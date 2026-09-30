@@ -16,17 +16,30 @@
       body { overflow: hidden; }
       #root { display: flex; height: 100%; flex: 1; position: relative; z-index: 1; }
       #qb-boot { position: fixed; inset: 0; display: grid; place-items: center; z-index: 0;
-        background: radial-gradient(ellipse at 50% 38%, rgba(236,170,84,.14), transparent 55%), #06080c; }
-      #qb-boot .ring { width: 88px; height: 88px; margin: 0 auto; border-radius: 50%; border: 2px solid #d9ae5f; display: grid; place-items: center;
-        color: #e8c77b; font: 900 46px/1 Georgia, 'Times New Roman', serif; box-shadow: 0 0 36px rgba(236,170,84,.35); animation: qb-breathe 2.4s ease-in-out infinite; }
-      #qb-boot .words { margin-top: 18px; color: #8d96a8; font: 600 11px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 4px; text-transform: uppercase; text-align: center; }
-      @keyframes qb-breathe { 0%, 100% { opacity: .55; transform: scale(.97); } 50% { opacity: 1; transform: scale(1); } }
-      @media (prefers-reduced-motion: reduce) { #qb-boot .ring { animation: none; } }
+        background: radial-gradient(ellipse 60% 45% at 50% 42%, rgba(236,164,84,.16), transparent 70%), radial-gradient(ellipse 120% 80% at 50% 110%, rgba(35,85,115,.16), transparent 70%), #06080c; }
+      #qb-boot .seal { position: relative; width: 132px; height: 132px; margin: 0 auto; display: grid; place-items: center; }
+      #qb-boot .bezel { position: absolute; inset: 0; border-radius: 50%;
+        background: repeating-conic-gradient(from 0deg, rgba(217,181,110,.75) 0deg 1.2deg, transparent 1.2deg 7.5deg);
+        -webkit-mask: radial-gradient(circle, transparent 60px, #000 61px, #000 65px, transparent 66px); mask: radial-gradient(circle, transparent 60px, #000 61px, #000 65px, transparent 66px);
+        animation: qb-turn 24s linear infinite; }
+      #qb-boot .ring { width: 96px; height: 96px; border-radius: 50%; border: 2px solid #d9ae5f; display: grid; place-items: center;
+        background: radial-gradient(circle at 50% 40%, rgba(58,46,26,.6), rgba(8,10,16,.95) 70%);
+        color: #e8c77b; font: 900 50px/1 'Cinzel Decorative', Georgia, 'Times New Roman', serif; box-shadow: 0 0 40px rgba(236,170,84,.35), inset 0 0 26px rgba(236,170,84,.16);
+        animation: qb-breathe 2.6s ease-in-out infinite; }
+      #qb-boot .words { margin-top: 22px; text-align: center; font: 700 22px/1.2 Georgia, 'Times New Roman', serif; letter-spacing: 7px; text-transform: uppercase;
+        background: linear-gradient(180deg, #fff8e2, #f5dc9c 40%, #c89642 65%, #f3d68f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #qb-boot .bar { width: 160px; height: 2px; margin: 16px auto 0; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+      #qb-boot .bar i { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, #e8c77b, transparent); animation: qb-slide 1.4s ease-in-out infinite; }
+      #qb-boot .hint { margin-top: 12px; color: #6f7890; font: 600 10px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 3px; text-transform: uppercase; text-align: center; }
+      @keyframes qb-breathe { 0%, 100% { opacity: .7; transform: scale(.98); } 50% { opacity: 1; transform: scale(1); } }
+      @keyframes qb-turn { to { transform: rotate(360deg); } }
+      @keyframes qb-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) { #qb-boot .ring, #qb-boot .bezel, #qb-boot .bar i { animation: none; } }
     </style>
   </head>
   <body>
     <noscript>Questbound needs JavaScript to run.</noscript>
-    <div id="qb-boot" aria-hidden="true"><div><div class="ring">Q</div><div class="words">Questbound &middot; loading</div></div></div>
+    <div id="qb-boot" aria-hidden="true"><div><div class="seal"><div class="bezel"></div><div class="ring">Q</div></div><div class="words">Questbound</div><div class="bar"><i></i></div><div class="hint">Opening the tome</div></div></div>
     <div id="root"></div>
   </body>
 </html>

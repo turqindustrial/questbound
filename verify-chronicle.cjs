@@ -16,6 +16,7 @@ assert.equal(v.type,'save');assert.equal(v.verdict,'saved');assert.equal(v.damag
 v=d('roll','Wisdom check: d20 14 +3 = 17 vs DC 15. Success. You spot the loose stone.');assert.equal(v.verdict,'success');assert.equal(v.outcome,'You spot the loose stone.');
 v=d('roll','Search the ruins: Wisdom (Perception) d20 [8] + 1 ability + 2 training = 11 vs DC 12. Failure. Nothing turns up.');assert.equal(v.verdict,'failure');assert.equal(v.natural,8);assert.equal(v.outcome,'Nothing turns up.');
 v=d('roll','You use Longsword against Mara: d20 [11] (normal) + 3 Strength + 2 proficiency = 16 vs AC 12. Hit; 7 Slashing damage (1d8 [4] + 3). 5 HP remaining.');assert.equal(v.title,'Longsword → Mara');assert.equal(v.damage.amount,7);assert.equal(v.outcome,'5 HP remaining.');
+v=d('roll','You use Quarterstaff: d20 [4] (normal) + -1 Strength + 2 proficiency = 5 vs AC 11. Miss.');assert.equal(v.math,'4 − 1 Strength + 2 proficiency = 5','Negative modifiers read as subtraction');
 v=d('initiative','Your initiative: d20 [12] + 1 = 13.');assert.equal(v.type,'initiative');assert.equal(v.natural,12);assert.equal(v.total,13);
 v=d('initiative','Bandit Cutthroat initiative: d20 11 + 1 = 12.');assert.equal(v.type,'initiative');assert.equal(v.natural,11);assert.equal(v.title,'Bandit Cutthroat initiative');
 v=d('initiative','Turn order: Bandit Cutthroat → You.');assert.deepEqual(v.names,['Bandit Cutthroat','You']);

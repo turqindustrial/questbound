@@ -45,14 +45,14 @@ Double-click **Questbound-Share.cmd** (or run `Questbound.cmd -Share`). It start
 
 ## Full screen
 
-- **Computer and Android:** tap ⛶ Full screen at the top right, or press F on a keyboard (Esc leaves). Settings → Display can make the game go full screen on your first tap each visit.
-- **iPhone and iPad:** browsers there don't allow web pages to go full screen. Tap ⛶ for instructions: in Safari, Share → Add to Home Screen. Questbound then opens from its gold Q icon with no browser bars. The Home Screen version needs pairing once with the current code.
+- **Computer and Android:** tap the full-screen button (four corners) at the top right, or press F on a keyboard (Esc leaves). Settings → Display can make the game go full screen on your first tap each visit.
+- **iPhone and iPad:** browsers there don't allow web pages to go full screen. Tap the full-screen button for instructions: in Safari, Share → Add to Home Screen. Questbound then opens from its gold Q icon with no browser bars. The Home Screen version needs pairing once with the current code.
 - **Android:** Chrome's menu → Add to Home screen (or Install app) also opens Questbound full screen.
 
 ## Screen layout
 
-- Questbound opens on a title card; one tap (or any key) begins. That tap is also what lets the browser start sound.
-- In an adventure the game fills the window like a console game, and the page itself never scrolls. A slim bar at the top shows your hero, level and HP; ☰ opens the game menu (Journal, Character, Party, Settings, Full screen, Mute, Main menu).
+- Questbound opens on a title card; one tap (or any key) begins. That tap is also what lets the browser start sound. The title menu follows: Continue (with your hero's save slot on wide screens), New Adventure, Heroes, Play Together, Dice and Settings.
+- In an adventure the game fills the window like a console game, and the page itself never scrolls. A slim bar at the top shows your hero's crest, level and HP; the menu button (☰) opens the game menu (Journal, Character, Party, Settings, Full screen, Mute, Send feedback, Main menu). Tapping your name opens the character sheet.
 - **Phone or tablet upright:** the story takes the whole screen with the message box pinned above a tab bar: **Story**, **Quest**, **Map** and **Log**. In combat, the foe's HP strip sits above the story; tap it to see everyone's HP.
 - **Computer, or a phone or tablet on its side:** quest, map and log sit in a side column next to the story. Turning a phone mid-turn doesn't interrupt the turn.
 - The story is one continuous chronicle. It follows the newest turn; scroll up to reread earlier turns.
@@ -60,10 +60,18 @@ Double-click **Questbound-Share.cmd** (or run `Questbound.cmd -Share`). It start
 ## One-tap actions
 
 - A row of actions sits above the message box, taken from what the rules allow right now. In a fight: your main weapon (gold), **Dodge**, **Retreat** and **Potion**, with other weapons further along. Elsewhere: travel to each place you can reach and **Rest**. Swipe the row on a phone for more.
-- A tap sends the action to the Dungeon Master, the rules roll it, and the turn plays out like a typed one. You can still type anything.
-- Spellcasters get **Cast…**, which starts "I cast " in the message box so you can name the spell and target.
+- A tap sends the action to the Dungeon Master, the rules roll it, and the turn plays out like a typed one. You can still type anything. On a computer, the number keys 1–9 press the actions (each shows its number).
+- Spellcasters get **Cast…**, which swaps the row for their spells: attacks fly at the enemy and healing lands on you in one tap; spells that need a target start the sentence in the message box.
 - On the map, places you can reach have a **Travel** button.
 - After a victory, a gold **Level up** action appears first in the row.
+
+## Story feed and big moments
+
+- Each roll appears as a card: the die with its natural roll (gold for a natural 20, red for a 1), the arithmetic, and a stamped verdict (Hit, Miss, Critical, Saved…). Damage and healing show as numbers with their type; HP changes list who went from what to what.
+- While a turn plays, the HP bars follow the story: your bar drops when the blow lands, not before.
+- A banner sweeps in for each new round; a hit on you flashes red and shakes the view; a critical flares gold.
+- Victory, defeat, adventure complete and each new level get a title card (tap to continue; it also leaves by itself).
+- Entering the game rises out of black and names the place; travelling names each place you arrive at. While the Dungeon Master writes a new story, a loading screen shows the chosen opening and tips.
 
 ## Sound
 
@@ -72,4 +80,4 @@ Music, ambience and effects are composed live on the device and mixed through a 
 - The score follows the game: a quiet theme on the title screens, an exploration theme on the road, and drums and brass when combat starts. Music and background sound dip briefly under hits, victories and defeats so those land clearly.
 - Each place has its own background: a crackling hearth at the inn and back at camp after a fight, wind and birds on the road, dripping echoes in dungeons, and wind under the combat music. A heartbeat starts when you're below 30% HP.
 - Hits are shaped by damage type (fire, cold, lightning and so on) and placed in stereo: the foe's side on the right, yours on the left. Headphones are recommended.
-- Use ♪ (top right) or Settings → Sound for Master, Music, Ambience and Effects levels, and Mute. **Night mode** evens out loud hits and quiet moments for late-night play or small speakers. Your choices are remembered on each device.
+- The speaker button (top right) mutes and unmutes; Settings → Sound has the Master, Music, Ambience and Effects levels and Mute. **Night mode** evens out loud hits and quiet moments for late-night play or small speakers. Your choices are remembered on each device.

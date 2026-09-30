@@ -10,7 +10,7 @@ export function Panel({children,style,variant='panel',...props}){
 }
 export function GameButton({label,onPress,variant='secondary',disabled,style,textStyle,accessibilityLabel,icon}){
  const primary=variant==='primary',danger=variant==='danger';
- return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:primary?'btn-primary':danger?'btn-danger':'btn'}} style={({pressed})=>[s.button,primary&&s.primary,danger&&s.danger,pressed&&!disabled&&s.pressed,disabled&&s.disabled,style]}>
+ return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:primary?'btn-primary':danger?'btn-danger':'btn'}} style={({pressed})=>[s.button,primary&&s.primary,danger&&s.danger,pressed&&!disabled&&s.pressed,disabled&&s.disabled,style]}>
   <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?'#2a1a07':colors.gold}/>}<Text style={[s.buttonText,primary&&s.primaryText,textStyle]}>{label}</Text></View>
  </Pressable>;
 }
@@ -41,7 +41,7 @@ export function Crest({icon='star',size=56,level,style,color=colors.goldBright})
 }
 // Round icon buttons for the HUD and top bars. `tip` shows a label on hover with a mouse.
 export function IconButton({icon,label,onPress,hot=false,size=40,disabled,style,children,active=false}){
- return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:label}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
+ return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:label}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
   <Icon name={icon} size={Math.round(size*.46)} color={hot?'#ffd2c2':active?colors.goldBright:colors.gold}/>{children}
  </Pressable>;
 }
@@ -68,6 +68,13 @@ export function StatBar({value,maximum,kind='hp',height=10,style}){
   {kind!=='temp'&&<View dataSet={{qb:'bar-ghost'}} style={[s.ghost,{width:pct+'%'}]}/>}
   <View dataSet={{qb:tone}} style={[s.fill,{width:pct+'%',backgroundColor:kind==='enemy'?colors.blood:kind==='temp'?colors.arcane:kind==='gold'?colors.gold:pct<=30?colors.blood:colors.heal}]}/>
  </View>;
+}
+// An on/off switch with a label and an optional description underneath.
+export function Toggle({value,onChange,label,description,style}){
+ return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value}} accessibilityLabel={label} onPress={()=>onChange(!value)} style={[s.toggleRow,style]}>
+  <View style={{flex:1,minWidth:0}}><Text style={s.toggleLabel}>{label}</Text>{!!description&&<Text style={s.toggleDescription}>{description}</Text>}</View>
+  <View dataSet={{qb:value?'btn-primary':'seg'}} style={[s.track2,value&&s.trackOn]}><View style={[s.knob,value&&s.knobOn]}/></View>
+ </Pressable>;
 }
 export function KeyHint({children,style,dark=false}){return <View dataSet={{qb:'key'}} style={[s.key,dark&&{borderColor:'rgba(42,26,7,.45)',backgroundColor:'rgba(42,26,7,.12)'},style]}><Text style={[s.keyText,dark&&{color:'#3a2708'}]}>{children}</Text></View>;}
 const s=StyleSheet.create({
@@ -104,6 +111,10 @@ const s=StyleSheet.create({
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
  track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(201,164,92,.35)',overflow:'hidden'},
  fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:'rgba(255,236,190,.4)'},
+ toggleRow:{flexDirection:'row',alignItems:'center',gap:14,minHeight:48,paddingVertical:4},toggleLabel:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.parchment},
+ toggleDescription:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,marginTop:2},
+ track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(6,8,12,.7)',justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},
+ knob:{width:20,height:20,borderRadius:10,backgroundColor:'#8d96a8',...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:'#2a1a07',transform:[{translateX:20}]},
  key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:'rgba(201,164,92,.4)',backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
  keyText:{fontFamily:fonts.ui,fontSize:10,fontWeight:'700',color:colors.muted},
 });

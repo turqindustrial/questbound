@@ -18,11 +18,12 @@ You don't install anything. The host runs the game on their PC and sends you a *
 
 **How to play**
 
-- A row of actions sits above the message box: your weapon, Dodge, Retreat, Potion, travel and more. Tap one, or type anything you want to do, say or try.
+- A row of actions sits above the message box: your weapon, Dodge, Retreat, Potion, travel and more. Tap one (on a computer, press its number key), or type anything you want to do, say or try.
 - Spellcasters tap **Cast…** to pick a spell: attacks fly at the enemy and healing lands on you in one tap.
 - Tap a person above the message box to talk to them. Tap an underlined name in the story to see their details.
 - On a phone, the tabs along the bottom switch between the **Story**, your **Quest**, the **Map** and the **Log**. On a wider screen they sit beside the story.
-- ☰ opens the game menu: journal, character sheet, party, settings, full screen, sound and **Send feedback**.
+- The menu button (☰, top right) opens the game menu: journal, character sheet, party, settings, full screen, sound and **Send feedback**.
+- Every roll shows its die and result as it happens, your HP bar drops when a blow lands, and victories, defeats and level-ups get their own moment on screen.
 - Want it to feel like an app? On iPhone: Share → **Add to Home Screen**. On Android: ⋮ → **Add to Home screen**.
 
 Your hero and progress are saved **in your browser, for that link**. If the link stops working, the host's PC is off or
