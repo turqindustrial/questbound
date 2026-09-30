@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {View,Text,Pressable,StyleSheet,Platform,AccessibilityInfo,useWindowDimensions} from 'react-native';
 import {useCue} from './cinematics';
+import {displayState} from './fullscreen';
 import {playSound} from './audio';
 import Icon from './Icon';
 import {fonts,colors} from './theme';
@@ -14,7 +15,7 @@ export default function CinematicLayer({levelReady=false}){
  const later=(fn,ms)=>{timers.current.push(setTimeout(fn,ms));};
  const handler=useCallback(event=>{
   if(!web)return;
-  if(['hurt','crit','heal'].includes(event.kind)){setFlash({kind:event.kind,id:event.id});later(()=>setFlash(f=>f?.id===event.id?null:f),1000);if(event.kind==='crit'){setBurst({id:event.id});later(()=>setBurst(b=>b?.id===event.id?null:b),1000);}return;}
+  if(['hurt','crit','heal'].includes(event.kind)){if(!displayState().screenEffects)return;setFlash({kind:event.kind,id:event.id});later(()=>setFlash(f=>f?.id===event.id?null:f),1000);if(event.kind==='crit'){setBurst({id:event.id});later(()=>setBurst(b=>b?.id===event.id?null:b),1000);}return;}
   // Arriving somewhere (or a new tale beginning) names the place in large letters, then fades; it never takes input.
   if(event.kind==='area'){playSound('arrive');setArea({...event});later(()=>setArea(a=>a?.id===event.id?null:a),3700);return;}
   if(event.kind==='round'){playSound('round');setBanner({id:event.id,title:'Round '+event.round,sub:event.sub??'Roll for it'});later(()=>setBanner(b=>b?.id===event.id?null:b),1950);return;}

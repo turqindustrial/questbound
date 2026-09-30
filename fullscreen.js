@@ -5,7 +5,8 @@ const doc=()=>typeof document!=='undefined'?document:null;
 function load(){try{return {autoFullscreen:false,...JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}')};}catch{return {autoFullscreen:false};}}
 let prefs=load();const listeners=new Set();
 const notify=()=>listeners.forEach(fn=>fn(displayState()));
-export function displayState(){return {fullscreen:isFullscreen(),supported:fullscreenSupported(),installed:isInstalled(),ios:isIOS(),autoFullscreen:prefs.autoFullscreen};}
+// screenEffects: red and gold flashes, the shake when hit and the critical burst (on unless the player turns them off).
+export function displayState(){return {fullscreen:isFullscreen(),supported:fullscreenSupported(),installed:isInstalled(),ios:isIOS(),autoFullscreen:prefs.autoFullscreen,screenEffects:prefs.screenEffects!==false};}
 export function subscribeDisplay(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 export function setDisplayPrefs(changes){prefs={...prefs,...changes};try{globalThis.localStorage?.setItem(KEY,JSON.stringify(prefs));}catch{}notify();}
 export function fullscreenSupported(){const d=doc();if(!d)return false;const el=d.documentElement;return !!(el.requestFullscreen||el.webkitRequestFullscreen)&&(d.fullscreenEnabled??d.webkitFullscreenEnabled??false)!==false;}

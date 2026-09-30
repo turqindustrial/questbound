@@ -73,7 +73,7 @@ Double-click **Questbound-Share.cmd** (or run `Questbound.cmd -Share`). It start
 
 - Each roll appears as a card: the die with its natural roll (gold for a natural 20, red for a 1), the arithmetic, and a stamped verdict (Hit, Miss, Critical, Saved…). Damage and healing show as numbers with their type; HP changes list who went from what to what.
 - While a turn plays, the HP bars follow the story: your bar drops when the blow lands, not before.
-- A banner sweeps in for each new round; a hit on you flashes red and shakes the view; a critical flares gold.
+- A banner sweeps in for each new round; a hit on you flashes red and shakes the view; your critical hits flare gold with a "Critical hit!" burst. Damage and healing numbers float up from the HP readouts. **Settings → Display → Screen flashes and shake** turns the flashes, shake and burst off.
 - Victory, defeat, adventure complete and each new level get a title card (tap to continue; it also leaves by itself).
 - Entering the game rises out of black and names the place; travelling names each place you arrive at. While the Dungeon Master writes a new story, a loading screen shows the chosen opening and tips.
 

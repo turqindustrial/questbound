@@ -43,6 +43,7 @@ import {cue,useCue} from './cinematics';
 const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['Victory earned','Level up','star']};
 import {AudioToggle,AudioSettings} from './AudioControls';
 import {FullscreenToggle,DisplaySettings} from './DisplayControls';
+import {displayState} from './fullscreen';
 import GameHud from './GameHud';
 import LaunchScreen from './LaunchScreen';
 import SaveTransfer from './SaveTransfer';
@@ -197,7 +198,7 @@ function QuestboundApp() {
   const [launched,setLaunched]=useState(false);
   // A blow against the hero shakes the play area for a moment.
   const [shake,setShake]=useState(0);
-  useCue(useCallback(event=>{if(event.kind==='hurt'){setShake(event.id);setTimeout(()=>setShake(value=>value===event.id?0:value),450);}},[]));
+  useCue(useCallback(event=>{if(event.kind==='hurt'&&displayState().screenEffects){setShake(event.id);setTimeout(()=>setShake(value=>value===event.id?0:value),450);}},[]));
   const playing=screen==='Adventure'&&characterChosen&&!!hero&&!!heroStats?.available;
   // Side-by-side play on large screens and on any landscape screen (a phone on its side has height for one column only).
   const wideGame=windowWidth>=960||(windowWidth>=560&&windowWidth>windowHeight*1.25);
