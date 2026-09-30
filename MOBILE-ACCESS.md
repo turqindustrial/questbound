@@ -81,7 +81,7 @@ Double-click **Questbound-Share.cmd** (or run `Questbound.cmd -Share`). It start
 
 Music, ambience and effects are composed live on the device and mixed through a studio-style chain (compression, reverb for halls and caves, and a limiter so nothing clips).
 
-- The score follows the game: a quiet theme on the title screens, an exploration theme on the road, and drums and brass when combat starts. Music and background sound dip briefly under hits, victories and defeats so those land clearly.
+- The score follows the game: a quiet theme on the title screens, a warm harp theme at camp and inns (and once a fight is over), an exploration theme on the road, and drums and brass when combat starts. Music and background sound dip briefly under hits, victories and defeats so those land clearly.
 - Each place has its own background: a crackling hearth at the inn and back at camp after a fight, wind and birds on the road, dripping echoes in dungeons, and wind under the combat music. A heartbeat starts when you're below 30% HP.
 - Hits are shaped by damage type (fire, cold, lightning and so on) and placed in stereo: the foe's side on the right, yours on the left. Headphones are recommended.
 - The speaker button (top right) mutes and unmutes; Settings → Sound has the Master, Music, Ambience and Effects levels and Mute. **Night mode** evens out loud hits and quiet moments for late-night play or small speakers. Your choices are remembered on each device.

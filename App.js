@@ -201,7 +201,9 @@ function QuestboundApp() {
   const playing=screen==='Adventure'&&characterChosen&&!!hero&&!!heroStats?.available;
   // Side-by-side play on large screens and on any landscape screen (a phone on its side has height for one column only).
   const wideGame=windowWidth>=960||(windowWidth>=560&&windowWidth>windowHeight*1.25);
-  useEffect(()=>{setMood(!launched?'silence':inGame?(fighting?'combat':'explore'):'menu');},[launched,inGame,fighting]);
+  // Shelter (camp or inn, and after a fight ends) gets the warm haven theme; the road and ruins get the exploration theme.
+  const sheltered=['inn','defeat','escaped','victory'].includes(game.stage)&&!game.dungeon?.active;
+  useEffect(()=>{setMood(!launched?'silence':inGame?(fighting?'combat':sheltered?'haven':'explore'):'menu');},[launched,inGame,fighting,sheltered]);
   const ambienceKind=!launched?'none':inGame?(game.dungeon?.active?'cave':fighting?'battle':['inn','defeat','escaped'].includes(game.stage)?'hearth':'wild'):'menu';
   useEffect(()=>{setAmbience(ambienceKind);},[ambienceKind]);
   // Esc on a page opened from the game (journal, sheet, party, settings) returns to the adventure.

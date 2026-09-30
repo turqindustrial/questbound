@@ -36,7 +36,7 @@ export default function DiceRoller(){
 }
 const s=StyleSheet.create({panel:{alignItems:'center',paddingVertical:4},intro:{fontFamily:fonts.story,fontStyle:'italic',color:'#e2d8c0',fontSize:19,lineHeight:28,textAlign:'center'},
  picker:{flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',marginTop:16},
- pick:{minWidth:50,minHeight:40,paddingHorizontal:8,borderRadius:4,borderWidth:1,borderColor:'transparent',alignItems:'center',justifyContent:'center'},pickOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
+ pick:{flexGrow:1,minWidth:42,minHeight:40,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent',alignItems:'center',justifyContent:'center'},pickOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
  pickText:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.muted},
  tray:{height:240,width:'100%',alignItems:'center',justifyContent:'center',marginTop:16,borderRadius:8,backgroundColor:'rgba(8,19,29,.6)'},
  die:{width:120,height:120,backgroundColor:'#224754',borderWidth:3,borderColor:colors.gold,borderRadius:26,alignItems:'center',justifyContent:'center'},

@@ -43,7 +43,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  for(const type of ['slashing','piercing','bludgeoning','fire','cold','poison','necrotic','radiant','lightning','thunder','acid','psychic','force'])for(const side of ['foe','me']){now+=2;assert.ok(built('impact:'+type+':'+side)>0,type+' '+side);}
  const unknown=nodes;audio.playSound('no-such-sound');assert.equal(nodes,unknown,'Unknown sounds are ignored safely');
  // The adaptive score, ambience beds and the low-HP heartbeat all start without errors.
- for(const [mood,amb] of [['menu','menu'],['explore','hearth'],['explore','wild'],['combat','battle'],['explore','cave'],['silence','none']]){now+=20;const before=nodes;audio.setMood(mood);audio.setAmbience(amb);await wait(1600);now+=1;await wait(250);if(mood!=='silence')assert.ok(nodes>before,mood+'/'+amb+' plays');}
+ for(const [mood,amb] of [['menu','menu'],['explore','hearth'],['haven','hearth'],['explore','wild'],['combat','battle'],['explore','cave'],['silence','none']]){now+=20;const before=nodes;audio.setMood(mood);audio.setAmbience(amb);await wait(1600);now+=1;await wait(250);if(mood!=='silence')assert.ok(nodes>before,mood+'/'+amb+' plays');}
  audio.setDanger(.9);await wait(50);audio.setDanger(0);
  // Settings persist and apply; muting silences new sounds.
  audio.setAudio({night:true,master:.5});assert.equal(JSON.parse(store['questbound.audio.v1']).night,true);

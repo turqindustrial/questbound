@@ -131,6 +131,8 @@ function swell(t,dur,level=.12){noise(t,{bus:out.music,peak:level,attack:dur,rel
 const moods={
  menu:{bpm:62,beatsPerChord:8,chords:[[50,57,62,65],[46,53,58,62],[53,57,60,65],[48,55,60,64],[43,50,58,62],[45,52,57,61]],layers:{choir:.09,strings:.07,harp:.6,bass:.14,bells:true}},
  explore:{bpm:70,beatsPerChord:8,chords:[[45,52,57,60],[41,48,53,57],[48,52,55,60],[43,50,55,59]],layers:{strings:.06,lute:.45,bass:.1}},
+ // Shelter (camp, inn, after a fight): a warm major-key hearth theme on harp with soft strings.
+ haven:{bpm:62,beatsPerChord:8,chords:[[50,57,62,66],[47,54,59,62],[43,50,55,59],[45,52,57,61]],layers:{strings:.05,harp:.42,bass:.09,bells:true}},
  combat:{bpm:124,beatsPerChord:8,chords:[[38,45,50,53],[34,41,46,50],[31,38,43,46],[33,40,45,49]],layers:{strings:.05,taiko:true,ostinato:.045,brass:true,bass:.16}},
 };
 const scale=chord=>[...new Set(chord.map(m=>m%12))];
