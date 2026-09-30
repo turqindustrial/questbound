@@ -8,6 +8,10 @@ import LoadoutSummary from './LoadoutSummary';
 import React, {useState} from 'react';
 import {View, Text, TextInput, Pressable, StyleSheet} from 'react-native';
 import {fonts,colors,type} from './theme';
+import {Crest} from './ui';
+import Icon from './Icon';
+import {classIcons} from './iconPaths';
+import {playSound} from './audio';
 import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError} from './characterRules';
 import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions} from './characterOptions';
 
@@ -49,12 +53,13 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     if (errors[page]) {setPageError(errors[page]); return;}
     go(page + 1);
   }
-  const action = (label, onPress, secondary = false, disabled = false) => <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:secondary?'btn':'btn-primary'}} style={({pressed}) => [s.action, secondary && s.secondary, (disabled || pressed) && {opacity: 0.6}]}><Text style={[s.actionText,!secondary&&{color:'#2a1a07'}]}>{label}</Text></Pressable>;
+  const action = (label, onPress, secondary = false, disabled = false, icon = null) => <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:secondary?'btn':'btn-primary'}} style={({pressed}) => [s.action, secondary && s.secondary, (disabled || pressed) && {opacity: 0.6}]}><View style={s.actionRow}>{!!icon&&<Icon name={icon} size={16} color={secondary?colors.gold:'#2a1a07'}/>}<Text style={[s.actionText,!secondary&&{color:'#2a1a07'}]}>{label}</Text></View></Pressable>;
   function optionCards(label, options, value, onSelect, details) {
     return <View style={s.cards}>{options.map(option => {
       const detail = details[option];
-      return <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: value === option}} onPress={() => onSelect(option)} style={({pressed}) => [s.option, value === option && s.selected, pressed && {opacity: 0.8}]}>
-        <View style={s.cardTitle}><Text style={s.optionTitle}>{option === 'Dark Elf' ? 'Dark Elf (Drow)' : option}</Text>{value === option && <Text style={s.selectedText}>Selected</Text>}</View>
+      const chosen = value === option, crest = label==='Class' ? classIcons[option] : label==='Background' ? 'scroll' : label==='Subclass' ? 'star' : null;
+      return <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: chosen}} onPress={() => {if(!chosen)playSound('select');onSelect(option);}} dataSet={{qb:'card',selected:String(chosen)}} style={({pressed}) => [s.option, chosen && s.selected, pressed && {opacity: 0.85}]}>
+        <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option === 'Dark Elf' ? 'Dark Elf (Drow)' : option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color="#1a0f05" strokeWidth={2.4}/></View>}</View>
         <Text style={s.text}>{detail.description}</Text>
         {!!detail.ability && <Text style={s.detail}>Key abilities: {detail.ability}</Text>}
         {!!detail.note && value === option && <Text style={s.detail}>{detail.note}</Text>}
@@ -62,10 +67,10 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     })}</View>;
   }
   function choices(label, options, value, onSelect) {
-    return <View><Text style={s.label}>{label}</Text><View style={s.row}>{options.map(option => <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: value === option}} onPress={() => onSelect(option)} style={[s.chip, value === option && s.selected]}><Text style={s.text}>{option}</Text></Pressable>)}</View></View>;
+    return <View><Text style={s.label}>{label}</Text><View style={s.row}>{options.map(option => <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: value === option}} onPress={() => onSelect(option)} dataSet={{qb:value === option?'seg-on':'chip'}} style={[s.chip, value === option && s.selected]}><Text style={[s.text, value === option && {color:colors.goldBright,fontWeight:'700'}]}>{option}</Text></Pressable>)}</View></View>;
   }
   function scoreList() {
-    return <View style={s.scoreGrid}>{abilities.map(name => <View key={name} style={s.scoreTile}><Text style={s.detail}>{name}</Text><Text style={s.score}>{scores[name]}</Text><Text style={s.text}>Modifier {modifier(scores[name]) >= 0 ? '+' : ''}{modifier(scores[name])}</Text></View>)}</View>;
+    return <View style={s.scoreGrid}>{abilities.map(name => <View key={name} dataSet={{qb:'plate'}} style={s.scoreTile}><Text style={s.scoreLabel}>{name}</Text><Text style={s.score}>{scores[name]}</Text><View style={s.modPill}><Text style={s.modText}>{modifier(scores[name]) >= 0 ? '+' : ''}{modifier(scores[name])}</Text></View></View>)}</View>;
   }
   const gear = classes.includes(form.class) ? equipmentFor(form) : null;
   function equipmentList() {
@@ -82,15 +87,15 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     return <View style={s.reviewRow}><View style={{flex:1}}><Text style={s.detail}>{label}</Text><Text style={s.optionTitle}>{value}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${label}`} onPress={() => go(target)} style={s.chip}><Text style={s.text}>Edit</Text></Pressable></View>;
   }
   return <View>
-    <Text style={s.progress}>STEP {page + 1} OF {pages.length}</Text>
-    <View style={s.progressTrack}>{pages.map((item, i) => <View key={item.title} style={[s.progressSegment, i <= page && {backgroundColor:'#d8b879'}]}/>)}</View>
+    <View style={s.stepRow}><Text style={s.progress}>Step {page + 1} of {pages.length}</Text>{page < reviewPage && <Text style={s.nextHint}>Next: {pages[page+1].title}</Text>}</View>
+    <View style={s.progressTrack}>{pages.map((item, i) => <Pressable key={item.title} accessibilityRole="button" accessibilityLabel={'Step '+(i+1)+': '+item.title} disabled={i >= page} onPress={() => go(i)} style={s.progressHit}><View dataSet={{qb:i < page ? 'bar-gold' : undefined}} style={[s.progressSegment, i < page && {backgroundColor:'#d8b879'}, i === page && s.progressNow]}/></Pressable>)}</View>
     <Text accessibilityRole="header" style={s.heading}>{pages[page].title}</Text>
     <Text style={s.intro}>{pages[page].intro}</Text>
     {page === 0 && <>
       <Text style={s.label}>Let the Dungeon Master create your hero</Text>
       <Text style={s.detail}>Describe any species, class or features you want, or leave it open. The DM fills in identity, age, abilities, spells, starter equipment, and backstory. Review the draft before saving.</Text>
       <TextInput accessibilityLabel="Character generation preferences" value={idea} onChangeText={setIdea} maxLength={1000} multiline style={s.input} placeholder="A curious goblin artificer with a mysterious mentor…" placeholderTextColor="#a7adbd"/>
-      {action(generating?'Creating your hero…':'Generate complete character',generateHero,false,generating||saving)}
+      {action(generating?'Creating your hero…':'Generate complete character',generateHero,false,generating||saving,generating?'quill':'spell')}
 
       <Text style={s.label}>Character name</Text><TextInput accessibilityLabel="Character name" style={s.input} value={form.name} onChangeText={name => change({name})} maxLength={60} placeholder="What should your companions call you?" placeholderTextColor="#a7adbd"/>
       <Text style={s.label}>Appearance & personality (optional)</Text><TextInput accessibilityLabel="Appearance and personality" multiline style={[s.input, {minHeight:120,textAlignVertical:'top'}]} value={form.description ?? ''} onChangeText={description => change({description})} maxLength={1500} placeholder="A green-skinned inventor with copper goggles and an endless list of questions…" placeholderTextColor="#a7adbd"/>
@@ -147,25 +152,32 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     </>}
     {!!pageError && <Text accessibilityRole="alert" style={s.error}>{pageError}</Text>}
     <View style={s.navigation}>
-      {page > 0 && action('Previous step', () => go(page - 1), true, saving)}
-      {page < reviewPage ? action(`Next: ${pages[page+1].title}`, next,false,generating) : action(saving ? 'Saving…' : 'Save character', onSave, false, saving || blocked)}
+      {page < reviewPage ? action(`Next: ${pages[page+1].title}`, next,false,generating,'forward') : action(saving ? 'Saving…' : 'Save character', onSave, false, saving || blocked, 'check')}
+      {page > 0 && action('Previous step', () => go(page - 1), true, saving, 'back')}
     </View>
     <Text style={s.footnote}>Selections stay here while you move between pages. Save on the review page to keep them after closing the app.</Text>
   </View>;
 }
 const s = StyleSheet.create({
-  progress:{...type.label,marginBottom:10},progressTrack:{flexDirection:'row',gap:5,marginBottom:24},progressSegment:{flex:1,height:4,borderRadius:1,backgroundColor:'rgba(201,164,92,.18)'},
+  stepRow:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:10,marginBottom:10,flexWrap:'wrap'},
+  progress:{...type.label},nextHint:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
+  progressTrack:{flexDirection:'row',gap:5,marginBottom:24},progressHit:{flex:1,paddingVertical:6},progressSegment:{height:4,borderRadius:2,backgroundColor:'rgba(201,164,92,.18)'},
+  progressNow:{backgroundColor:'rgba(232,199,123,.55)',height:6,marginTop:-1,borderWidth:1,borderColor:'rgba(255,240,196,.8)'},
   heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:30,fontWeight:'700',letterSpacing:1,marginBottom:12},intro:{fontFamily:fonts.story,color:'#e2d8c0',fontSize:18,lineHeight:28,marginBottom:20},
   label:{fontFamily:fonts.display,color:colors.gold,fontSize:14,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:20,marginBottom:10},cards:{gap:10,marginTop:16},
-  option:{padding:18,backgroundColor:'rgba(20,25,37,.92)',borderWidth:1,borderColor:'rgba(201,164,92,.25)',borderRadius:4},selected:{borderColor:colors.gold,backgroundColor:'rgba(58,46,26,.92)'},
-  cardTitle:{flexDirection:'row',justifyContent:'space-between',flexWrap:'wrap',gap:8,marginBottom:8},optionTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:19,fontWeight:'700',letterSpacing:.6},selectedText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'800',letterSpacing:1.4},
+  option:{padding:16,backgroundColor:'rgba(20,25,37,.92)',borderWidth:1,borderColor:'rgba(201,164,92,.25)',borderRadius:6},selected:{borderColor:colors.gold,backgroundColor:'rgba(58,46,26,.92)'},
+  cardTitle:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:10},optionTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:19,fontWeight:'700',letterSpacing:.6},selectedText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'800',letterSpacing:1.4},
+  check:{width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#fff0c4'},
   text:{fontFamily:fonts.ui,color:'#dde1ea',fontSize:15,lineHeight:24},detail:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginTop:6},note:{fontFamily:fonts.ui,color:'#d9bd84',fontSize:14,lineHeight:23,marginVertical:12},
-  input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:'rgba(4,6,10,.75)',borderWidth:1,borderColor:'rgba(201,164,92,.4)',borderRadius:3,padding:14,fontSize:17},
-  row:{flexDirection:'row',flexWrap:'wrap',gap:8},chip:{padding:12,minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center',backgroundColor:'#1a202d',borderWidth:1,borderColor:'rgba(201,164,92,.35)',borderRadius:3},
+  input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:'rgba(4,6,10,.75)',borderWidth:1,borderColor:'rgba(201,164,92,.4)',borderRadius:4,padding:14,fontSize:17},
+  row:{flexDirection:'row',flexWrap:'wrap',gap:8},chip:{paddingVertical:10,paddingHorizontal:14,minWidth:48,minHeight:44,alignItems:'center',justifyContent:'center',backgroundColor:'#1a202d',borderWidth:1,borderColor:'rgba(201,164,92,.35)',borderRadius:22},
   abilityBlock:{marginVertical:10,paddingBottom:16,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.15)'},scoreGrid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:16},
-  scoreTile:{flexGrow:1,flexBasis:145,backgroundColor:'rgba(14,18,28,.9)',borderWidth:1,borderColor:colors.goldLine,padding:14,borderRadius:4,alignItems:'center'},score:{fontFamily:fonts.display,fontSize:32,color:colors.gold,fontWeight:'800',marginVertical:4},
+  scoreTile:{flexGrow:1,flexBasis:100,borderWidth:1,borderColor:colors.goldLine,paddingVertical:12,paddingHorizontal:8,borderRadius:6,alignItems:'center'},
+  scoreLabel:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase'},
+  score:{fontFamily:fonts.display,fontSize:34,color:colors.goldBright,fontWeight:'800',marginVertical:2},
+  modPill:{paddingHorizontal:10,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:'rgba(232,199,123,.5)',backgroundColor:'rgba(58,46,26,.6)'},modText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'700',color:colors.gold},
   reviewRow:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:12,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.15)'},
   navigation:{gap:10,marginTop:28},action:{padding:16,minHeight:52,backgroundColor:'#d9ae5f',borderWidth:1,borderColor:'#fff0c4',borderRadius:4,justifyContent:'center'},secondary:{backgroundColor:'#1a202d',borderColor:'rgba(201,164,92,.35)'},
+  actionRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
   actionText:{fontFamily:fonts.display,color:colors.parchment,fontSize:14,fontWeight:'800',letterSpacing:1.8,textTransform:'uppercase',textAlign:'center'},error:{fontFamily:fonts.ui,color:colors.danger,fontSize:15,lineHeight:23,marginTop:16},footnote:{fontFamily:fonts.ui,color:colors.faint,fontSize:12,lineHeight:19,marginTop:16},
 });
-

@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,Pressable,Modal,StyleSheet} from 'react-native';
 import {displayState,subscribeDisplay,toggleFullscreen,setDisplayPrefs} from './fullscreen';
-import {GameButton} from './ui';
+import {GameButton,IconButton} from './ui';
 import {fonts,colors,type} from './theme';
 function useDisplay(){const [state,setState]=useState(displayState);useEffect(()=>{setState(displayState());return subscribeDisplay(setState);},[]);return state;}
 function HomeScreenHelp({visible,onClose}){
@@ -20,6 +20,7 @@ export function FullscreenToggle({style,compact=false}){
  const d=useDisplay(),[help,setHelp]=useState(false);
  if(d.installed&&!d.supported)return null;
  if(!d.supported&&!d.ios)return null;
+ if(compact)return <><IconButton icon={d.fullscreen?'shrink':'expand'} label={d.fullscreen?'Exit full screen':d.supported?'Full screen':'Full screen on iPhone'} onPress={()=>d.supported?toggleFullscreen():setHelp(true)} style={style}/><HomeScreenHelp visible={help} onClose={()=>setHelp(false)}/></>;
  return <><Pressable accessibilityRole="button" accessibilityLabel={d.fullscreen?'Exit full screen':'Enter full screen'} onPress={()=>d.supported?toggleFullscreen():setHelp(true)} dataSet={{qb:'chip'}} style={[s.toggle,style]}><Text style={[s.toggleText,compact&&s.icon]}>{compact?'⛶':d.fullscreen?'⛶ Exit full screen':'⛶ Full screen'}</Text></Pressable><HomeScreenHelp visible={help} onClose={()=>setHelp(false)}/></>;
 }
 export function DisplaySettings(){

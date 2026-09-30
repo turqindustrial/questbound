@@ -1,0 +1,84 @@
+// Questbound's own icon set: 24-unit line drawings (stroke = currentColor) used across menus, the HUD and actions.
+// Each entry is SVG inner markup; Icon.js wraps it. `glyph` is the text fallback for platforms without inline SVG.
+export const iconPaths={
+ sword:{glyph:'⚔',svg:'<path d="M8.15 14.15 17.95 4.35 20.5 3.5 19.65 6.05 9.85 15.85Z"/><path d="M10.9 13.1 18.3 5.7" opacity=".45"/><path d="M6 12l6 6"/><path d="M8.3 15.7 5.3 18.7"/><circle cx="4.4" cy="19.6" r="1.25"/>'},
+ swords:{glyph:'⚔',svg:'<path d="M20.5 3.5 9.5 14.5M3.5 3.5l11 11"/><path d="M20.5 3.5l-.6 2.6M20.5 3.5l-2.6.6M3.5 3.5l.6 2.6M3.5 3.5l2.6.6"/><path d="M6.8 11.8l5.4 5.4M17.2 11.8l-5.4 5.4"/><path d="M9.5 14.5l-4 4M14.5 14.5l4 4"/><circle cx="4.6" cy="19.4" r="1.1"/><circle cx="19.4" cy="19.4" r="1.1"/>'},
+ dagger:{glyph:'🗡',svg:'<path d="M12 2.8l2 3.2v8.2h-4V6z"/><path d="M12 6.5v6.5" opacity=".45"/><path d="M7.2 14.2h9.6"/><path d="M12 14.2v4.6"/><circle cx="12" cy="20.2" r="1.2"/>'},
+ axe:{glyph:'🪓',svg:'<path d="M12 3v18.5"/><path d="M12 5.2c2.6-.3 4.9-1.3 6.6-2.9 1.4 3.3 1.4 7.5 0 10.8-1.7-1.6-4-2.6-6.6-2.9M12 5.2c-2.6-.3-4.9-1.3-6.6-2.9-1.4 3.3-1.4 7.5 0 10.8 1.7-1.6 4-2.6 6.6-2.9"/><path d="M10.6 17.5h2.8" opacity=".6"/>'},
+ hammer:{glyph:'⚒',svg:'<rect x="5.5" y="3.2" width="13" height="5.6" rx="1.2"/><path d="M8.5 3.2v5.6M15.5 3.2v5.6" opacity=".45"/><path d="M12 8.8V21"/><path d="M10.4 18.6h3.2" opacity=".6"/>'},
+ staff:{glyph:'⚚',svg:'<path d="M5 21 15.2 8.8"/><circle cx="17" cy="6.8" r="2.6"/><path d="M17 1.9v1.2M21.9 6.8h-1.2M20.5 3.3l-.8.8M13.5 3.3l.8.8" opacity=".7"/>'},
+ spear:{glyph:'↗',svg:'<path d="M3.5 20.5 16.3 7.7"/><path d="M16.3 7.7 17.5 4.2 21 3 19.8 6.5Z"/><path d="M14.2 7.4l2.4 2.4" opacity=".6"/>'},
+ bow:{glyph:'🏹',svg:'<path d="M5.2 3.8c7.6.4 14.6 7.4 15 15"/><path d="M5.2 3.8 20.2 18.8" opacity=".55"/><path d="M4.5 19.5 18 6"/><path d="M18 6h-3.6M18 6v3.6"/><path d="M4.5 19.5l-.4-2.6M4.5 19.5l2.6.4"/>'},
+ shield:{glyph:'⛨',svg:'<path d="M12 2.8l7.5 2.9v5.6c0 4.6-3.1 8.4-7.5 9.9-4.4-1.5-7.5-5.3-7.5-9.9V5.7z"/><path d="M12 6.4v11.2M7.8 10.2h8.4" opacity=".5"/>'},
+ retreat:{glyph:'↩',svg:'<path d="M9 15 4 10l5-5"/><path d="M4 10h10.5a5.5 5.5 0 0 1 0 11H11"/>'},
+ potion:{glyph:'✚',svg:'<path d="M9.5 3h5"/><path d="M10.5 3v6.2a6 6 0 1 0 3 0V3"/><path d="M6.4 14.4c1.9-.9 3.6.9 5.6.3s3.2-1.5 5.6-.4" opacity=".7"/><circle cx="10" cy="17" r=".7" fill="currentColor" stroke="none"/><circle cx="13.6" cy="18.2" r=".5" fill="currentColor" stroke="none"/>'},
+ spell:{glyph:'✧',svg:'<path d="M11 2.5c.6 4.4 2.3 6.4 6.5 7-4.2.6-5.9 2.6-6.5 7-.6-4.4-2.3-6.4-6.5-7 4.2-.6 5.9-2.6 6.5-7z"/><path d="M18.5 14.5c.3 1.5.9 2.1 2.3 2.4-1.4.3-2 .9-2.3 2.4-.3-1.5-.9-2.1-2.3-2.4 1.4-.3 2-.9 2.3-2.4z"/><circle cx="6" cy="19" r=".9" fill="currentColor" stroke="none"/>'},
+ rest:{glyph:'☾',svg:'<path d="M19.5 14.6A8 8 0 1 1 9.4 4.5a6.4 6.4 0 0 0 10.1 10.1z"/><path d="M16.5 3.5v3M15 5h3" opacity=".6"/>'},
+ wait:{glyph:'⧗',svg:'<path d="M6.5 3h11M6.5 21h11"/><path d="M8 3v2.5c0 2.2 4 4.3 4 6.5s-4 4.3-4 6.5V21M16 3v2.5c0 2.2-4 4.3-4 6.5s4 4.3 4 6.5V21"/><path d="M10 18.5h4" opacity=".6"/>'},
+ flag:{glyph:'⚐',svg:'<path d="M5.5 21V3.5"/><path d="M5.5 4.5c4-2 6.5 2 11 0v8c-4.5 2-7-2-11 0"/>'},
+ close:{glyph:'✕',svg:'<path d="M6 6l12 12M18 6 6 18"/>'},
+ travel:{glyph:'➜',svg:'<path d="M12 21V3"/><path d="M12 5h6.5l2 2-2 2H12"/><path d="M12 11.5H5.5l-2 2 2 2H12"/><path d="M9 21h6"/>'},
+ map:{glyph:'◈',svg:'<path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5-5.5 2.5z"/><path d="M9 4v13.5M15 6.5V20" opacity=".55"/>'},
+ journal:{glyph:'❦',svg:'<path d="M12 6.5c-2-1.7-5-2.3-8.5-2v13c3.5-.3 6.5.3 8.5 2 2-1.7 5-2.3 8.5-2v-13c-3.5-.3-6.5.3-8.5 2z"/><path d="M12 6.5v13"/><path d="M6 8.5c1.5 0 3 .3 4 .8M6 11.5c1.5 0 3 .3 4 .8M18 8.5c-1.5 0-3 .3-4 .8" opacity=".5"/>'},
+ scroll:{glyph:'✦',svg:'<path d="M7.5 4H18a2 2 0 0 1 0 4h-2"/><path d="M7.5 4a2 2 0 0 0-2 2v11.5"/><path d="M16 6v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-.5h10v.5a2 2 0 0 0 2 2"/><path d="M8.5 9.5h4.5M8.5 13h4.5" opacity=".55"/>'},
+ sheet:{glyph:'⚔',svg:'<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c.8-4 3.8-6.2 7.5-6.2s6.7 2.2 7.5 6.2"/>'},
+ party:{glyph:'♞',svg:'<circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.4 3-5.2 6-5.2s5.4 1.8 6 5.2"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 6.1M17.3 14.5c2 .7 3.3 2.4 3.7 5"/>'},
+ settings:{glyph:'⚙',svg:'<path d="M4 7h9M17.5 7H20M4 17h2.5M11 17h9"/><circle cx="15.2" cy="7" r="2.2"/><circle cx="8.8" cy="17" r="2.2"/>'},
+ sound:{glyph:'♪',svg:'<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>'},
+ mute:{glyph:'♪',svg:'<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>'},
+ music:{glyph:'♪',svg:'<path d="M9 18V5.5l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>'},
+ expand:{glyph:'⛶',svg:'<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'},
+ shrink:{glyph:'⛶',svg:'<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>'},
+ menu:{glyph:'☰',svg:'<path d="M4 7h16M4 12h16M4 17h16"/>'},
+ quill:{glyph:'✎',svg:'<path d="M4 20 13 11"/><path d="M6.5 17.5C7 10 11.5 5 20 4c-.5 7.5-5 12.5-12.5 13"/><path d="M10.5 13.6l4-.3M13 10.6l3.6-.4" opacity=".55"/>'},
+ send:{glyph:'➤',svg:'<path d="M4 12h15"/><path d="M13.5 6l6 6-6 6"/>'},
+ d20:{glyph:'⬢',svg:'<path d="M12 2.5l8.2 4.7v9.6L12 21.5l-8.2-4.7V7.2z"/><path d="M12 7l4.8 8.3H7.2z"/><path d="M12 2.5V7M20.2 7.2l-3.4 8.1M3.8 7.2l3.4 8.1M7.2 15.3l-3.4 1.5M16.8 15.3l3.4 1.5M7.2 15.3 12 21.5l4.8-6.2" opacity=".55"/>'},
+ heart:{glyph:'♥',svg:'<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>'},
+ star:{glyph:'✦',svg:'<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"/>'},
+ crown:{glyph:'♛',svg:'<path d="M4 17.5 3 7.5l5 4 4-6.5 4 6.5 5-4-1 10z"/><path d="M5 20.5h14"/><circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none"/>'},
+ skull:{glyph:'☠',svg:'<path d="M12 3a7.5 7.5 0 0 0-7.5 7.5c0 2.6 1.2 4.4 3 5.5V19a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5v-3c1.8-1.1 3-2.9 3-5.5A7.5 7.5 0 0 0 12 3z"/><circle cx="9" cy="11" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="11" r="1.6" fill="currentColor" stroke="none"/><path d="M10.5 20.5V18M13.5 20.5V18"/>'},
+ flame:{glyph:'🔥',svg:'<path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.7 3-5.6 3.8-9.8 2 1.3 3.2 3.2 3.4 5.3 1-.8 1.6-2 1.8-3.5 2.3 2 4 4.9 4 8 0 3.6-2.6 6.2-6.5 6.2z"/><path d="M12 21c-1.6 0-2.7-1.1-2.7-2.6 0-1.8 1.5-2.6 2.2-4.3 1.9 1.4 3.2 2.6 3.2 4.3 0 1.5-1.1 2.6-2.7 2.6z" opacity=".55"/>'},
+ frost:{glyph:'❄',svg:'<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5M4.8 10.8 7.8 9.5 7.3 6.2M19.2 13.2l-3-1.3.5-3.3" opacity=".6"/>'},
+ bolt:{glyph:'ϟ',svg:'<path d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z"/>'},
+ eye:{glyph:'◉',svg:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>'},
+ speak:{glyph:'❝',svg:'<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M8 9.5h8M8 12h5" opacity=".55"/>'},
+ home:{glyph:'⌂',svg:'<path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>'},
+ camp:{glyph:'⌂',svg:'<path d="M3 20 12 4l9 16z"/><path d="M9 20l3-5.5 3 5.5"/><path d="M2 20h20"/>'},
+ tower:{glyph:'♜',svg:'<path d="M6.5 21V9.5h11V21"/><path d="M5.5 9.5V4.5H8v2h2.5v-2h3v2H16v-2h2.5v5"/><path d="M10.5 21v-4a1.5 1.5 0 0 1 3 0v4"/><path d="M4 21h16"/>'},
+ check:{glyph:'✓',svg:'<path d="M5 12.5 9.5 17 19 7.5"/>'},
+ back:{glyph:'‹',svg:'<path d="M14.5 5 7.5 12l7 7"/>'},
+ forward:{glyph:'›',svg:'<path d="M9.5 5l7 7-7 7"/>'},
+ heal:{glyph:'✚',svg:'<path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z"/>'},
+ compass:{glyph:'✦',svg:'<circle cx="12" cy="12" r="8.5"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/><circle cx="12" cy="12" r=".8" fill="currentColor" stroke="none"/>'},
+ search:{glyph:'⌕',svg:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>'},
+ key:{glyph:'⚙',svg:'<circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20 3M17 6l2.5 2.5M14.5 8.5l2 2"/>'},
+ door:{glyph:'◈',svg:'<path d="M6 21V4.5h9.5V21"/><path d="M15.5 6.5l3.5 1.4V21"/><circle cx="12.5" cy="13" r=".9" fill="currentColor" stroke="none"/><path d="M3.5 21h17"/>'},
+ gem:{glyph:'◆',svg:'<path d="M6.5 4h11l3.5 5-9 11-9-11z"/><path d="M3 9h18M9.5 4 8 9l4 11 4-11-1.5-5" opacity=".55"/>'},
+ info:{glyph:'ℹ',svg:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".9" fill="currentColor" stroke="none"/>'},
+ transfer:{glyph:'⇄',svg:'<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>'},
+ play:{glyph:'▶',svg:'<path d="M8 5l11 7-11 7z"/>'},
+ bag:{glyph:'◰',svg:'<path d="M6 8h12l1.2 12.5H4.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/><path d="M9 12h6" opacity=".55"/>'},
+ coin:{glyph:'◎',svg:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5" opacity=".55"/><path d="M12 9.5v5" opacity=".8"/>'},
+ book:{glyph:'✧',svg:'<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15.5H6.5A1.5 1.5 0 0 0 5 20z"/><path d="M5 20a1.5 1.5 0 0 0 1.5 1.5H19"/><path d="M12 6.5c.3 2 1 2.8 3 3.1-2 .3-2.7 1.1-3 3.1-.3-2-1-2.8-3-3.1 2-.3 2.7-1.1 3-3.1z"/>'},
+ sun:{glyph:'☼',svg:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>'},
+ leaf:{glyph:'❀',svg:'<path d="M5 19C5 10 10 4.5 20 4c-.5 10-6 15-15 15z"/><path d="M5 19 14 10M9.5 14.5h4M12 12V8.5" opacity=".6"/>'},
+ fist:{glyph:'✊',svg:'<path d="M7 11V7.5a1.5 1.5 0 0 1 3 0V10M10 9V6.5a1.5 1.5 0 0 1 3 0V10M13 9.5V7a1.5 1.5 0 0 1 3 0v3.5M16 10a1.5 1.5 0 0 1 3 0v3.5c0 4-2.6 7-6.5 7H11c-2.8 0-5-2.2-5-5v-2a2 2 0 0 1 2-2h3.5a1.5 1.5 0 0 1 0 3H9"/>'},
+ cog:{glyph:'⚙',svg:'<path d="M18.28 9.4 18.59 10.33 20.9 10.64 20.9 13.36 18.59 13.67 18.28 14.61 17.84 15.48 19.25 17.33 17.33 19.25 15.48 17.84 14.6 18.28 13.67 18.59 13.36 20.9 10.64 20.9 10.33 18.59 9.39 18.28 8.52 17.84 6.67 19.25 4.75 17.33 6.16 15.48 5.72 14.6 5.41 13.67 3.1 13.36 3.1 10.64 5.41 10.33 5.72 9.39 6.16 8.52 4.75 6.67 6.67 4.75 8.52 6.16 9.4 5.72 10.33 5.41 10.64 3.1 13.36 3.1 13.67 5.41 14.61 5.72 15.48 6.16 17.33 4.75 19.25 6.67 17.84 8.52Z"/><circle cx="12" cy="12" r="2.8"/>'},
+ lute:{glyph:'♫',svg:'<path d="M12.6 11.4 19.3 4.7"/><path d="M19.3 4.7l.4-2 2 .4-.4 2z"/><path d="M13.2 10.8c1.9 2.6 1.3 6.3-1.2 8.5-2.7 2.3-6.6 2.4-8.2.3-1.6-2-.9-5.9 1.7-8.3 2.4-2.2 6-2.8 7.7-.5z"/><circle cx="8.6" cy="15.4" r="1.6"/><path d="M5.8 18.2l2-2" opacity=".6"/>'},
+ eldritch:{glyph:'◉',svg:'<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><path d="M12 8.2c1.3 1.3 1.3 6.3 0 7.6-1.3-1.3-1.3-6.3 0-7.6z" fill="currentColor" stroke="none"/><path d="M12 2.5v1.8M12 19.7v1.8M5.2 4.8l1.1 1.4M18.8 4.8l-1.1 1.4M5.2 19.2l1.1-1.4M18.8 19.2l-1.1-1.4" opacity=".6"/>'},
+ people:{glyph:'♞',svg:'<circle cx="7.5" cy="8.5" r="2.6"/><circle cx="16.5" cy="8.5" r="2.6"/><path d="M2.5 18.5c.5-3 2.4-4.6 5-4.6s4.5 1.6 5 4.6M11.5 18.5c.5-3 2.4-4.6 5-4.6s4.5 1.6 5 4.6"/>'},
+ feedback:{glyph:'✎',svg:'<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M12 8l.8 1.7 1.9.3-1.4 1.3.3 1.9L12 12.3l-1.7.9.3-1.9-1.4-1.3 1.9-.3z" fill="currentColor" stroke="none"/>'},
+ dots:{glyph:'…',svg:'<circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none"/>'},
+};
+// Class crests and weapon families, so a hero or a weapon always gets a fitting emblem.
+export const classIcons={Artificer:'cog',Barbarian:'axe',Bard:'lute',Cleric:'sun',Druid:'leaf',Fighter:'swords',Monk:'fist',Paladin:'shield',Ranger:'bow',Rogue:'dagger',Sorcerer:'flame',Warlock:'eldritch',Wizard:'staff'};
+export function weaponIcon(name=''){
+ const n=name.toLowerCase();
+ if(/bow|crossbow|sling|dart/.test(n))return 'bow';
+ if(/dagger|knife|sickle|shortsword|rapier|scimitar/.test(n))return 'dagger';
+ if(/axe|halberd|glaive/.test(n))return 'axe';
+ if(/staff|wand|rod/.test(n))return 'staff';
+ if(/hammer|mace|maul|club|flail|morningstar|whip/.test(n))return 'hammer';
+ if(/spear|javelin|pike|lance|trident/.test(n))return 'spear';
+ return 'sword';
+}

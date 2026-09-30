@@ -221,6 +221,14 @@ const effects={
  whoosh:t=>{noise(t,{bus:out.sfx,peak:.14,attack:.25,release:.45,filter:{freq:300,to:3600,time:.6,q:.8},send:.35,reverb:out.room});osc('sine',48,t,{bus:out.sfx,peak:.12,attack:.3,release:.5});},
  page:t=>{for(let k=0;k<3;k++)noise(t+k*.06,{bus:out.sfx,peak:.05,attack:.02,release:.08,filter:{type:'bandpass',freq:vary(2800,.3),q:.9}});},
  boot:t=>{duck(.2,2.5,2);osc('sine',38,t,{bus:out.sfx,peak:.55,attack:.01,release:3.2,glide:30,glideTime:2.5,priority:true});noise(t,{bus:out.sfx,peak:.14,attack:1.4,release:.6,filter:{freq:200,to:6000,time:1.8,q:.7},send:.5,reverb:out.room});choir([50,57,62,66,69],t+1.4,3,.12);strings([38,50,57,62],t+1.4,3,.1);[1175,1480,1760,2349].forEach((f,i)=>bell(f,t+1.5+i*.12,{bus:out.sfx,peak:.03,release:2.5,ratio:3.5,index:1,send:.7,reverb:out.room,panTo:(i-1.5)*.25}));taiko(t+1.4,1.3);},
+ // Interface: a faint tick when the pointer finds a menu entry, a soft lift when a sheet opens, a plucked note on a choice.
+ tick:t=>{noise(t,{bus:out.sfx,peak:.022,attack:.001,release:.014,filter:{type:'bandpass',freq:vary(5200,.08),q:5}});osc('sine',vary(2300,.03),t,{bus:out.sfx,peak:.012,attack:.001,release:.03,glide:1800});},
+ open:t=>{noise(t,{bus:out.sfx,peak:.05,attack:.08,release:.22,filter:{type:'bandpass',freq:500,to:2400,time:.25,q:.9}});bell(hz(81),t+.08,{bus:out.sfx,peak:.016,release:.9,ratio:3.5,index:.8,send:.5,reverb:out.room});},
+ select:t=>{pluck(74,t,{bus:out.sfx,peak:.2,bright:.6,send:.45,reverb:out.room});pluck(81,t+.07,{bus:out.sfx,peak:.12,bright:.6,send:.45,reverb:out.room});},
+ // A new round: one deep drum and a short brass call.
+ round:t=>{taiko(t,1.1);brassStab([50,57,62],t+.02,.1,.45);},
+ // Level up: a rising bell run into a brass and choir chord.
+ levelup:t=>{duck(.35,1.4,1.2);[62,66,69,74,78,81].forEach((m,i)=>bell(hz(m+12),t+i*.07,{bus:out.sfx,peak:.035,release:1.4,ratio:3.5,index:1,send:.6,reverb:out.room,panTo:(i-2.5)*.14}));brassStab([62,66,69,74],t+.5,.24,1.4);choir([62,66,69,74],t+.5,2,.14);swell(t,.5,.08);},
  spell:(t,o)=>{const p=o?.panTo??ME;[0,.05,.1].forEach((d,i)=>bell(vary(1500+i*420,.05),t+d,{bus:out.sfx,peak:.03,release:.7,ratio:2.4,index:2,panTo:p,send:.5,reverb:out.room}));noise(t,{bus:out.sfx,peak:.08,attack:.12,release:.25,filter:{type:'bandpass',freq:1200,to:5000,time:.3,q:2},panTo:p});},
 };
 // impact:TYPE:target  — a landed blow by damage type, on the opponent (foe) or on you (me).

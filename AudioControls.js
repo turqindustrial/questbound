@@ -2,9 +2,11 @@ import React,{useEffect,useState} from 'react';
 import {View,Text,Pressable,StyleSheet} from 'react-native';
 import {audioSettings,setAudio,subscribeAudio,playSound} from './audio';
 import {fonts,colors,type} from './theme';
+import {IconButton} from './ui';
 function useAudioSettings(){const [value,setValue]=useState(audioSettings);useEffect(()=>subscribeAudio(setValue),[]);return value;}
 export function AudioToggle({style,compact=false}){
  const a=useAudioSettings();
+ if(compact)return <IconButton icon={a.muted?'mute':'sound'} label={a.muted?'Turn sound on':'Mute sound'} onPress={()=>setAudio({muted:!a.muted})} style={style}/>;
  return <Pressable accessibilityRole="button" accessibilityLabel={a.muted?'Turn sound on':'Mute sound'} onPress={()=>setAudio({muted:!a.muted})} dataSet={{qb:'chip'}} style={[s.toggle,style]}><Text style={[s.toggleText,compact&&{fontSize:14,letterSpacing:0},a.muted&&compact&&{textDecorationLine:'line-through',color:colors.muted}]}>{compact?'♪':a.muted?'♪ Sound off':'♪ Sound on'}</Text></Pressable>;
 }
 const levels=[['Off',0],['Low',.3],['Med',.6],['High',.85],['Max',1]];

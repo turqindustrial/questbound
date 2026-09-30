@@ -11,7 +11,9 @@ import TurnPlayback from './TurnPlayback';
 import {conversationPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
 import {adventureStep} from './adventureRules';
 import {dmCommand} from './dmCommands';
-import React,{useState,useEffect,useRef} from 'react';
+import React,{useState,useEffect,useRef,useMemo} from 'react';
+import Icon from './Icon';
+import {KeyHint} from './ui';
 import {View,Text as PlainText,TextInput,Pressable,ScrollView,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
 import {dmContext,dmChoices,commitDmTurn} from './dmContext';
 import {fonts,colors,type} from './theme';
@@ -136,6 +138,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   }
   const turns=(person?(game.playback??[]).filter(t=>t.npcId===person.id||(t.participants??[]).some(id=>people.some(n=>n.id===id))):(game.playback??[])).map(t=>visibleTurn(t,game));
   const effects=activeEffectLines(game,health);
+  // Names the playback uses to move the HUD's HP bars in step with the story, and portraits for speakers.
+  const names=useMemo(()=>({hero:hero.name,foe:game.story?.foe??'Encounter opponent'}),[hero.name,game.story?.foe]);
+  const avatarFor=id=>id?npcArtSubject(game,id):null;
   const previousNarration=(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').at(-1)?.text.split(/\n(?:AI DM|Dungeon Master): /).at(-1)?.split('\nResult:')[0];
   const attitude=person?.attitude==='hostile'?{label:'Hostile · remembers what happened',color:colors.bloodBright}:person?.attitude==='unfriendly'?{label:'Unfriendly',color:'#e0a860'}:{label:'Listening',color:colors.heal};
   const sendDisabled=busy||playing||!input.trim()||!!waiting||tableSyncing;
@@ -157,31 +162,47 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // Phones and short windows scroll the row sideways; roomy screens wrap it. On a short screen (a phone on its
   // side) people and effects join the same row so the story keeps its height.
   const swipe=compact||short;
-  const actionChips=actions.map(a=><Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} dataSet={{qb:a.primary&&!a.prefill?'btn-primary':'chip'}} style={[s.action,a.primary&&!a.prefill&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}><PlainText style={[s.actionGlyph,a.primary&&!a.prefill&&s.actionPrimaryText]}>{a.glyph}</PlainText><PlainText numberOfLines={1} style={[s.actionText,a.primary&&!a.prefill&&s.actionPrimaryText]}>{a.label}</PlainText>{!!a.detail&&<PlainText style={s.actionDetail}>{a.detail}</PlainText>}</Pressable>);
-  const extraChips=[...effects.map(line=><View key={'effect:'+line} style={s.effectChip}><Text numberOfLines={1} style={s.effectChipText}>✧ {line}</Text></View>),
-    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><PlainText style={s.chipAction}>{person?'Address':'Speak'} ›</PlainText></Pressable>)];
+  // With a keyboard, 1–9 press the matching action (shown as a small key on each chip).
+  const keysRef=useRef({});keysRef.current={actions,disabled:actionsDisabled,run:a=>runAction(a)};
+  useEffect(()=>{
+    if(typeof document==='undefined')return;
+    const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[1-9]$/.test(e.key))return;const el=document.activeElement;if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.isContentEditable))return;if(document.querySelector('[aria-modal=true]'))return;
+      const {actions,disabled,run}=keysRef.current,a=actions[Number(e.key)-1];if(!a||disabled)return;e.preventDefault();playSound('click');run(a);};
+    document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
+  },[]);
+  const actionChips=actions.map((a,i)=>{const lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} dataSet={{qb:lead?'btn-primary':'chip'}} style={[s.action,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
+    <Icon name={a.icon??'star'} size={16} color={lead?'#2a1a07':colors.gold}/>
+    <PlainText numberOfLines={1} style={[s.actionText,lead&&s.actionPrimaryText]}>{a.label}</PlainText>
+    {!!a.detail&&<PlainText style={s.actionDetail}>{a.detail}</PlainText>}
+    {!compact&&i<9&&<KeyHint dark={lead}>{i+1}</KeyHint>}
+  </Pressable>;});
+  const extraChips=[...effects.map(line=><View key={'effect:'+line} style={s.effectChip}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
+    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/><PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText></View></Pressable>)];
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
   const actionBar=short?row([...actionChips,...extraChips],false,actionScroll):<>{row(extraChips,false)}{row(actionChips,!swipe,actionScroll)}</>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
   const composer=<TextInput ref={inputRef} dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':'Describe your next move…'} placeholderTextColor="#7f889c" style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9}]}/>;
-  const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},sendDisabled&&{opacity:0.45}]}><Text style={s.buttonText}>{tableSyncing?'Catching up…':busy?(fill&&compact?'…':'Resolving…'):playing?(fill&&compact?'…':'Playing…'):waiting?'Waiting…':fill&&compact?'➤':'Send  ➤'}</Text></Pressable>;
+  const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting?'Waiting…':'Send';
+  const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color="#2a1a07"/>:<Icon name="send" size={20} color="#2a1a07" strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color="#2a1a07" strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>
     {person?<View style={s.fillHeader}>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to adventure" disabled={busy||playing} onPress={()=>setConversationId(null)} style={s.fillBack}><Text style={s.backText}>‹</Text></Pressable>
       <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
       <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
-    </View>:!short&&<View style={s.fillHeader}>
-      <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading]}>The Dungeon Master</Text></View>
+    </View>:!short&&!compact&&<View style={s.fillHeader}>
+      <View style={s.dmMark}><Icon name="quill" size={compact?17:19} color={colors.goldBright}/></View>
+      <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>The Dungeon Master</Text></View>
       {statusPill}
     </View>}
     {!connected&&checked&&<Text style={[s.caption,{marginBottom:6},unpaired&&{color:colors.gold}]}>{status}</Text>}
     {unpaired&&<Pressable accessibilityRole="button" onPress={()=>globalThis.location?.reload()} dataSet={{qb:'btn-primary'}} style={[s.button,{alignSelf:'flex-start',marginBottom:8}]}><Text style={s.buttonText}>Reload and rejoin</Text></Pressable>}
-    <TurnPlayback fill intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
-      <PlainText style={s.tipsTitle}>✦  How to play</PlainText>
-      <PlainText style={s.tipsText}>Tap an action below, or type anything you want to do or say. The Dungeon Master decides what happens; the dice decide how it goes.</PlainText>
-      <PlainText style={s.tipsText}>Tap an underlined name to learn more. ☰ holds your character sheet, journal, settings and feedback.</PlainText>
-      <Pressable accessibilityRole="button" onPress={dismissTips} style={s.tipsButton}><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
-    </View>:null} aside={short&&!person?statusPill:null} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
+    <TurnPlayback fill names={names} avatarFor={avatarFor} intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
+      <View style={s.tipsHead}><Icon name="star" size={14} color={colors.gold}/><PlainText style={s.tipsTitle}>How to play</PlainText></View>
+      <View style={s.tipRow}><Icon name="swords" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an action below{compact?'':' (or press its number key)'}, or type anything you want to do or say.</PlainText></View>
+      <View style={s.tipRow}><Icon name="d20" size={15} color={colors.gold}/><PlainText style={s.tipsText}>The Dungeon Master decides what happens; the dice decide how it goes.</PlainText></View>
+      <View style={s.tipRow}><Icon name="menu" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an underlined name to learn more. The menu holds your character sheet, journal, settings and feedback.</PlainText></View>
+      <Pressable accessibilityRole="button" onPress={dismissTips} dataSet={{qb:'chip'}} style={s.tipsButton}><Icon name="check" size={14} color={colors.gold}/><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
+    </View>:null} aside={(short||compact)&&!person?statusPill:null} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
     {actionBar}
     <View style={s.composer}>{composer}{sendButton}</View>
@@ -213,20 +234,23 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  effects:{padding:14,borderRadius:3,borderWidth:1,borderColor:'rgba(111,208,196,.35)',backgroundColor:'rgba(16,40,40,.55)',marginTop:14,marginBottom:6},effectText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:13,lineHeight:21},
  people:{gap:8,marginTop:18},personButton:{flexDirection:'row',gap:12,alignItems:'center',paddingVertical:8,paddingHorizontal:10,borderRadius:3,borderWidth:1,borderColor:'rgba(201,164,92,.3)',backgroundColor:'rgba(20,25,36,.9)'},
  avatar:{width:40,height:40,borderRadius:20},chipText:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:13},
- chipName:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:14},chipRole:{fontFamily:fonts.ui,color:colors.muted,fontSize:11.5,marginTop:2},chipAction:{marginLeft:'auto',flexShrink:0,paddingLeft:8,fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+ chipName:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:14},chipRole:{fontFamily:fonts.ui,color:colors.muted,fontSize:11.5,marginTop:2},chipAction:{flexShrink:0,fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
  panel:{padding:22,marginVertical:12,backgroundColor:'rgba(12,16,24,.8)',borderRadius:4,borderWidth:1,borderColor:colors.goldLine},
  // Fill mode: the panel takes the whole play area; the feed grows and the composer stays pinned to the bottom.
  fill:{flex:1,minHeight:0,marginVertical:0,padding:16,paddingBottom:12},fillCompact:{padding:10,paddingBottom:8,borderLeftWidth:0,borderRightWidth:0,borderRadius:0},
  fillHeader:{flexDirection:'row',alignItems:'center',gap:12,paddingBottom:10,marginBottom:6,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.22)'},
  fillHeading:{fontSize:18},fillBack:{minWidth:36,minHeight:44,justifyContent:'center',alignItems:'center'},
  fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:'#cdbf9f',fontSize:14,marginBottom:3},
- effectChip:{paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)'},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12},
+ effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12,flexShrink:1},
+ sendRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},chipSpeak:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:4},
+ dmMark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(232,199,123,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(58,46,26,.45)'},
+ tipsHead:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:4},tipRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:4},
  personChip:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:4,paddingLeft:4,paddingRight:10,borderRadius:22,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.92)'},chipAvatar:{width:30,height:30,borderRadius:15},
  composer:{flexDirection:'row',alignItems:'flex-end',gap:8,marginTop:8},
  actionBar:{flexGrow:0,flexShrink:0,marginTop:8},actionContent:{gap:8,alignItems:'center',paddingRight:40},actionWrap:{flexDirection:'row',flexWrap:'wrap',paddingRight:0},
  action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(20,25,36,.92)',maxWidth:260},
- tips:{padding:12,paddingBottom:6,marginTop:4,marginBottom:10,borderRadius:4,borderWidth:1,borderColor:'rgba(232,199,123,.45)',gap:4},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
- tipsText:{fontFamily:fonts.ui,color:'#d5dae3',fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',minHeight:36,paddingHorizontal:12,justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+ tips:{padding:14,paddingBottom:10,marginTop:4,marginBottom:12,borderRadius:6,borderWidth:1,borderColor:'rgba(232,199,123,.45)',gap:2},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
+ tipsText:{flex:1,fontFamily:fonts.ui,color:'#d5dae3',fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,marginTop:8,borderRadius:18,borderWidth:1,borderColor:'rgba(201,164,92,.45)',justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
  actionPrimary:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
  actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:'#ecdcb8',textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:'#2a1a07'},
  fillInput:{flex:1,minHeight:48,maxHeight:130,paddingVertical:12,fontSize:17,lineHeight:24},

@@ -24,13 +24,20 @@ import CharacterSheet from './CharacterSheet';
 import {combatBasics} from './combatRules';
 import CharacterBuilder from './CharacterBuilder';
 import { blankBuild, buildError, makeCharacter, abilities, modifier } from './characterRules';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { loadCharacter, saveCharacter, isValidCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, useWindowDimensions } from 'react-native';
-import {Panel,GameButton,Ornament,Eyebrow,StatBar} from './ui';
+import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
 import {fonts,colors,type} from './theme';
-import {setMood,setAmbience,setDanger} from './audio';
+import {setMood,setAmbience,setDanger,playSound} from './audio';
+import HomeScreen from './HomeScreen';
+import Icon from './Icon';
+import {classIcons} from './iconPaths';
+import CinematicLayer from './CinematicLayer';
+import {cue,useCue} from './cinematics';
+// Page headings: overline, title and icon for the screens that have one.
+const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['Victory earned','Level up','star']};
 import {AudioToggle,AudioSettings} from './AudioControls';
 import {FullscreenToggle,DisplaySettings} from './DisplayControls';
 import GameHud from './GameHud';
@@ -170,7 +177,7 @@ function QuestboundApp() {
   async function saveAdvancement(character) {
     if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
-    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}
+    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
     catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally {setSaving(false);}
   }
@@ -185,6 +192,9 @@ function QuestboundApp() {
   // The score waits for the launch screen; after that it follows the scene. Ambience follows the location,
   // and a heartbeat rises when the hero is at 30% HP or less.
   const [launched,setLaunched]=useState(false);
+  // A blow against the hero shakes the play area for a moment.
+  const [shake,setShake]=useState(0);
+  useCue(useCallback(event=>{if(event.kind==='hurt'){setShake(event.id);setTimeout(()=>setShake(value=>value===event.id?0:value),450);}},[]));
   const playing=screen==='Adventure'&&characterChosen&&!!hero&&!!heroStats?.available;
   // Side-by-side play on large screens and on any landscape screen (a phone on its side has height for one column only).
   const wideGame=windowWidth>=960||(windowWidth>=560&&windowWidth>windowHeight*1.25);
@@ -199,12 +209,17 @@ function QuestboundApp() {
     where:[game.story?.locations?.[['inn','bridge','tower'].includes(game.stage)?game.stage:'bridge']?.name,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating'}[game.stage]].filter(Boolean).join(', ')};
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
+  const home=screen==='Home'&&!inGame,wideHome=home&&windowWidth>=860&&windowHeight>=560;
+  const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
     {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titleArt} dataSet={{qb:'backdrop'}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/>}
-    <View dataSet={{qb:inGame?'atmosphere-game':'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?'rgba(5,10,16,.35)':'rgba(6,8,12,.72)'}]}/>
+    <View dataSet={{qb:inGame?'atmosphere-game':home?(wideHome?'atmosphere-home':'atmosphere-home-narrow'):'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?'rgba(5,10,16,.35)':home?'rgba(6,8,12,.45)':'rgba(6,8,12,.72)'}]}/>
+    {!inGame&&<View dataSet={{qb:'rays'}} style={StyleSheet.absoluteFillObject}/>}
+    <View dataSet={{qb:'fog'}} style={StyleSheet.absoluteFillObject}/>
     <View dataSet={{qb:'vignette'}} style={StyleSheet.absoluteFillObject}/>
     <View dataSet={{qb:'embers'}} style={StyleSheet.absoluteFillObject}/>
+    <View dataSet={{qb:'grain'}} style={StyleSheet.absoluteFillObject}/>
   </View>
   <EncounterProvider hero={hero} game={game} health={health}>
   <StatusBar style="light" />
@@ -216,58 +231,51 @@ function QuestboundApp() {
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
       {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><Text numberOfLines={1} style={s.tableText}>⚑  Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
-    <View style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
+    <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
       <Adventure layout={wideGame?'wide':'narrow'} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
     </View>
   </View>:<View style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
-    <View style={[s.topBar,compact&&{paddingHorizontal:12}]}>
-      {screen==='Home'?<View/>:inGame&&!['Level Up','Adventure'].includes(screen)?<Pressable accessibilityRole="button" accessibilityLabel="Back to the adventure" onPress={backToGame} dataSet={{qb:'chip'}} style={s.backChip}><Text style={s.backChipText}>‹  Adventure</Text></Pressable>:<Pressable accessibilityRole="button" accessibilityLabel="Main menu" onPress={()=>setScreen('Home')}><Text dataSet={{qb:'title'}} style={[s.logoSmall,compact&&{fontSize:20}]}>Questbound</Text></Pressable>}
-      <View style={s.controls}><FullscreenToggle compact={compact}/><AudioToggle compact={compact}/></View>
+    <View style={[s.topBar,compact&&{paddingHorizontal:12},home&&{minHeight:48}]}>
+      {home?<View/>:inGame&&!['Level Up','Adventure'].includes(screen)?<Pressable accessibilityRole="button" accessibilityLabel="Back to the adventure" onPress={backToGame} dataSet={{qb:'chip'}} style={s.backChip}><Icon name="back" size={15} color={colors.gold}/><Text style={s.backChipText}>Adventure</Text></Pressable>:<Pressable accessibilityRole="button" accessibilityLabel="Main menu" onPress={()=>setScreen('Home')} style={s.brand}><View dataSet={{qb:'emblem'}} style={s.emblem}><Text dataSet={{qb:'title'}} style={s.emblemQ}>Q</Text></View>{windowWidth>=380&&<Text dataSet={{qb:'title'}} style={[s.logoSmall,compact&&{fontSize:17,letterSpacing:2}]}>Questbound</Text>}</Pressable>}
+      <View style={s.controls}><FullscreenToggle compact/><AudioToggle compact/></View>
     </View>
-  <ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-    <View style={shortHome&&screen==='Home'?s.homeRow:null}>
-    {screen==='Home'&&<View style={[s.hero,compact&&{paddingTop:8,paddingBottom:18},shortHome&&{flex:1,paddingTop:0,paddingBottom:0}]}>
-      <Eyebrow style={s.heroEyebrow}>A tabletop adventure companion</Eyebrow>
-      <Text accessibilityRole="header" dataSet={{qb:'title',glow:'on'}} style={[s.logo,{fontSize:logoSize,lineHeight:Math.round(logoSize*1.22),letterSpacing:compact?2:6}]}>Questbound</Text>
-      <Ornament style={s.heroRule}/>
-      <Text style={s.tagline}>Stories worth rolling for.</Text>
-    </View>}
-    <Panel variant={inGame?'glass':'panel'} style={[s.card,compact&&{padding:14},denseHome&&screen==='Home'&&{padding:16},shortHome&&screen==='Home'&&{flex:1.1}]}>{loading && <Text style={s.note}>Loading saved character…</Text>}{!!storageError && <Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
-      {(saveProblem||(screen==='Home'&&!denseHome&&saveStatus.startsWith('Adventure saved')))&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,compact&&{marginBottom:10},saveProblem&&{color:'#ffd49a'}]}>{saveProblem?saveStatus:'✦ '+saveStatus}</Text>}
+  {home?<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={{flexGrow:1}} keyboardShouldPersistTaps="handled">
+    <HomeScreen hero={hero} game={game} health={health} saved={saved} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
+      onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
+      onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackOpen(true);}}/>
+    <FeedbackSheet visible={feedbackOpen} onClose={()=>setFeedbackOpen(false)} context={feedbackContext}/>
+  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <View key={screen} dataSet={{qb:'enter'}}>
+    <Panel variant={inGame?'glass':'panel'} style={[s.card,compact&&{padding:14}]}>{loading && <Text style={s.note}>Loading saved character…</Text>}{!!storageError && <Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
+      {saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,compact&&{marginBottom:10},{color:'#ffd49a'}]}>{saveStatus}</Text>}
       {saveStatus.startsWith('Adventure not saved') && button('Retry adventure save',()=>setSaveRetry(value=>value+1))}
         {table.joined && <View dataSet={{qb:'plate'}} style={s.tableBar}><Text style={s.tableText}>⚑  Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
-      {!['Character Creation','Adventure','Adventure Opening','Multiplayer','Character Sheet','Campaign Journal','Followers'].includes(screen) && <Text accessibilityRole="header" style={[s.heading,screen==='Home'&&s.homeHeading,screen==='Home'&&denseHome&&{marginBottom:6,fontSize:18}]}>{screen === 'Home' ? 'Gather your courage' : screen}</Text>}
-      {screen === 'Home' && <>
-        {!denseHome&&<Text style={[s.body,s.center]}>Create your hero, roll the dice, and step into your next adventure.</Text>}
-        {!!hero&&button('Continue', () => {setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen ? 'Adventure' : 'Character Selection');}, saved?'primary':'secondary', denseHome&&s.denseButton)}
-        {button('New Adventure', () => {setNewStoryRequested(true);setError('');setScreen('Character Selection');}, saved?'secondary':'primary', denseHome&&s.denseButton)}
-        <Ornament glyph="✦" style={{marginVertical:denseHome?8:18}}/>
-        <View style={[s.menuGrid,denseHome&&{gap:6}]}>{['Character Selection', 'Dice Roller', 'Multiplayer', 'Settings'].map(label => <GameButton key={label} label={label} onPress={() => setScreen(label)} disabled={loading||creatingStory} style={[s.menuCell,denseHome&&s.denseCell]} textStyle={s.menuCellText}/>)}</View>
-        <Pressable accessibilityRole="button" onPress={()=>setFeedbackOpen(true)} style={[s.feedbackLink,denseHome&&{marginTop:6,minHeight:36}]}><Text style={s.feedbackText}>✎  Send playtest feedback</Text></Pressable>
-        <FeedbackSheet visible={feedbackOpen} onClose={()=>setFeedbackOpen(false)} context={feedbackContext}/>
-      </>}
+      {!!titles[screen]&&<ScreenTitle eyebrow={titles[screen][0]} icon={titles[screen][2]} title={titles[screen][1]}/>}
       {screen === 'Character Selection' && <>
-        <Text style={s.body}>Choose your character to enter the adventure. Your full character sheet is available inside the game.</Text>
         {hero ? <>
-          <View dataSet={{qb:'plate'}} style={s.heroCard}>
-            <Eyebrow>Your hero</Eyebrow>
-            <Text style={s.heroName}>{hero.name}</Text>
-            <Text style={s.heroLine}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
-            {!!hero.background && <Text style={s.heroBackground}>{hero.background}</Text>}
+          <View dataSet={{qb:'plate'}} style={[s.heroCard,compact&&{padding:14,gap:14}]}>
+            <Crest icon={classIcons[hero.class]??'star'} size={compact?54:68} level={hero.level}/>
+            <View style={{flex:1,minWidth:0}}>
+              <Eyebrow>Your hero</Eyebrow>
+              <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
+              <Text style={s.heroLine}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+              {!!hero.background && <Text style={s.heroBackground}>{hero.background}</Text>}
+            </View>
           </View>
           {newStoryRequested&&<Text style={s.note}>{characterChosen?'A fresh story will be created for this character. It replaces your current adventure only when it is ready and saved.':'Next, choose where your story begins.'}</Text>}
           {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-          {button(creatingStory?'Creating your new adventure…':'Play as '+hero.name,playCharacter,'primary')}
-          {button('Edit character', () => {setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');})}
+          <GameButton icon="play" label={creatingStory?'Creating your new adventure…':'Play as '+hero.name} onPress={playCharacter} variant="primary" disabled={loading||creatingStory}/>
+          <GameButton icon="quill" label="Edit character" onPress={() => {setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
         </> : <>
-          <Eyebrow style={s.quickEyebrow}>Quick start · pick a hero and play</Eyebrow>
+          <Section icon="spell" title="Quick start" style={{marginTop:0}}/>
+          <Text style={s.body}>Pick a ready-made hero and you'll be choosing your adventure in seconds.</Text>
           <QuickHeroes onChoose={useReadyHero} disabled={saving||loading}/>
           {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-          <Eyebrow style={s.quickEyebrow}>Or make your own</Eyebrow>
+          <Section icon="quill" title="Or make your own"/>
         </>}
-        {button('Create new character', () => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}, 'secondary')}
-        {!!hero&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero replaces {hero.name} and the current adventure (a backup is kept under Multiplayer).</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:button('Try a ready-made hero',()=>setShowReady(true)))}
+        <GameButton icon="sheet" label="Create new character" onPress={() => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
+        {!!hero&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero replaces {hero.name} and the current adventure (a backup is kept under Multiplayer).</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
       </>}
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
@@ -296,14 +304,14 @@ function QuestboundApp() {
       {screen === 'Settings' && <DisplaySettings/>}
       {screen === 'Settings' && <AudioSettings/>}
       {screen === 'Settings' && <SaveTransfer/>}
-      {screen === 'Settings' && <View style={s.about}><Eyebrow>About</Eyebrow><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>This work includes material from the System Reference Document 5.2 (“SRD 5.2”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.</Text></View>}
+      {screen === 'Settings' && <View style={s.about}><Section icon="info" title="About" style={{marginTop:0}}/><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>This work includes material from the System Reference Document 5.2 (“SRD 5.2”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.</Text></View>}
       {/* Screens inside the adventure have their own way back; Settings opened from the game returns there. */}
-      {screen === 'Character Creation' ? button('‹ Back to Character Selection', () => setScreen('Character Selection')) : screen==='Settings'&&returnToGame&&saved ? button('‹ Back to the adventure', backToGame, 'primary') : screen !== 'Home' && !(gameScreen&&screen!=='Adventure') && screen!=='Level Up' && button('‹ Back to main menu', () => setScreen('Home'))}
+      {screen === 'Character Creation' ? <GameButton icon="back" label="Back to heroes" onPress={() => setScreen('Character Selection')} disabled={loading||creatingStory}/> : screen==='Settings'&&returnToGame&&saved ? <GameButton icon="back" label="Back to the adventure" onPress={backToGame} variant="primary"/> : screen !== 'Home' && !(gameScreen&&screen!=='Adventure') && screen!=='Level Up' && <GameButton icon="back" label="Main menu" onPress={() => setScreen('Home')} disabled={loading||creatingStory}/>}
     </Panel>
     </View>
-    {screen==='Home'&&<Text style={s.footer}>QUESTBOUND · EARLY ACCESS 0.1 · YOUR STORY, ONE STEP AT A TIME</Text>}
-  </ScrollView></View>}
+  </ScrollView>}</View>}
   </EncounterProvider>
+  <CinematicLayer/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
   </View>;
 }
@@ -333,8 +341,8 @@ const s = StyleSheet.create({
   menuGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
   menuCell:{flexGrow:1,flexBasis:'45%',marginTop:0,minHeight:48},
   menuCellText:{fontSize:12,letterSpacing:1.6},
-  heroCard:{padding:20,borderWidth:1,borderColor:colors.goldLine,borderRadius:4,marginBottom:16,gap:4},
-  heroName:{fontFamily:fonts.display,fontSize:30,fontWeight:'700',color:colors.parchment,letterSpacing:1,marginTop:6},
+  heroCard:{flexDirection:'row',alignItems:'center',gap:20,padding:20,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,marginBottom:16},
+  heroName:{fontFamily:fonts.display,fontSize:28,fontWeight:'700',color:colors.parchment,letterSpacing:1,marginTop:4},
   heroLine:{fontFamily:fonts.ui,fontSize:14,color:colors.gold,letterSpacing:.5},
   heroBackground:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,color:colors.muted,marginTop:4},
   hud:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:18,padding:16,borderWidth:1,borderColor:colors.goldLine,borderRadius:4,marginBottom:12},
@@ -359,7 +367,8 @@ const s = StyleSheet.create({
   quickEyebrow:{marginTop:4,marginBottom:10},
   feedbackLink:{alignSelf:'center',marginTop:12,minHeight:44,paddingHorizontal:12,justifyContent:'center'},feedbackText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
   about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.2)'},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},
-  backChip:{minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(12,16,24,.8)',justifyContent:'center'},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+  backChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,paddingLeft:10,paddingRight:16,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(12,16,24,.8)',justifyContent:'center'},
+  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},emblem:{width:34,height:34,borderRadius:17,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,10,6,.7)'},emblemQ:{fontFamily:fonts.logo,fontSize:19,fontWeight:'900',color:colors.gold,marginTop:-2},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
 });
 
 
