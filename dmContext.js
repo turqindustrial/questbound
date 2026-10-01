@@ -17,7 +17,7 @@ import {fallAtZero,fallPlace} from './deathRules';
 import {withAttackIntent} from './dmCommands';
 import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson} from './relationshipRules';
 import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules';
-import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates} from './encounterRules';
+import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats} from './encounterRules';
 import {loadoutFor} from './equipmentRules';
 import {combatBasics} from './combatRules';
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
@@ -42,7 +42,7 @@ export function dmChoices(hero,game) {
   if(game.story){
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims)for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});
     if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);return choices;}
-    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const id of ['dodge','flee'])add(id,id);if(game.potions>0)add('potion','Drink healing draught');addPotionGifts();}
+    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const a of livingAllies(game))for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const id of ['dodge','flee'])add(id,id);if(game.potions>0)add('potion','Drink healing draught');addPotionGifts();}
     else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();if(game.story.status==='active')add('story-complete','Conclude the adventure ONLY when the story resolution conditions have actually been achieved');}
     return choices;
   }
@@ -83,7 +83,8 @@ export function dmContext(hero,game,health) {
      canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length};
     if(game.stage==='wild')context.nearbyNPCs=[];}
   // Fates: who has died, how the main foe ended, and whether the hero is dying or dead.
-  if(context.encounter){const kind=foeKind(game);context.encounter={...context.encounter,signatureMove:kind?signatureMoves[kind]:null,yourCondition:game.heroCondition?heroConditions[game.heroCondition]:null,companionsFighting:fightingCompanions(game).map(n=>npcLore(game,n.id)?.name??n.name),wildCreature:!!game.wildFight,appearance:game.wildFight?.appearance??game.story?.foeAppearance??null};}
+  if(context.encounter){const kind=foeKind(game);context.encounter={...context.encounter,signatureMove:kind?signatureMoves[kind]:null,yourCondition:game.heroCondition?heroConditions[game.heroCondition]:null,companionsFighting:fightingCompanions(game).map(n=>npcLore(game,n.id)?.name??n.name),wildCreature:!!game.wildFight,appearance:game.wildFight?.appearance??game.story?.foeAppearance??null,
+    alsoFighting:livingAllies(game).map(a=>{const s=allyStats(game,a.index,hero.level??1);return {name:a.name,kind:a.template,appearance:a.appearance,currentHP:a.hp,maximumHP:a.maximum,ac:s.ac,attack:'+'+s.attackBonus+' to hit, '+s.count+'d'+s.die+(s.bonus?'+'+s.bonus:'')+' '+s.type.toLowerCase()};})};}
   if(context.world){context.world.canAmbush=game.stage==='wild'&&!game.wildFight&&!game.pendingSpell&&(health?.current??1)>0;context.world.creatureTemplates=allFoeTemplates().map(f=>({template:f.key,example:f.group?f.group.count+' '+f.group.plural:f.foe,kind:f.species,pack:!!f.group,signatureMove:signatureMoves[f.key].name}));context.world.knownPlaces=context.world.knownPlaces.map(p=>{const w=worldPlace(game,p.id);return w?{...p,danger:w.danger??'safe',feature:w.feature??null,threat:w.threat?{name:w.threat.name,template:w.threat.template}:null,cleared:!!w.cleared}:p;});}
   // What the hero carries: gold, draughts, arrows and found things, with prices for trades.
   {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items,priceList};}

@@ -15,7 +15,7 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,potionHealing} from "./inventoryRules";
-import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid} from "./encounterRules";
+import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter} from "./encounterRules";
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
 const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
@@ -132,8 +132,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       const fate = result.game.foeFate === 'subdued' ? 'subdued' : 'slain', group = w.stats.group;
       const kept = result.events.filter(t => !/wisp settles|restored the crossing|You retreat to the inn/.test(t));
       const ending = outcome === 'won' ? [fate === 'subdued' ? (group ? 'The last of the ' + group.plural + ' drops senseless.' : 'The ' + w.name + ' collapses, beaten but alive.') : (group ? 'The last of the ' + group.plural + ' falls dead.' : 'The ' + w.name + ' is slain.')] : outcome === 'fled' ? ['You flee from the ' + w.name + ' back toward ' + placeName(game, w.from) + '.'] : [];
+      const scattered = outcome === 'won' ? alliesScatter(result.game).lines : [];
       const ended = endWildFight(result.game, outcome);
-      result.events = [...kept, ...ending];
+      result.events = [...kept, ...ending, ...scattered];
       result.game = {...ended, log: [...result.events, ...game.log].slice(0, 40)};
     }
     // Tricks and conditions belong to one fight.
@@ -146,11 +147,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     // place may hide an ambush the first time you set foot there.
     if ((action?.type === 'travel' || action?.type === 'discover') && result.game.stage === 'wild' && !result.game.wildFight) {
       const place = worldPlace(result.game, result.game.world.at), first = !mapState(game).visited.includes(place.id);
-      let foe = place.threat ? {template: place.threat.template, name: place.threat.name, appearance: place.threat.appearance} : null, hpLeft = place.threat?.hp ?? null;
+      let foe = place.threat ? {template: place.threat.template, name: place.threat.name, appearance: place.threat.appearance, ...(place.threat.ally ? {ally: place.threat.ally} : {})} : null, hpLeft = place.threat?.hp ?? null;
       if (!foe && first && place.danger === 'risky' && random() < 0.4) {
         const pool = allFoeTemplates().filter(f => !(combatBasics(hero).hp < 10 && (hero.level ?? 1) <= 2 && (f.group || f.key === 'orc')));
         const pick = pool[Math.floor(random() * pool.length)];
         foe = {template: pick.key, name: pick.foe, appearance: pick.appearance};
+        // From level 2, a bandit may come with a hound, a goblin with a worg, an orc with a goblin.
+        if ((hero.level ?? 1) >= 2 && naturalAllies[pick.key] && random() < 0.35) foe.ally = naturalAllies[pick.key];
       }
       if (foe) {
         const ambush = startWildFight(result.game, hero, foe, {place: place.id, from: mapLocation(game), hp: hpLeft});
@@ -522,9 +525,12 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         health
       };
     }
+    // An attack or spell aimed at the creature fighting beside the foe ("ally:0").
+    const aim = game.stage === 'combat' ? aimedAlly(game, action?.request?.aim ?? (action?.type === 'spell-ruling' ? game.pendingSpell?.aim : null) ?? game.aim) : null;
+    const aimedFoe = aim !== null ? allyStats(game, aim, hero.level ?? 1) : null;
     let spellResult = null;
     if (action?.type === 'spell' || action?.type === 'spell-ruling') {
-      spellResult = action.type === 'spell' ? requestSpell(hero, game, hp, stats.hp, action.request, random, foe) : resolveSpellRuling(hero, game, hp, stats.hp, action.ruling, random);
+      spellResult = action.type === 'spell' ? requestSpell(hero, game, hp, stats.hp, action.request, random, aimedFoe ?? foe) : resolveSpellRuling(hero, game, hp, stats.hp, action.ruling, random);
       if (spellResult.error) return {
         game,
         health,
@@ -602,8 +608,12 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       } else if (spellResult) {
         next = spellResult.game;
         hp = spellResult.health;
-        next.enemyHP = Math.max(0, next.enemyHP - (spellResult.damage ?? 0));
         entries.push(...spellResult.logs);
+        if (aim !== null) {
+          const struck = hurtAlly(next, aim, spellResult.damage ?? 0);
+          next = struck.game;
+          if (struck.line) entries.push(struck.line);
+        } else next.enemyHP = Math.max(0, next.enemyHP - (spellResult.damage ?? 0));
         bonusAction = spellResult.bonus || spellResult.reaction || !!spellResult.manualRounds;
         if (spellResult.reaction) next.reactionUsed = true;
         if (spellResult.manualRounds) {
@@ -664,6 +674,22 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         // Grit in the eyes, being knocked prone or caught in web also spoils your next attack.
         const mode = game.heroCondition ? 'disadvantage' : rangedMode(weapon, {closeEnemy: !turnOptions.opening});
         if (game.heroCondition) entries.push(heroConditions[game.heroCondition]);
+        if (aim !== null) {
+          for (let swing = 0; swing < attacksPerAction(hero) && next.foeAllies[aim].hp > 0; swing++) {
+            if (weapon.ranged) {
+              if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
+              next = spendArrow(next, hero);
+            }
+            const target = allyStats(next, aim, hero.level ?? 1), attack = rollAttack(weapon, mode, random), hit = !attack.miss && (attack.critical || attack.total >= target.ac);
+            entries.push(`You use ${weapon.name} on the ${target.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+            if (hit) {
+              const damage = rollDamage(weapon, attack.critical, random), struck = hurtAlly(next, aim, damage.total);
+              next = struck.game;
+              entries.push(`The ${target.name} takes ${damage.total} ${weapon.type.toLowerCase()} damage (${weapon.flat ? '1' : damage.dice.join(' + ')} ${weapon.bonus >= 0 ? '+' : ''}${weapon.bonus}); ${struck.hp} HP left.`);
+              if (struck.line) entries.push(struck.line);
+            }
+          }
+        } else
         for (let swing = 0; swing < attacksPerAction(hero) && next.enemyHP > 0; swing++) {
           // Each bow shot uses an arrow; with none left, there is no shot.
           if (weapon.ranged) {
@@ -764,8 +790,25 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           entries.push(...concentration.logs);
         }
         }
+        // The creature at its side attacks too.
+        let allyDowned = null;
+        for (const ally of livingAllies(next)) {
+          if (hp.current <= 0) break;
+          const a = allyStats(next, ally.index, hero.level ?? 1), mode = dodge || defense.disadvantage ? 'disadvantage' : 'normal', target = pickFoeTarget(next, random);
+          if (target) { const struck = foeHitsCompanion(next, a, a.name, target, mode, random); next = struck.game; entries.push(...struck.lines); continue; }
+          const attack = rollAttack(a, mode, random), hit = !attack.miss && (attack.critical || attack.total >= defense.ac);
+          entries.push(`${a.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${a.attackBonus} = ${attack.total} vs your AC ${defense.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          if (!hit) continue;
+          const damage = rollDamage(a, attack.critical, random), total = Math.max(1, damage.total), hurt = updateHealth(hp, stats.hp, 'damage', total);
+          if (hurt.current === 0) { allyDowned = a.name; overflow = overflowOf(hurt.previous, total); }
+          hp = {current: hurt.current, temp: hurt.temp};
+          entries.push(`${damage.dice.length}d${a.die} [${damage.dice.join(', ')}] + ${a.bonus} = ${total} ${a.type} damage. ${hurt.message}`);
+          const concentration = concentrationAfterDamage(hero, next, total, random);
+          next = concentration.game;
+          entries.push(...concentration.logs);
+        }
         if (hp.current === 0) {
-          const fell = fall(next, 'foe', overflow, stats.hp, game.dungeon?.active ? null : game.story ? (foe.group ? 'Cut down by the ' + foe.group.plural : 'Slain by the ' + game.story.foe) : downedBy ? 'Struck down by the ' + downedBy : null);
+          const fell = fall(next, 'foe', overflow, stats.hp, game.dungeon?.active ? null : allyDowned ? 'Struck down by the ' + allyDowned : game.wildFight ? (foe.group ? 'Cut down by the ' + foe.group.plural : 'Slain by the ' + game.wildFight.name) : game.story ? (foe.group ? 'Cut down by the ' + foe.group.plural : 'Slain by the ' + game.story.foe) : downedBy ? 'Struck down by the ' + downedBy : null);
           next = fell.game;
           entries.push(...fell.entries);
         }
@@ -811,11 +854,14 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
 
 function creatureCombatStep(game,health,hero,action,random){
  let scene=game,command=action;
+ // The aim at a second creature lasts for this one action.
+ const strip=r=>{if(r?.game?.aim!==undefined){r.game={...r.game};delete r.game.aim;}return r;};
  if(action?.type==='encounter-attack'){
   if(!['bridge','combat'].includes(game.stage)||game.enemyHP<=0)return {game,health,error:'That creature is not within reach here.'};
   if(!attackOptions(hero).some(w=>w.name===action.weapon))return {game,health,error:'Choose a weapon you carry, or attack unarmed.'};
   if(game.stage==='bridge')scene={...game,stage:'combat',openingAttackAvailable:true,encounterInitiative:undefined};
   command='attack:'+action.weapon;
+  if(action.target!==undefined){if(aimedAlly(game,action.target)===null)return {game,health,error:'That creature is not in this fight.'};scene={...scene,aim:action.target};}
  }
  const spell=command?.type==='spell'?automaticEffects[command.request.id]:command?.type==='spell-ruling'?automaticEffects[scene.pendingSpell?.id]:null;
  const hostile=typeof command==='string'&&command.startsWith('attack:')||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
@@ -836,12 +882,12 @@ function creatureCombatStep(game,health,hero,action,random){
   }
   if(result.game.stage==='combat')result.events.push('Your turn.');
   result.game={...result.game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false,log:[...result.events,...game.log].slice(0,40)};
-  return result;
+  return strip(result);
  }
  const result=adventureStepCore(scene,health,hero,command,random);
  if(result.game.stage==='combat'&&scene.stage!=='combat')result.game={...result.game,openingAttackAvailable:true,encounterInitiative:undefined};
  else if(scene.openingAttackAvailable&&!result.error&&!result.waiting&&result.game!==scene)result.game={...result.game,openingAttackAvailable:false};
- return result;
+ return strip(result);
 }
 
 function adventureStepEngine(game,health,hero,action,random=Math.random){
@@ -948,7 +994,7 @@ export function adventureStep(game,health,hero,action,random=Math.random){
  // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
  const result=livingStep(game,health,gearedHero(hero,game),action,random);
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
- if(result.game&&result.game!==game&&result.game.subdue!==undefined){result.game={...result.game};delete result.game.subdue;}
+ if(result.game&&result.game!==game&&(result.game.subdue!==undefined||result.game.aim!==undefined)){result.game={...result.game};delete result.game.subdue;delete result.game.aim;}
  return result;
 }
 // While dying the hero can do one thing: fight to hold on.

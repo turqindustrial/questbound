@@ -39,22 +39,37 @@ export function wildFoeStats(template,name,level){
 export function foeLabel(game){return game.wildFight?.name??game.story?.foe??'Encounter opponent';}
 const sketchText=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
 export function validFoeSketch(f){return !!f&&templateKeys.includes(f.template)&&sketchText(f.name,60)&&sketchText(f.appearance,400);}
+// ---------- A second creature at the foe's side ----------
+// Mixed fights: a creature can bring one of another kind (a bandit's hound, a goblin's worg). It is weaker than one
+// met alone (60% HP), attacks every round, can be aimed at by name, and runs when its leader falls.
+export const allyTemplates=['bandit','wolf','goblin','skeleton','boar','spider','orc'];
+export const naturalAllies={bandit:{template:'wolf',name:'War Hound',appearance:'A lean, scarred hound in a spiked leather collar, trained to go for the legs.'},goblin:{template:'wolf',name:'Worg',appearance:'A mangy, red-eyed worg with a crude goblin saddle strapped to its back.'},orc:{template:'goblin',name:'Goblin Lackey',appearance:'A snivelling goblin in the orc\'s cast-off mail, clutching a rusty knife.'}};
+export const validAllySketch=(a,lead)=>validFoeSketch(a)&&allyTemplates.includes(a.template)&&a.template!==lead;
+export function makeAlly(sketch,level){const max=Math.max(3,Math.round(wildFoeStats(sketch.template,sketch.name,level).maximum*.6));return {template:sketch.template,name:sketch.name.trim(),appearance:sketch.appearance.trim(),hp:max,maximum:max};}
+export function allyStats(game,i,level){const a=game.foeAllies?.[i];if(!a)return null;const s={...wildFoeStats(a.template,a.name,level),name:a.name,maximum:a.maximum};delete s.group;return s;}
+export const livingAllies=game=>(game.foeAllies??[]).map((a,index)=>({...a,index})).filter(a=>a.hp>0);
+// Which of them an attack or spell is aimed at ("ally:0"), if that one still stands.
+export function aimedAlly(game,aim){const m=String(aim??'').match(/^ally:([01])$/);if(!m)return null;const i=Number(m[1]);return game.foeAllies?.[i]?.hp>0?i:null;}
+export function hurtAlly(game,i,damage){const a=game.foeAllies[i],hp=Math.max(0,a.hp-damage);return {game:{...game,foeAllies:game.foeAllies.map((x,j)=>j===i?{...x,hp}:x)},hp,line:hp===0?(game.subdue?`The ${a.name} drops, beaten.`:`The ${a.name} is slain.`):null};}
+export function alliesScatter(game){const lines=livingAllies(game).map(a=>`With its leader down, the ${a.name} turns and flees.`),next={...game};delete next.foeAllies;return {game:next,lines};}
+export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return g.stage==='combat'&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum);}
 // A creature lunges out at a found place. The story's own foe keeps its HP and fate for later.
 export function startWildFight(game,hero,foe,{place,from,hp=null}){
- const stats=wildFoeStats(foe.template,foe.name,hero.level??1);
+ const stats=wildFoeStats(foe.template,foe.name,hero.level??1),ally=foe.ally&&validAllySketch(foe.ally,foe.template)?makeAlly(foe.ally,hero.level??1):null;
  const next={...game,stage:'combat',enemyHP:hp??stats.maximum,round:1,openingAttackAvailable:true,
-  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{})},
+  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
   world:{...game.world,at:place}};
- delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;
+ delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;
+ if(ally)next.foeAllies=[ally];
  const many=stats.group?stats.group.size+' '+stats.group.plural:'A '+next.wildFight.name;
- return {game:next,entries:[`${many} ${stats.group?'burst':'bursts'} out at ${placeName(game,place)}! ${stats.group?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
+ return {game:next,entries:[`${many} ${stats.group?'burst':'bursts'} out at ${placeName(game,place)}${ally?', a '+ally.name+' at '+(stats.group?'their':'its')+' side':''}! ${stats.group||ally?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
 }
 // The fight is over: won (the creature is dead or beaten), fled (back the way you came) or fell (you lie dying).
 export function endWildFight(game,outcome){
  const w=game.wildFight,next={...game,enemyHP:w.storyFoeHP};
- delete next.wildFight;delete next.foeTricks;delete next.heroCondition;delete next.openingAttackAvailable;delete next.encounterInitiative;delete next.foeFate;
+ delete next.wildFight;delete next.foeTricks;delete next.heroCondition;delete next.openingAttackAvailable;delete next.encounterInitiative;delete next.foeFate;delete next.foeAllies;
  if(w.storyFoeFate)next.foeFate=w.storyFoeFate;
- const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,game.enemyHP)};return q;});
+ const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,game.enemyHP),...(w.ally?{ally:w.ally}:{})};return q;});
  next.world={...game.world,places,at:outcome==='fled'?(worldPlace(game,w.from)?w.from:null):w.place};
  if(outcome==='won')next.stage='wild';
  if(outcome==='fled')next.stage=worldPlace(game,w.from)?'wild':w.from;
@@ -63,11 +78,11 @@ export function endWildFight(game,outcome){
 }
 export function validWildFight(g){
  const w=g.wildFight;if(w===undefined)return true;
- return !!w&&g.stage==='combat'&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=500&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
+ return !!w&&g.stage==='combat'&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=500&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
 }
 export function validCombatExtras(g){
  const t=g.foeTricks,c=g.heroCondition;
- return (t===undefined||(t&&typeof t==='object'&&!Array.isArray(t)&&Object.entries(t).every(([k,v])=>['dirty','charge','shield','web','fortitude'].includes(k)&&v===true)))&&(c===undefined||Object.hasOwn(heroConditions,c));
+ return (t===undefined||(t&&typeof t==='object'&&!Array.isArray(t)&&Object.entries(t).every(([k,v])=>['dirty','charge','shield','web','fortitude'].includes(k)&&v===true)))&&(c===undefined||Object.hasOwn(heroConditions,c))&&validFoeAllies(g);
 }
 // ---------- Signature moves ----------
 // How the creature's next attack is rolled: advantage from pack tactics or a downed/caught hero, disadvantage from Dodge.

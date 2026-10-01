@@ -63,7 +63,7 @@ export function validWorld(game){
  const seen=new Set(coreIds),names=new Set(Object.values(game.story.locations).map(l=>l.name.trim().toLowerCase()));
  for(const p of w.places){
   if(!p||!/^p\d{1,2}$/.test(p.id)||seen.has(p.id)||!text(p.name,60)||!text(p.description,300)||!placeKinds.includes(p.kind)||!Number.isSafeInteger(p.x)||!Number.isSafeInteger(p.y)||Math.abs(p.x)>2e6||Math.abs(p.y)>2e6||!seen.has(p.from))return false;
-  if((p.danger!==undefined&&!['risky','lair'].includes(p.danger))||(p.feature!==undefined&&!text(p.feature,200))||(p.cleared!==undefined&&p.cleared!==true)||(p.threat!==undefined&&!(lairSketch(p.threat)&&(p.threat.hp===undefined||(Number.isInteger(p.threat.hp)&&p.threat.hp>=1&&p.threat.hp<=1000)))))return false;
+  if((p.danger!==undefined&&!['risky','lair'].includes(p.danger))||(p.feature!==undefined&&!text(p.feature,200))||(p.cleared!==undefined&&p.cleared!==true)||(p.threat!==undefined&&!(lairSketch(p.threat)&&(p.threat.ally===undefined||lairSketch(p.threat.ally))&&(p.threat.hp===undefined||(Number.isInteger(p.threat.hp)&&p.threat.hp>=1&&p.threat.hp<=1000)))))return false;
   const key=p.name.trim().toLowerCase();if(names.has(key))return false;
   seen.add(p.id);names.add(key);
  }
@@ -121,7 +121,7 @@ export function discoverPlace(game,health,discovery){
  const from=placeCoordinates(game,here),[dx,dy]=bearings[d.bearing],feet=Math.round(d.miles*FEET_PER_MILE);
  const n=Math.max(0,...worldPlaces(game).map(p=>Number(p.id.slice(1))))+1;
  const place={id:'p'+n,name:d.name.trim(),description:d.description.trim(),kind:d.kind,x:Math.round(from.x+dx*feet),y:Math.round(from.y+dy*feet),from:here,
-  ...(placeDangers.includes(d.danger)&&d.danger!=='safe'?{danger:d.danger}:{}),...(d.feature?{feature:d.feature.trim()}:{}),...(d.danger==='lair'&&d.lair?{threat:{template:d.lair.template,name:d.lair.name.trim(),appearance:d.lair.appearance.trim()}}:{})};
+  ...(placeDangers.includes(d.danger)&&d.danger!=='safe'?{danger:d.danger}:{}),...(d.feature?{feature:d.feature.trim()}:{}),...(d.danger==='lair'&&d.lair?{threat:{template:d.lair.template,name:d.lair.name.trim(),appearance:d.lair.appearance.trim(),...(lairSketch(d.lair.ally)?{ally:{template:d.lair.ally.template,name:d.lair.ally.name.trim(),appearance:d.lair.ally.appearance.trim()}}:{})}}:{})};
  const world={places:[...worldPlaces(game),place],at:game.world?.at??null};
  const line=`You learn the way to ${place.name}, ${distanceText(feet)} ${d.bearing} of ${placeName(game,here)}.`;
  const found={...game,world,log:[line,...game.log].slice(0,40)};

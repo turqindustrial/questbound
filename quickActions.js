@@ -21,6 +21,8 @@ export function quickActions(hero,game){
   if(/^(npc-attack|story-complete|restart-adventure)/.test(id))continue;
   // A draught away from a fight is typed or asked for; a companion lying senseless gets a Revive chip.
   if(id==='potion'&&game.stage!=='combat')continue;
+  // The creature beside the foe gets one chip, with the main weapon.
+  if(id.startsWith('ally-attack:')){const [,index,weapon]=id.split(':'),ally=game.foeAllies?.[Number(index)];if(!ally||(weapon==='Unarmed Strike'&&armed)||primary.concat(rest).some(a=>a.ally===index))continue;rest.unshift({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:'Hit '+ally.name.split(' ').pop(),question:'I attack the '+ally.name+' with my '+(weapon==='Unarmed Strike'?'bare hands':weapon)+'.',action:c.action,ally:index});continue;}
   if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   if(id==='death-save'){primary.push({key:id,glyph:'☠',icon:'skull',label:'Death save',question:'I fight to hold on.',action:c.action,primary:true});continue;}
   // Bare hands get a chip only when there is no weapon to hand; otherwise "I punch him" still works when typed.

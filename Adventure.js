@@ -12,6 +12,7 @@ import Icon from './Icon';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
 import {npcScene,npcLore} from './npcRules';
+import {livingAllies,allyStats} from './encounterRules';
 import {attitudeLabel} from './relationshipRules';
 import {packOf,arrowsLeft} from './inventoryRules';
 import {damageIcon,damageKind} from './chronicleRules';
@@ -52,6 +53,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <View style={{flex:1,minWidth:0,gap:5}}>
    <View style={s.stripTop}><PlainText numberOfLines={1} style={s.stripName}>{foe.group?standing+'× ':''}{foeName}</PlainText><View><PlainText style={s.stripStat}>{foeCount}/{foe.maximum}</PlainText><HpFloaters value={foeHp}/></View><View style={s.acBadge}><Icon name="shield" size={11} color="#ffc9b8"/><PlainText style={s.acText}>{foe.ac}</PlainText></View></View>
    <StatBar value={foeHp} maximum={foe.maximum} kind="enemy" height={7}/>
+   {livingAllies(game).map(a=><PlainText key={'ally'+a.index} numberOfLines={1} style={s.stripAlly}>+ {a.name} · {a.hp}/{a.maximum} HP</PlainText>)}
   </View>
   <View style={s.roundBadge}><PlainText style={s.roundBadgeLabel}>Rnd</PlainText><PlainText style={s.roundBadgeText}>{game.round}</PlainText></View>
  </Pressable>;
@@ -67,6 +69,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <View style={s.foeRow}><Icon name="heart" size={13} color={colors.bloodBright}/><View><PlainText style={s.foeStat}>{foeCount}<PlainText style={s.foeMax}> / {foe.maximum} HP</PlainText></PlainText><HpFloaters value={foeHp}/></View></View>
   <StatBar value={foeHp} maximum={foe.maximum} kind="enemy" height={12}/>
   <View style={s.statChips}>{statChip('shield','AC '+foe.ac)}{statChip('swords','+'+foe.attackBonus+' to hit')}{statChip(damageIcon(damageKind(foe.type)),hitDice+' '+foe.type.toLowerCase())}</View>
+  {/* A second creature fighting beside the foe. */}
+  {livingAllies(game).map(a=>{const st=allyStats(game,a.index,hero.level??1);return <View key={'ally'+a.index} style={s.allyRow}><Icon name="swords" size={13} color="#ffb39e"/><View style={{flex:1,minWidth:0,gap:5}}><View style={s.allyTop}><PlainText numberOfLines={1} style={s.allyName}>{a.name}</PlainText><PlainText style={s.allyStat}>{a.hp} / {a.maximum} HP · AC {st.ac}</PlainText></View><StatBar value={a.hp} maximum={a.maximum} kind="enemy" height={7}/></View></View>;})}
   <View style={s.yourAc}><Icon name="shield" size={13} color={colors.gold}/><PlainText style={s.yourAcText}>Your armor class {spellDefense(game,stats.ac).ac}</PlainText></View>
  </View>;
  // Dying: three successes to live, three failures to die, rolled one turn at a time.
@@ -224,7 +228,7 @@ const s=StyleSheet.create({
  packItem:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#e6dfcd'},
  people:{padding:16,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,gap:12},personRow:{flexDirection:'row',alignItems:'flex-start',gap:12},personAvatar:{width:44,height:44,borderRadius:22},
  personName:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},standing:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},standingDot:{width:7,height:7,borderRadius:4},
- standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},where:{fontFamily:fonts.ui,fontSize:12,color:colors.muted,flexShrink:1},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},
+ standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},stripAlly:{fontFamily:fonts.ui,fontSize:11.5,color:'#ffc9b8'},allyRow:{flexDirection:'row',alignItems:'center',gap:10,marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(240,106,79,.25)'},allyTop:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:8},allyName:{fontFamily:fonts.display,fontWeight:'700',fontSize:15,color:'#f3e3d6',flexShrink:1},allyStat:{fontFamily:fonts.ui,fontSize:12,color:'#ffc9b8'},where:{fontFamily:fonts.ui,fontSize:12,color:colors.muted,flexShrink:1},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},
  // Dying: death-save pips. Dead: the epitaph.
  dying:{padding:16,marginTop:14,borderWidth:1,borderColor:'rgba(220,90,70,.6)',borderRadius:6,gap:10},dyingStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,paddingVertical:8,paddingHorizontal:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
  dyingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:24,color:'#e6cfc6'},

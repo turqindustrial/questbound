@@ -1,6 +1,7 @@
 import {attackOptions} from './weaponRules';
 import {gearedHero} from './inventoryRules';
 import {npcScene,npcIdsOf,npcLore} from './npcRules';
+import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
 import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast} from './spellRules';
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
@@ -22,6 +23,12 @@ function commandWeapon(hero,text,requested){
   return (type&&available.find(w=>w.type===type&&!w.ranged&&!w.unarmed))||available.find(w=>!w.ranged)||available[0];
 }
 const missingWeapon=(hero,requested)=>{const carried=attackOptions(hero).filter(w=>!w.unarmed).map(w=>w.name);return {error:requested?'You don\'t carry '+(/^(?:a|an|my|the)\s/i.test(requested)?requested.replace(/^(?:my|the)\s/i,'a '):'a '+requested)+'. '+(carried.length?'You have: '+carried.join(', ')+', or your fists.':'You can fight with your fists.'):'You have no bow ready (or no arrows).'};};
+// Which creature beside the foe a phrase names, if any: its name, or a word of it or of its kind ("hound", "wolf").
+export function allyNamed(game,phrase){
+  const said=String(phrase??'').toLowerCase().replace(/^(?:the|that|this|a|an) /,'').split(/[^a-z]+/).filter(w=>w.length>=3);
+  const found=livingAllies(game).filter(a=>{const words=[...a.name.toLowerCase().split(/[^a-z]+/),a.template].filter(w=>w.length>=3);return said.some(w=>words.some(n=>n===w||n===w.replace(/s$/,'')||n.startsWith(w)));});
+  return found.length===1?found[0].index:null;
+}
 export function spellNickname(known,phrase){
   const first=String(phrase).trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z']/g,'')??'',rest=String(phrase).trim().split(/\s+/).slice(1).join(' ');
   if(first.length<2)return null;
@@ -48,7 +55,7 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     const nearby=npcScene(game).filter(n=>n.present&&n.hp>0),enemies=game.npcCombat?.active?game.npcCombat.order.filter(n=>n.side==='enemy'&&nearby.some(p=>p.id===n.id)):[];
     const recent=[...(game.actionEvents??[])].reverse().find(e=>enemies.some(n=>n.id===e.target))?.target;
     const npc=nearby.find(n=>n.id===currentTarget)??nearby.find(n=>n.id===(recent??enemies[0]?.id));
-    const creature=['bridge','combat'].includes(game.stage)&&game.enemyHP>0?(game.dungeon?.active?dungeonRooms[game.dungeon.room]?.foe:game.story?.foe??'Lantern Wisp'):null;
+    const creature=['bridge','combat'].includes(game.stage)&&game.enemyHP>0?(game.dungeon?.active?dungeonRooms[game.dungeon.room]?.foe:game.wildFight?.name??game.story?.foe??'Lantern Wisp'):null;
     // In a fight with the creature, "attack it" means the creature, not a bystander you last spoke to.
     const target=(game.stage==='combat'?creature:null)??npc?.id??creature??(nearby.length===1?nearby[0].id:null);
     if(!target)return {error:'Who do you want to attack? Name someone nearby or speak with them first.'};
@@ -96,11 +103,14 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     return {action:{type:'npc-attack',target,weapon:weapon.name}};
   }
   const creatureAttack=text.match(new RegExp('^(?:I )?(?:'+VERBS+') (.+?)(?: (?:with|using) (?:my |the |a |an )?(.+?))?[.!]?$','i'));
+  // The creature fighting beside the foe, by its name or kind ("the hound", "the worg").
+  const ally=creatureAttack&&game.stage==='combat'?allyNamed(game,creatureAttack[1]):null;
+  if(ally!==null){const weapon=commandWeapon(hero,text,creatureAttack[2]);return weapon?{action:{type:'encounter-attack',weapon:weapon.name,target:'ally:'+ally}}:missingWeapon(hero,creatureAttack[2]);}
   if(creatureAttack&&['bridge','combat'].includes(game.stage)&&game.enemyHP>0){
-    const name=game.dungeon?.active?dungeonRooms[game.dungeon.room]?.foe:game.story?.foe??'Lantern Wisp';
+    const name=game.dungeon?.active?dungeonRooms[game.dungeon.room]?.foe:game.wildFight?.name??game.story?.foe??'Lantern Wisp';
     const target=creatureAttack[1].toLowerCase().replace(/^(?:the|that|this) /,'');
     // "the bandit", "the goblins", "it" or "the beast" all mean the creature in front of you.
-    const words=[name,game.story?.foeStats?.group?.plural,game.story?.foeSpecies].filter(Boolean).join(' ').toLowerCase().split(/[^a-z]+/).filter(w=>w.length>=4);
+    const words=(game.wildFight?[name,game.wildFight.stats?.group?.plural,game.wildFight.template]:[name,game.story?.foeStats?.group?.plural,game.story?.foeSpecies]).filter(Boolean).join(' ').toLowerCase().split(/[^a-z]+/).filter(w=>w.length>=4);
     if([name?.toLowerCase().replace(/^the /,''),'creature','enemy','foe','beast','monster','it','them',...(!game.story?['wisp']:[])].includes(target)||target.split(/[^a-z]+/).some(w=>w.length>=4&&words.some(n=>n.startsWith(w.replace(/s$/,''))||w.startsWith(n)))){
       const weapon=commandWeapon(hero,text,creatureAttack[2]);
       return weapon?{action:{type:'encounter-attack',weapon:weapon.name}}:missingWeapon(hero,creatureAttack[2]);
@@ -122,6 +132,7 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.'};
   if(spell.concentration&&game.concentration&&game.concentration.id!==spell.id&&!/replace concentration/i.test(detail))return {error:`Casting ${spell.name} will end ${game.concentration.id}. Add “replace concentration” to your cast if that is your intention.`};
   const request={id:spell.id,slot,intent:text.slice(0,500),componentsConfirmed:true};
+  if(game.stage==='combat'&&target){const aimed=allyNamed(game,target);if(aimed!==null)request.aim='ally:'+aimed;}
   // A person who is here (named, or by title at the crossroads inn) is the spell's target, wherever you are.
   if(npcScene(game).some(n=>n.present&&n.id===target))request.npcTarget=target;
   else if(game.stage==='inn'){if(['bartender','the bartender','keeper','the keeper','innkeeper','the innkeeper'].includes(target))request.npcTarget='keeper';if(['mara','the traveler','traveler'].includes(target))request.npcTarget='mara';}

@@ -201,7 +201,7 @@ function storyFoeNamed(game,target){
   if(!game.story?.foe||game.stage!=='combat'||game.dungeon?.active||typeof target!=='string')return false;
   const t=target.toLowerCase().replace(/^(?:the|that|this)\s+/,'').trim();
   if(['it','him','her','them','foe','beast','monster','enemy','creature'].includes(t))return true;
-  const words=[game.story.foe,game.story.foeSpecies,game.story.foeStats?.group?.plural].filter(Boolean).join(' ').toLowerCase().split(/[^a-z]+/).filter(w=>w.length>=4);
+  const words=(game.wildFight?[game.wildFight.name,game.wildFight.template,game.wildFight.stats?.group?.plural]:[game.story.foe,game.story.foeSpecies,game.story.foeStats?.group?.plural]).filter(Boolean).join(' ').toLowerCase().split(/[^a-z]+/).filter(w=>w.length>=4);
   return t.split(/[^a-z]+/).some(w=>w.length>=4&&words.some(f=>f.startsWith(w.replace(/s$/,''))||w.startsWith(f)));
 }
 export function inspectSpellCast(hero,game,health,spell,request,target){
@@ -211,7 +211,7 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
   if(flags.incapacitated)return {error:'You cannot cast while incapacitated.'};
   if(components.includes('V')&&flags.silenced)return {error:'This spell needs spoken words, but you are silenced.'};
   if((components.includes('S')||components.includes('M'))&&flags.handsBound)return {error:'This spell needs an available hand, but your hands are bound.'};
-  const effect=automaticEffects[spell.id],self=!!effect&&(effect.heal||effect.temp||effect.protection||effect.detection),onSelf=['me','myself','self'].includes(target),onWisp=(game.dungeon?.active?['enemy','the enemy',...(game.dungeon.room===6?['lantern warden','the lantern warden']:['stone sentinel','the stone sentinel'])]:game.story?.foe?[game.story.foe.toLowerCase(),'the '+game.story.foe.toLowerCase(),'enemy','the enemy','creature','the creature']:['wisp','the wisp','lantern wisp','the lantern wisp']).includes(target)&&game.stage==='combat'||storyFoeNamed(game,target);
+  const effect=automaticEffects[spell.id],self=!!effect&&(effect.heal||effect.temp||effect.protection||effect.detection),onSelf=['me','myself','self'].includes(target),onWisp=(game.dungeon?.active?['enemy','the enemy',...(game.dungeon.room===6?['lantern warden','the lantern warden']:['stone sentinel','the stone sentinel'])]:game.story?.foe?[game.story.foe.toLowerCase(),'the '+game.story.foe.toLowerCase(),'enemy','the enemy','creature','the creature']:['wisp','the wisp','lantern wisp','the lantern wisp']).includes(target)&&game.stage==='combat'||storyFoeNamed(game,target)||(!!request.aim&&game.stage==='combat');
   if(onWisp&&flags.clearPath===false)return {error:'The target is behind an obstruction. Get a clear path before casting.'};
   const distance=onSelf?0:onWisp?(flags.targetDistance??5):null;
   const range=spell.id==='burning-hands'?15:spell.range==='Touch'?5:spell.range.match(/^(\d+) feet$/)?.[1];

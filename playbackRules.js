@@ -37,6 +37,8 @@ export function recordedTurn(hero,before,beforeHP,result,conversation,npcId=null
  const foeName=g=>g.wildFight?.name??g.story?.foe??'Encounter opponent',wildStart=!before.wildFight&&!!after.wildFight,wildEnd=!!before.wildFight&&!after.wildFight;
  const foeNow=wildEnd?(after.world?.places?.find(p=>p.id===before.wildFight.place)?.threat?.hp??0):after.enemyHP;
  if(!wildStart&&before.enemyHP!==foeNow)events.push({kind:'effect',text:foeName(before.wildFight?before:after)+': '+before.enemyHP+' → '+foeNow+' HP.'});
+ // The creature at the foe's side has its own HP line.
+ for(const [i,a] of (after.foeAllies??before.foeAllies??[]).entries()){const was=before.foeAllies?.[i]?.hp,now=after.foeAllies?.[i]?.hp;if(was!==undefined&&now!==undefined&&was!==now)events.push({kind:'effect',text:a.name+': '+was+' → '+now+' HP.'});}
  for(let level=1;level<=9;level++){
   const used=(after.spellSlotsUsed?.[level-1]??0)-(before.spellSlotsUsed?.[level-1]??0);
   if(used>0)events.push({kind:'effect',text:'Spent '+used+' level '+level+' spell slot'+(used===1?'':'s')+'.'});
