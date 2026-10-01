@@ -52,6 +52,7 @@ export const iconPaths={
  heal:{glyph:'✚',svg:'<path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z"/>'},
  compass:{glyph:'✦',svg:'<circle cx="12" cy="12" r="8.5"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/><circle cx="12" cy="12" r=".8" fill="currentColor" stroke="none"/>'},
  search:{glyph:'⌕',svg:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>'},
+ cloud:{glyph:'☁',svg:'<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7 18.5Z"/><path d="M12 11.5v5M9.8 13.7 12 11.5l2.2 2.2" opacity=".75"/>'},
  key:{glyph:'⚙',svg:'<circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20 3M17 6l2.5 2.5M14.5 8.5l2 2"/>'},
  door:{glyph:'◈',svg:'<path d="M6 21V4.5h9.5V21"/><path d="M15.5 6.5l3.5 1.4V21"/><circle cx="12.5" cy="13" r=".9" fill="currentColor" stroke="none"/><path d="M3.5 21h17"/>'},
  gem:{glyph:'◆',svg:'<path d="M6.5 4h11l3.5 5-9 11-9-11z"/><path d="M3 9h18M9.5 4 8 9l4 11 4-11-1.5-5" opacity=".55"/>'},

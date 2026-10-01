@@ -67,12 +67,14 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // A busy Dungeon Master (another player's turn is being written) refuses before doing any work, so the request is
     // simply retried for up to a minute: players wait their turn instead of seeing an error.
     const forward=()=>fetchImpl(url+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:raw,signal:AbortSignal.timeout(90000)});
-    const deadline=now()+busyWait;let response=await forward(),reply=await response.json();
-    for(let tries=0;response.status===429&&now()<deadline&&tries<100;tries++){await new Promise(resolve=>setTimeout(resolve,700+Math.random()*600));response=await forward();reply=await response.json();}
-    return json(res,response.status,reply);
+    const deadline=now()+busyWait;let response=await forward();
+    for(let tries=0;response.status===429&&now()<deadline&&tries<100;tries++){await response.text?.().catch(()=>null);await new Promise(resolve=>setTimeout(resolve,700+Math.random()*600));response=await forward();}
+    // A streamed turn (lines of narration, then the reply) is passed through as it arrives.
+    if(/ndjson/.test(response.headers?.get?.('content-type')??'')&&response.body){res.writeHead(response.status,{'Content-Type':'application/x-ndjson; charset=utf-8','X-Accel-Buffering':'no'});for await(const chunk of response.body)res.write(chunk);return res.end();}
+    return json(res,response.status,await response.json());
    }
    // Shared table: the same paired, same-origin rules as the DM, forwarded to the loopback table service.
-   const syncRoute=pathname.match(/^\/api\/sync\/(poll|save|leave)$/)?.[1];
+   const syncRoute=pathname.match(/^\/api\/sync\/(poll|save|leave|cloud-save|cloud-load)$/)?.[1];
    if(syncRoute&&req.method==='POST'){
     if(req.headers.origin!==origin||!req.headers['content-type']?.startsWith('application/json'))return json(res,403,{error:'Use the Questbound game to reach the shared table.'});
     const raw=await body(req,2500000);let response;
@@ -135,7 +137,11 @@ if(require.main===module){
  }
  else{
   const host=phoneAddress();if(!host){console.error('Connect the PC to Wi-Fi or a private local network first.');process.exitCode=1;}
-  else{const {server,info}=createPhoneServer({host,feedbackFile:path.join(__dirname,'playtest-feedback.md')});server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Phone access is already running on port 8085.':e.message);process.exitCode=1;});server.listen(8085,host,()=>{fs.writeFileSync(path.join(__dirname,'.questbound-phone-session.json'),JSON.stringify({...info,pid:process.pid},null,2));console.log('Desktop: '+info.desktop+'\nPhone: '+info.phone+'\nPairing code: '+info.pairingCode+'\nSame Wi-Fi required. Keep this process and the private DM service running. Pairing expires in 24 hours.');});}
+  // Home Wi-Fi: pairing lasts a week, paired phones stay paired across restarts (hashes only, as for sharing), and a
+   // restart on the same address keeps the code the phone already has until fewer than two hours are left.
+  else{const sessionFile=path.join(__dirname,'.questbound-phone-session.json');let previous=null;
+    try{const saved=JSON.parse(fs.readFileSync(sessionFile,'utf8'));if(saved.phone==='http://'+host+':8085/'&&/^\d{8}$/.test(saved.pairingCode)&&Date.parse(saved.expiresAt)>Date.now()+2*3600000)previous=saved;}catch{}
+    const {server,info}=createPhoneServer({host,pairingHours:168,sessionHours:168,maxSessions:30,sessionStore:path.join(__dirname,'.questbound-phone-sessions.json'),feedbackFile:path.join(__dirname,'playtest-feedback.md'),...(previous?{code:previous.pairingCode,expiresAt:Date.now()+168*3600000}:{})});server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Phone access is already running on port 8085.':e.message);process.exitCode=1;});server.listen(8085,host,()=>{fs.writeFileSync(path.join(__dirname,'.questbound-phone-session.json'),JSON.stringify({...info,pid:process.pid},null,2));console.log('Desktop: '+info.desktop+'\nPhone: '+info.phone+'\nPairing code: '+info.pairingCode+'\nSame Wi-Fi required. Keep this process and the private DM service running. Pairing lasts a week.');});}
  }
 }
 module.exports={createPhoneServer,phoneAddress};

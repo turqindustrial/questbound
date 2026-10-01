@@ -4,7 +4,10 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 const PRESENCE_MS=15000,ACTING_MS=60000,MAX_BODY=2500000;
 const clean=(v,max)=>typeof v==='string'?v.replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,max):'';
-function createSyncServer({dir=path.join(__dirname,'.questbound-table'),now=Date.now}={}){
+// Cloud saves: a hero and adventure kept on this PC under a recovery code, so a player can carry on in another
+// browser or device. Only a hash of the code is stored (it names the file); last write wins; at most 200 saves.
+const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');return /^[A-Z0-9]{12}$/.test(c)?require('node:crypto').createHash('sha256').update('questbound-cloud-v1:'+c).digest('hex'):null;};
+function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),cloudLimit=200,now=Date.now}={}){
  const file=path.join(dir,'table.json');
  let table={version:0,snapshot:null,updatedAt:null,updatedBy:null};
  try{const saved=JSON.parse(fs.readFileSync(file,'utf8'));if(Number.isInteger(saved.version)&&saved.version>=0)table={...table,...saved};}catch{}
@@ -31,6 +34,19 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),now=Date
     return send(200,state(table.version));
    }
    if(req.url==='/leave'){players.delete(clean(b.playerId,64));return send(200,{left:true});}
+    if(req.url==='/cloud-save'){
+     const key=cloudKey(b.code);if(!key)return send(400,{error:'That recovery code is not valid.'});if(!validSnapshot(b.snapshot))return send(400,{error:'That adventure could not be saved.'});
+     fs.mkdirSync(cloudDir,{recursive:true});const savedAt=new Date(now()).toISOString(),file=path.join(cloudDir,key+'.json'),tmp=file+'.tmp';
+     fs.writeFileSync(tmp,JSON.stringify({savedAt,snapshot:b.snapshot}));fs.renameSync(tmp,file);
+     const all=fs.readdirSync(cloudDir).filter(f=>/^[a-f0-9]{64}\.json$/.test(f)).map(f=>({f,t:fs.statSync(path.join(cloudDir,f)).mtimeMs})).sort((a,b)=>b.t-a.t);
+     for(const old of all.slice(cloudLimit))fs.rmSync(path.join(cloudDir,old.f),{force:true});
+     return send(200,{saved:true,savedAt});
+    }
+    if(req.url==='/cloud-load'){
+     const key=cloudKey(b.code);if(!key)return send(400,{error:'That recovery code is not valid.'});
+     let saved;try{saved=JSON.parse(fs.readFileSync(path.join(cloudDir,key+'.json'),'utf8'));}catch{return send(404,{error:'No saved adventure was found for that code on this PC.'});}
+     return send(200,saved);
+    }
    return send(404,{error:'Not found.'});
   }catch(e){send(e.status??500,{error:e.status?e.message:'The table service could not complete that request.'});}
  });

@@ -51,7 +51,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     }catch{if(alive.current){setConnected(false);setProtocol(0);setStatus('The Dungeon Master is not answering. Reconnecting automatically…');}}finally{checking=false;if(alive.current)setChecked(true);}};
     check();const timer=setInterval(check,5000);return()=>{alive.current=false;clearInterval(timer);};
   },[]);
-  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
+  const [draft,setDraft]=useState('');
+  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -85,7 +87,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     // A preset with `parse` is a complete typed sentence (a spell from the Cast… picker) read by the normal parser.
     preset=preset?.question&&(preset.action||preset.parse)?preset:null;
     const question=preset?.question??input.trim();
-    if(lock.current||playing||!question||waiting||tableSyncing||game.stage==='dead')return;const priorReply=reply,snapshot=fingerprint;if(compact)Keyboard.dismiss();lock.current=true;setBusy(true);setError('');playSound('send');
+    if(lock.current||playing||!question||waiting||tableSyncing||game.stage==='dead')return;const priorReply=reply,snapshot=fingerprint;if(compact)Keyboard.dismiss();lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');
     const target=preset?null:conversationTarget(game,question,conversationId);
     if(target&&!await openConversation(target)){lock.current=false;setBusy(false);return;}
     const talkingTo=people.find(n=>n.id===target);
@@ -142,7 +144,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
       if(protocol<2&&choice)setReply({narration:body.narration,pending:choice,snapshot:JSON.stringify({hero,game:result.game,health:result.health})});
     }catch(e){if(alive.current)setError(e.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,e.message));}
-    finally{lock.current=false;if(alive.current)setBusy(false);}
+    finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   }
   const turns=(person?(game.playback??[]).filter(t=>t.npcId===person.id||(t.participants??[]).some(id=>people.some(n=>n.id===id))):(game.playback??[])).map(t=>visibleTurn(t,game));
   const effects=activeEffectLines(game,health);
@@ -218,6 +220,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <Pressable accessibilityRole="button" onPress={dismissTips} dataSet={{qb:'chip'}} style={s.tipsButton}><Icon name="check" size={14} color={colors.gold}/><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
     </View>:null} aside={(short||compact)&&!person?statusPill:null} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
+    {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {actionBar}
     <View style={s.composer}>{composer}{sendButton}</View>
     {!!error&&<View accessibilityRole="alert" style={s.errorRow}><Icon name="info" size={15} color={colors.danger}/><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text></View>}
@@ -263,6 +266,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  tipsHead:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:4},tipRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:4},
  personChip:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:4,paddingLeft:4,paddingRight:10,borderRadius:22,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.92)'},chipAvatar:{width:30,height:30,borderRadius:15},
  composer:{flexDirection:'row',alignItems:'flex-end',gap:8,marginTop:8},
+ draft:{flexDirection:'row',gap:10,alignItems:'flex-start',marginTop:8,paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.3)',backgroundColor:'rgba(14,18,27,.85)'},draftText:{flex:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:23,color:'#e7dcc2'},
  actionBar:{flexGrow:0,flexShrink:0,marginTop:8},actionContent:{gap:8,alignItems:'center',paddingRight:40},actionWrap:{flexDirection:'row',flexWrap:'wrap',paddingRight:0},
  action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(20,25,36,.92)',maxWidth:260},
  tips:{padding:14,paddingBottom:10,marginTop:4,marginBottom:12,borderRadius:6,borderWidth:1,borderColor:'rgba(232,199,123,.45)',gap:2},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},

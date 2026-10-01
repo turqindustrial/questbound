@@ -7,7 +7,10 @@
 #   -InstallStartup  start Questbound in the background when you sign in to Windows (requires a remembered key)
 #   -RemoveStartup   undo -InstallStartup
 #   -Share           also share the game with playtesters over the internet: a secure Cloudflare link plus an invite code
-param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share)
+#   -SetupTunnel     remember a permanent link for -Share from your own free Cloudflare account (a named tunnel's token,
+#                    stored encrypted to your Windows account, and its public hostname)
+#   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
+param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -17,6 +20,8 @@ $keyFile = Join-Path $root '.questbound-key.dpapi'
 $modelFile = Join-Path $root '.questbound-model'
 $sessionFile = Join-Path $root '.questbound-phone-session.json'
 $shareFile = Join-Path $root '.questbound-share-session.json'
+$tunnelTokenFile = Join-Path $root '.questbound-tunnel.dpapi'
+$tunnelHostFile = Join-Path $root '.questbound-tunnel-host'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
@@ -49,6 +54,21 @@ if ($Stop) {
   return
 }
 if ($ForgetKey) { Remove-Item $keyFile, $modelFile -ErrorAction SilentlyContinue; Say 'The remembered API key was deleted from this PC.' 'Green'; return }
+if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }
+# A permanent link: in the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, give it a public
+# hostname that points to http://127.0.0.1:8087, and paste its token here. The token never touches disk in plain text.
+if ($SetupTunnel) {
+  Say '  Permanent link for -Share. In your Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel,' 'Cyan'
+  Say '  add a public hostname for it that points to http://127.0.0.1:8087, then copy the tunnel token.' 'Cyan'
+  $hostName = ((Read-Host '  Public hostname (for example play.example.com)').Trim().ToLower() -replace '^https?://', '') -replace '/.*$', ''
+  if ($hostName -notmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$') { Say '  That does not look like a hostname. Nothing was saved.' 'Red'; return }
+  $tokenSecure = Read-Host '  Tunnel token (typing is hidden)' -AsSecureString
+  if ($tokenSecure.Length -lt 20) { Say '  That token looks too short. Nothing was saved.' 'Red'; return }
+  $tokenSecure | ConvertFrom-SecureString | Set-Content $tunnelTokenFile -Encoding ASCII
+  Set-Content $tunnelHostFile $hostName -Encoding ASCII
+  Say "  Saved. Questbound.cmd -Share now uses https://$hostName/ (if sharing is running, stop it first with Questbound.cmd -Stop)." 'Green'
+  return
+}
 $startupLink = Join-Path ([Environment]::GetFolderPath('Startup')) 'Questbound.lnk'
 if ($RemoveStartup) { Remove-Item $startupLink -ErrorAction SilentlyContinue; Say 'Questbound will no longer start when you sign in.' 'Green'; return }
 if ($InstallStartup) {
@@ -151,9 +171,11 @@ else {
   else { $session = $null; Say '  Phone access did not start (is the PC on Wi-Fi?). See .questbound-logs\phone.err.log' 'Yellow' }
 }
 
-# 6. Sharing with playtesters over the internet (only with -Share): a Cloudflare quick tunnel to a loopback-only
-#    gateway that asks for an invite code. The link lasts as long as the tunnel; the invite code lasts a week.
+# 6. Sharing with playtesters over the internet (only with -Share): a Cloudflare tunnel to a loopback-only gateway
+#    that asks for an invite code. A quick tunnel's link lasts as long as the tunnel; a permanent link (-SetupTunnel)
+#    never changes, and its invite code survives restarts. The invite code lasts a week.
 $shared = $null
+$named = (Test-Path $tunnelTokenFile) -and (Test-Path $tunnelHostFile)
 if ($Share) {
   if (Test-Path $shareFile) { try { $shared = Get-Content $shareFile -Raw | ConvertFrom-Json } catch {} }
   $p = Get-Pids
@@ -166,14 +188,27 @@ if ($Share) {
     if (-not $cf) { Say '  Sharing needs the free Cloudflare tunnel tool. Install it once, then run this again:' 'Yellow'; Say '    winget install --id Cloudflare.cloudflared -e' 'White' }
     else {
       foreach ($name in 'tunnel', 'share') { if ($p.$name -and (Get-Process -Id $p.$name -ErrorAction SilentlyContinue)) { & taskkill.exe /PID $p.$name /T /F | Out-Null } }
-      Remove-Item $shareFile -ErrorAction SilentlyContinue
+      if (-not $named) { Remove-Item $shareFile -ErrorAction SilentlyContinue }
       $tunnelLog = Join-Path $logs 'tunnel.err.log'
       Remove-Item $tunnelLog -ErrorAction SilentlyContinue
-      Start-Hidden 'tunnel' "`"$cf`"" 'tunnel --no-autoupdate --url http://127.0.0.1:8087' | Out-Null
       $url = $null
-      for ($i = 0; $i -lt 80 -and -not $url; $i++) {
-        Start-Sleep -Milliseconds 500
-        if (Test-Path $tunnelLog) { $m = [regex]::Match([string](Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $url = $m.Value } }
+      if ($named) {
+        # The token reaches cloudflared through its environment, never the command line.
+        $tunnelSecure = $null
+        try { $tunnelSecure = Get-Content $tunnelTokenFile -Raw | ConvertTo-SecureString } catch { Say '  The saved tunnel token could not be unlocked on this Windows account. Run Questbound.cmd -SetupTunnel again.' 'Red' }
+        if ($tunnelSecure) {
+          $tb = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($tunnelSecure)
+          try { $env:TUNNEL_TOKEN = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tb).Trim(); Start-Hidden 'tunnel' "`"$cf`"" 'tunnel --no-autoupdate run' | Out-Null }
+          finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tb); Remove-Item Env:TUNNEL_TOKEN -ErrorAction SilentlyContinue }
+          for ($i = 0; $i -lt 40; $i++) { Start-Sleep -Milliseconds 500; if ((Test-Path $tunnelLog) -and ([string](Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue)) -match 'Registered tunnel connection') { break } }
+          $url = 'https://' + (Get-Content $tunnelHostFile -Raw).Trim()
+        }
+      } else {
+        Start-Hidden 'tunnel' "`"$cf`"" 'tunnel --no-autoupdate --url http://127.0.0.1:8087' | Out-Null
+        for ($i = 0; $i -lt 80 -and -not $url; $i++) {
+          Start-Sleep -Milliseconds 500
+          if (Test-Path $tunnelLog) { $m = [regex]::Match([string](Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $url = $m.Value } }
+        }
       }
       if (-not $url) { Say '  The secure link did not start. See .questbound-logs\tunnel.err.log' 'Red' }
       else {
@@ -190,7 +225,7 @@ Say ''
 Say '  Desktop:  http://localhost:8081/' 'White'
 if ($session) {
   Say "  Phone:    $($session.phone)" 'White'
-  Say "  Pairing code: $($session.pairingCode)   (valid until $(([datetime]$session.expiresAt).ToLocalTime().ToString('ddd h:mm tt')))" 'White'
+  Say "  Pairing code: $($session.pairingCode)   (valid until $(([datetime]$session.expiresAt).ToLocalTime().ToString('ddd MMM d, h:mm tt')))" 'White'
   Say '  Phones need the same Wi-Fi as this PC.' 'DarkGray'
 }
 if ($shared) {
@@ -198,7 +233,8 @@ if ($shared) {
   Say "  Playtest link:  $($shared.link)" 'Yellow'
   Say "  Invite code:    $($shared.inviteCode)   (valid until $(([datetime]$shared.expiresAt).ToLocalTime().ToString('ddd MMM d, h:mm tt')))" 'Yellow'
   Say '  Send both to your testers. Their play uses your OpenAI key; keep this PC awake while they play.' 'DarkGray'
-  Say '  The link changes if sharing restarts (for example after a reboot). Stop everything with: Questbound.cmd -Stop' 'DarkGray'
+  if ($named) { Say '  This link stays the same, and so does the invite code until it expires.' 'DarkGray' }
+  else { Say '  The link changes if sharing restarts (for example after a reboot). For a permanent link see Questbound.cmd -SetupTunnel' 'DarkGray' }
   try { Set-Clipboard -Value ("Questbound playtest: $($shared.link)  Invite code: $($shared.inviteCode)"); Say '  (Link and code copied to your clipboard.)' 'DarkGray' } catch {}
 }
 Say ''

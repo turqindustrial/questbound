@@ -51,6 +51,8 @@ import LaunchScreen from './LaunchScreen';
 import SaveTransfer from './SaveTransfer';
 import QuickHeroes from './QuickHeroes';
 import HeroRoster from './HeroRoster';
+import {scheduleCloudSave} from './cloudRules';
+import {CloudSaveSettings} from './CloudSaveSettings';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import FeedbackSheet from './Feedback';
@@ -102,8 +104,9 @@ function QuestboundApp() {
     if(loading || !hero || storageError || adventureBlocked) return;
     let current=true;
     setSaveStatus('Saving adventure...');
-    saveAdventure(adventureSnapshot(hero,game,health,characterChosen),hero)
-      .then(()=>{if(current)setSaveStatus('Adventure saved on this device.');})
+    const snapshot=adventureSnapshot(hero,game,health,characterChosen);
+    saveAdventure(snapshot,hero)
+      .then(()=>{scheduleCloudSave(snapshot);if(current)setSaveStatus('Adventure saved on this device.');})
       .catch(()=>{if(current)setSaveStatus('Adventure not saved. Your progress is still open; retry before closing the app.');});
     return ()=>{current=false;};
   },[loading,hero,game,health,characterChosen,storageError,adventureBlocked,saveRetry]);
@@ -149,6 +152,14 @@ function QuestboundApp() {
       setScreenState('Home');
     }catch(e){setError(e.message||'Could not switch heroes. Your current hero is unchanged.');}
     finally{setSaving(false);}
+  }
+  // A hero brought over from another device by its recovery code; the current one is set aside first.
+  async function restoreFromCloud(snapshot){
+    let restored;try{restored=JSON.parse(snapshot?.character);}catch{throw Error('That save could not be read. Nothing was changed.');}
+    if(!isValidCharacter(restored)||!validAdventure(snapshot,restored))throw Error('That save did not pass the game\'s checks. Nothing was changed.');
+    if(hero&&JSON.stringify(hero)!==snapshot.character&&!await setCurrentAside())throw Error('Your company is full. Retire a hero under Heroes first.');
+    await saveCharacter(restored);await saveAdventure(snapshot,restored);
+    setHero(restored);setForm({...blankBuild(),...restored,species:restored.species??restored.race});setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(!snapshot.chosen);setAdventureBlocked(false);
   }
   async function retireFromRoster(entry){
     const next={roster:roster.filter(e=>e.id!==entry.id),graves};
@@ -387,6 +398,7 @@ function QuestboundApp() {
       {screen === 'Settings' && <StorySettings/>}
       {screen === 'Settings' && <DisplaySettings/>}
       {screen === 'Settings' && <AudioSettings/>}
+      {screen === 'Settings' && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
       {screen === 'Settings' && <SaveTransfer/>}
       {screen === 'Settings' && <View style={s.about}><Section icon="info" title="About" style={{marginTop:0}}/><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>This work includes material from the System Reference Document 5.2 (“SRD 5.2”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.</Text></View>}
       {/* Screens inside the adventure have their own way back; Settings opened from the game returns there. */}
