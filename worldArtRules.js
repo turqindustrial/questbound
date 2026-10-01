@@ -3,6 +3,9 @@ import {dungeonRooms} from './dungeonRules';
 import {npcScene} from './npcRules';
 const originalNPCs={keeper:{name:'The keeper',description:'Middle-aged human innkeeper, short salt-and-pepper beard, brown hair, kind but firm eyes, linen shirt and russet waistcoat.'},mara:{name:'Mara',description:'Young adult human woman, brown skin, dark curly hair loosely braided, thoughtful eyes, practical teal traveling cloak, medicine courier with a satchel.'}};
 export function npcArtSubject(game,id){
+ const person=!game.story?.npcs?.[id]&&game.people?.[id];
+ // Someone met while exploring is painted from how the Dungeon Master described them when they were met.
+ if(person)return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id,name:person.name,description:[person.appearance,person.species,person.role].filter(Boolean).join('. ').slice(0,1800),setting:(game.story?.premise??'').slice(0,800)};
  const npc=game.story?.npcs?.[id]??originalNPCs[id];if(!npc)return null;
  return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id,name:npc.name,description:[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ').slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
 }

@@ -1,11 +1,11 @@
 import {combatBasics} from './combatRules';
-import {npcScene,mentionsName} from './npcRules';
+import {npcScene,npcLore,mentionsName} from './npcRules';
 import {storyText} from './storyRules';
 
 const pretty=id=>id.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 export function conversationPeople(game){
  if(game.npcCombat?.active||game.stage==='combat')return [];
- return npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({...n,name:game.story?.npcs[n.id]?.name??n.name,role:game.story?.npcs[n.id]?.role??(n.id==='keeper'?'Keeper of the Crossroads Inn':'Traveling medicine courier')}));
+ return npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({...n,name:game.story?.npcs[n.id]?.name??n.name,role:npcLore(game,n.id)?.role??''}));
 }
 export function conversationTarget(game,input,current=null){
  const people=conversationPeople(game),q=input.toLowerCase();
@@ -46,7 +46,8 @@ export function recordedTurn(hero,before,beforeHP,result,conversation,npcId=null
  if(before.concentration?.id&&before.concentration.id!==after.concentration?.id)events.push({kind:'effect',text:pretty(before.concentration.id)+' concentration ended.'});
  for(const name of Object.keys(before.enemyEffects??{}))if(!after.enemyEffects?.[name])events.push({kind:'effect',text:'Target effect ended: '+name+'.'});
  if((beforeHP?.temp??0)>0&&!(result.health?.temp>0))events.push({kind:'effect',text:'Temporary HP depleted or expired.'});
- const speaker=id=>before.story?.npcs?.[id]?.name??npcScene(before).find(n=>n.id===id)?.name??'Dungeon Master';
+ // Someone met in this very turn is named from the game after it.
+ const speaker=id=>npcLore(after,id)?.name??npcLore(before,id)?.name??'Dungeon Master';
  if(conversation.dialogue?.length){
   // The narrator's framing stays visible alongside the spoken lines unless it merely repeats them.
   const spoken=conversation.dialogue.map(l=>l.text).join(' ');

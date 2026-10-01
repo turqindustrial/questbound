@@ -1,5 +1,5 @@
 import {storyText} from './storyRules';
-import {recordNpcAggression,npcServiceError,npcScene,npcProfiles,npcCombatParticipants} from "./npcRules";
+import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants} from "./npcRules";
 import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage} from "./spellRules";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
@@ -14,7 +14,7 @@ import {fallAtZero,deathSave,causeOfFall,fallPlace} from "./deathRules";
 import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
-import {gearedHero,arrowsLeft,spendArrow,potionHealing,npcMaxHP} from "./inventoryRules";
+import {gearedHero,arrowsLeft,spendArrow,potionHealing} from "./inventoryRules";
 import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid} from "./encounterRules";
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
@@ -163,9 +163,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     const harmfulSpell = resolvedSpell?.npcTarget && (spellEffect && (spellEffect.attack || spellEffect.save || spellEffect.missile) || (action.ruling?.damage ?? 0) > 0);
     // A spell that drops someone kills them, just as a weapon does.
     if (harmfulSpell) {
-      const id = resolvedSpell.npcTarget, was = game.npcHP?.[id] ?? npcProfiles[id].maximumHP;
-      if (was > 0 && (result.game.npcHP?.[id] ?? npcProfiles[id].maximumHP) === 0 && !result.game.npcFate?.[id]) {
-        const line = npcProfiles[id].name + ' is dead.';
+      const id = resolvedSpell.npcTarget, was = game.npcHP?.[id] ?? npcProfile(game, id).maximumHP;
+      if (was > 0 && (result.game.npcHP?.[id] ?? npcProfile(game, id).maximumHP) === 0 && !result.game.npcFate?.[id]) {
+        const line = npcProfile(game, id).name + ' is dead.';
         result.game = {...result.game, npcFate: {...result.game.npcFate, [id]: 'dead'}, log: [line, ...result.game.log].slice(0, 40)};
         result.events.push(line);
       }
@@ -421,7 +421,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       if (!person) return 'That person is not here.';
       if ((game.potions ?? 0) <= 0) return 'You have no healing draughts left.';
       if (hp.current <= 0) return 'You cannot do that while down.';
-      const most = npcMaxHP(person.id), was = game.npcHP?.[person.id] ?? most;
+      const most = npcMaxHP(person.id, game), was = game.npcHP?.[person.id] ?? most;
       if (was >= most) return person.name + ' is not hurt.';
       const dose = potionHealing(random), now = Math.min(most, was + dose.total);
       next.npcHP = {...game.npcHP, [person.id]: now};
@@ -855,8 +855,9 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
  if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)||action?.type==='travel'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
  if(active&&['npc-flee','npc-surrender'].includes(action)){
   if(game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
-  const next={...game,npcCombat:{...game.npcCombat,active:false},log:[action==='npc-flee'?'You disengage and retreat from the inn. Combat ends.':'You lower your weapon and surrender. Combat ends; the witnesses remain hostile.',...game.log].slice(0,40)};
-  if(action==='npc-flee'){delete next.npcCombat;return travelTo(next,health??{current:stats.hp,temp:0},'bridge');}
+  const away=game.stage==='inn'?'bridge':game.stage==='wild'?worldPlace(game,game.world?.at)?.from??'inn':'inn';
+  const next={...game,npcCombat:{...game.npcCombat,active:false},log:[action==='npc-flee'?(game.stage==='inn'?'You disengage and retreat from the inn. Combat ends.':'You disengage and retreat. Combat ends.'):'You lower your weapon and surrender. Combat ends; the witnesses remain hostile.',...game.log].slice(0,40)};
+  if(action==='npc-flee'){delete next.npcCombat;return travelTo(next,health??{current:stats.hp,temp:0},away);}
   return {game:next,health};
  }
  const special=active&&['npc-dodge','npc-wait'].includes(action);
@@ -872,16 +873,16 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
   if(opening.error||opening.waiting)return opening;
   next=opening.game;hp=opening.health??hp;
   // Only those still standing after the opening blow take part; if none are, there is no fight to roll for.
-  const standing=participants.filter(n=>(next.npcHP?.[n.id]??npcProfiles[n.id].maximumHP)>0);
+  const standing=participants.filter(n=>(next.npcHP?.[n.id]??npcMaxHP(n.id,next))>0);
   if(!standing.length)return {...opening,game:next,health:hp,events:opening.events??[]};
   events.push('Opening attack.',...(opening.events??[]));
   const roll=1+Math.floor(random()*20),second=stats.initiativeAdvantage?1+Math.floor(random()*20):roll;
   const order=[{id:'player',side:'player',role:'attack',initiative:Math.max(roll,second)+stats.initiative},...standing.map(n=>({...n,initiative:1+Math.floor(random()*20)}))].sort((a,b)=>b.initiative-a.initiative||(a.id==='player'?-1:b.id==='player'?1:a.id.localeCompare(b.id)));
   events.push('Your initiative: d20 ['+[roll,...(stats.initiativeAdvantage?[second]:[])].join(', ')+'] + '+stats.initiative+' = '+(Math.max(roll,second)+stats.initiative)+'.');
-  events.push(...order.filter(n=>n.id!=='player').map(n=>npcProfiles[n.id].name+' initiative: d20 '+n.initiative+' + 0 = '+n.initiative+'.'));
-  events.push('Turn order: '+order.map(n=>n.id==='player'?'You':npcProfiles[n.id].name).join(' → ')+'.');
+  events.push(...order.filter(n=>n.id!=='player').map(n=>npcProfile(next,n.id).name+' initiative: d20 '+n.initiative+' + 0 = '+n.initiative+'.'));
+  events.push('Turn order: '+order.map(n=>n.id==='player'?'You':npcProfile(next,n.id).name).join(' → ')+'.');
   events.push('Round 1 begins.');
-  next={...next,npcCombat:{active:true,round:1,order,help:null},log:['Combat begins. Initiative: '+order.map(n=>(n.id==='player'?'You':npcProfiles[n.id].name)+' '+n.initiative).join(' / ')+'.',...next.log].slice(0,40)};
+  next={...next,npcCombat:{active:true,round:1,order,help:null},log:['Combat begins. Initiative: '+order.map(n=>(n.id==='player'?'You':npcProfile(next,n.id).name)+' '+n.initiative).join(' / ')+'.',...next.log].slice(0,40)};
   const first=runNpcTurns(next,hp,hero,order.slice(0,order.findIndex(n=>n.id==='player')),false,random);next=first.game;hp=first.health;events.push(...first.events);
   if(next.npcCombat?.active)events.push('Your turn.');
   next={...next,journal:appendJournal(next.journal,'encounter','Combat begins',events.join('\n').slice(0,3000)),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
@@ -903,27 +904,27 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
  result.events=events;
  result.game={...result.game,...(result.game.npcCombat?{npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1}}:{}),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
  if(result.game.concentration?.remaining!=null){result.game.concentration={...result.game.concentration,remaining:result.game.concentration.remaining-1};if(result.game.concentration.remaining<=0)delete result.game.concentration;}
- result.game={...result.game,journal:appendJournal(result.game.journal,'encounter','Inn combat',events.join('\n').slice(0,3000))};
+ result.game={...result.game,journal:appendJournal(result.game.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',events.join('\n').slice(0,3000))};
  return result;
 }
 function runNpcTurns(game,health,hero,turns,dodge,random){
  let next={...game,npcCombat:{...game.npcCombat}},hp={...health},downed=null;const stats=combatBasics(hero),logs=[];
- const alive=id=>(next.npcHP?.[id]??npcProfiles[id].maximumHP)>0;
+ const who=id=>npcProfile(next,id),alive=id=>(next.npcHP?.[id]??who(id).maximumHP)>0;
  const enemies=()=>next.npcCombat.order.filter(n=>n.side==='enemy'&&alive(n.id));
  for(const actor of turns){
   if(hp.current<=0||!enemies().length)break;
   if(!alive(actor.id))continue;
   const allied=actor.side==='ally',victim=allied?enemies()[0]:null;
-  if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(npcProfiles[actor.id].name+' distracts the opposition to help a defender.');continue;}
+  if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(who(actor.id).name+' distracts the opposition to help a defender.');continue;}
   const weapon={attackBonus:2,count:1,die:4,bonus:0};
-  const defense=allied?{ac:npcProfiles[victim.id].ac}:spellDefense(next,stats.ac);
+  const defense=allied?{ac:who(victim.id).ac}:spellDefense(next,stats.ac);
   const helped=next.npcCombat.help===actor.side,disadvantage=!allied&&(dodge||defense.disadvantage);
   const attack=rollAttack(weapon,helped===disadvantage?'normal':helped?'advantage':'disadvantage',random);
   if(helped)next.npcCombat.help=null;
   const hit=!attack.miss&&(attack.critical||attack.total>=defense.ac),damageRoll=hit?rollDamage(weapon,attack.critical,random):null,damage=damageRoll?.total??0;
-  logs.push(`${npcProfiles[actor.id].name} attacks ${allied?npcProfiles[victim.id].name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodge?', Dodge':''}${defense.disadvantage?', Blur':''}) + 2 = ${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
-  if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??npcProfiles[victim.id].maximumHP)-damage)};
-  else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:npcProfiles[actor.id].name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
+  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodge?', Dodge':''}${defense.disadvantage?', Blur':''}) + 2 = ${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
+  if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
+  else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
  // Felled in a brawl, the hero is left dying where they lie and the defenders stand back.
  if(hp.current<=0){const fell=fall(next,'npc',downed?.overflow??0,stats.hp,downed?'Struck down by '+downed.by:null);next=fell.game;logs.push(...fell.entries);}
@@ -958,7 +959,7 @@ function dyingStep(game,health,hero,action,random){
  const aid=companionAid(game,random);
  let result;
  if(aid?.success){
-  const helper=game.story?.npcs?.[aid.id]?.name??npcProfiles[aid.id].name,rescued={...game,stage:game.story?'inn':'defeat'};delete rescued.dying;
+  const helper=npcLore(game,aid.id)?.name??aid.id,rescued={...game,stage:game.story?'inn':'defeat'};delete rescued.dying;
   const told=recordDeed(rescued,aid.id,0,'I pulled the player back from the brink of death.').game;
   result={game:told,health:{current:1,temp:0},events:[aid.line,`You are stable. ${helper} carries you back to ${start??'the inn'}, and hours later you wake with 1 HP.`]};
  } else {

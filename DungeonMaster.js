@@ -91,7 +91,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error('The AI service is disconnected. Open your private AI setup window.');const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setConversationId(conversationPeople(result.game).some(n=>n.id===target)?target:null);if(!preset)setInput('');return result;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setConversationId(conversationPeople(result.game).some(n=>n.id===target)?target:null);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
       const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw Error(preview.error);
@@ -102,13 +102,13 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         if(resolved.error)throw Error(resolved.error);
         if(body.ruling.decision==='cast'){
           const reaction=await request(resolved.game,resolved.health,{engineResolved:(resolved.events??[]).map(t=>storyText(resolved.game,t)).slice(0,40)});
-          body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.loot=reaction.loot;
+          body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.loot=reaction.loot;body.introduce=reaction.introduce;
         }
         let index=0;await finish(action,body,normalized,()=>dice[index++]??0.5);
       }
       else {let body={narration:narration??command.narration??'Your action is resolved below.'};
         if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot},normalized,()=>rolled[index++]??0.5);
+        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot,introduce:body.introduce},normalized,()=>rolled[index++]??0.5);
       }
     };
     try{
@@ -123,14 +123,14 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
         const action={type:'ai-check',check:body.check},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}
       // A place the DM revealed: added to the map, and walked to when the player set out for it.

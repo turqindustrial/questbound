@@ -1,4 +1,4 @@
-import {npcScene} from './npcRules';
+import {npcScene,npcLore} from './npcRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe} from './adventureRules';
 import {spellDefense} from './spellRules';
@@ -8,7 +8,7 @@ const scoreNames=['Strength','Dexterity','Constitution','Intelligence','Wisdom',
 export function encounterEntities(hero,game,health){
  if(!hero)return [];
  const stats=combatBasics(hero),npcs=npcScene(game).map(n=>{
-  const lore=game.story?.npcs?.[n.id];
+  const lore=game.story?.npcs?.[n.id]??(game.people?.[n.id]?npcLore(game,n.id):null);
   return {id:n.id,name:lore?.name??n.name,aliases:!game.story&&n.id==='keeper'?['keeper','the keeper','innkeeper','bartender']:[],species:lore?.species??(game.story?'Not recorded':'Human'),className:'Commoner',level:1,ac:n.ac,hp:n.hp,maximum:n.maximumHP,temp:0,scores:Object.fromEntries(scoreNames.map(a=>[a,10])),description:[lore?.role,lore?.appearance,lore?.personality].filter(Boolean).join('\n'),art:npcArtSubject(game,n.id),note:'Uses the current commoner combat profile. No adventuring class levels.'};
  });
  const creature=(scene,id)=>{

@@ -1,7 +1,7 @@
 import {spellLibrary,automaticSpells,slotChoices,slotUsed} from './spellOptions';
 import {modifier,proficiencyBonus,subclassActive} from './characterRules';
 import {rollAttack} from './weaponRules';
-import {npcProfiles,npcScene} from './npcRules';
+import {npcProfile,npcScene,npcIdsOf} from './npcRules';
 
 export const spellAbility={Artificer:'Intelligence',Bard:'Charisma',Cleric:'Wisdom',Druid:'Wisdom',Paladin:'Charisma',Ranger:'Wisdom',Sorcerer:'Charisma',Warlock:'Charisma',Wizard:'Intelligence',Fighter:'Intelligence',Rogue:'Intelligence'};
 // Explicit effects only. Unimplemented spells use a visible DM ruling, never guessed dice.
@@ -107,10 +107,10 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     const healed=Math.max(0,sum(dice)+mod+life);
     if(request.npcTarget){
       // Healing someone else: an unconscious person comes round, which counts as saving their life.
-      const id=request.npcTarget,most=npcProfiles[id].maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,was+healed);
+      const id=request.npcTarget,most=npcProfile(game,id).maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,was+healed);
       next.npcHP={...next.npcHP,[id]:now};
       if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}
-      logs.push(`${spell.name} on ${npcProfiles[id].name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${now-was} HP.${was===0&&now>0?' '+npcProfiles[id].name+' stirs and opens their eyes.':''}`);
+      logs.push(`${spell.name} on ${npcProfile(game,id).name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${now-was} HP.${was===0&&now>0?' '+npcProfile(game,id).name+' stirs and opens their eyes.':''}`);
     } else {
       hp.current=Math.min(maximum,hp.current+healed);
       logs.push(`${spell.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${hp.current-(health?.current??maximum)} HP.`);
@@ -173,7 +173,7 @@ export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.r
     if(minutes)next.map={...game.map,minutes:(game.map?.minutes??0)+minutes};
   }
   // A named person's damage and healing apply to them, never to the caster.
-  if(request.npcTarget){const id=request.npcTarget;if(!['keeper','mara'].includes(id)||!npcScene(game).some(n=>n.id===id&&n.present)||game.npcFate?.[id]==='dead')return {error:'That person is not here.'};const most=npcProfiles[id].maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,Math.max(0,was-ruling.damage)+ruling.healing);next.npcHP={...game.npcHP,[id]:now};if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}}
+  if(request.npcTarget){const id=request.npcTarget;if(!npcIdsOf(game).includes(id)||!npcScene(game).some(n=>n.id===id&&n.present)||game.npcFate?.[id]==='dead')return {error:'That person is not here.'};const most=npcProfile(game,id).maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,Math.max(0,was-ruling.damage)+ruling.healing);next.npcHP={...game.npcHP,[id]:now};if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}}
   if(!spell.concentration && next.concentration?.id===spell.id)delete next.concentration;
   const absorbed=Math.min(health?.temp??0,ruling.selfDamage??0);
   const hp={current:Math.min(maximum,Math.max(0,(health?.current??maximum)-((ruling.selfDamage??0)-absorbed))+(request.npcTarget?0:ruling.healing)),temp:Math.max((health?.temp??0)-absorbed,request.npcTarget?(health?.temp??0)-absorbed:ruling.temporaryHP)};

@@ -11,7 +11,7 @@ import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensio
 import Icon from './Icon';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
-import {npcScene} from './npcRules';
+import {npcScene,npcLore} from './npcRules';
 import {attitudeLabel} from './relationshipRules';
 import {packOf,arrowsLeft} from './inventoryRules';
 import {damageIcon,damageKind} from './chronicleRules';
@@ -21,7 +21,7 @@ import DungeonMaster from './DungeonMaster';
 import AdventureMap from './AdventureMap';
 import {commitDmTurn} from './dmContext';
 import {campaignState,earnedGold} from './campaignRules';
-import {mapState,mapLocation,placeDescription} from './mapRules';
+import {mapState,mapLocation,placeDescription,placeName} from './mapRules';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
@@ -37,7 +37,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game);
  const [inConversation,setInConversation]=useState(false);
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
- const act=async(action,conversation,random=Math.random)=>{const tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,game,health,action,conversation,random):adventureStep(game,health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,game,health,result,conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger)result.game=withSceneTrigger(game,result.game,action);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}setGame(result.game);setHealth(result.health);setError('');return result;};
+ const act=async(action,conversation,random=Math.random)=>{const tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,game,health,action,conversation,random):adventureStep(game,health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,game,health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger)result.game=withSceneTrigger(game,result.game,action);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}setGame(result.game);setHealth(result.health);setError('');return result;};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
@@ -92,12 +92,14 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const voiced=t=>String(t).replace(/^The player\b/,'You').replace(/\bthe player\b/g,'you');
  const peoplePanel=<View dataSet={{qb:'plate'}} style={s.people}>
   <View style={s.labelRow}><Icon name="people" size={14} color={colors.goldMid}/><PlainText style={s.label}>People</PlainText></View>
-  {npcScene(game).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
+  {[...npcScene(game)].sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
+   // Where they are now: beside you, or wherever they live (or were left waiting).
+   const follow=game.followers?.[n.id],where=n.fate==='dead'?null:follow?.status==='following'?'With you':n.present?'Here':game.story?'At '+placeName(game,follow?follow.location:game.people?.[n.id]?.home??'inn'):null;
    return <View key={n.id} style={s.personRow}>
     <DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.personAvatar,n.fate==='dead'&&{opacity:.4}]} compact/>
     <View style={{flex:1,minWidth:0}}>
      <PlainText numberOfLines={1} style={s.personName}>{name}</PlainText>
-     <View style={s.standing}><View style={[s.standingDot,{backgroundColor:tone}]}/><PlainText style={[s.standingText,{color:tone}]}>{standing.label}</PlainText></View>
+     <View style={s.standing}><View style={[s.standingDot,{backgroundColor:tone}]}/><PlainText style={[s.standingText,{color:tone}]}>{standing.label}</PlainText>{!!where&&<PlainText numberOfLines={1} style={s.where}>· {where}</PlainText>}</View>
      {!!said&&n.fate!=='dead'&&<PlainText numberOfLines={3} style={s.memory}>“{voiced(said)}”</PlainText>}
     </View>
    </View>;})}
@@ -113,7 +115,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   </View>
   {pack.items.filter(i=>i.name!=='Arrow').map(i=><PlainText key={i.name} style={s.packItem}>{i.name}{i.qty>1?' ×'+i.qty:''}<PlainText style={s.packUnit}>{i.kind==='treasure'&&i.value?'  ·  worth '+i.value+' gold':i.kind==='quest'?'  ·  important':i.kind==='weapon'?'  ·  weapon':''}</PlainText></PlainText>)}
  </View>;
- const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':game.story?.npcs[n.id]?.name??(n.id==='keeper'?'The keeper':'Mara');return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
+ const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}
   <View dataSet={{qb:'plate'}} style={s.quest}>
@@ -158,7 +160,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  </View>}
  <DungeonMaster hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>
  {!inConversation&&<>
- {game.npcCombat?.active&&<View dataSet={{qb:'plate'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Combat · Round {game.npcCombat.round}  ⚔</Text></View><Text style={s.label}>Turn order</Text><Text style={s.order}>{game.npcCombat.order.map(n=>(n.id==='player'?'You':game.story?.npcs[n.id]?.name??(n.id==='keeper'?'The keeper':'Mara'))+(n.side==='enemy'?' ⚔':n.side==='ally'?' ⛨':'')).join('   ›   ')}</Text><Text style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</Text></View>}
+ {game.npcCombat?.active&&<View dataSet={{qb:'plate'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Combat · Round {game.npcCombat.round}  ⚔</Text></View><Text style={s.label}>Turn order</Text><Text style={s.order}>{game.npcCombat.order.map(n=>(n.id==='player'?'You':npcLore(game,n.id)?.name??n.id)+(n.side==='enemy'?' ⚔':n.side==='ally'?' ⛨':'')).join('   ›   ')}</Text><Text style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</Text></View>}
  <View dataSet={{qb:'plate'}} style={s.quest}>
   <Text style={s.label}>{game.story?(game.story.status==='complete'?'✦ Adventure complete':'Current quest'):'A written adventure · Simplified rules'}</Text>
   <Text style={s.title}>{game.story?.title??'The Lantern at the Crossroads'}</Text>
@@ -222,7 +224,7 @@ const s=StyleSheet.create({
  packItem:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#e6dfcd'},
  people:{padding:16,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,gap:12},personRow:{flexDirection:'row',alignItems:'flex-start',gap:12},personAvatar:{width:44,height:44,borderRadius:22},
  personName:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},standing:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},standingDot:{width:7,height:7,borderRadius:4},
- standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},
+ standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},where:{fontFamily:fonts.ui,fontSize:12,color:colors.muted,flexShrink:1},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},
  // Dying: death-save pips. Dead: the epitaph.
  dying:{padding:16,marginTop:14,borderWidth:1,borderColor:'rgba(220,90,70,.6)',borderRadius:6,gap:10},dyingStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,paddingVertical:8,paddingHorizontal:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
  dyingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:24,color:'#e6cfc6'},

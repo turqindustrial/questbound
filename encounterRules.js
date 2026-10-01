@@ -1,5 +1,5 @@
 import {hostileFoes,foeStatsFor} from './hostileEncounter';
-import {npcProfiles,npcScene} from './npcRules';
+import {npcProfile,npcLore,npcScene} from './npcRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {worldPlace,worldPlaces,placeName} from './mapRules';
 import {modifier} from './characterRules';
@@ -108,7 +108,7 @@ export function undeadFortitude(game,foe,random){
 // ---------- Companions in a fight ----------
 const companionWeapon={keeper:{die:6,type:'bludgeoning'},mara:{die:4,type:'piercing'}};
 export function fightingCompanions(game){return npcScene(game).filter(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.hp>0&&n.fate!=='dead');}
-const npcLabel=(game,id)=>game.story?.npcs?.[id]?.name??npcProfiles[id].name;
+const npcLabel=(game,id)=>npcLore(game,id)?.name??id;
 // Each companion strikes the creature once after your turn.
 export function companionsAttack(game,foe,random){
  let next=game;const lines=[];
@@ -123,12 +123,12 @@ export function companionsAttack(game,foe,random){
 }
 // Who the creature goes for: usually you, sometimes a companion beside you.
 export function pickFoeTarget(game,random){
- const companions=fightingCompanions(game).filter(n=>(game.npcHP?.[n.id]??npcProfiles[n.id].maximumHP)>0);
+ const companions=fightingCompanions(game).filter(n=>(game.npcHP?.[n.id]??npcProfile(game,n.id).maximumHP)>0);
  if(!companions.length)return null;
  const r=random();return r<0.6?null:companions[Math.min(companions.length-1,Math.floor((r-0.6)/0.4*companions.length))].id;
 }
 export function foeHitsCompanion(game,foe,who,id,mode,random){
- const npc=npcProfiles[id],ac=npc.ac,attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
+ const npc=npcProfile(game,id),ac=npc.ac,attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${npcLabel(game,id)}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
  const damage=rollDamage(foe,attack.critical,random),was=game.npcHP?.[id]??npc.maximumHP,now=Math.max(0,was-Math.max(1,damage.total));

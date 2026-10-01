@@ -1,5 +1,4 @@
 import {weapons} from './weaponRules';
-import {npcProfiles} from './npcRules';
 // What the hero carries beyond their starting kit: gold, things found, bought or given, and arrows used up. The
 // starting kit stays on the character; the adventure keeps the pack, so a found sword or a bought quiver of arrows
 // can be fought with at once.
@@ -57,4 +56,3 @@ export function validPack(p){
 }
 // A healing draught for someone else: it brings round a companion lying senseless.
 export function potionHealing(random){const a=1+Math.floor(random()*4),b=1+Math.floor(random()*4);return {a,b,total:a+b+2};}
-export const npcMaxHP=id=>npcProfiles[id]?.maximumHP??10;

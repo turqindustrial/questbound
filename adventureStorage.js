@@ -1,7 +1,8 @@
 import {validStory} from './storyRules';
 import {validFollowers} from './followerRules';
 import {validSkillTraining} from './skillRules';
-import {validNpcState} from './npcRules';
+import {validNpcState,npcIdsOf,npcMaxHP} from './npcRules';
+import {validPeople} from './relationshipRules';
 import {validDungeon} from './dungeonRules';
 import {validCampaign} from './campaignRules';
 import {validMap} from './mapRules';
@@ -14,6 +15,8 @@ import {combatBasics} from './combatRules';
 
 const ADVENTURE_KEY = 'questbound.adventure.v1';
 const integerBetween = (n,min,max) => Number.isInteger(n) && n>=min && n<=max;
+// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n12).
+const someone = id => /^(?:keeper|mara|n(?:[1-9]|1[0-2]))$/.test(String(id));
 export function adventureSnapshot(hero,game,health,chosen) {
   return {version:1,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
 }
@@ -23,11 +26,11 @@ export function validAdventure(value,hero) {
     && !!g && ['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild','dying','dead'].includes(g.stage)
     && validDeathState(g) && (!['dying','dead'].includes(g.stage) || h?.current===0)
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
-    && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>['keeper','mara'].includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
+    && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>npcIdsOf(g).includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
     && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && g.encounterLevel===hero.level)) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
     && validWildFight(g) && validCombatExtras(g) && integerBetween(g.potions,0,20) && validPack(g.pack) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
-    && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||['keeper','mara'].includes(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=2&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(id=>['keeper','mara'].includes(id))))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||['keeper','mara'].includes(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))
+    && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||someone(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=10&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(someone)))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||someone(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))
     && (h===null || (!!h && integerBetween(h.current,0,maximum) && integerBetween(h.temp,0,9999)))
     && (g.bonusUsed===undefined || typeof g.bonusUsed==='boolean')
     && (g.openingAttackAvailable===undefined || typeof g.openingAttackAvailable==='boolean')
@@ -36,11 +39,12 @@ export function validAdventure(value,hero) {
     && (g.journal===undefined || validJournal(g.journal))
     && (g.dmChecks===undefined || (Array.isArray(g.dmChecks)&&g.dmChecks.length<=2&&new Set(g.dmChecks).size===g.dmChecks.length&&g.dmChecks.every(id=>['persuade-keeper','investigate-signal'].includes(id))))
     && (g.worldFacts===undefined||(Array.isArray(g.worldFacts)&&g.worldFacts.length<=60&&g.worldFacts.every(t=>typeof t==='string'&&t.length>0&&t.length<=800)))
-    && (g.npcHP===undefined||(g.npcHP&&typeof g.npcHP==='object'&&!Array.isArray(g.npcHP)&&Object.entries(g.npcHP).every(([id,hp])=>['keeper','mara'].includes(id)&&integerBetween(hp,0,id==='keeper'?12:9))))
+    && (g.npcHP===undefined||(g.npcHP&&typeof g.npcHP==='object'&&!Array.isArray(g.npcHP)&&Object.entries(g.npcHP).every(([id,hp])=>npcIdsOf(g).includes(id)&&integerBetween(hp,0,npcMaxHP(id,g)))))
     && (g.story===undefined||validStory(g.story))
     && validSkillTraining(g.skillTraining,hero)
+    && validPeople(g)
     && validNpcState(g)
-    && validFollowers(g.followers)
+    && validFollowers(g.followers,g)
     && validDungeon(g.dungeon)
     && (g.stage!=='dungeon'||g.dungeon?.active===true)
     && (!g.dungeon?.active||['dungeon','combat'].includes(g.stage))
@@ -81,5 +85,5 @@ function validSpellState(g) {
     && (g.concentration===undefined || (spellTime(g.concentration) && text(g.concentration.duration,150) && (g.concentration.automaticProtection===undefined || (g.concentration.automaticProtection===true && ['blur','shield-of-faith'].includes(g.concentration.id) && integerBetween(g.concentration.remaining,1,g.concentration.id==='blur'?10:100)))))
     && (g.temporarySpell===undefined || spellTime(g.temporarySpell))
     && (g.enemyEffects===undefined || (g.enemyEffects && typeof g.enemyEffects==='object' && !Array.isArray(g.enemyEffects) && Object.entries(g.enemyEffects).every(([name,n])=>['No opportunity attacks','Cannot regain HP','Speed reduced by 10 feet'].includes(name) && integerBetween(n,1,2))))
-    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||['keeper','mara'].includes(pending.npcTarget)) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum'].includes(pending.slot))));
+    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget)) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum'].includes(pending.slot))));
 }

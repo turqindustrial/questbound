@@ -1,6 +1,6 @@
 import {attackOptions} from './weaponRules';
 import {gearedHero} from './inventoryRules';
-import {npcScene} from './npcRules';
+import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
 import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast} from './spellRules';
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
@@ -59,13 +59,15 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     return resolved?{...resolved,normalizedCommand}:null;
   }
   // People are named in full, by first name or by surname ("Tobin", "Brask"); titles alone do not count.
-  if(game.story)for(const [id,npc] of Object.entries(game.story.npcs)){
-    const parts=[npc.name,...npc.name.split(/[\s,]+/).filter(t=>t.length>=3&&!npcTitleWords.includes(t.toLowerCase()))];
-    for(const part of parts){const re=new RegExp('(^|[^A-Za-z])'+part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z])','i');if(re.test(text)){text=text.replace(re,(m,lead)=>lead+id);break;}}
+  // Longer names first, so "Edda Reed" is not mistaken for Tobin Reed; a surname two people share names neither.
+  if(game.story){
+    const parts=npcIdsOf(game).flatMap(id=>{const name=npcLore(game,id)?.name??'';return [[id,name,true],...name.split(/[\s,]+/).filter(t=>t.length>=3&&!npcTitleWords.includes(t.toLowerCase())).map(t=>[id,t,false])];}).filter(p=>p[1]).sort((a,b)=>b[1].length-a[1].length);
+    const shared=part=>new Set(parts.filter(p=>!p[2]&&p[1].toLowerCase()===part.toLowerCase()).map(p=>p[0])).size>1,done=new Set();
+    for(const [id,part,full] of parts){if(done.has(id)||(!full&&shared(part)))continue;const re=new RegExp('(^|[^A-Za-z0-9])'+part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z])','i');if(re.test(text)){text=text.replace(re,(m,lead)=>lead+id);done.add(id);}}
   }
   // Healing draughts: drink one, or give one to someone here ("give Tobin a potion", "pour a draught into the captain").
   if(/^(?:I )?(?:drink|quaff|down|swig|take) (?:a |my |one |the )?(?:healing )?(?:potion|draught)/i.test(text))return {action:'potion'};
-  const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara)\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara))/i);
+  const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara|n\d{1,2})\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara|n\d{1,2}))/i);
   if(gift)return {action:{type:'give-potion',target:(gift[1]??gift[2]).toLowerCase()}};
   if(game.story&&/^(?:I )?(?:go to|travel to|move to) /i.test(text)){const target=Object.entries(game.story.locations).find(([id,p])=>text.toLowerCase().includes(p.name.toLowerCase()));if(target)return {action:{type:'travel',destination:target[0]}};}
   if(game.npcCombat?.active){
@@ -86,9 +88,9 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     for(const part of parts){const match=part.trim().match(/^(damage|selfDamage|healing|temporaryHP)=(\d{1,4})$/i);if(!match)return {error:'Use DM ruling: outcome; damage=0; selfDamage=0; healing=0; temporaryHP=0. Only include values your DM resolved.'};const key=Object.keys(ruling).find(k=>k.toLowerCase()===match[1].toLowerCase());ruling[key]=Number(match[2]);}
     return {action:{type:'spell-ruling',ruling}};
   }
-  const attack=text.match(new RegExp('^(?:I )?(?:'+VERBS+') (?:the )?(keeper|innkeeper|bartender|mara|traveler)(?: out)?(?: (?:with|using) (?:my |the |a |an )?(.+?))?[.!]?$','i'));
+  const attack=text.match(new RegExp('^(?:I )?(?:'+VERBS+') (?:the )?(keeper|innkeeper|bartender|mara|traveler|n\\d{1,2})(?: out)?(?: (?:with|using) (?:my |the |a |an )?(.+?))?[.!]?$','i'));
   if(attack){
-    const target=['mara','traveler'].includes(attack[1].toLowerCase())?'mara':'keeper';
+    const said=attack[1].toLowerCase(),target=/^n\d/.test(said)?said:['mara','traveler'].includes(said)?'mara':'keeper';
     const weapon=commandWeapon(hero,text,attack[2]);
     if(!weapon)return missingWeapon(hero,attack[2]);
     return {action:{type:'npc-attack',target,weapon:weapon.name}};
