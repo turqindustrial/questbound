@@ -1,6 +1,6 @@
 ﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
 const hero={name:'Trigger tester',class:'Fighter',species:'Human',level:1,scores:{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
-const p=vm.runInNewContext(['npcRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({sceneTrigger,withSceneTrigger,recordedTurn,conversationPeople,conversationTarget,freshStoryGame,validStory,hostileEncounterGame,hostileFoes})',{combatBasics:r.combatBasics});
+const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({sceneTrigger,withSceneTrigger,recordedTurn,conversationPeople,conversationTarget,freshStoryGame,validStory,hostileEncounterGame,hostileFoes})',{combatBasics:r.combatBasics});
 const hp={current:12,temp:0},valid=(g,h=hp)=>r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(g)),h,true),hero);
 // Location triggers: returning to the inn, first arrival with a companion, once each.
 const start=r.newAdventure(hero),left=r.adventureStep(start,hp,hero,'listen',()=>0).game;
@@ -32,9 +32,12 @@ assert.equal(g.stage,'victory');assert.ok(valid(g,h));
 const fled=r.adventureStep({...first.game,openingAttackAvailable:false},first.health,hero,'flee',()=>0.5);
 assert.equal(fled.game.stage,'inn');assert.ok(fled.events.some(t=>t.includes('You retreat to Caravan Camp. The Bandit Cutthroat is still out there')));assert.equal(fled.game.enemyHP,first.game.enemyHP);assert.ok(valid(fled.game,fled.health));
 assert.equal(p.sceneTrigger(first.game,fled.game,'flee').id,'retreat');
-const knocked=r.adventureStep({...first.game,openingAttackAvailable:false},{current:1,temp:0},hero,'dodge',()=>0.99);
-assert.equal(knocked.game.stage,'inn');assert.equal(knocked.health.current,0);assert.ok(knocked.events.at(-1).startsWith('You wake at Caravan Camp'));assert.ok(valid(knocked.game,knocked.health));
-const recovered=r.adventureStep(knocked.game,knocked.health,hero,'long-rest',()=>0.5);assert.equal(recovered.health,null);
+// Knocked down, the hero lies dying where they fell; three successful death saves and they wake back at camp.
+const knocked=r.adventureStep({...first.game,openingAttackAvailable:false},{current:1,temp:0},hero,'dodge',()=>0.9);
+assert.equal(knocked.game.stage,'dying');assert.equal(knocked.health.current,0);assert.ok(knocked.events.some(t=>t.startsWith('You fall unconscious and are dying')));assert.ok(valid(knocked.game,knocked.health));
+let saving=knocked;for(let i=0;i<3;i++){const before=saving;saving=r.adventureStep(saving.game,saving.health,hero,'death-save',()=>0.6);assert.ok(valid(saving.game,saving.health));if(i===2)assert.equal(p.sceneTrigger(before.game,saving.game,'death-save').id,'wake');}
+assert.equal(saving.game.stage,'inn');assert.equal(saving.health.current,1);assert.ok(saving.events.at(-1).startsWith('You are stable. Hours later you wake with 1 HP at Caravan Camp'));
+const recovered=r.adventureStep(saving.game,saving.health,hero,'long-rest',()=>0.5);assert.equal(recovered.health,null);
 const rematch=r.adventureStep(r.adventureStep(recovered.game,null,hero,{type:'travel',destination:'bridge'},()=>0.5).game,null,hero,'approach',()=>0.5);assert.equal(rematch.game.stage,'combat');assert.equal(rematch.game.enemyHP,first.game.enemyHP);
 // People can be addressed by first name or surname; titles alone do not select anyone.
 const camp=fled.game;assert.equal(p.conversationTarget(camp,'Tobin, will you scout for me?','keeper'),'mara');assert.equal(p.conversationTarget(camp,'Ask Brask about the road'),'keeper');assert.equal(p.conversationTarget(camp,'Hello captain'),null);

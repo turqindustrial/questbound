@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
-const p=vm.runInNewContext(['npcRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({hostileEncounterGame,hostileFoes,foeStatsFor,validStory,storyText})',{combatBasics:r.combatBasics});
+const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({hostileEncounterGame,hostileFoes,foeStatsFor,validStory,storyText})',{combatBasics:r.combatBasics});
 const a=vm.runInNewContext(fs.readFileSync('adventureRules.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')+'\n({foeStanding})',{});
 const hero={name:'Foe tester',class:'Fighter',species:'Human',level:1,scores:{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
 const pick=key=>()=>(p.hostileFoes.findIndex(f=>f.key===key)+.5)/p.hostileFoes.length;
@@ -16,7 +16,7 @@ assert.match(goblins.story.opening,/^Three Goblin raiders burst/);
 const turn=r.adventureStep({...goblins,openingAttackAvailable:false,enemyHP:14},{current:12,temp:0},hero,'dodge',()=>0.5);
 assert.equal(turn.events.filter(t=>/^Goblin Raider \d: d20/.test(t)).length,2,'Two standing goblins attack');
 const hit=r.adventureStep({...goblins,openingAttackAvailable:false,enemyHP:21},{current:12,temp:0},hero,'attack:Greatsword',()=>0.9);
-assert.ok(hit.events.some(t=>/goblin raiders? (falls|fall) — \d still standing/.test(t)),'A fall is announced');
+assert.ok(hit.events.some(t=>/goblin raiders? (falls|fall) dead — \d still standing/.test(t)),'A fall is announced');
 assert.ok(r.validAdventure(r.adventureSnapshot(hero,hit.game,hit.health,true),hero));
 // Story text keeps foe names intact (the legacy renamer only replaces whole words).
 const orc=p.hostileEncounterGame(hero,r.newAdventure(hero),pick('orc'));

@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
 const hero={name:'Companion tester',class:'Wizard',species:'Human',level:1,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
 const game=r.newAdventure(hero),hp={current:8,temp:0},plan={npcId:'mara',decision:'check',reason:'Keeping the medicine road safe serves her work.',terms:'Protect travelers and return when the road is safe.',dc:12},question='Mara, will you join me on my adventure?';
-const source=['npcRules.js','storyRules.js','playbackRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','playbackRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const p=vm.runInNewContext(source+'\n({recordedTurn,visibleTurn,conversationPeople})',{combatBasics:r.combatBasics});
 let joined=r.commitDmTurn(hero,game,hp,{type:'recruitment',plans:[plan]},{question,narration:'She considers the offer.',npcId:'mara'},()=>.95);
 assert.equal(joined.error,undefined);assert.equal(joined.game.followers.mara.status,'following');assert.equal(joined.game.npcMemory.mara.allegiance,'player');assert.ok(joined.events[0].includes('Persuasion d20'));assert.equal(game.followers,undefined);

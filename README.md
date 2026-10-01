@@ -19,7 +19,11 @@ You don't install anything. The host runs the game on their PC and sends you a *
 **How to play**
 
 - A row of actions sits above the message box: your weapon, Dodge, Retreat, Potion, travel and more. Tap one (on a computer, press its number key), or type anything you want to do, say or try.
-- Spellcasters tap **Cast…** to pick a spell: attacks fly at the enemy and healing lands on you in one tap.
+- Attack in your own words ("I swing at him", "punch the guard", "shoot it"): you use the weapon you name, otherwise your main weapon, and your fists if you carry none or say punch or kick. "Knock him out" leaves the target alive.
+- Spellcasters tap **Cast…** to pick a spell, or name it when typing. Shortenings like "FB" for Fire Bolt work; "I cast a spell" gets asked which one.
+- **Fights are deadly.** At 0 HP you are dying: tap **Death save** each turn. Three successes and you wake later with 1 HP, three failures and your hero dies for good. People you fight can be killed too. Settings → **Story → Brutality** sets how graphic the telling is (Restrained, Gritty or Brutal).
+- **People remember.** What you do to someone, or to someone they care about, changes how they treat you, and the **People** panel (Quest tab) shows where you stand. Kill a person's friend and they will never forgive you; save someone's life (or their friend's) and they will always be on your side.
+- **Go anywhere.** Tell the Dungeon Master where you want to head: a direction, a landmark, somewhere you heard about. New places join the **Map**, linked to where you found them, and you can travel back and forth between them.
 - Tap a person above the message box to talk to them. Tap an underlined name in the story to see their details.
 - On a phone, the tabs along the bottom switch between the **Story**, your **Quest**, the **Map** and the **Log**. On a wider screen they sit beside the story.
 - The menu button (☰, top right) opens the game menu: journal, character sheet, party, settings, full screen, sound and **Send feedback**.

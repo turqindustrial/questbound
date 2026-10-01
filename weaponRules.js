@@ -39,6 +39,35 @@ export function weaponAttacks(hero) {
       criticalThreshold:combatBasics(hero).criticalThreshold,blocked:weapon.twoHands && has('Shield') ? 'This weapon needs two free hands. Shield changes are not available yet.' : weapon.ranged && !has('Arrow') ? 'No arrows available.' : ''}];
   }).sort((a,b)=>Number(b.name===loadout.mainWeapon)-Number(a.name===loadout.mainWeapon));
 }
+// Everyone can fight with fists, feet or a headbutt: 1 + Strength damage, or the Martial Arts die for an unarmored Monk.
+export function unarmedStrike(hero) {
+  if (!combatBasics(hero).available) return null;
+  const items = hero.equipment?.items ?? [];
+  const monk = hero.class === 'Monk' && !items.some(item => item.quantity > 0 && (/Armor|Chain Mail|Chain Shirt/.test(item.name) || item.name === 'Shield'));
+  const ability = monk && hero.scores.Dexterity > hero.scores.Strength ? 'Dexterity' : 'Strength', bonus = modifier(hero.scores[ability]);
+  return {name:'Unarmed Strike',type:'Bludgeoning',unarmed:true,flat:!monk,die:monk?martialDie(hero.level):1,count:1,ability,bonus,attackBonus:bonus+proficiencyBonus(hero.level),proficient:true,monk,heavyDisadvantage:false,criticalThreshold:combatBasics(hero).criticalThreshold,blocked:''};
+}
+// What the hero can actually attack with: owned weapons (main weapon first, bows when there are arrows), then bare hands.
+export function attackOptions(hero) {
+  const unarmed = unarmedStrike(hero);
+  return [...weaponAttacks(hero).filter(w => !w.blocked), ...(unarmed ? [unarmed] : [])];
+}
+// Normal and long range in feet for a bow ("Range 80/320 ft.").
+export function weaponRange(weapon) {
+  const m = String(weapon?.range ?? '').match(/(\d+)\/(\d+)/);
+  return m ? {normal:Number(m[1]),long:Number(m[2])} : null;
+}
+// A bow shot has disadvantage with an enemy within 5 feet (once a foe has closed in) or beyond normal range.
+export function rangedMode(weapon, {closeEnemy=false,distance=5}={}) {
+  if (!weapon?.ranged) return 'normal';
+  const range = weaponRange(weapon);
+  return closeEnemy || (range && distance > range.normal) ? 'disadvantage' : 'normal';
+}
+// The damage arithmetic as the log shows it: "1d8 [6] + 3", or "1 + 2" for a plain unarmed blow.
+export function damageMath(weapon, roll) {
+  const bonus = weapon.bonus >= 0 ? ' + ' + weapon.bonus : ' − ' + Math.abs(weapon.bonus);
+  return weapon.flat ? '1' + bonus : roll.dice.length + 'd' + weapon.die + ' [' + roll.dice.join(', ') + ']' + bonus;
+}
 export function rollAttack(weapon, mode='normal', random=Math.random) {
   if (!['normal','advantage','disadvantage'].includes(mode)) throw new Error('Invalid roll mode');
   const advantage = mode === 'advantage';
@@ -49,6 +78,8 @@ export function rollAttack(weapon, mode='normal', random=Math.random) {
   return {dice,natural,total:natural+weapon.attackBonus,critical:natural>=(weapon.criticalThreshold??20),miss:natural===1,mode:effective};
 }
 export function rollDamage(weapon, critical=false, random=Math.random) {
+  // A plain unarmed strike rolls no dice, so a critical hit adds nothing to it.
+  if (weapon.flat) return {dice:[],total:Math.max(1,1+weapon.bonus)};
   const dice = Array.from({length:weapon.count*(critical?2:1)},()=>1+Math.floor(random()*weapon.die));
   return {dice,total:Math.max(0,dice.reduce((sum,n)=>sum+n,0)+weapon.bonus)};
 }

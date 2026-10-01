@@ -19,13 +19,14 @@ export default function CinematicLayer({levelReady=false}){
   // Arriving somewhere (or a new tale beginning) names the place in large letters, then fades; it never takes input.
   if(event.kind==='area'){playSound('arrive');setArea({...event});later(()=>setArea(a=>a?.id===event.id?null:a),3700);return;}
   if(event.kind==='round'){playSound('round');setBanner({id:event.id,title:'Round '+event.round,sub:event.sub??'Roll for it'});later(()=>setBanner(b=>b?.id===event.id?null:b),1950);return;}
-  if(['victory','defeat','levelup','complete'].includes(event.kind)){if(event.kind==='levelup')playSound('levelup');setBanner(null);setArea(null);setFinale({...event});later(()=>setFinale(f=>f?.id===event.id?null:f),event.kind==='levelup'?3600:3400);}
+  // Death holds the screen longer: it is the end of this hero's story.
+  if(['victory','defeat','levelup','complete','down','death'].includes(event.kind)){if(event.kind==='levelup')playSound('levelup');setBanner(null);setArea(null);setFinale({...event});later(()=>setFinale(f=>f?.id===event.id?null:f),event.kind==='death'?8000:event.kind==='levelup'?3600:3400);}
  },[]);
  useCue(handler);
  const dismiss=()=>{setFinale(null);};
- const dark=finale?.kind==='defeat';
- const card=finale&&{victory:{icon:'crown',over:'The dust settles',title:'Victory',sub:finale.sub},complete:{icon:'star',over:'Your tale is told',title:'Adventure complete',sub:finale.sub},defeat:{icon:'skull',over:'Darkness takes you',title:'Defeated',sub:finale.sub},levelup:{icon:'star',over:'Your legend grows',title:'Level '+finale.level,sub:finale.sub}}[finale.kind];
- return <View style={[StyleSheet.absoluteFill,s.layer,{pointerEvents:'box-none'}]}>
+ const dark=['defeat','down','death'].includes(finale?.kind);
+ const card=finale&&{victory:{icon:'crown',over:'The dust settles',title:'Victory',sub:finale.sub},complete:{icon:'star',over:'Your tale is told',title:'Adventure complete',sub:finale.sub},defeat:{icon:'skull',over:'Darkness takes you',title:'Defeated',sub:finale.sub},down:{icon:'skull',over:'Darkness takes you',title:'You fall',sub:finale.sub},death:{icon:'skull',over:'Your story ends',title:'You have died',sub:finale.sub},levelup:{icon:'star',over:'Your legend grows',title:'Level '+finale.level,sub:finale.sub}}[finale.kind];
+ return <View style={[StyleSheet.absoluteFill,s.layer]}>
   {!!flash&&<View key={flash.id} dataSet={{qb:'flash-'+flash.kind}} style={[StyleSheet.absoluteFill,s.none]}/>}
   {!!burst&&<View key={'burst'+burst.id} style={[StyleSheet.absoluteFill,s.none,s.center]}><Text dataSet={{qb:'burst-text',lig:'off'}} style={[s.burst2,{fontSize:fit('Critical hit!',width,60,.75)}]}>Critical hit!</Text></View>}
   {!!banner&&<View key={banner.id} style={[StyleSheet.absoluteFill,s.none,s.center]} accessibilityLiveRegion="polite">
@@ -68,7 +69,9 @@ const s=StyleSheet.create({
  areaTitle:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',letterSpacing:3,marginTop:6},
  areaRule:{flexDirection:'row',alignItems:'center',gap:10,width:280,maxWidth:'80%',marginVertical:10},areaLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
  areaSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,color:'#eadfc6',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
- layer:{zIndex:60},none:{pointerEvents:'none'},center:{alignItems:'center',justifyContent:'center'},
+ // box-none must live in StyleSheet.create: react-native-web only polyfills it for compiled styles, and an inline
+ // 'box-none' is invalid CSS that leaves this full-screen layer catching every tap.
+ layer:{zIndex:60,pointerEvents:'box-none'},none:{pointerEvents:'none'},center:{alignItems:'center',justifyContent:'center'},
  band:{width:'100%',paddingVertical:18,alignItems:'center',gap:6},
  bandRule:{width:'46%',maxWidth:420,height:1,backgroundColor:'rgba(232,199,123,.75)'},
  bandTitle:{fontFamily:fonts.display,fontSize:34,fontWeight:'800',color:colors.goldBright,textTransform:'uppercase',letterSpacing:8,textAlign:'center',...(web?{textShadow:'0 0 24px rgba(236,170,84,.6)'}:{})},

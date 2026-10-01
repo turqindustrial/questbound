@@ -10,7 +10,9 @@ import React,{useState,useEffect,useRef} from 'react';
 import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensions} from 'react-native';
 import Icon from './Icon';
 import DynamicArt from './DynamicArt';
-import {creatureArtSubject} from './worldArtRules';
+import {creatureArtSubject,npcArtSubject} from './worldArtRules';
+import {npcScene} from './npcRules';
+import {attitudeLabel} from './relationshipRules';
 import {damageIcon,damageKind} from './chronicleRules';
 import {useShownHp} from './cinematics';
 import {playSound} from './audio';
@@ -18,13 +20,13 @@ import DungeonMaster from './DungeonMaster';
 import AdventureMap from './AdventureMap';
 import {commitDmTurn} from './dmContext';
 import {campaignState,earnedGold} from './campaignRules';
-import {mapState} from './mapRules';
+import {mapState,mapLocation,placeDescription} from './mapRules';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
 import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
 import {fonts,colors,type} from './theme';
-export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp}){
+export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero}){
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
  const {width:windowWidth,height:windowHeight}=useWindowDimensions();
@@ -66,6 +68,39 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <View style={s.statChips}>{statChip('shield','AC '+foe.ac)}{statChip('swords','+'+foe.attackBonus+' to hit')}{statChip(damageIcon(damageKind(foe.type)),hitDice+' '+foe.type.toLowerCase())}</View>
   <View style={s.yourAc}><Icon name="shield" size={13} color={colors.gold}/><PlainText style={s.yourAcText}>Your armor class {spellDefense(game,stats.ac).ac}</PlainText></View>
  </View>;
+ // Dying: three successes to live, three failures to die, rolled one turn at a time.
+ const pips=(count,kind)=>[0,1,2].map(i=><View key={kind+i} dataSet={{qb:i<count?'pip-'+kind:undefined}} style={[s.pip,i<count&&(kind==='good'?s.pipGood:s.pipBad)]}/>);
+ const dyingPanel=game.stage==='dying'&&game.dying&&<View dataSet={{qb:'plate-hot'}} accessibilityLiveRegion="polite" accessibilityLabel={'Dying. '+game.dying.successes+' successes, '+game.dying.failures+' failures.'} style={[s.dying,layout!=='wide'&&s.dyingStrip]}>
+  <View style={s.labelRow}><Icon name="skull" size={14} color="#ffb39e"/><PlainText style={[s.label,{color:'#ffb39e'}]}>Dying</PlainText></View>
+  {layout==='wide'&&<Text style={s.dyingText}>You lie unconscious{game.dying.placeName?' at '+game.dying.placeName:''}. Roll to hold on: three successes and you live, three failures and you die.</Text>}
+  <View style={s.pipRows}><View style={s.pipRow}><Icon name="check" size={13} color={colors.heal}/>{pips(game.dying.successes,'good')}</View><View style={s.pipRow}><Icon name="close" size={13} color={colors.bloodBright}/>{pips(game.dying.failures,'bad')}</View></View>
+ </View>;
+ // Dead: the hero's epitaph, and the way to begin again with someone new.
+ const deathPanel=game.stage==='dead'&&game.death&&<View dataSet={{qb:'plate'}} style={[s.epitaph,layout!=='wide'&&s.epitaphStrip]}>
+  <Icon name="skull" size={layout==='wide'?24:18} color={colors.muted}/>
+  <View style={{alignItems:'center',flexShrink:1}}>
+   <PlainText style={s.epitaphOver}>Here lies</PlainText>
+   <PlainText numberOfLines={1} style={[s.epitaphName,layout!=='wide'&&{fontSize:19}]}>{hero.name}</PlainText>
+   <PlainText style={s.epitaphLine}>Level {hero.level} {hero.species??hero.race} {hero.class}</PlainText>
+   <PlainText style={s.epitaphCause}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</PlainText>
+  </View>
+  {!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color="#2a1a07"/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
+ </View>;
+ // The people of this story and how they feel about you: a grudge or a debt, else the last thing they remember.
+ const toneColor={bad:colors.bloodBright,warn:'#e0a860',good:colors.heal,best:colors.goldBright,calm:colors.muted,dead:colors.faint};
+ const voiced=t=>String(t).replace(/^The player\b/,'You').replace(/\bthe player\b/g,'you');
+ const peoplePanel=<View dataSet={{qb:'plate'}} style={s.people}>
+  <View style={s.labelRow}><Icon name="people" size={14} color={colors.goldMid}/><PlainText style={s.label}>People</PlainText></View>
+  {npcScene(game).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
+   return <View key={n.id} style={s.personRow}>
+    <DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.personAvatar,n.fate==='dead'&&{opacity:.4}]} compact/>
+    <View style={{flex:1,minWidth:0}}>
+     <PlainText numberOfLines={1} style={s.personName}>{name}</PlainText>
+     <View style={s.standing}><View style={[s.standingDot,{backgroundColor:tone}]}/><PlainText style={[s.standingText,{color:tone}]}>{standing.label}</PlainText></View>
+     {!!said&&n.fate!=='dead'&&<PlainText numberOfLines={3} style={s.memory}>“{voiced(said)}”</PlainText>}
+    </View>
+   </View>;})}
+ </View>;
  const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':game.story?.npcs[n.id]?.name??(n.id==='keeper'?'The keeper':'Mara');return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}
@@ -74,9 +109,10 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <Text style={s.title}>{game.story?.title??'The Lantern at the Crossroads'}</Text>
    <Ornament style={{marginVertical:10}}/>
    {game.story&&<Text style={s.objective}>{game.story.objective}</Text>}
-   <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??game.story.foe)+'.':game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
+   <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.stage==='dying'?'You lie unconscious, bleeding out.':game.stage==='dead'?'Your hero has died.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??game.story.foe)+'.':game.stage==='wild'?placeDescription(game,mapLocation(game)):game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
   </View>
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
+  {peoplePanel}
   {['active','found'].includes(campaign.lensQuest)&&<Text style={s.scene}>{campaign.lensQuest==='found'?'The signal lens is in your inventory. Return it to the keeper.':'The keeper needs the signal lens from beneath the watchtower bell.'}</Text>}
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
@@ -87,8 +123,10 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
-  {wide&&<ScrollView style={[s.side,{width:sideWidth}]} contentContainerStyle={s.sideContent}>{combatPlate}{questPanel}{mapPanel}{logPanel}</ScrollView>}
+  {wide&&<ScrollView style={[s.side,{width:sideWidth}]} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{questPanel}{mapPanel}{logPanel}</ScrollView>}
   {!wide&&tab==='story'&&combatStrip}
+  {!wide&&tab==='story'&&dyingPanel}
+  {!wide&&tab==='story'&&deathPanel}
   {!wide&&toast}
   {/* The Dungeon Master stays mounted on every tab so a turn in progress is never interrupted. */}
   <View style={[s.main,!story&&{display:'none'}]}>{wide&&toast}{master}</View>
@@ -166,4 +204,16 @@ const s=StyleSheet.create({
  log:{borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.25)',padding:16,marginTop:14},
  logToggle:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',minHeight:40},
  logToggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
- entry:{fontFamily:fonts.story,color:'#d9d3c3',fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.12)'}});
+ entry:{fontFamily:fonts.story,color:'#d9d3c3',fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.12)'},
+ people:{padding:16,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,gap:12},personRow:{flexDirection:'row',alignItems:'flex-start',gap:12},personAvatar:{width:44,height:44,borderRadius:22},
+ personName:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},standing:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},standingDot:{width:7,height:7,borderRadius:4},
+ standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},
+ // Dying: death-save pips. Dead: the epitaph.
+ dying:{padding:16,marginTop:14,borderWidth:1,borderColor:'rgba(220,90,70,.6)',borderRadius:6,gap:10},dyingStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,paddingVertical:8,paddingHorizontal:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+ dyingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:24,color:'#e6cfc6'},
+ pipRows:{flexDirection:'row',gap:18,alignItems:'center'},pipRow:{flexDirection:'row',alignItems:'center',gap:6},
+ pip:{width:14,height:14,borderRadius:7,borderWidth:1.5,borderColor:'rgba(255,200,185,.45)'},pipGood:{backgroundColor:colors.heal,borderColor:colors.heal},pipBad:{backgroundColor:colors.bloodBright,borderColor:colors.bloodBright},
+ epitaph:{alignItems:'center',gap:8,padding:20,marginTop:14,borderWidth:1,borderColor:'rgba(201,164,92,.35)',borderRadius:6},epitaphStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,padding:12,flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:10},
+ epitaphOver:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.faint,textTransform:'uppercase'},epitaphName:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:1,color:colors.parchment},
+ epitaphLine:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.5},epitaphCause:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:22,color:'#cfc6b4',textAlign:'center',marginTop:2},
+ epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:'#fff0c4',backgroundColor:'#d9ae5f',marginTop:4},epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#2a1a07',textTransform:'uppercase'}});

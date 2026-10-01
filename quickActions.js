@@ -1,6 +1,6 @@
 import {dmChoices} from './dmContext';
 import {knownSpells,automaticEffects} from './spellRules';
-import {mapPlaces} from './mapRules';
+import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
@@ -13,21 +13,25 @@ const verbs={
 };
 export function quickActions(hero,game){
  // The main weapon leads (gold); backup weapons wait at the end so defence and the potion stay within thumb reach.
- const place=id=>game.story?.locations?.[id]?.name??mapPlaces[id]?.name??id,primary=[],rest=[],backup=[];
- for(const c of dmChoices(hero,game)){
+ const place=id=>placeName(game,id),primary=[],rest=[],backup=[];let trips=0;
+ const choices=dmChoices(hero,game),armed=choices.some(c=>/^(attack|encounter-attack):/.test(c.id)&&!c.id.endsWith(':Unarmed Strike'));
+ for(const c of choices){
   const id=c.id;
   // Attacking townsfolk and declaring the story finished stay deliberate, typed decisions.
   if(/^(npc-attack|story-complete|restart-adventure)/.test(id))continue;
-  if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop(),first=!primary.some(a=>a.weapon);(first?primary:backup).push({key:id,glyph:'⚔',icon:weaponIcon(weapon),label:weapon,question:'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}
+  if(id==='death-save'){primary.push({key:id,glyph:'☠',icon:'skull',label:'Death save',question:'I fight to hold on.',action:c.action,primary:true});continue;}
+  // Bare hands get a chip only when there is no weapon to hand; otherwise "I punch him" still works when typed.
+  if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop();if(weapon==='Unarmed Strike'&&armed)continue;const first=!primary.some(a=>a.weapon);(first?primary:backup).push({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:weapon==='Unarmed Strike'?'Unarmed':weapon,question:weapon==='Unarmed Strike'?'I attack with my bare hands.':'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}
   if(id==='approach'){primary.push({key:id,glyph:'⚔',icon:'swords',label:c.label,question:'I '+c.label[0].toLowerCase()+c.label.slice(1)+'.',action:c.action,primary:true});continue;}
   // The Lantern Vaults belong to the crossroads; in a written story they are only reached by asking the DM.
   if(id.startsWith('dungeon:')){if(game.story&&id==='dungeon:enter')continue;const [glyph,label,icon]=dungeonLabels(id,c.label);(id==='dungeon:fight'?primary:rest).push({key:id,glyph,icon,label,question:'I '+c.label[0].toLowerCase()+c.label.slice(1)+'.',action:c.action,primary:id==='dungeon:fight'});continue;}
-  if(id.startsWith('travel-')){const destination=c.action?.destination??id.slice(7);rest.push({key:id,glyph:'➜',icon:'travel',label:place(destination),question:'I travel to '+place(destination)+'.',action:c.action,destination});continue;}
+  // The nearest few places get a chip; the Map tab lists every place you know.
+  if(id.startsWith('travel-')){const destination=c.action?.destination??id.slice(7);if(game.story&&++trips>4)continue;rest.push({key:id,glyph:'➜',icon:'travel',label:place(destination),question:'I travel to '+place(destination)+'.',action:c.action,destination});continue;}
   const verb=verbs[id];
   if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action});continue;}
   rest.push({key:id,glyph:'✦',icon:'star',label:c.label.replace(/:.*$/,''),question:c.label.replace(/:.*$/,'')+'.',action:c.action});
  }
- if(!game.pendingSpell&&knownSpells(hero).length)primary.push({key:'cast',glyph:'✧',icon:'spell',label:'Cast…',prefill:'I cast '});
+ if(!game.pendingSpell&&!['dying','dead'].includes(game.stage)&&knownSpells(hero).length)primary.push({key:'cast',glyph:'✧',icon:'spell',label:'Cast…',prefill:'I cast '});
  return [...primary,...rest,...backup];
 }
 // The Cast… picker: every spell the hero knows, cantrips first. Spells the rules resolve on their own cast in one tap:

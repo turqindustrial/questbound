@@ -12,7 +12,7 @@ export function recruitmentTargets(game,question,primary=null){
 }
 export function validFollowers(value){
  if(value===undefined)return true;
- return value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).length<=2&&Object.entries(value).every(([id,f])=>Object.hasOwn(npcProfiles,id)&&f&&['following','waiting','dismissed'].includes(f.status)&&/^(?:inn|bridge|tower|dungeon:[0-7])$/.test(f.location)&&['reason','terms'].every(k=>typeof f[k]==='string'&&f[k].length<=(k==='reason'?400:300)));
+ return value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).length<=2&&Object.entries(value).every(([id,f])=>Object.hasOwn(npcProfiles,id)&&f&&['following','waiting','dismissed'].includes(f.status)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,2})$/.test(f.location)&&['reason','terms'].every(k=>typeof f[k]==='string'&&f[k].length<=(k==='reason'?400:300)));
 }
 export function resolveRecruitment(hero,game,health,plans,question,primary,random=Math.random){
  const fail=error=>({game,health,error});
@@ -24,12 +24,14 @@ export function resolveRecruitment(hero,game,health,plans,question,primary,rando
  let next={...game,followers:{...game.followers},npcMemory:{...game.npcMemory}};const events=[];
  for(const plan of plans){
   const npc=npcScene(next).find(n=>n.id===plan.npcId),name=game.story?.npcs?.[npc.id]?.name??npc.name;
+  if(npc.grudge&&plan.decision!=='decline')return fail(name+' will never travel with you. '+npc.grudge);
   if(npc.attitude==='hostile'&&plan.decision!=='decline')return fail(name+' is hostile and will not join while that conflict remains.');
   if(next.followers[npc.id]?.status==='following'){events.push(name+' is already traveling with you.');continue;}
   let joined=plan.decision==='join';
   if(plan.decision==='check'){
-   const modifiers=skillCheckBonus(hero,game,'Charisma','Persuasion'),rolls=Array.from({length:npc.attitude==='unfriendly'?2:1},()=>1+Math.floor(random()*20)),die=Math.min(...rolls),total=(modifiers.reliable?Math.max(10,die):die)+modifiers.total;
-   joined=total>=plan.dc;events.push('Convince '+name+': Persuasion d20 ['+rolls.join(', ')+']'+(rolls.length>1?' (disadvantage)':'')+' + '+modifiers.total+' = '+total+' vs DC '+plan.dc+'. '+(joined?'Success.':'Failure.'));
+   // Wariness makes persuading harder; warmth (and a debt owed) makes it easier.
+   const warm=['friendly','devoted'].includes(npc.attitude),modifiers=skillCheckBonus(hero,game,'Charisma','Persuasion'),rolls=Array.from({length:npc.attitude==='unfriendly'||warm?2:1},()=>1+Math.floor(random()*20)),die=warm?Math.max(...rolls):Math.min(...rolls),total=(modifiers.reliable?Math.max(10,die):die)+modifiers.total;
+   joined=total>=plan.dc;events.push('Convince '+name+': Persuasion d20 ['+rolls.join(', ')+']'+(rolls.length>1?(warm?' (advantage)':' (disadvantage)'):'')+' + '+modifiers.total+' = '+total+' vs DC '+plan.dc+'. '+(joined?'Success.':'Failure.'));
   }
   if(joined){
    next.followers[npc.id]={status:'following',location:followerLocation(game),reason:plan.reason,terms:plan.terms};

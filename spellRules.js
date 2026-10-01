@@ -1,6 +1,7 @@
 import {spellLibrary,automaticSpells,slotChoices,slotUsed} from './spellOptions';
 import {modifier,proficiencyBonus,subclassActive} from './characterRules';
 import {rollAttack} from './weaponRules';
+import {npcProfiles,npcScene} from './npcRules';
 
 export const spellAbility={Artificer:'Intelligence',Bard:'Charisma',Cleric:'Wisdom',Druid:'Wisdom',Paladin:'Charisma',Ranger:'Wisdom',Sorcerer:'Charisma',Warlock:'Charisma',Wizard:'Intelligence',Fighter:'Intelligence',Rogue:'Intelligence'};
 // Explicit effects only. Unimplemented spells use a visible DM ruling, never guessed dice.
@@ -103,8 +104,17 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   } else if(effect.heal){
     const dice=subclassActive(hero,'Life Domain') && hero.level>=17?Array(count).fill(effect.die):roll(count,effect.die);
     const life=subclassActive(hero,'Life Domain')?2+level:0;
-    const healed=Math.max(0,sum(dice)+mod+life);hp.current=Math.min(maximum,hp.current+healed);
-    logs.push(`${spell.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${hp.current-(health?.current??maximum)} HP.`);
+    const healed=Math.max(0,sum(dice)+mod+life);
+    if(request.npcTarget){
+      // Healing someone else: an unconscious person comes round, which counts as saving their life.
+      const id=request.npcTarget,most=npcProfiles[id].maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,was+healed);
+      next.npcHP={...next.npcHP,[id]:now};
+      if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}
+      logs.push(`${spell.name} on ${npcProfiles[id].name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${now-was} HP.${was===0&&now>0?' '+npcProfiles[id].name+' stirs and opens their eyes.':''}`);
+    } else {
+      hp.current=Math.min(maximum,hp.current+healed);
+      logs.push(`${spell.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${hp.current-(health?.current??maximum)} HP.`);
+    }
   } else if(effect.temp){
     const dice=roll(2,4),amount=sum(dice)+4+5*(level-1);
     if(amount>=hp.temp){hp.temp=amount;next.temporarySpell={id:spell.id,remaining:600};}
@@ -162,10 +172,11 @@ export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.r
     const minutes=Math.ceil((durationRounds(spell.castingTime)??0)/10)+(request.slot==='ritual'?10:0);
     if(minutes)next.map={...game.map,minutes:(game.map?.minutes??0)+minutes};
   }
-  if(request.npcTarget){if(game.stage!=='inn'||!['keeper','mara'].includes(request.npcTarget))return {error:'That NPC is not present.'};const maximumNPC=request.npcTarget==='keeper'?12:9;next.npcHP={...game.npcHP,[request.npcTarget]:Math.max(0,(game.npcHP?.[request.npcTarget]??maximumNPC)-ruling.damage)};}
+  // A named person's damage and healing apply to them, never to the caster.
+  if(request.npcTarget){const id=request.npcTarget;if(!['keeper','mara'].includes(id)||!npcScene(game).some(n=>n.id===id&&n.present)||game.npcFate?.[id]==='dead')return {error:'That person is not here.'};const most=npcProfiles[id].maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,Math.max(0,was-ruling.damage)+ruling.healing);next.npcHP={...game.npcHP,[id]:now};if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}}
   if(!spell.concentration && next.concentration?.id===spell.id)delete next.concentration;
   const absorbed=Math.min(health?.temp??0,ruling.selfDamage??0);
-  const hp={current:Math.min(maximum,Math.max(0,(health?.current??maximum)-((ruling.selfDamage??0)-absorbed))+ruling.healing),temp:Math.max((health?.temp??0)-absorbed,ruling.temporaryHP)};
+  const hp={current:Math.min(maximum,Math.max(0,(health?.current??maximum)-((ruling.selfDamage??0)-absorbed))+(request.npcTarget?0:ruling.healing)),temp:Math.max((health?.temp??0)-absorbed,request.npcTarget?(health?.temp??0)-absorbed:ruling.temporaryHP)};
   const knockedOut=(health?.current??maximum)-((ruling.selfDamage??0)-absorbed)<=0;
   if(knockedOut||hp.current===0)delete next.concentration;
   else {
@@ -185,6 +196,14 @@ export function concentrationAfterDamage(hero,game,damage,random=Math.random) {
 }
 
 // Shared preflight for conversational casting. Unknown world facts never become fabricated effects.
+// In a story fight the creature can be named loosely: "the bandit", "the goblins", "the beast", "him", "it".
+function storyFoeNamed(game,target){
+  if(!game.story?.foe||game.stage!=='combat'||game.dungeon?.active||typeof target!=='string')return false;
+  const t=target.toLowerCase().replace(/^(?:the|that|this)\s+/,'').trim();
+  if(['it','him','her','them','foe','beast','monster','enemy','creature'].includes(t))return true;
+  const words=[game.story.foe,game.story.foeSpecies,game.story.foeStats?.group?.plural].filter(Boolean).join(' ').toLowerCase().split(/[^a-z]+/).filter(w=>w.length>=4);
+  return t.split(/[^a-z]+/).some(w=>w.length>=4&&words.some(f=>f.startsWith(w.replace(/s$/,''))||w.startsWith(f)));
+}
 export function inspectSpellCast(hero,game,health,spell,request,target){
   const error=castError(hero,game,request);if(error)return {error};
   if(health?.current===0)return {error:'You are at 0 HP and cannot begin casting. Recover first.'};
@@ -192,14 +211,16 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
   if(flags.incapacitated)return {error:'You cannot cast while incapacitated.'};
   if(components.includes('V')&&flags.silenced)return {error:'This spell needs spoken words, but you are silenced.'};
   if((components.includes('S')||components.includes('M'))&&flags.handsBound)return {error:'This spell needs an available hand, but your hands are bound.'};
-  const effect=automaticEffects[spell.id],self=!!effect&&(effect.heal||effect.temp||effect.protection||effect.detection),onSelf=['me','myself','self'].includes(target),onWisp=(game.dungeon?.active?['enemy','the enemy',...(game.dungeon.room===6?['lantern warden','the lantern warden']:['stone sentinel','the stone sentinel'])]:game.story?.foe?[game.story.foe.toLowerCase(),'the '+game.story.foe.toLowerCase(),'enemy','the enemy','creature','the creature']:['wisp','the wisp','lantern wisp','the lantern wisp']).includes(target)&&game.stage==='combat';
+  const effect=automaticEffects[spell.id],self=!!effect&&(effect.heal||effect.temp||effect.protection||effect.detection),onSelf=['me','myself','self'].includes(target),onWisp=(game.dungeon?.active?['enemy','the enemy',...(game.dungeon.room===6?['lantern warden','the lantern warden']:['stone sentinel','the stone sentinel'])]:game.story?.foe?[game.story.foe.toLowerCase(),'the '+game.story.foe.toLowerCase(),'enemy','the enemy','creature','the creature']:['wisp','the wisp','lantern wisp','the lantern wisp']).includes(target)&&game.stage==='combat'||storyFoeNamed(game,target);
   if(onWisp&&flags.clearPath===false)return {error:'The target is behind an obstruction. Get a clear path before casting.'};
   const distance=onSelf?0:onWisp?(flags.targetDistance??5):null;
   const range=spell.id==='burning-hands'?15:spell.range==='Touch'?5:spell.range.match(/^(\d+) feet$/)?.[1];
   if(distance!==null&&range!==undefined&&distance>Number(range))return {error:`The target is ${distance} feet away; ${spell.name} reaches ${range} feet.`};
   const reasons=[];
   if(!effect)reasons.push('This spell’s effects need a DM ruling.');
-  if(!(self?onSelf:onWisp))reasons.push('This target or area needs a DM ruling.');
+  // Healing a person who is here resolves on its own, like healing yourself.
+  const healPerson=!!effect?.heal&&!!request.npcTarget;
+  if(!(self?(onSelf||healPerson):onWisp))reasons.push('This target or area needs a DM ruling.');
   if(!['Action','Bonus Action'].includes(spell.castingTime)||(request.slot==='ritual'&&!effect?.detection))reasons.push('Casting time, reaction trigger, or ritual completion needs a DM ruling.');
   const material=spell.material??'',special=/\b(?:gp|sp|cp|pp|worth|consum\w*)\b/i.test(material+' '+spell.description);
   if(components.includes('M')){

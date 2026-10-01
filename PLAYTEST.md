@@ -23,7 +23,9 @@ New Adventure → pick a **ready-made hero** (or play your own) → tap **Random
 - [ ] Use the action buttons (or number keys on a computer) to attack, dodge and drink the potion. Wizard or Cleric: tap **Cast…** and pick a spell; attacks fly at the enemy and healing lands on you in one tap. Dice, swings and misses sound right. With headphones, your hits land on the right (the foe) and the foe's hits on the left (you); fire, cold and lightning each sound different.
 - [ ] Damage numbers float up from the HP readouts and the struck portrait flinches. Drop below 30% HP: the HP bar pulses red, a red ring pulses around your portrait and a heartbeat starts. (If flashes bother you: Settings → Display → Screen flashes and shake.)
 - [ ] Turn the phone on its side: the story and the side column sit next to each other and still fit.
-- [ ] Retreat, or get knocked out: you end up at the Caravan Camp and the captain or scout speaks first.
+- [ ] Type an attack your own way ("I punch him", "I swing my sword at the bandit", "I attack with my axe" when you have none): the right weapon is used, or you are told what you carry. Wizard: "I cast a spell at it" gets asked which spell; "I cast FB at the bandit" casts Fire Bolt.
+- [ ] Retreat: you end up at the Caravan Camp and the captain or scout speaks first.
+- [ ] Get knocked down to 0 HP: a **You fall** card, the **Dying** panel with success and failure marks, and a gold **Death save** chip. Roll until you stabilise (you wake at the camp with 1 HP and someone speaks to you) or die (a **You have died** card, an epitaph, and **Begin a new hero**; the fallen hero can't be played again).
 - [ ] Walk back and win: a **Victory** card appears with the victory sound (tap it away), then the camp greets you when you return.
 - [ ] After the win, a gold **Level up** action leads the row. Level up: a **Level 2** card celebrates it, you return to camp at full HP, and the travel actions (and the Map tab's Travel buttons) take you onward.
 
@@ -32,6 +34,9 @@ New Adventure → **A Bell Beneath the Ice** (or The Last Caravan).
 - [ ] While the Dungeon Master writes the opening, a loading screen shows the opening's name and tips; the story then opens on a title card naming it.
 - [ ] The two locals are already talking when the story opens, each with a portrait beside their words.
 - [ ] Talk to one by first name ("Sella, what happened?"). Their reply is labelled with their name; narration is labelled Dungeon Master.
+- [ ] Head somewhere the story didn't list ("I follow the river north", "I go to the ruins Sella mentioned"): the Dungeon Master names a new place, you travel there, and it appears on the **Map** linked to where you came from. Tap it on the map to see distance and travel back.
+- [ ] People remember: be kind or cruel to someone and check the **People** panel (Quest tab). Kill one of the two locals and the other should swear never to forgive you, even if you apologise or pay. Knock one out instead, then heal them with a spell (Cleric: "I cast Cure Wounds on …"): both should owe you a debt for good.
+- [ ] Settings → Story → **Brutality**: try Restrained and Brutal and kill something; the death is described precisely either way, with more or less gore.
 - [ ] Waiting for the Dungeon Master feels acceptable on your connection. "Preparing the next scene" lasts a few seconds at most; pictures still being painted appear by themselves.
 
 ## 4. Play together (optional, 4 min, with a friend at the same time)

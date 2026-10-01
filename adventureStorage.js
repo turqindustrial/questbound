@@ -6,6 +6,7 @@ import {validDungeon} from './dungeonRules';
 import {validCampaign} from './campaignRules';
 import {validMap} from './mapRules';
 import {validJournal} from './journalRules';
+import {validDeathState} from './deathRules';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {combatBasics} from './combatRules';
 
@@ -17,7 +18,10 @@ export function adventureSnapshot(hero,game,health,chosen) {
 export function validAdventure(value,hero) {
   const g=value?.game, h=value?.health, maximum=combatBasics(hero).hp;
   return value?.version===1 && typeof value.character==='string' && typeof value.chosen==='boolean'
-    && !!g && ['inn','bridge','tower','dungeon','combat','victory','defeat','escaped'].includes(g.stage)
+    && !!g && ['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild','dying','dead'].includes(g.stage)
+    && validDeathState(g) && (!['dying','dead'].includes(g.stage) || h?.current===0)
+    && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
+    && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>['keeper','mara'].includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
     && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && g.encounterLevel===hero.level)) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0)) && integerBetween(g.potions,0,1) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
     && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||['keeper','mara'].includes(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=2&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(id=>['keeper','mara'].includes(id))))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||['keeper','mara'].includes(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))

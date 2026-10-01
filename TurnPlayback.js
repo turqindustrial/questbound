@@ -20,6 +20,8 @@ function cueFor(event,sounds,view){
   else if(name==='heal')at(()=>cue('heal'));
   else if(name==='victory')at(()=>cue(/Adventure complete/i.test(event.text)?'complete':'victory',{sub:first}));
   else if(name==='defeat')at(()=>cue('defeat',{sub:first}));
+  else if(name==='down')at(()=>cue('down',{sub:'Hold on. Each turn, roll to survive.'}));
+  else if(name==='death')at(()=>cue('death',{sub:/kills you outright/.test(event.text)?'The blow kills you outright.':'Your last breath leaves you.'}));
   else if(name==='whoosh'){const place=String(event.text??'').match(arrivalLine)?.[1]?.trim();if(place)at(()=>cue('area',{over:'You arrive at',title:place}));}
  }
  if(view.type==='round')cue('round',{round:view.round,sub:view.round===1?'Steel is drawn':'The fight goes on'});

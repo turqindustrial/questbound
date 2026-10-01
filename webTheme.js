@@ -137,6 +137,11 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=slot]{position:relative;background:linear-gradient(160deg,rgba(28,33,46,.86),rgba(10,12,19,.9)) !important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
  box-shadow:inset 0 1px 0 rgba(255,236,190,.07),inset 0 0 0 1px rgba(0,0,0,.4),0 24px 60px rgba(0,0,0,.55),0 0 60px rgba(236,164,84,.06);}
 [data-qb=slot]::before{content:"";position:absolute;inset:3px;pointer-events:none;opacity:.75;background:${corners.tl} top left/34px 34px no-repeat,${corners.tr} top right/34px 34px no-repeat,${corners.bl} bottom left/34px 34px no-repeat,${corners.br} bottom right/34px 34px no-repeat;}
+[data-qb=region-paper]{background:radial-gradient(ellipse 90% 70% at 50% 45%,rgba(64,82,70,.35),transparent 70%),repeating-linear-gradient(0deg,rgba(232,199,123,.035) 0 1px,transparent 1px 28px),repeating-linear-gradient(90deg,rgba(232,199,123,.035) 0 1px,transparent 1px 28px),linear-gradient(180deg,#1a2423,#111816) !important;}
+[data-qb=node-here]{box-shadow:0 0 0 4px rgba(217,174,95,.18),0 0 18px rgba(236,170,84,.55);animation:qb-breathe 2.6s ease-in-out infinite;}
+[data-qb=pip-good]{box-shadow:0 0 8px rgba(111,208,160,.6);}
+[data-qb=pip-bad]{box-shadow:0 0 8px rgba(240,106,79,.65);}
+@media (prefers-reduced-motion: reduce){[data-qb=node-here]{animation:none;}}
 [data-qb=slot-shade]{background:linear-gradient(90deg,rgba(10,12,19,.92) 0%,rgba(10,12,19,.72) 55%,rgba(10,12,19,.45) 100%),linear-gradient(0deg,rgba(10,12,19,.85),transparent 60%) !important;}
 [data-qb=slot]:hover{border-color:rgba(236,204,132,.8) !important;box-shadow:0 0 0 1px rgba(236,204,132,.12),0 24px 60px rgba(0,0,0,.6),0 0 50px rgba(232,199,123,.14);transform:translateY(-2px);}
 /* Class crests: a gilded medallion around a line emblem. */

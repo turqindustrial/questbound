@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
-const source=['npcRules.js','storyRules.js','playbackRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','playbackRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const p=vm.runInNewContext(source+'\n({recordedTurn,activeEffectLines,conversationTarget,conversationPeople})',{combatBasics:r.combatBasics});
 const hero={name:'Playback QA',class:'Wizard',species:'Human',level:1,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:['detect-magic','burning-hands','acid-splash']};hero.equipment=r.equipmentFor(hero);
 const game=r.newAdventure(hero),hp={current:8,temp:2},attack=r.dmCommand(hero,game,'I attack the keeper with my dagger',hp).action;

@@ -10,7 +10,9 @@ import {storyText} from './storyRules';
 import TurnPlayback from './TurnPlayback';
 import {conversationPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
 import {adventureStep} from './adventureRules';
-import {dmCommand} from './dmCommands';
+import {dmCommand,withAttackIntent} from './dmCommands';
+import {storyPreferences} from './storyPreferences';
+import {attitudeLabel} from './relationshipRules';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
 import {KeyHint,IconButton} from './ui';
@@ -49,7 +51,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     }catch{if(alive.current){setConnected(false);setProtocol(0);setStatus('The Dungeon Master is not answering. Reconnecting automatically…');}}finally{checking=false;if(alive.current)setChecked(true);}};
     check();const timer=setInterval(check,5000);return()=>{alive.current=false;clearInterval(timer);};
   },[]);
-  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -83,15 +85,16 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     // A preset with `parse` is a complete typed sentence (a spell from the Cast… picker) read by the normal parser.
     preset=preset?.question&&(preset.action||preset.parse)?preset:null;
     const question=preset?.question??input.trim();
-    if(lock.current||playing||!question||waiting||tableSyncing)return;const priorReply=reply,snapshot=fingerprint;if(compact)Keyboard.dismiss();lock.current=true;setBusy(true);setError('');playSound('send');
+    if(lock.current||playing||!question||waiting||tableSyncing||game.stage==='dead')return;const priorReply=reply,snapshot=fingerprint;if(compact)Keyboard.dismiss();lock.current=true;setBusy(true);setError('');playSound('send');
     const target=preset?null:conversationTarget(game,question,conversationId);
     if(target&&!await openConversation(target)){lock.current=false;setBusy(false);return;}
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error('The AI service is disconnected. Open your private AI setup window.');const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setConversationId(conversationPeople(result.game).some(n=>n.id===target)?target:null);if(!preset)setInput('');return result;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setConversationId(conversationPeople(result.game).some(n=>n.id===target)?target:null);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
-      const rolled=[];const preview=adventureStep(game,health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw Error(preview.error);
+      // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
+      const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw Error(preview.error);
       if(preview.waiting&&protocol>=3){
         const body=await request(preview.game,preview.health);if(!body.ruling)throw Error('The DM did not resolve this spell. Nothing was spent; try again with more detail.');
         const action={type:'ai-spell',request:command.action.request,ruling:body.ruling},dice=[];
@@ -99,13 +102,13 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         if(resolved.error)throw Error(resolved.error);
         if(body.ruling.decision==='cast'){
           const reaction=await request(resolved.game,resolved.health,{engineResolved:(resolved.events??[]).map(t=>storyText(resolved.game,t)).slice(0,40)});
-          body.narration=reaction.narration;body.dialogue=reaction.dialogue;
+          body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;
         }
         let index=0;await finish(action,body,normalized,()=>dice[index++]??0.5);
       }
       else {let body={narration:narration??command.narration??'Your action is resolved below.'};
         if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue},normalized,()=>rolled[index++]??0.5);
+        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships},normalized,()=>rolled[index++]??0.5);
       }
     };
     try{
@@ -120,16 +123,18 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
         const action={type:'ai-check',check:body.check},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}
+      // A place the DM revealed: added to the map, and walked to when the player set out for it.
+      if(protocol>=3&&body.discovery){const {travel,...place}=body.discovery;await finish({type:'discover',place,travel},body);return;}
       const choice=body.actionId===null?null:dmChoices(hero,game).find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
       if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration);return;}
       const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
@@ -143,8 +148,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const names=useMemo(()=>({hero:hero.name,foe:game.story?.foe??'Encounter opponent'}),[hero.name,game.story?.foe]);
   const avatarFor=id=>id?npcArtSubject(game,id):null,sceneFor=name=>placeArtSubject(game,name);
   const previousNarration=(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').at(-1)?.text.split(/\n(?:AI DM|Dungeon Master): /).at(-1)?.split('\nResult:')[0];
-  const attitude=person?.attitude==='hostile'?{label:'Hostile · remembers what happened',color:colors.bloodBright}:person?.attitude==='unfriendly'?{label:'Unfriendly',color:'#e0a860'}:{label:'Listening',color:colors.heal};
-  const sendDisabled=busy||playing||!input.trim()||!!waiting||tableSyncing;
+  const standing=attitudeLabel(person),attitude={label:standing.label,color:{bad:colors.bloodBright,warn:'#e0a860',good:colors.heal,best:colors.goldBright,calm:colors.heal,dead:colors.muted}[standing.tone]};
+  const dead=game.stage==='dead',dying=game.stage==='dying';
+  const sendDisabled=busy||playing||!input.trim()||!!waiting||tableSyncing||dead;
   const statusText=busy?(compact?'Resolving…':'Resolving your turn…'):playing?(compact?'Playing…':'Playing turn…'):connected?'Connected':checked?'Offline':'Connecting…';
   const statusColor=busy||playing||!checked?colors.gold:connected?colors.heal:'#8a6a35';
   const hint=tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':null;
@@ -182,7 +188,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
   const actionBar=short?row([...actionChips,...extraChips],false,actionScroll):<>{row(extraChips,false)}{row(actionChips,!swipe,actionScroll)}</>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
-  const composer=<TextInput ref={inputRef} dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':game.stage==='combat'||game.npcCombat?.active?(compact?'Your move…':'Your move: attack, cast a spell, dodge, or try something bold…'):'Describe your next move…'} placeholderTextColor="#7f889c" style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9}]}/>;
+  const composer=<TextInput ref={inputRef} dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" editable={!dead} value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={dead?'Your hero has died.':dying?(compact?'Fight to hold on…':'You are dying. Fight to hold on…'):person?'Speak to '+person.name+'…':game.stage==='combat'||game.npcCombat?.active?(compact?'Your move…':'Your move: attack, cast a spell, dodge, or try something bold…'):'Describe your next move…'} placeholderTextColor="#7f889c" style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9}]}/>;
   const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting?'Waiting…':'Send';
   const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color="#2a1a07"/>:<Icon name="send" size={20} color="#2a1a07" strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color="#2a1a07" strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>

@@ -1,4 +1,4 @@
-import {mapPlaces,mapLocation} from './mapRules';
+import {mapPlaces,mapLocation,worldPlace,worldPlaces} from './mapRules';
 import {dungeonRooms} from './dungeonRules';
 import {npcScene} from './npcRules';
 const originalNPCs={keeper:{name:'The keeper',description:'Middle-aged human innkeeper, short salt-and-pepper beard, brown hair, kind but firm eyes, linen shirt and russet waistcoat.'},mara:{name:'Mara',description:'Young adult human woman, brown skin, dark curly hair loosely braided, thoughtful eyes, practical teal traveling cloak, medicine courier with a satchel.'}};
@@ -7,7 +7,7 @@ export function npcArtSubject(game,id){
  return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id,name:npc.name,description:[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ').slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
 }
 export function locationArtSubject(game){
- const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,id=room?'dungeon-'+game.dungeon.room:mapLocation(game),place=room?{name:room.name,description:room.text}:game.story?.locations?.[id]??mapPlaces[id];
+ const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,id=room?'dungeon-'+game.dungeon.room:mapLocation(game),place=room?{name:room.name,description:room.text}:game.story?.locations?.[id]??worldPlace(game,id)??mapPlaces[id];
  if(!place)return null;
  return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
 }
@@ -23,7 +23,7 @@ export function heroArtSubject(hero){
 // illustrated arrival plates in the story feed. Only surface places; the vaults have their own scenes.
 export function placeArtSubject(game,name){
  const plain=text=>String(text??'').toLowerCase().replace(/^the\s+/,'').trim();
- const places=game.story?.locations??mapPlaces,id=Object.keys(places).find(key=>key!=='dungeon'&&plain(places[key]?.name)===plain(name));
+ const places={...(game.story?.locations??mapPlaces),...Object.fromEntries(worldPlaces(game).map(p=>[p.id,p]))},id=Object.keys(places).find(key=>key!=='dungeon'&&plain(places[key]?.name)===plain(name));
  if(!id)return null;
  return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:places[id].name,description:places[id].description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
 }

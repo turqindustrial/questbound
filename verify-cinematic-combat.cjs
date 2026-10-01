@@ -14,7 +14,7 @@ assert.ok(!next.events.some(t=>t==='Opening attack.'||t.includes('initiative')),
 assert.equal(next.game.npcHP.keeper,9);
 const finalOpponent={...game,npcHP:{keeper:1,mara:0}};
 result=r.adventureStep(finalOpponent,hp,hero,attack,()=>.5);
-assert.equal(result.game.npcHP.keeper,0);assert.equal(result.game.npcCombat.active,false);assert.ok(!result.events.some(t=>t.includes('attacks you')));
+assert.equal(result.game.npcHP.keeper,0);assert.equal(result.game.npcCombat?.active??false,false);assert.ok(!result.events.some(t=>t.includes('attacks you')));
 const invalid=r.adventureStep(game,hp,hero,{...attack,weapon:'Missing weapon'},()=>.5);assert.ok(invalid.error);assert.equal(invalid.game,game);
 const bridge={...game,stage:'bridge',map:{...game.map,visited:['inn','bridge'],accepted:true}};
 const command=r.dmCommand(hero,bridge,'I attack the Lantern Wisp with my dagger',hp);

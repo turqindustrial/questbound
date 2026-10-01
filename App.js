@@ -43,6 +43,8 @@ import {cue,useCue} from './cinematics';
 const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['Victory earned','Level up','star']};
 import {AudioToggle,AudioSettings} from './AudioControls';
 import {FullscreenToggle,DisplaySettings} from './DisplayControls';
+import {StorySettings} from './StoryControls';
+import {placeName,mapLocation} from './mapRules';
 import {displayState} from './fullscreen';
 import GameHud from './GameHud';
 import LaunchScreen from './LaunchScreen';
@@ -117,8 +119,10 @@ function QuestboundApp() {
     catch(e){setError(e.message);}
   }
   const button = (label, onPress, variant='secondary', style) => <GameButton key={label} label={label} variant={variant} disabled={loading||creatingStory} onPress={onPress} style={style}/>;
+  // The saved adventure is this hero's: if it ended in death, the hero cannot be played again.
+  const heroFallen=!!hero&&characterChosen&&game.stage==='dead';
   async function playCharacter(begin=false){
-    if(storyLock.current||loading||storageError||adventureBlocked||!hero)return;
+    if(storyLock.current||loading||storageError||adventureBlocked||!hero||heroFallen)return;
     if(!newStoryRequested){setCharacterChosen(true);setScreen('Adventure');return;}
     if(begin!==true){setScreen('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});return;}
     storyLock.current=true;setCreatingStory(true);setError('');
@@ -181,7 +185,7 @@ function QuestboundApp() {
   async function saveAdvancement(character) {
     if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
-    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
+    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
     catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally {setSaving(false);}
   }
@@ -204,7 +208,9 @@ function QuestboundApp() {
   const wideGame=windowWidth>=960||(windowWidth>=560&&windowWidth>windowHeight*1.25);
   // Shelter (camp or inn, and after a fight ends) gets the warm haven theme; the road and ruins get the exploration theme.
   const sheltered=['inn','defeat','escaped','victory'].includes(game.stage)&&!game.dungeon?.active;
-  useEffect(()=>{setMood(!launched?'silence':inGame?(fighting?'combat':sheltered?'haven':'explore'):'menu');},[launched,inGame,fighting,sheltered]);
+  // At death the score falls silent.
+  const dead=inGame&&game.stage==='dead';
+  useEffect(()=>{setMood(!launched||dead?'silence':inGame?(fighting?'combat':sheltered?'haven':'explore'):'menu');},[launched,inGame,fighting,sheltered,dead]);
   const ambienceKind=!launched?'none':inGame?(game.dungeon?.active?'cave':fighting?'battle':['inn','defeat','escaped'].includes(game.stage)?'hearth':'wild'):'menu';
   useEffect(()=>{setAmbience(ambienceKind);},[ambienceKind]);
   // Esc on a page opened from the game (journal, sheet, party, settings) returns to the adventure.
@@ -224,11 +230,11 @@ function QuestboundApp() {
     cue('area',fresh?(hostile?{over:'Steel is drawn',title:areaName}:{over:'A new tale begins',title:game.story?.title??areaName,sub:game.story?areaName:null}):{over:game.story?.title??'The Lantern at the Crossroads',title:areaName});
   },[areaName,launched]);
   const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;
-  useEffect(()=>{setDanger(launched&&inGame&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio]);
+  useEffect(()=>{setDanger(launched&&inGame&&!dead&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio,dead]);
   // What a playtest note carries along automatically (the device is added by the feedback form itself).
   const [feedbackOpen,setFeedbackOpen]=useState(false);
   const feedbackContext={hero:hero?hero.name+' (Level '+hero.level+' '+(hero.species??hero.race)+' '+hero.class+')':'',story:game.story?.title??'',screen,
-    where:[game.story?.locations?.[['inn','bridge','tower'].includes(game.stage)?game.stage:'bridge']?.name,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating'}[game.stage]].filter(Boolean).join(', ')};
+    where:[game.story?placeName(game,mapLocation(game)):null,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating',dying:'while dying',dead:'after dying'}[game.stage]].filter(Boolean).join(', ')};
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=!!saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
   const home=screen==='Home'&&!inGame,wideHome=home&&windowWidth>=860&&windowHeight>=560;
@@ -254,7 +260,7 @@ function QuestboundApp() {
       {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color="#9fe3d8"/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
-      <Adventure layout={wideGame?'wide':'narrow'} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
+      <Adventure layout={wideGame?'wide':'narrow'} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreenState('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
     </View>
   </View>:<View style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
@@ -275,7 +281,21 @@ function QuestboundApp() {
         {table.joined && <View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color="#9fe3d8"/><Text style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
       {!!titles[screen]&&<ScreenTitle eyebrow={titles[screen][0]} icon={titles[screen][2]} title={titles[screen][1]}/>}
       {screen === 'Character Selection' && <>
-        {hero ? <>
+        {hero && heroFallen ? <>
+          {/* A hero who died stays dead: their card becomes a memorial, and the way on is a new hero. */}
+          <View dataSet={{qb:'plate'}} style={[s.heroCard,compact&&{padding:14,gap:14},{opacity:.85}]}>
+            <HeroPortrait hero={hero} size={compact?54:68} level={hero.level}/>
+            <View style={{flex:1,minWidth:0}}>
+              <Eyebrow style={{color:colors.bloodBright}}>Fallen</Eyebrow>
+              <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
+              <Text style={s.heroLine}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+              <Text style={s.heroBackground}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</Text>
+            </View>
+          </View>
+          <Text style={s.note}>{hero.name}'s story is over. Choose a ready-made hero or make a new one to begin again.</Text>
+          {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+          <QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/>
+        </> : hero ? <>
           <View dataSet={{qb:'plate'}} style={[s.heroCard,compact&&{padding:14,gap:14}]}>
             <HeroPortrait hero={hero} size={compact?54:68} level={hero.level}/>
             <View style={{flex:1,minWidth:0}}>
@@ -297,7 +317,7 @@ function QuestboundApp() {
           <Section icon="quill" title="Or make your own"/>
         </>}
         <GameButton icon="sheet" label="Create new character" onPress={() => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
-        {!!hero&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero replaces {hero.name} and the current adventure (a backup is kept under Multiplayer).</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
+        {!!hero&&!heroFallen&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero replaces {hero.name} and the current adventure (a backup is kept under Multiplayer).</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
       </>}
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
@@ -323,6 +343,7 @@ function QuestboundApp() {
         {characterChosen && hero && <Adventure table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       </>}
       {screen === 'Multiplayer' && <SharedTable table={table} hero={hero} characterChosen={characterChosen} onPlay={()=>{setNewStoryRequested(false);setScreen(characterChosen?'Adventure':'Character Selection');}}/>}
+      {screen === 'Settings' && <StorySettings/>}
       {screen === 'Settings' && <DisplaySettings/>}
       {screen === 'Settings' && <AudioSettings/>}
       {screen === 'Settings' && <SaveTransfer/>}

@@ -21,8 +21,10 @@ export function eventSounds(e){
  }
  if(e.kind==='effect'){const m=t.match(/: (\d+) → (\d+) HP/);return m&&Number(m[2])>Number(m[1])?[['heal']]:[];}
  if(e.kind==='action'){
-  if(/threat is defeated|is defeated\.|restored the crossing|Adventure complete/i.test(t))return [['victory']];
-  if(/still standing/.test(t))return [['fall']];
+  if(/\bYou die\.|kills you outright/.test(t))return [['death']];
+  if(/You fall unconscious and are dying/.test(t))return [['down']];
+  if(/threat is defeated|is defeated\.|is slain\.|The last of the .* (?:falls dead|drops senseless)|beaten but alive|restored the crossing|Adventure complete/i.test(t))return [['victory']];
+  if(/still standing|\bis dead\.$|unconscious but alive/.test(t))return [['fall']];
   if(/fall unconscious|You collapse|You wake at/i.test(t))return [['defeat']];
   if(/^You (?:arrive|return|fall back|travel)/.test(t))return [['whoosh']];
   return [];

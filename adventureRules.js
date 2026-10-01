@@ -4,12 +4,19 @@ import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrat
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
-import {mapState,mapLocation,travelError,travelTo} from "./mapRules";
+import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace} from "./mapRules";
 import {resolveClassAction} from "./classActions";
 import {combatBasics} from "./combatRules";
-import {weaponAttacks,attacksPerAction,rollAttack,rollDamage} from "./weaponRules";
+import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange} from "./weaponRules";
 import {modifier} from "./characterRules";
 import {updateHealth} from "./healthRules";
+import {fallAtZero,deathSave,causeOfFall,fallPlace} from "./deathRules";
+import {placeName} from "./mapRules";
+import {journalForGame} from "./journalRules";
+import {recordConsequences} from "./relationshipRules";
+// Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
+const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
+const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
   export const lanternFoe = {
     name: 'Lantern Wisp',
     maximum: 10,
@@ -116,6 +123,15 @@ import {updateHealth} from "./healthRules";
     const resolvedSpell = action?.type === 'spell-ruling' ? game.pendingSpell : null;
     const spellEffect = resolvedSpell ? automaticEffects[resolvedSpell.id] : null;
     const harmfulSpell = resolvedSpell?.npcTarget && (spellEffect && (spellEffect.attack || spellEffect.save || spellEffect.missile) || (action.ruling?.damage ?? 0) > 0);
+    // A spell that drops someone kills them, just as a weapon does.
+    if (harmfulSpell) {
+      const id = resolvedSpell.npcTarget, was = game.npcHP?.[id] ?? npcProfiles[id].maximumHP;
+      if (was > 0 && (result.game.npcHP?.[id] ?? npcProfiles[id].maximumHP) === 0 && !result.game.npcFate?.[id]) {
+        const line = npcProfiles[id].name + ' is dead.';
+        result.game = {...result.game, npcFate: {...result.game.npcFate, [id]: 'dead'}, log: [line, ...result.game.log].slice(0, 40)};
+        result.events.push(line);
+      }
+    }
     if (action?.type === 'npc-attack' || harmfulSpell) {
       const beforeAggression=result.game;
       result.game = recordNpcAggression(game, result.game, action.type === 'npc-attack' ? action.target : resolvedSpell.npcTarget, action.type === 'npc-attack' ? 'weapon-attack' : 'harmful-spell');
@@ -140,6 +156,10 @@ import {updateHealth} from "./healthRules";
       ...recorded,
       journal: appendJournal(recorded.journal, 'quest', result.campaignEvent.title, result.campaignEvent.text)
     };
+    // People remember: a killing, a knockout, a life saved or the main foe's end changes how they feel about the player.
+    const consequences = recordConsequences(game, recorded);
+    recorded = consequences.lines.length ? {...consequences.game, log: [...consequences.lines, ...consequences.game.log].slice(0, 40)} : consequences.game;
+    result.events.push(...consequences.lines);
     return {
       ...result,
       game: recorded
@@ -180,11 +200,11 @@ import {updateHealth} from "./healthRules";
     };
     if (action?.type === 'npc-attack') {
       const victim = npcScene(game).find(n => n.id === action.target && n.present);
-      const weapon = weaponAttacks(hero).find(w => w.name === action.weapon && !w.blocked && !w.ranged);
-      if (!victim || victim.hp <= 0) return {
+      const weapon = attackOptions(hero).find(w => w.name === action.weapon);
+      if (!victim || game.npcFate?.[victim.id] === 'dead') return {
         game,
         health,
-        error: 'That conscious NPC is not present.'
+        error: 'That person is not here to attack.'
       };
       if (hp.current <= 0 || game.castingConditions?.incapacitated || game.castingConditions?.handsBound) return {
         game,
@@ -194,26 +214,60 @@ import {updateHealth} from "./healthRules";
       if (!weapon) return {
         game,
         health,
-        error: 'Choose an available melee weapon from your inventory.'
+        error: 'Choose a weapon you carry, or attack unarmed.'
       };
-      if (game.castingConditions?.clearPath === false || (game.castingConditions?.targetDistance ?? 5) > 5) return {
+      const distance = game.castingConditions?.targetDistance ?? 5, range = weaponRange(weapon);
+      if (!weapon.ranged && (game.castingConditions?.clearPath === false || distance > 5)) return {
         game,
         health,
         error: 'Move within 5 feet with a clear path before making a melee attack.'
       };
+      if (weapon.ranged && range && distance > range.long) return {
+        game,
+        health,
+        error: `${victim.name} is beyond your ${weapon.name}'s range.`
+      };
+      // Someone already lying senseless can be finished off where they lie.
+      if (victim.hp <= 0) {
+        if (game.subdue) return {
+          game,
+          health,
+          error: `${victim.name} is already unconscious.`
+        };
+        next.npcFate = {
+          ...game.npcFate,
+          [victim.id]: 'dead'
+        };
+        entries.push(`You use ${weapon.name} on ${victim.name}, who lies helpless. ${victim.name} is dead.`);
+        next.log = [...entries, ...game.log].slice(0, 40);
+        return {
+          game: next,
+          events: entries,
+          health: hp
+        };
+      }
       let remaining = victim.hp;
       for (let swing = 0; swing < attacksPerAction(hero) && remaining > 0; swing++) {
-        const attack = rollAttack(weapon, 'normal', random),
+        const attack = rollAttack(weapon, rangedMode(weapon, {closeEnemy: distance <= 5, distance}), random),
           hit = !attack.miss && (attack.critical || attack.total >= victim.ac);
         const damageRoll = hit ? rollDamage(weapon, attack.critical, random) : null;
         const damage = damageRoll?.total??0;
         remaining = Math.max(0, remaining - damage);
-        entries.push(`You use ${weapon.name} against ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${weapon.type} damage${damageRoll?' ('+damageRoll.dice.length+'d'+weapon.die+' ['+damageRoll.dice.join(', ')+'] + '+weapon.bonus+')':''}. ${remaining} HP remaining.`);
+        entries.push(`You use ${weapon.name} against ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${weapon.type} damage${damageRoll?' ('+(weapon.flat?'1 + '+weapon.bonus:damageRoll.dice.length+'d'+weapon.die+' ['+damageRoll.dice.join(', ')+'] + '+weapon.bonus)+')':''}. ${remaining} HP remaining.`);
       }
       next.npcHP = {
         ...game.npcHP,
         [victim.id]: remaining
       };
+      // A blow that drops someone kills them, unless the player set out to knock them out with a close-range blow.
+      if (remaining === 0) {
+        const subdued = !!game.subdue && !weapon.ranged;
+        next.npcFate = {
+          ...game.npcFate,
+          [victim.id]: subdued ? 'unconscious' : 'dead'
+        };
+        entries.push(subdued ? `${victim.name} drops, unconscious but alive.` : `${victim.name} is dead.`);
+      }
       next.log = [...entries, ...game.log].slice(0, 40);
       return {
         game: next,
@@ -304,6 +358,20 @@ import {updateHealth} from "./healthRules";
         error: 'You need to recover before traveling.'
       };
       const traveling={...game};delete traveling.npcCombat;return travelTo(traveling, hp, action.destination);
+    }
+    if (action?.type === 'discover') {
+      const error = discoveryError(game, action);
+      if (error) return {
+        game,
+        health,
+        error
+      };
+      if (hp.current <= 0) return {
+        game,
+        health,
+        error: 'You need to recover before exploring.'
+      };
+      const exploring={...game};delete exploring.npcCombat;return discoverPlace(exploring, hp, action);
     }
     if (action === 'inspect-tower') {
       if (game.stage !== 'tower') return {
@@ -447,7 +515,11 @@ import {updateHealth} from "./healthRules";
         }
         dodge = !!spellResult.enemyDisadvantage;
         if (spellResult.bonus) next.bonusUsed = true;
-        if (hp.current === 0) next.stage = 'defeat';
+        if (hp.current === 0) {
+          const fell = fall(next, 'spell', 0, stats.hp);
+          next = fell.game;
+          entries.push(...fell.entries);
+        }
       } else if (action === 'flee') {
         next.stage = 'escaped';
         entries.push('You retreat to the inn. The bridge remains dark, but you live to try again.');
@@ -479,27 +551,31 @@ import {updateHealth} from "./healthRules";
         dodge = true;
         entries.push('You dodge. The wisp attacks with disadvantage this turn.');
       } else {
-        const weapon = weaponAttacks(hero).find(w => `attack:${w.name}` === action && !w.blocked && !w.ranged);
+        const weapon = attackOptions(hero).find(w => `attack:${w.name}` === action);
         if (!weapon) return {
           game,
           health
         };
+        // A bow is fine before the foe closes in (the opening attack); once it is within 5 feet, shots have disadvantage.
+        const mode = rangedMode(weapon, {closeEnemy: !turnOptions.opening});
         for (let swing = 0; swing < attacksPerAction(hero) && next.enemyHP > 0; swing++) {
-          const attack = rollAttack(weapon, 'normal', random);
+          const attack = rollAttack(weapon, mode, random);
           const hit = !attack.miss && (attack.critical || attack.total >= foe.ac);
           entries.push(`You use ${weapon.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${foe.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
           if (hit) {
             const damage = rollDamage(weapon, attack.critical, random);
             next.enemyHP = Math.max(0, next.enemyHP - damage.total);
-            entries.push(`${damage.total} ${weapon.type.toLowerCase()} damage (${damage.dice.join(' + ')} ${weapon.bonus >= 0 ? '+' : ''}${weapon.bonus}).`);
+            entries.push(`${damage.total} ${weapon.type.toLowerCase()} damage (${weapon.flat ? '1' : damage.dice.join(' + ')} ${weapon.bonus >= 0 ? '+' : ''}${weapon.bonus}).`);
           }
         }
         if (next.enemyHP === 0) {
+          next.foeFate = game.subdue && !weapon.ranged ? 'subdued' : 'slain';
           next.stage = 'victory';
           entries.push('The wisp settles into the lantern. Warm light spills over the bridge. You have restored the crossing!');
         }
       }
       if (next.stage === 'combat' && next.enemyHP === 0) {
+        next.foeFate = 'slain';
         next.stage = 'victory';
         entries.push('The wisp settles into the lantern. You have restored the crossing!');
       }
@@ -507,7 +583,8 @@ import {updateHealth} from "./healthRules";
         const defense = spellDefense(next, stats.ac, foe);
         // Each standing member of a group attacks in turn.
         const attackers = foeStanding(foe, next.enemyHP), fallen = foeStanding(foe, game.enemyHP) - attackers;
-        if (foe.group && fallen > 0) entries.push(`${fallen === 1 ? 'One of the' : fallen} ${foe.group.plural} ${fallen === 1 ? 'falls' : 'fall'} — ${attackers} still standing.`);
+        if (foe.group && fallen > 0) entries.push(`${fallen === 1 ? 'One of the' : fallen} ${foe.group.plural} ${fallen === 1 ? 'falls' : 'fall'} ${game.subdue ? 'senseless' : 'dead'} — ${attackers} still standing.`);
+        let downedBy = null, overflow = 0;
         for (let member = 1; member <= attackers && hp.current > 0; member++) {
         const who = attackers > 1 ? `${foe.name} ${member}` : foe.name;
         const attack = rollAttack(foe, dodge || defense.disadvantage ? 'disadvantage' : 'normal', random);
@@ -516,6 +593,10 @@ import {updateHealth} from "./healthRules";
         if (hit) {
           const damage = rollDamage(foe, attack.critical, random);
           const hurt = updateHealth(hp, stats.hp, 'damage', Math.max(1, damage.total));
+          if (hurt.current === 0) {
+            downedBy = who;
+            overflow = overflowOf(hurt.previous, Math.max(1, damage.total));
+          }
           hp = {
             current: hurt.current,
             temp: hurt.temp
@@ -527,8 +608,9 @@ import {updateHealth} from "./healthRules";
         }
         }
         if (hp.current === 0) {
-          next.stage = 'defeat';
-          entries.push('You collapse. The keeper pulls you to safety, but the bridge remains dark. This demo ends here.');
+          const fell = fall(next, 'foe', overflow, stats.hp, game.dungeon?.active ? null : game.story ? (foe.group ? 'Cut down by the ' + foe.group.plural : 'Slain by the ' + game.story.foe) : downedBy ? 'Struck down by the ' + downedBy : null);
+          next = fell.game;
+          entries.push(...fell.entries);
         }
         next.round++;
         next.bonusUsed = false;
@@ -574,14 +656,14 @@ function creatureCombatStep(game,health,hero,action,random){
  let scene=game,command=action;
  if(action?.type==='encounter-attack'){
   if(!['bridge','combat'].includes(game.stage)||game.enemyHP<=0)return {game,health,error:'That creature is not within reach here.'};
-  if(!weaponAttacks(hero).some(w=>w.name===action.weapon&&!w.blocked&&!w.ranged))return {game,health,error:'Choose an available melee weapon.'};
+  if(!attackOptions(hero).some(w=>w.name===action.weapon))return {game,health,error:'Choose a weapon you carry, or attack unarmed.'};
   if(game.stage==='bridge')scene={...game,stage:'combat',openingAttackAvailable:true,encounterInitiative:undefined};
   command='attack:'+action.weapon;
  }
  const spell=command?.type==='spell'?automaticEffects[command.request.id]:command?.type==='spell-ruling'?automaticEffects[scene.pendingSpell?.id]:null;
  const hostile=typeof command==='string'&&command.startsWith('attack:')||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
  if(scene.stage==='combat'&&scene.openingAttackAvailable&&hostile){
-  const opening=adventureStepCore(scene,health,hero,command,random,{suppressEnemy:true});
+  const opening=adventureStepCore(scene,health,hero,command,random,{suppressEnemy:true,opening:true});
   if(opening.error||opening.waiting||opening.game===scene)return opening.error?{...opening,game,health}:opening;
   opening.game={...opening.game,openingAttackAvailable:false};
   opening.events=['Opening attack.',...(opening.events??[])];
@@ -632,16 +714,19 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
   const opening=adventureStepCore(game,hp,hero,action,random);
   if(opening.error||opening.waiting)return opening;
   next=opening.game;hp=opening.health??hp;
+  // Only those still standing after the opening blow take part; if none are, there is no fight to roll for.
+  const standing=participants.filter(n=>(next.npcHP?.[n.id]??npcProfiles[n.id].maximumHP)>0);
+  if(!standing.length)return {...opening,game:next,health:hp,events:opening.events??[]};
   events.push('Opening attack.',...(opening.events??[]));
   const roll=1+Math.floor(random()*20),second=stats.initiativeAdvantage?1+Math.floor(random()*20):roll;
-  const order=[{id:'player',side:'player',role:'attack',initiative:Math.max(roll,second)+stats.initiative},...participants.map(n=>({...n,initiative:1+Math.floor(random()*20)}))].sort((a,b)=>b.initiative-a.initiative||(a.id==='player'?-1:b.id==='player'?1:a.id.localeCompare(b.id)));
+  const order=[{id:'player',side:'player',role:'attack',initiative:Math.max(roll,second)+stats.initiative},...standing.map(n=>({...n,initiative:1+Math.floor(random()*20)}))].sort((a,b)=>b.initiative-a.initiative||(a.id==='player'?-1:b.id==='player'?1:a.id.localeCompare(b.id)));
   events.push('Your initiative: d20 ['+[roll,...(stats.initiativeAdvantage?[second]:[])].join(', ')+'] + '+stats.initiative+' = '+(Math.max(roll,second)+stats.initiative)+'.');
   events.push(...order.filter(n=>n.id!=='player').map(n=>npcProfiles[n.id].name+' initiative: d20 '+n.initiative+' + 0 = '+n.initiative+'.'));
   events.push('Turn order: '+order.map(n=>n.id==='player'?'You':npcProfiles[n.id].name).join(' → ')+'.');
   events.push('Round 1 begins.');
   next={...next,npcCombat:{active:true,round:1,order,help:null},log:['Combat begins. Initiative: '+order.map(n=>(n.id==='player'?'You':npcProfiles[n.id].name)+' '+n.initiative).join(' / ')+'.',...next.log].slice(0,40)};
   const first=runNpcTurns(next,hp,hero,order.slice(0,order.findIndex(n=>n.id==='player')),false,random);next=first.game;hp=first.health;events.push(...first.events);
-  if(next.npcCombat.active)events.push('Your turn.');
+  if(next.npcCombat?.active)events.push('Your turn.');
   next={...next,journal:appendJournal(next.journal,'encounter','Combat begins',events.join('\n').slice(0,3000)),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
   return {game:next,health:hp,events};
  }
@@ -653,19 +738,19 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
  events.push('Your turn.',...(result.events??stepLogEntries(next.log,result.game.log)));
  result=runNpcTurns(result.game,result.health??hp,hero,order.slice(index+1),action==='npc-dodge',random);
  events.push(...result.events);
- if(result.game.npcCombat.active){
+ if(result.game.npcCombat?.active){
   events.push('Round '+(result.game.npcCombat.round+1)+' begins.');
   result=runNpcTurns(result.game,result.health??hp,hero,order.slice(0,index),action==='npc-dodge',random);
   events.push(...result.events);
  }
  result.events=events;
- result.game={...result.game,npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1},bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
+ result.game={...result.game,...(result.game.npcCombat?{npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1}}:{}),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
  if(result.game.concentration?.remaining!=null){result.game.concentration={...result.game.concentration,remaining:result.game.concentration.remaining-1};if(result.game.concentration.remaining<=0)delete result.game.concentration;}
  result.game={...result.game,journal:appendJournal(result.game.journal,'encounter','Inn combat',events.join('\n').slice(0,3000))};
  return result;
 }
 function runNpcTurns(game,health,hero,turns,dodge,random){
- let next={...game,npcCombat:{...game.npcCombat}},hp={...health};const stats=combatBasics(hero),logs=[];
+ let next={...game,npcCombat:{...game.npcCombat}},hp={...health},downed=null;const stats=combatBasics(hero),logs=[];
  const alive=id=>(next.npcHP?.[id]??npcProfiles[id].maximumHP)>0;
  const enemies=()=>next.npcCombat.order.filter(n=>n.side==='enemy'&&alive(n.id));
  for(const actor of turns){
@@ -681,9 +766,11 @@ function runNpcTurns(game,health,hero,turns,dodge,random){
   const hit=!attack.miss&&(attack.critical||attack.total>=defense.ac),damageRoll=hit?rollDamage(weapon,attack.critical,random):null,damage=damageRoll?.total??0;
   logs.push(`${npcProfiles[actor.id].name} attacks ${allied?npcProfiles[victim.id].name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodge?', Dodge':''}${defense.disadvantage?', Blur':''}) + 2 = ${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??npcProfiles[victim.id].maximumHP)-damage)};
-  else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
+  else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:npcProfiles[actor.id].name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
- if(hp.current<=0||!enemies().length){next={...next,npcCombat:{...next.npcCombat,active:false}};logs.push(hp.current<=0?'You fall unconscious. The defenders stop attacking.':'The opponents are down. Combat ends.');if(hp.current<=0){delete next.concentration;delete next.pendingSpell;}}
+ // Felled in a brawl, the hero is left dying where they lie and the defenders stand back.
+ if(hp.current<=0){const fell=fall(next,'npc',downed?.overflow??0,stats.hp,downed?'Struck down by '+downed.by:null);next=fell.game;logs.push(...fell.entries);}
+ else if(!enemies().length){next={...next,npcCombat:{...next.npcCombat,active:false}};logs.push('The opponents are down. Combat ends.');}
  next.log=[...logs,...next.log].slice(0,40);return {game:next,health:hp,events:logs};
 }
 
@@ -698,6 +785,25 @@ function stepLogEntries(before=[],after=[]){
 }
 
 export function adventureStep(game,health,hero,action,random=Math.random){
+ if(game.stage==='dead')return {game,health,error:'Your hero has died. Their story is over; begin a new tale with another hero.'};
+ if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
+ const result=livingStep(game,health,hero,action,random);
+ // "Knock them out" is an intent for this one action; it never stays on the adventure.
+ if(result.game&&result.game!==game&&result.game.subdue!==undefined){result.game={...result.game};delete result.game.subdue;}
+ return result;
+}
+// While dying the hero can do one thing: fight to hold on.
+function dyingStep(game,health,hero,action,random){
+ if(action!=='death-save')return {game,health,error:'You are unconscious and dying. Roll a death saving throw to hold on.'};
+ const start=game.story?.locations?.inn?.name;
+ const result=deathSave(game,health,random,game.story?{wakeStage:'inn',wakeText:'at '+start+'. Someone found you and carried you back.'}:{wakeStage:'defeat',wakeText:'at the inn. The keeper found you and carried you back.'});
+ if(result.error)return result;
+ const map=mapState(result.game),next={...result.game,map:{...map,visited:[...new Set([...map.visited,mapLocation(result.game)])]},log:[...result.events,...game.log].slice(0,40)};
+ if(next.stage==='dead')next.journal=appendJournal(journalForGame(next),'encounter','Fallen',hero.name+' died. '+next.death.cause+(next.death.place?' at '+next.death.place:'')+'.');
+ else if(next.stage!=='dying')next.journal=appendJournal(journalForGame(next),'encounter','Survived',hero.name+' clung to life after falling'+(game.dying.placeName?' at '+game.dying.placeName:'')+'.');
+ return {...result,game:next};
+}
+function livingStep(game,health,hero,action,random){
  if(!game.story){const result=adventureStepEngine(game,health,hero,action,random);return {...result,events:result.events??stepLogEntries(game.log,result.game?.log)};}
  if(action==='story-complete')return {game:{...game,story:{...game.story,status:'complete'},log:['Adventure complete: '+game.story.title,...game.log].slice(0,40)},health,events:['Adventure complete: '+game.story.title]};
  const allowed=['approach','dodge','flee','potion','long-rest','npc-dodge','npc-flee','npc-wait','npc-surrender'];
@@ -707,8 +813,10 @@ export function adventureStep(game,health,hero,action,random=Math.random){
  if(result.error||result.game===scene)return {...result,game};
  // Stories continue after a lost fight: the player is back at the starting location and the foe keeps its HP.
  if(['escaped','defeat'].includes(result.game.stage)){const woke=result.game.stage==='defeat'?['You wake at '+game.story.locations.inn.name+', carried back from the fight. Rest to recover.']:[],map=mapState(result.game);result.events=[...(result.events??stepLogEntries(game.log,result.game.log)),...woke];result.game={...result.game,stage:'inn',map:{...map,visited:[...new Set([...map.visited,'inn'])]},log:[...woke,...result.game.log].slice(0,40)};}
- result.game={...result.game,story:game.story,storyHistory:game.storyHistory,log:result.game.log.map(t=>storyText(game,t)),journal:result.game.journal?{...result.game.journal,entries:result.game.journal.entries.map(e=>({...e,title:storyText(game,e.title),text:storyText(game,e.text)}))}:game.journal};
- result.events=(result.events??stepLogEntries(game.log,result.game.log)).map(t=>storyText(game,t));
+ // Lines are retold in the story's own names; the foe's end follows how it fell (slain, or beaten but alive).
+ const told={...game,foeFate:result.game.foeFate,world:result.game.world};
+ result.game={...result.game,story:game.story,storyHistory:game.storyHistory,log:result.game.log.map(t=>storyText(told,t)),journal:result.game.journal?{...result.game.journal,entries:result.game.journal.entries.map(e=>({...e,title:storyText(told,e.title),text:storyText(told,e.text)}))}:game.journal};
+ result.events=(result.events??stepLogEntries(game.log,result.game.log)).map(t=>storyText(told,t));
  if(action==='long-rest')result.game.journal=game.journal;
  return result;
 }

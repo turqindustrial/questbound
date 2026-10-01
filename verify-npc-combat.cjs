@@ -23,7 +23,7 @@ assert.ok(r.validAdventure(r.adventureSnapshot(hero,escaped.game,escaped.health,
 const surrendered=r.adventureStep(saved,result.health,hero,'npc-surrender');assert.equal(surrendered.game.npcCombat.active,false);
 // The opening attack lands before a faster NPC can knock the player out.
 result=r.adventureStep(game,{current:1,temp:0},hero,attack,sequence([.5,0,0,.99,.1,.99,.9,.9]));
-assert.equal(result.health.current,0);assert.equal(result.game.npcCombat.active,false);assert.equal(result.game.npcHP.keeper,9);
+assert.equal(result.health.current,0);assert.equal(result.game.stage,'dying');assert.equal(result.game.npcCombat,undefined);assert.equal(result.game.npcHP.keeper,9);assert.ok(r.validAdventure(r.adventureSnapshot(hero,result.game,result.health,true),hero));
 // Absent/downed witnesses are excluded; established player allies defend the player.
 result=r.adventureStep({...game,npcHP:{mara:0}},hp,hero,attack,()=>0);
 assert.equal(result.game.npcCombat.order.length,2);

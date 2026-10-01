@@ -18,9 +18,11 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
  const logo=Math.max(34,Math.min(wide?96:72,Math.floor((landscape?width*.44:wide?Math.min(width*.58,860):width-40)/9.6),Math.floor(height/(landscape?5.2:short?8.5:7.2))));
  const stats=hero?combatBasics(hero):null,hp=health?.current??stats?.hp;
  const where=game?.story?.title??(saved?'The Lantern at the Crossroads':null);
+ // A hero who died keeps their slot as a memorial; a new hero is the way forward.
+ const fallen=saved&&game?.stage==='dead';
  const menu=<View style={[s.menu,!wide&&s.menuNarrow]}>
-  {!!hero&&<MenuItem primary={saved} icon="play" label="Continue" sub={!wide&&!short&&stats?.available?null:hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide}/>}
-  <MenuItem primary={!saved} icon="compass" label="New Adventure" sub={saved?null:'Pick a hero and choose where the story begins'} onPress={onNew} disabled={disabled} center={!wide}/>
+  {!!hero&&<MenuItem primary={saved&&!fallen} icon="play" label="Continue" sub={fallen?hero.name+' has fallen':!wide&&!short&&stats?.available?null:hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide}/>}
+  <MenuItem primary={!saved||fallen} icon="compass" label="New Adventure" sub={saved&&!fallen?null:'Pick a hero and choose where the story begins'} onPress={onNew} disabled={disabled} center={!wide}/>
   <View style={[s.menuGroup,!wide&&{alignItems:'center'}]}>
    <MenuItem icon="sheet" label="Heroes" size={short?'small':'large'} onPress={()=>onOpen('Character Selection')} disabled={disabled} center={!wide}/>
    <MenuItem icon="people" label="Play Together" size={short?'small':'large'} onPress={()=>onOpen('Multiplayer')} disabled={disabled} center={!wide}/>
@@ -30,7 +32,7 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
  </View>;
  const slot=!!hero&&stats?.available&&<Pressable accessibilityRole="button" accessibilityLabel={'Continue as '+hero.name} disabled={disabled} onPress={()=>{playSound('page');onContinue();}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'slot'}} style={[s.slot,!wide&&s.slotNarrow]}>
   {saved&&!!game&&<><DynamicArt quiet subject={locationArtSubject(game)} style={[StyleSheet.absoluteFill,{opacity:.45,backgroundColor:'transparent'}]}/><View dataSet={{qb:'slot-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/></>}
-  <Text style={s.slotOverline}>{saved?'Your adventure':'Your hero'}</Text>
+  <Text style={[s.slotOverline,fallen&&{color:colors.bloodBright}]}>{fallen?'Fallen hero':saved?'Your adventure':'Your hero'}</Text>
   <View style={s.slotTop}>
    <HeroPortrait hero={hero} size={wide?64:48} level={hero.level}/>
    <View style={{flex:1,minWidth:0}}>
@@ -39,8 +41,9 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
    </View>
   </View>
   {!!where&&<Text numberOfLines={2} style={[s.slotStory,!wide&&{fontSize:15}]}>{where}</Text>}
-  <View style={s.slotHp}><Icon name="heart" size={13} color={colors.heal}/><View style={{flex:1}}><StatBar value={hp} maximum={stats.hp} height={6}/></View><Text style={s.slotHpText}>{hp}/{stats.hp}</Text></View>
-  <View style={s.slotFoot}><Text style={s.slotGo}>{saved?'Continue':'Choose your story'}</Text><Icon name="forward" size={14} color={colors.gold}/></View>
+  {fallen?<View style={s.slotHp}><Icon name="skull" size={13} color={colors.muted}/><Text numberOfLines={2} style={[s.slotHpText,{flex:1}]}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</Text></View>
+   :<View style={s.slotHp}><Icon name="heart" size={13} color={colors.heal}/><View style={{flex:1}}><StatBar value={hp} maximum={stats.hp} height={6}/></View><Text style={s.slotHpText}>{hp}/{stats.hp}</Text></View>}
+  <View style={s.slotFoot}><Text style={s.slotGo}>{fallen?'Their last page':saved?'Continue':'Choose your story'}</Text><Icon name="forward" size={14} color={colors.gold}/></View>
  </Pressable>;
  const brand=<View style={[s.brand,!wide&&{alignItems:'center'},wide&&!landscape&&{width:Math.min(width*.6,880)}]}>
   <Text style={[s.overline,!wide&&{textAlign:'center'}]}>A tabletop adventure</Text>

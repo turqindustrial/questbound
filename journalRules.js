@@ -1,4 +1,4 @@
-import {mapState,mapPlaces,mapRoute,mapLocation} from './mapRules';
+import {mapState,mapLocation,placeName,travelRoute,distanceText} from './mapRules';
 // Journal and adventure share one save, so retries cannot duplicate events.
 export function appendJournal(journal,kind,title,text) {
   const entry={id:journal.nextId,chapter:journal.chapter,kind,title,text};
@@ -7,7 +7,7 @@ export function appendJournal(journal,kind,title,text) {
 export function journalForGame(game) {
   if(game.journal)return game.journal;
   const empty={version:1,chapter:1,nextId:1,entries:[]};
-  const state={inn:'At the crossroads inn.',tower:'You are exploring the abandoned watchtower.',bridge:'The quest is underway at the bridge.',combat:'The Lantern Wisp encounter is underway.',victory:'The bridge light has been restored.',defeat:'The keeper rescued you after the encounter.',escaped:'You retreated from the bridge.'}[game.stage];
+  const state={inn:'At the crossroads inn.',tower:'You are exploring the abandoned watchtower.',bridge:'The quest is underway at the bridge.',combat:'The Lantern Wisp encounter is underway.',victory:'The bridge light has been restored.',defeat:'The keeper rescued you after the encounter.',escaped:'You retreated from the bridge.',wild:'Exploring the wider region.',dying:'You lie dying.',dead:'Your hero has died.'}[game.stage]??'The adventure continues.';
   return appendJournal(empty,'checkpoint','Journal opened',`${state} Earlier events are not reconstructed; new milestones and confirmed DM rulings will be kept here.`);
 }
 export function beginJournal(previous) {
@@ -18,7 +18,9 @@ export function beginJournal(previous) {
 export function recordJournalTransition(before,after,action,hero) {
   let journal=journalForGame(before);
   if(before.stage==='inn' && after.stage==='bridge' && ['study','listen'].includes(action))journal=appendJournal(journal,'quest','Restore the bridge light',action==='study'?'You studied the lantern and followed its blue sparks toward the bridge.':'You listened to the keeper and accepted the quest to restore the bridge light.');
-  if(action?.type==='travel')journal=appendJournal(journal,'quest','Journey to '+mapPlaces[action.destination].name,`You followed the path: ${mapRoute(mapLocation(before),action.destination).feet} ft. ${mapRoute(mapLocation(before),action.destination).minutes} minutes passed.`);
+  if(action?.type==='travel'){const route=travelRoute(before,mapLocation(before),action.destination);journal=appendJournal(journal,'quest','Journey to '+placeName(before,action.destination),`You followed the path: ${route.feet<1320?route.feet+' ft':distanceText(route.feet)}. ${route.minutes} minutes passed.`);}
+  // A place the Dungeon Master revealed: noted on the map, and walked to when the hero set out for it.
+  if(action?.type==='discover'&&(after.world?.places?.length??0)>(before.world?.places?.length??0)){const place=after.world.places.at(-1);journal=appendJournal(journal,'quest',(action.travel?'Journey to ':'Learned of ')+place.name,place.description);}
   if(action==='inspect-tower' && !mapState(before).clue && mapState(after).clue)journal=appendJournal(journal,'quest','The watchkeeper’s signal','Three notes: low, high, low. The lost light once guarded the crossing. Try calling it home at the bridge.');
   if(action==='call-wisp')journal=appendJournal(journal,'quest','A peaceful resolution','You used the three-note signal to guide the wisp home without a fight.');
   if(before.stage==='bridge' && after.stage==='combat')journal=appendJournal(journal,'encounter','The Lantern Wisp','A restless wisp guards the broken lamp. The encounter begins.');

@@ -15,7 +15,7 @@ const actionRules=[
  {name:'Search',rule:'Use Wisdom and a relevant skill to notice something uncertain.',implementation:'Use scene-specific choices or a generic ability check; do not invent secrets.'},
  {name:'Study',rule:'Use Intelligence and a relevant skill to recall or analyze information.',implementation:'Use scene-specific choices or a generic ability check.'},
  {name:'Utilize',rule:'Interact with an object when its use calls for an action; magic items use their own rules.',implementation:'Only implemented inventory/scene actions change resources.'},
- {name:'Movement',rule:'Movement spends Speed in combat; terrain, conditions, size, reach and opportunity attacks can matter. Travel pace is a separate exploration rule.',implementation:'Only authored routes and dungeon rooms change position; route distances/times are provided. No grid simulation.'}
+ {name:'Movement',rule:'Movement spends Speed in combat; terrain, conditions, size, reach and opportunity attacks can matter. Travel pace is a separate exploration rule.',implementation:'Known routes (travel choices) and dungeon rooms change position, with distances and times provided. In a written story a new destination is created with discovery (OPEN WORLD) and travelled to at once. No grid simulation.'}
 ];
 const coreRules=[
  'Use revised 2024 rules. A specific spell or feature exception overrides a general rule. Do not substitute 2014 rules or invent missing feature text.',

@@ -26,5 +26,6 @@ result=r.commitDmTurn(hero,prepared.game,hp,{type:'ai-ruling',ruling},{question:
 assert.equal(result.error,undefined);assert.equal(result.game.npcMemory.mara.attitude,'hostile');assert.ok(result.game.npcHP.keeper<12);assert.equal(result.game.enemyHP,game.enemyHP);
 const denied=r.commitDmTurn(hero,prepared.game,hp,{type:'ai-ruling',ruling:{...ruling,decision:'deny'}},{question:'Resolve the cast',narration:'The spell cannot be cast.'});assert.equal(denied.game.npcMemory,undefined);
 const peaceful=r.dmCommand(hero,game,'I cast Detect Magic',hp);assert.equal(r.adventureStep(game,hp,hero,peaceful.action,()=>0).game.npcMemory,undefined);
-assert.equal(r.validAdventure(r.adventureSnapshot(hero,{...restored,npcMemory:{keeper:{attitude:'friendly',response:'forged',memories:[]}}},hp,true),hero),false);
+assert.equal(r.validAdventure(r.adventureSnapshot(hero,{...restored,npcMemory:{keeper:{attitude:'adoring',response:'forged',memories:[]}}},hp,true),hero),false);
+assert.equal(r.validAdventure(r.adventureSnapshot(hero,{...restored,npcMemory:{keeper:{attitude:'friendly',grudge:'You killed my friend.',response:'forged',memories:[]}}},hp,true),hero),false,'A grudge always means hostile');
 console.log('Passed: misses provoke reactions, known witnesses react, unconscious/absent NPC isolation, denied and benign spells stay peaceful, damage targets NPC, persistence, journal, service refusal, escape route and corrupt-save rejection.');
