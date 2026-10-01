@@ -14,14 +14,15 @@ export const hostileFoes=[
  {key:'orc',foe:'Orc Marauder',species:'Orc',type:'Slashing',hp:20,ac:13,atk:5,die:8,bonus:3,saves:saves(3,1,3,-2,0,0),appearance:'A broad-shouldered grey-green orc with a shaved scalp, jutting lower tusks and a scarred lip, wearing scavenged ring mail and a wolf-pelt mantle. It swings a heavy notched greataxe.',place:'Burning Farmstead',scene:'A farmhouse yard lit by a smouldering barn, with a broken fence and scattered livestock pens.'},
  {key:'wolves',foe:'Grey Wolf',species:'Wolf',type:'Piercing',group:{size:2,memberHP:9,plural:'grey wolves',count:'Two'},ac:13,atk:4,die:4,bonus:2,saves:saves(1,2,1,-4,1,-2),appearance:'A lean grey timber wolf with a pale chest, amber eyes and a ridge of raised fur along its back. Its lips pull back from long yellowed fangs.',place:'Moonlit Clearing',scene:'A frost-silvered clearing in an old forest, ringed by leaning birches.'},
 ];
-// Per level above 1: tougher HP pool, and steadily better attacks and armor.
+// Per level above 1: a tougher HP pool (packs grow more slowly, since every member attacks) and steadily better
+// attacks and armor. Tuned with balance-check.cjs so a plain hero of the level keeps a fair chance on their own.
 export function foeStatsFor(f,level=1){
- const up=Math.max(0,level-1),memberHP=Math.round((f.group?f.group.memberHP:f.hp)*(1+0.8*up));
- return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/2),die:f.die,count:1+Math.floor(up/5),bonus:f.bonus+Math.floor(up/2),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
+ const up=Math.max(0,level-1),memberHP=Math.round((f.group?f.group.memberHP:f.hp)*(1+(f.group?0.3:0.45)*up));
+ return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/3),die:f.die,count:1+Math.floor(up/5),bonus:f.bonus+Math.floor(up/3),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
 }
 export function hostileEncounterGame(hero,base,random=Math.random){
- // Fragile low-level heroes (under 10 HP, such as a new wizard) meet a single foe, never a pack or the orc.
- const hp=combatBasics(hero)?.hp,pool=Number.isFinite(hp)&&hp<10&&(hero.level??1)<=2?hostileFoes.filter(f=>!f.group&&f.key!=='orc'):hostileFoes;
+ // Fragile low-level heroes (under 12 HP: a new wizard, rogue or cleric) meet a single foe, never a pack or the orc.
+ const hp=combatBasics(hero)?.hp,pool=Number.isFinite(hp)&&hp<12&&(hero.level??1)<=2?hostileFoes.filter(f=>!f.group&&f.key!=='orc'):hostileFoes;
  const f=pool[Math.floor(random()*pool.length)],stats=foeStatsFor(f,hero.level??1),many=f.group?f.group.count+' '+f.group.plural.replace(/^./,c=>c.toUpperCase()):'A '+f.foe;
  const story={id:'hostile-encounter-'+f.key,introId:'hostile',status:'active',title:'Random hostile encounter: '+(f.group?f.group.count+' '+f.group.plural:f.foe),
   premise:'A combat test: '+(f.group?f.group.count.toLowerCase()+' '+f.group.plural:'a '+f.foe)+(f.group?' ambush ':' ambushes ')+hero.name+' at the '+f.place+' while travelling with a small caravan.',

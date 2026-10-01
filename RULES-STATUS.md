@@ -22,6 +22,10 @@ HP uses the fixed average after first level and applies Constitution, Tough, and
 
 The full published class chapters are needed to verify non-SRD mechanics before implementing them. The official Handbook chapter redirected to its marketplace page; Artificer and Forgotten Realms indexes provided headings/overviews rather than the full feature rules in the material inspected. Relevant books: revised Player's Handbook, Eberron: Forge of the Artificer, and Forgotten Realms: Heroes of Faerûn. No purchases or sign-ins were performed.
 
+## Fight balance (2026-10-01)
+
+`node balance-check.cjs` simulates every ready-made hero at levels 1, 3 and 5 against every creature template with a plain tactic (main weapon or the strongest simple spell, a draught or a heal when low) and flags fights under 35% or over 97% wins. The creature curve in `foeStatsFor` was softened from it: HP grows 45% per level (30% for packs, whose every member attacks) instead of 80%, and attack and damage bonuses rise every third level instead of every second. Before, a level-3 rogue beat a bandit 63% of the time and a level-5 rogue 24%; now 94% and 87%. Known gap: Sneak Attack is not implemented, so rogues stay weakest against the orc and packs. Heroes under 12 HP at levels 1–2 are never given a pack or the orc in the Random hostile encounter.
+
 ## Spell casting and verification
 
 All 339 catalog spells have a casting route in the rules layer: 24 automatic single-encounter effects and 315 visible DM-ruling routes. The latter includes fixed-rule spells whose automation is unfinished, not just inherently narrative spells. A DM route passing its test does NOT mean the spell's individual mechanics are automated or fully verified.

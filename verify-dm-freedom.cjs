@@ -34,7 +34,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const widow={template:'spider',name:'Grey Widow',appearance:'A spider as large as a pony, grey and bristled.'};
  const den=await generate(free,{...keys,fetchImpl:success({narration:'Silk glints.',discovery:{...ridge,miles:2,danger:'lair',feature:'A satchel under the webs.',lair:widow}})});
  assert.equal(den.discovery.lair.name,'Grey Widow');assert.equal(den.discovery.feature,'A satchel under the webs.');
- await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'x',discovery:{...ridge,danger:'risky',feature:null,lair:widow}})}),/could not use/,'A creature needs a lair');
+ assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'x',discovery:{...ridge,danger:'risky',feature:null,lair:widow}})})).discovery.danger,'lair','A place given a creature is a lair');
  const wild=body('I kick the sleeping boar.',{world:{canDiscover:true,canAmbush:true}});
  const sprung=await generate(wild,{...keys,fetchImpl:success({narration:'It wakes.',ambush:{template:'boar',name:'Tusked Brute',appearance:'A boar with tusks like sickles.'}})});
  assert.equal(sprung.ambush.template,'boar');assert.equal(lastRequest.text.format.schema.properties.ambush.type[0],'object');

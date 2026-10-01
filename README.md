@@ -54,7 +54,7 @@ You need:
 
 - Windows 10 or 11, kept awake while people play.
 - [Node.js LTS](https://nodejs.org).
-- An **OpenAI API key** whose project can use the text model you choose (the launcher suggests a default) and image generation. **Your key pays for everyone's play**: each turn is one or two short requests, and each new character, place or creature (including each player's own hero) gets one illustration. Illustrations are kept on your PC and reused, so the four ready-made heroes are painted only once.
+- An **OpenAI API key** whose project can use the text models you choose and image generation. The launcher suggests **gpt-6-luna** for play (the cheapest fast model; a turn costs a fraction of a cent) and lets you name a separate, stronger **story writer** model for new adventures and heroes, which thinks before it writes; `Questbound.cmd -Models` changes either later. **Your key pays for everyone's play**: each turn is one or two short requests, and each new character, place or creature (including each player's own hero) gets one illustration. Illustrations are kept on your PC and reused, so the four ready-made heroes are painted only once.
 - Cloudflare's free tunnel tool, installed once: `winget install --id Cloudflare.cloudflared -e`
 
 Then:
@@ -66,7 +66,7 @@ Then:
 
 Notes your testers send from inside the game collect in **playtest-feedback.md** in the Questbound folder (newest at the bottom).
 
-`Questbound.cmd -Stop` stops everything. `Questbound.cmd -ForgetKey` deletes the remembered key.
+`Questbound.cmd -Stop` stops everything. `Questbound.cmd -ForgetKey` deletes the remembered key. `node dm-report.cjs` shows what the Dungeon Master cost today (requests, tokens and an estimate for the suggested models) and any replies it had to refuse; `node balance-check.cjs` simulates fights for every ready-made hero against every creature and flags any that look deadly or trivial.
 To play on your own devices only (home Wi-Fi, no internet link), double-click **Questbound.cmd** instead; see [MOBILE-ACCESS.md](MOBILE-ACCESS.md).
 
 **Safety and limits**

@@ -4,13 +4,14 @@
 #   -Dev             serve the desktop game with the live-reloading Expo dev server instead of the finished build
 #   -NoBrowser       do not open the browser
 #   -ForgetKey       delete the remembered (encrypted) API key
+#   -Models          choose the AI models (one for play, optionally a separate story writer) without re-entering the key
 #   -InstallStartup  start Questbound in the background when you sign in to Windows (requires a remembered key)
 #   -RemoveStartup   undo -InstallStartup
 #   -Share           also share the game with playtesters over the internet: a secure Cloudflare link plus an invite code
 #   -SetupTunnel     remember a permanent link for -Share from your own free Cloudflare account (a named tunnel's token,
 #                    stored encrypted to your Windows account, and its public hostname)
 #   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
-param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel)
+param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -18,6 +19,7 @@ $logs = Join-Path $root '.questbound-logs'
 $pidFile = Join-Path $logs 'pids.json'
 $keyFile = Join-Path $root '.questbound-key.dpapi'
 $modelFile = Join-Path $root '.questbound-model'
+$storyModelFile = Join-Path $root '.questbound-story-model'
 $sessionFile = Join-Path $root '.questbound-phone-session.json'
 $shareFile = Join-Path $root '.questbound-share-session.json'
 $tunnelTokenFile = Join-Path $root '.questbound-tunnel.dpapi'
@@ -37,6 +39,21 @@ function Start-Hidden($name, $file, $arguments) {
   return $proc
 }
 function Wait-Up($url, $seconds) { for ($i = 0; $i -lt $seconds * 2; $i++) { if (Test-Up $url) { return $true }; Start-Sleep -Milliseconds 500 }; return $false }
+# The models: one answers every turn (fast and cheap, no thinking), and another may write new adventures and heroes.
+function Read-Models($model, $storyModel) {
+  Say '  The play model answers every turn, so it should be fast and cheap: gpt-6-luna is suggested.' 'Cyan'
+  $typed = Read-Host "  Play model ID (press Enter for $model)"
+  if (-not [string]::IsNullOrWhiteSpace($typed)) { $model = $typed.Trim() }
+  Say '  The story writer writes new adventures and heroes (a few times a session), so it may be a stronger, slower model.' 'Cyan'
+  $prompt = if ($storyModel) { "  Story writer model ID (press Enter for $storyModel, or type same to use the play model)" } else { '  Story writer model ID (press Enter to use the play model for stories too)' }
+  $typed = Read-Host $prompt
+  if ($typed.Trim() -eq 'same') { $storyModel = '' } elseif (-not [string]::IsNullOrWhiteSpace($typed)) { $storyModel = $typed.Trim() }
+  return @($model, $storyModel)
+}
+function Save-Models($model, $storyModel) {
+  Set-Content $modelFile $model -Encoding ASCII
+  if ($storyModel) { Set-Content $storyModelFile $storyModel -Encoding ASCII } else { Remove-Item $storyModelFile -ErrorAction SilentlyContinue }
+}
 function Find-Cloudflared {
   $c = Get-Command cloudflared -ErrorAction SilentlyContinue
   if ($c) { return $c.Source }
@@ -53,7 +70,16 @@ if ($Stop) {
   Say 'Questbound services started by this launcher are stopped.' 'Green'
   return
 }
-if ($ForgetKey) { Remove-Item $keyFile, $modelFile -ErrorAction SilentlyContinue; Say 'The remembered API key was deleted from this PC.' 'Green'; return }
+if ($ForgetKey) { Remove-Item $keyFile, $modelFile, $storyModelFile -ErrorAction SilentlyContinue; Say 'The remembered API key was deleted from this PC.' 'Green'; return }
+if ($Models) {
+  $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-6-luna' }
+  $storyModel = if (Test-Path $storyModelFile) { (Get-Content $storyModelFile -Raw).Trim() } else { '' }
+  $chosen = Read-Models $model $storyModel
+  Save-Models $chosen[0] $chosen[1]
+  $summary = if ($chosen[1]) { "$($chosen[0]) for play and $($chosen[1]) for stories and heroes" } else { "$($chosen[0]) for everything" }
+  Say "  Saved: $summary. The Dungeon Master uses them after a restart: Questbound.cmd -Stop, then Questbound.cmd." 'Green'
+  return
+}
 if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }
 # A permanent link: in the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, give it a public
 # hostname that points to http://127.0.0.1:8087, and paste its token here. The token never touches disk in plain text.
@@ -115,31 +141,33 @@ if (Test-Up 'http://localhost:8084/health') { Say '  Dungeon Master    already r
 else {
   $secure = $null
   if (Test-Path $keyFile) { try { $secure = Get-Content $keyFile -Raw | ConvertTo-SecureString } catch { Say '  The remembered key could not be unlocked on this Windows account.' 'Yellow' } }
-  $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-5.6-luna' }
+  $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-6-luna' }
+  $storyModel = if (Test-Path $storyModelFile) { (Get-Content $storyModelFile -Raw).Trim() } else { '' }
   $fresh = $false
   if (-not $secure) {
     Say '  The Dungeon Master needs your OpenAI API key. It stays private on this PC; typing is hidden.' 'Cyan'
     $secure = Read-Host '  OpenAI API key' -AsSecureString
-    $typed = Read-Host "  Model ID (press Enter for $model)"
-    if (-not [string]::IsNullOrWhiteSpace($typed)) { $model = $typed.Trim() }
+    $chosen = Read-Models $model $storyModel
+    $model = $chosen[0]; $storyModel = $chosen[1]
     $fresh = $true
   }
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
   try {
     $env:OPENAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim()
     $env:OPENAI_MODEL = $model
+    if ($storyModel) { $env:OPENAI_STORY_MODEL = $storyModel } else { Remove-Item Env:OPENAI_STORY_MODEL -ErrorAction SilentlyContinue }
     $env:QUESTBOUND_DM_PORT = '8084'
     if ($fresh) {
       Say '  Checking the key with one small live reply...'
       & node (Join-Path $root 'check-dm-setup.cjs')
       if ($LASTEXITCODE -ne 0) { Say '  The key check failed, so nothing was saved. Run Questbound again to retry.' 'Red'; return }
       $remember = Read-Host '  Remember this key on this PC, encrypted to your Windows account? [Y/n]'
-      if ($remember -notmatch '^[nN]') { $secure | ConvertFrom-SecureString | Set-Content $keyFile -Encoding ASCII; Set-Content $modelFile $model -Encoding ASCII; Say '  Saved. Only your Windows account on this PC can unlock it. Forget it with: Questbound.cmd -ForgetKey' 'Green' }
+      if ($remember -notmatch '^[nN]') { $secure | ConvertFrom-SecureString | Set-Content $keyFile -Encoding ASCII; Save-Models $model $storyModel; Say '  Saved. Only your Windows account on this PC can unlock it. Forget it with: Questbound.cmd -ForgetKey; change the models with: Questbound.cmd -Models' 'Green' }
     }
     Start-Hidden 'dm' 'node' 'dm-server.cjs' | Out-Null
   } finally {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    Remove-Item Env:OPENAI_API_KEY, Env:OPENAI_MODEL, Env:QUESTBOUND_DM_PORT -ErrorAction SilentlyContinue
+    Remove-Item Env:OPENAI_API_KEY, Env:OPENAI_MODEL, Env:OPENAI_STORY_MODEL, Env:QUESTBOUND_DM_PORT -ErrorAction SilentlyContinue
   }
   if (Wait-Up 'http://localhost:8084/health' 15) { Say '  Dungeon Master    started' 'Green' } else { Say '  The Dungeon Master did not start. See .questbound-logs\dm.err.log' 'Red' }
 }

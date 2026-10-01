@@ -96,7 +96,7 @@ const body=(world,extra={})=>({input:'I hail the ferryman.',context:{choices:[{i
  assert.equal(shut.introduce,null);same(shut.dialogue,[]);assert.equal(lastRequest.text.format.schema.properties.introduce.type,'null');
  // Never alongside another game action; never tied to someone unknown; relationships can name anyone known.
  assert.equal((await generate(body({canIntroduce:true}),{...keys,fetchImpl:reply({narration:'You go.',actionId:'travel-inn',introduce:hob})})).introduce,null);
- assert.equal((await generate(body({canIntroduce:true}),{...keys,fetchImpl:reply({narration:'x',introduce:{...hob,tie:{to:'n9',kind:'family'}}})})).introduce,null);
+ const untied=(await generate(body({canIntroduce:true}),{...keys,fetchImpl:reply({narration:'x',introduce:{...hob,tie:{to:'n9',kind:'family'}}})})).introduce;assert.equal(untied.name,'Hob Tallow');assert.equal(untied.tie,null,'A tie to nobody known is dropped, the person kept');
  const noted=await generate(body({canIntroduce:false}),{...keys,fetchImpl:reply({narration:'He nods.',relationships:[{npcId:'n1',change:'pleased',memory:'The player paid the toll without haggling.'}]})});
  assert.equal(noted.relationships[0].npcId,'n1');same(lastRequest.text.format.schema.properties.relationships.items.properties.npcId.enum,['keeper','mara','n1']);
  // Present people speak by their ids.
