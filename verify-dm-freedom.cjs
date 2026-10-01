@@ -30,6 +30,17 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','Narrating a resolved turn reveals nothing');
  await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'Both.',discovery:ridge,check:{skill:null,ability:'Wisdom',dc:10,mode:'normal',reason:'Look',success:'Yes',failure:'No',damageCount:0,damageDie:6,damageOn:'none'}})}),/invalid ruling/,'One mechanical action at a time');
  await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})}),/new place the map could not use/);
+ // Danger in the wilds: a lair's creature, a feature, and ambushes only where the player is out in the wilds.
+ const widow={template:'spider',name:'Grey Widow',appearance:'A spider as large as a pony, grey and bristled.'};
+ const den=await generate(free,{...keys,fetchImpl:success({narration:'Silk glints.',discovery:{...ridge,miles:2,danger:'lair',feature:'A satchel under the webs.',lair:widow}})});
+ assert.equal(den.discovery.lair.name,'Grey Widow');assert.equal(den.discovery.feature,'A satchel under the webs.');
+ await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'x',discovery:{...ridge,danger:'risky',feature:null,lair:widow}})}),/could not use/,'A creature needs a lair');
+ const wild=body('I kick the sleeping boar.',{world:{canDiscover:true,canAmbush:true}});
+ const sprung=await generate(wild,{...keys,fetchImpl:success({narration:'It wakes.',ambush:{template:'boar',name:'Tusked Brute',appearance:'A boar with tusks like sickles.'}})});
+ assert.equal(sprung.ambush.template,'boar');assert.equal(lastRequest.text.format.schema.properties.ambush.type[0],'object');
+ await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})}),/could not use/,'No ambush away from the wilds');
+ await assert.rejects(generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})}));
+ assert.ok(lastRequest.instructions.includes('DANGER IN THE WILDS'));
  // Relationship notes: kept on an ordinary turn or when narrating a resolved one; dropped when the turn starts an
  // action (recorded when it is narrated), for the dead, and for scene cues.
  const note={npcId:'mara',change:'grateful',memory:'The player shared their last rations with me.'};

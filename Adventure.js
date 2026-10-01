@@ -45,7 +45,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
  const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
- const foeName=game.story?.foe??foe.name,foeHp=shown.foe??game.enemyHP,creature=creatureArtSubject(game),hitDice=foe.count+'d'+foe.die+(foe.bonus?'+'+foe.bonus:'');
+ const foeName=game.wildFight?foe.name:game.story?.foe??foe.name,foeHp=shown.foe??game.enemyHP,creature=creatureArtSubject(game),hitDice=foe.count+'d'+foe.die+(foe.bonus?'+'+foe.bonus:'');
  const combatStrip=game.stage==='combat'&&<Pressable accessibilityRole="button" accessibilityLabel="Show everyone's combat HP" disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} dataSet={{qb:'plate-hot'}} style={s.strip}>
   {!!creature&&<View dataSet={{hit:foeHit}}><DynamicArt dataSet={{qb:'portrait-hot'}} subject={creature} style={s.stripAvatar} compact/></View>}
   <View style={{flex:1,minWidth:0,gap:5}}>
@@ -109,7 +109,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <Text style={s.title}>{game.story?.title??'The Lantern at the Crossroads'}</Text>
    <Ornament style={{marginVertical:10}}/>
    {game.story&&<Text style={s.objective}>{game.story.objective}</Text>}
-   <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.stage==='dying'?'You lie unconscious, bleeding out.':game.stage==='dead'?'Your hero has died.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??game.story.foe)+'.':game.stage==='wild'?placeDescription(game,mapLocation(game)):game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
+   <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.stage==='dying'?'You lie unconscious, bleeding out.':game.stage==='dead'?'Your hero has died.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??(game.wildFight?foe.name:game.story.foe))+'.':game.stage==='wild'?placeDescription(game,mapLocation(game)):game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
   </View>
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
   {peoplePanel}
@@ -137,7 +137,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  {game.stage==='combat'&&<View dataSet={{qb:'plate'}} style={[s.combat,{marginTop:4,marginBottom:4}]}>
   <View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Round {game.round}  ·  Your turn  ⚔</Text></View>
   <Text style={s.label}>{'Opponent'}</Text>
-  <Text style={s.foeName}>{game.story?.foe??foe.name}</Text>
+  <Text style={s.foeName}>{game.wildFight?foe.name:game.story?.foe??foe.name}</Text>
   {foe.group&&<Text style={s.group}>{'◆ '.repeat(foeStanding(foe,game.enemyHP))}{'◇ '.repeat(foe.group.size-foeStanding(foe,game.enemyHP))} {foeStanding(foe,game.enemyHP)} of {foe.group.size} {foe.group.plural} standing</Text>}
   <View style={s.foeRow}><Text style={s.foeStat}>{game.enemyHP}<Text style={s.foeMax}> / {foe.maximum} HP</Text></Text><Text style={s.foeStat}>AC {foe.ac}  ·  +{foe.attackBonus} to hit  ·  {foe.count}d{foe.die}{foe.bonus?'+'+foe.bonus:''} {foe.type.toLowerCase()}</Text></View>
   <StatBar value={game.enemyHP} maximum={foe.maximum} kind="enemy" height={12}/>
@@ -151,7 +151,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <Text style={s.title}>{game.story?.title??'The Lantern at the Crossroads'}</Text>
   <Ornament style={{marginVertical:10}}/>
   {game.story&&<Text style={s.objective}>{game.story.objective}</Text>}
-  <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??game.story.foe)+'.':game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
+  <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??(game.wildFight?foe.name:game.story.foe))+'.':game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
  </View>
  {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
  {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}

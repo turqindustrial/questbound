@@ -29,6 +29,8 @@ export function placeArtSubject(game,name){
 }
 export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
+ // A creature met while exploring is painted from the Dungeon Master's description of it.
+ if(game.wildFight){const w=game.wildFight;return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800)};}
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';
  return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
 }

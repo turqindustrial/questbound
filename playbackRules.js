@@ -33,7 +33,10 @@ export function recordedTurn(hero,before,beforeHP,result,conversation,npcId=null
   const old=npcScene(before).find(x=>x.id===n.id);
   if(old&&old.hp!==n.hp)events.push({kind:'effect',text:(after.story?.npcs[n.id]?.name??n.name)+': '+old.hp+' → '+n.hp+' HP.'});
  }
- if(before.enemyHP!==after.enemyHP)events.push({kind:'effect',text:(after.story?.foe??'Encounter opponent')+': '+before.enemyHP+' → '+after.enemyHP+' HP.'});
+ // A creature met while exploring has its own HP line; the story's foe is untouched while it is fought.
+ const foeName=g=>g.wildFight?.name??g.story?.foe??'Encounter opponent',wildStart=!before.wildFight&&!!after.wildFight,wildEnd=!!before.wildFight&&!after.wildFight;
+ const foeNow=wildEnd?(after.world?.places?.find(p=>p.id===before.wildFight.place)?.threat?.hp??0):after.enemyHP;
+ if(!wildStart&&before.enemyHP!==foeNow)events.push({kind:'effect',text:foeName(before.wildFight?before:after)+': '+before.enemyHP+' → '+foeNow+' HP.'});
  for(let level=1;level<=9;level++){
   const used=(after.spellSlotsUsed?.[level-1]??0)-(before.spellSlotsUsed?.[level-1]??0);
   if(used>0)events.push({kind:'effect',text:'Spent '+used+' level '+level+' spell slot'+(used===1?'':'s')+'.'});

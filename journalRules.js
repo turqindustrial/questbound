@@ -16,7 +16,9 @@ export function beginJournal(previous) {
   return appendJournal({...old,chapter:old.chapter+1},'quest','A new journey','You return to the inn for another adventure. Your previous journal entries are preserved.');
 }
 export function recordJournalTransition(before,after,action,hero) {
-  let journal=journalForGame(before);
+  // Build on the turn's own journal when it continues the same chapter, so entries the turn already wrote (a fight's
+  // end, a grudge) are kept; a rest's fresh chapter is not.
+  let journal=journalForGame(after.journal&&before.journal&&after.journal.chapter===before.journal.chapter?after:before);
   if(before.stage==='inn' && after.stage==='bridge' && ['study','listen'].includes(action))journal=appendJournal(journal,'quest','Restore the bridge light',action==='study'?'You studied the lantern and followed its blue sparks toward the bridge.':'You listened to the keeper and accepted the quest to restore the bridge light.');
   if(action?.type==='travel'){const route=travelRoute(before,mapLocation(before),action.destination);journal=appendJournal(journal,'quest','Journey to '+placeName(before,action.destination),`You followed the path: ${route.feet<1320?route.feet+' ft':distanceText(route.feet)}. ${route.minutes} minutes passed.`);}
   // A place the Dungeon Master revealed: noted on the map, and walked to when the hero set out for it.

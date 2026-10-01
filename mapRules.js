@@ -13,6 +13,10 @@ export const placeKinds=['settlement','camp','road','forest','wilds','mountain',
 export const placeIcons={settlement:'home',camp:'camp',road:'travel',forest:'leaf',wilds:'compass',mountain:'peak',water:'wave',ruin:'tower',cave:'door',shrine:'sun',landmark:'eye',lair:'skull'};
 export const bearings={N:[0,1],NE:[.7071,.7071],E:[1,0],SE:[.7071,-.7071],S:[0,-1],SW:[-.7071,-.7071],W:[-1,0],NW:[-.7071,.7071]};
 export const maxWorldPlaces=20;
+export const placeDangers=['safe','risky','lair'];
+// Kinds of creature a lair can hold (the encounter templates); kept here so the map rules stand alone.
+export const lairTemplates=['bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'];
+const lairSketch=f=>!!f&&lairTemplates.includes(f.template)&&typeof f.name==='string'&&f.name.trim().length>0&&f.name.length<=60&&typeof f.appearance==='string'&&f.appearance.trim().length>0&&f.appearance.length<=400;
 const FEET_PER_MILE=5280;
 export const worldPlaces=game=>game.world?.places??[];
 export function worldPlace(game,id){return worldPlaces(game).find(p=>p.id===id)??null;}
@@ -46,6 +50,7 @@ export function mapState(game) {
 // Where the hero is. A dying or dead hero lies where they fell.
 export function mapLocation(game) {
  if(game.dungeon?.active)return 'dungeon';
+ if(game.wildFight)return game.wildFight.place;
  if(game.stage==='wild')return game.world?.at;
  const fallen=game.stage==='dying'?game.dying?.place:game.stage==='dead'?game.death?.at:null;
  if(fallen)return fallen==='wild'?game.world?.at:fallen==='dungeon'?'bridge':fallen;
@@ -58,6 +63,7 @@ export function validWorld(game){
  const seen=new Set(coreIds),names=new Set(Object.values(game.story.locations).map(l=>l.name.trim().toLowerCase()));
  for(const p of w.places){
   if(!p||!/^p\d{1,2}$/.test(p.id)||seen.has(p.id)||!text(p.name,60)||!text(p.description,300)||!placeKinds.includes(p.kind)||!Number.isSafeInteger(p.x)||!Number.isSafeInteger(p.y)||Math.abs(p.x)>2e6||Math.abs(p.y)>2e6||!seen.has(p.from))return false;
+  if((p.danger!==undefined&&!['risky','lair'].includes(p.danger))||(p.feature!==undefined&&!text(p.feature,200))||(p.cleared!==undefined&&p.cleared!==true)||(p.threat!==undefined&&!(lairSketch(p.threat)&&(p.threat.hp===undefined||(Number.isInteger(p.threat.hp)&&p.threat.hp>=1&&p.threat.hp<=1000)))))return false;
   const key=p.name.trim().toLowerCase();if(names.has(key))return false;
   seen.add(p.id);names.add(key);
  }
@@ -100,6 +106,8 @@ export function discoveryError(game,discovery){
  if(!['inn','bridge','tower','wild'].includes(game.stage))return 'Finish this encounter before exploring further.';
  if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
  if(!d||!text(d.name,2,60)||!text(d.description,10,300)||!placeKinds.includes(d.kind)||!Object.hasOwn(bearings,d.bearing)||typeof d.miles!=='number'||!Number.isFinite(d.miles)||d.miles<0.1||d.miles>12||typeof discovery.travel!=='boolean')return 'That new place was not described clearly enough to map.';
+ // Optional: how dangerous it is, one notable thing there, and (for a lair) the creature that lives there.
+ if((d.danger!==undefined&&!placeDangers.includes(d.danger))||(d.feature!==undefined&&d.feature!==null&&!text(d.feature,3,200))||(d.lair!==undefined&&d.lair!==null&&!(d.danger==='lair'&&lairSketch(d.lair))))return 'That new place was not described clearly enough to map.';
  const key=d.name.trim().toLowerCase();
  if(Object.values(game.story.locations).some(l=>l.name.trim().toLowerCase()===key))return '';
  if(!worldPlaces(game).some(p=>p.name.trim().toLowerCase()===key)&&worldPlaces(game).length>=maxWorldPlaces)return 'Your map is full. Travel to places you already know.';
@@ -112,7 +120,8 @@ export function discoverPlace(game,health,discovery){
  if(existing){if(!discovery.travel||existing.id===here)return {game,health,error:existing.id===here?'You are already here.':existing.name+' is already on your map.'};return travelTo(game,health,existing.id);}
  const from=placeCoordinates(game,here),[dx,dy]=bearings[d.bearing],feet=Math.round(d.miles*FEET_PER_MILE);
  const n=Math.max(0,...worldPlaces(game).map(p=>Number(p.id.slice(1))))+1;
- const place={id:'p'+n,name:d.name.trim(),description:d.description.trim(),kind:d.kind,x:Math.round(from.x+dx*feet),y:Math.round(from.y+dy*feet),from:here};
+ const place={id:'p'+n,name:d.name.trim(),description:d.description.trim(),kind:d.kind,x:Math.round(from.x+dx*feet),y:Math.round(from.y+dy*feet),from:here,
+  ...(placeDangers.includes(d.danger)&&d.danger!=='safe'?{danger:d.danger}:{}),...(d.feature?{feature:d.feature.trim()}:{}),...(d.danger==='lair'&&d.lair?{threat:{template:d.lair.template,name:d.lair.name.trim(),appearance:d.lair.appearance.trim()}}:{})};
  const world={places:[...worldPlaces(game),place],at:game.world?.at??null};
  const line=`You learn the way to ${place.name}, ${distanceText(feet)} ${d.bearing} of ${placeName(game,here)}.`;
  const found={...game,world,log:[line,...game.log].slice(0,40)};

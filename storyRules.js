@@ -18,7 +18,7 @@ export function storyText(game,text){
  if(/blue lantern/.test(text))return 'Resolve magical details from the current story and recorded discoveries.';
  // Names written for this story (and places found while exploring) are kept exactly as written: only the
  // engine's own legacy words around them are retold.
- const keep=[...Object.values(s.locations).map(l=>l.name),...Object.values(s.npcs).map(n=>n.name),s.foe,...(game.world?.places??[]).map(p=>p.name)].filter(Boolean).sort((a,b)=>b.length-a.length),held=[];
+ const keep=[...Object.values(s.locations).map(l=>l.name),...Object.values(s.npcs).map(n=>n.name),s.foe,game.wildFight?.name,...(game.world?.places??[]).flatMap(p=>[p.name,p.threat?.name])].filter(Boolean).sort((a,b)=>b.length-a.length),held=[];
  for(const name of keep)text=text.split(name).join('\u0001'+(held.push(name)-1)+'\u0002');
  return retell(s,text).replace(/\u0001(\d+)\u0002/g,(m,i)=>held[Number(i)]);
 }

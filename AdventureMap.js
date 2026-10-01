@@ -70,6 +70,8 @@ function RegionMap({game,travelTo,onTravel}){
  }
  const routeTo=id=>id===here?null:travelRoute(game,here,id);
  const iconFor=id=>coreIcons[id]??placeIcons[worldPlace(game,id)?.kind]??'compass';
+ // What waits at a found place: a lair's creature, a risk, or a place you have cleared.
+ const dangerNote=id=>{const w=worldPlace(game,id);if(!w)return null;if(w.cleared)return 'Cleared';if(w.threat)return 'Lair of '+w.threat.name;if(w.danger==='risky')return 'Something may lurk here';return null;};
  const pick=selected&&ids.includes(selected)?selected:null,pickRoute=pick?routeTo(pick):null,canGo=id=>id!==here&&!!onTravel&&travelTo.includes(id);
  const places=[...ids].sort((a,b)=>(a===here?-1:b===here?1:(routeTo(a)?.feet??0)-(routeTo(b)?.feet??0)));
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
@@ -85,6 +87,7 @@ function RegionMap({game,travelTo,onTravel}){
     return <React.Fragment key={id}>
      <Pressable accessibilityRole="button" accessibilityLabel={placeName(game,id)+(isHere?', you are here':'')} accessibilityState={{selected:on}} onPress={()=>setSelected(on?null:id)} style={[s.node,{left:p.x-22,top:p.y-22}]}>
       <View dataSet={{qb:isHere?'node-here':undefined}} style={[s.nodeDot,isHere&&s.nodeHere,on&&s.nodeOn,!seen&&!isHere&&{opacity:.65,borderStyle:'dashed'}]}><Icon name={iconFor(id)} size={16} color={isHere?'#2a1a07':colors.gold}/></View>
+      {!!worldPlace(game,id)?.threat&&<View style={s.lairMark}/>}
      </Pressable>
      <PlainText onPress={()=>setSelected(on?null:id)} numberOfLines={2} style={[s.nodeLabel,{left:label.x,top:label.y,width:label.w,textAlign:label.align},isHere&&{color:colors.goldBright}]}>{placeName(game,id)}</PlainText>
     </React.Fragment>;})}
@@ -94,6 +97,8 @@ function RegionMap({game,travelTo,onTravel}){
     <Text style={s.detailName}>{placeName(game,pick)}</Text>
     <Text style={[s.distance,pick===here&&{color:colors.goldBright}]}>{pick===here?'You are here':pickRoute?distanceText(pickRoute.feet)+' · '+durationText(pickRoute.minutes)+' on foot':'No known path'}{pick!==here?(visited.has(pick)?'  ·  Visited':'  ·  Not yet visited'):''}</Text>
     <Text style={s.detailText}>{placeDescription(game,pick)}</Text>
+    {!!dangerNote(pick)&&<PlainText style={[s.danger,worldPlace(game,pick)?.cleared&&{color:colors.heal}]}>{dangerNote(pick)}</PlainText>}
+    {!!worldPlace(game,pick)?.feature&&<PlainText style={s.feature}>Notable: {worldPlace(game,pick).feature}</PlainText>}
    </View>
    {canGo(pick)&&<Pressable accessibilityRole="button" accessibilityLabel={'Travel to '+placeName(game,pick)} onPress={()=>{onTravel(pick);setSelected(null);}} dataSet={{qb:'chip'}} style={s.travel}><View style={s.travelRow}><Icon name="travel" size={14} color={colors.gold}/><PlainText style={s.travelText}>Travel</PlainText></View></Pressable>}
   </View>}
@@ -112,6 +117,8 @@ const s=StyleSheet.create({
  nodeDot:{width:34,height:34,borderRadius:17,borderWidth:1.5,borderColor:'rgba(232,199,123,.75)',backgroundColor:'rgba(12,16,24,.92)',alignItems:'center',justifyContent:'center'},
  nodeHere:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},nodeOn:{borderColor:'#fff8db',borderWidth:2},
  nodeLabel:{position:'absolute',fontFamily:fonts.display,fontSize:10.5,lineHeight:14,fontWeight:'700',letterSpacing:.4,color:'#f2e4bf',...Platform.select({web:{textShadow:'0 1px 4px #05090b'},default:{}})},
+ danger:{fontFamily:fonts.ui,fontSize:12,fontWeight:'700',color:colors.bloodBright,marginTop:6,letterSpacing:.3},feature:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d8cfb8',marginTop:4},
+ lairMark:{position:'absolute',top:3,right:3,width:10,height:10,borderRadius:5,backgroundColor:colors.bloodBright,borderWidth:1.5,borderColor:'#1a0a08'},
  pickCard:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:12,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(232,199,123,.45)',backgroundColor:'rgba(9,19,25,.9)'},
  panel:{backgroundColor:'rgba(12,16,24,.8)',borderColor:colors.goldLine,borderWidth:1,borderRadius:6,padding:18,marginVertical:14},eyebrowRow:{flexDirection:'row',alignItems:'center',gap:8},placeIcon:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(201,164,92,.4)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.25)'},travelRow:{flexDirection:'row',alignItems:'center',gap:6},eyebrow:{...type.label},heading:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:1,color:colors.parchment,fontSize:22,marginTop:6},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20,marginVertical:10},frame:{alignSelf:'center',borderRadius:3,overflow:'hidden',backgroundColor:'rgba(23,46,50,.68)',borderWidth:1,borderColor:colors.goldLine},
  places:{gap:8,marginTop:4},place:{flexDirection:'row',gap:10,alignItems:'center',padding:12,paddingRight:10,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.25)'},placeInfo:{flex:1,flexDirection:'row',gap:12,alignItems:'center'},

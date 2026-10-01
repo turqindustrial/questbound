@@ -9,6 +9,7 @@ const fallPlaces=['inn','bridge','tower','wild','dungeon'];
 // Where the hero lies: a creature fight happens at the dangerous site, a brawl at the starting location.
 export function fallPlace(game){
  if(game.dungeon?.active)return 'dungeon';
+ if(game.wildFight)return 'wild';
  if(['inn','bridge','tower','wild'].includes(game.stage))return game.stage;
  if(game.npcCombat)return 'inn';
  return 'bridge';
