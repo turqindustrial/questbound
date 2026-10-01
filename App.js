@@ -50,6 +50,9 @@ import GameHud from './GameHud';
 import LaunchScreen from './LaunchScreen';
 import SaveTransfer from './SaveTransfer';
 import QuickHeroes from './QuickHeroes';
+import HeroRoster from './HeroRoster';
+import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
+import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import FeedbackSheet from './Feedback';
 const titleArt=require('./assets/map/crossroads-landscape.jpg');
 
@@ -79,6 +82,9 @@ function QuestboundApp() {
   const [adventureBlocked,setAdventureBlocked] = useState(false);
   const [saveStatus,setSaveStatus] = useState('');
   const [saveRetry,setSaveRetry] = useState(0);
+  // Heroes set aside on this device and the fallen; a new story can carry on in the same region.
+  const [roster,setRoster]=useState([]),[graves,setGraves]=useState([]),[editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
+  useEffect(()=>{Promise.all([loadRoster(),loadGraveyard()]).then(([r,g])=>{setRoster(r);setGraves(g);}).catch(()=>{});},[]);
   useEffect(() => {
     loadCharacter().then(async saved => {
       if (saved) {
@@ -121,6 +127,33 @@ function QuestboundApp() {
   const button = (label, onPress, variant='secondary', style) => <GameButton key={label} label={label} variant={variant} disabled={loading||creatingStory} onPress={onPress} style={style}/>;
   // The saved adventure is this hero's: if it ended in death, the hero cannot be played again.
   const heroFallen=!!hero&&characterChosen&&game.stage==='dead';
+  const canContinue=!!hero&&characterChosen&&!heroFallen&&canContinueRegion(game),continuingNow=continueRegion&&canContinue;
+  // Before another hero takes this one's place: the living wait in the roster, the dead go to the graveyard.
+  async function setCurrentAside(){
+    if(!hero)return true;
+    const next=setAside(roster,graves,hero,game,health,characterChosen);
+    if(next.error){setError(next.error);return false;}
+    await saveLists(next);setRoster(next.roster);setGraves(next.graves);return true;
+  }
+  async function playFromRoster(entry){
+    if(saving||loading||storageError||creatingStory)return;
+    setSaving(true);setError('');
+    try{
+      const restored=restoreEntry(entry),aside=setAside(roster.filter(e=>e.id!==entry.id),graves,hero,game,health,characterChosen);
+      if(aside.error)throw Error(aside.error);
+      // The current hero is set aside first and the chosen one leaves the roster last, so nobody is lost midway.
+      await saveLists({roster:[...aside.roster,entry],graves:aside.graves});
+      await saveCharacter(restored.hero);await saveAdventure({version:1,character:entry.character,game:restored.game,health:restored.health,chosen:restored.chosen},restored.hero);
+      await saveLists(aside);setRoster(aside.roster);setGraves(aside.graves);
+      setHero(restored.hero);setForm({...blankBuild(),...restored.hero,species:restored.hero.species??restored.hero.race});setGame(restored.game);setHealth(restored.health);setCharacterChosen(restored.chosen);setNewStoryRequested(!restored.chosen);setAdventureBlocked(false);
+      setScreenState('Home');
+    }catch(e){setError(e.message||'Could not switch heroes. Your current hero is unchanged.');}
+    finally{setSaving(false);}
+  }
+  async function retireFromRoster(entry){
+    const next={roster:roster.filter(e=>e.id!==entry.id),graves};
+    try{await saveLists(next);setRoster(next.roster);}catch{setError('Could not update your roster. Try again.');}
+  }
   async function playCharacter(begin=false){
     if(storyLock.current||loading||storageError||adventureBlocked||!hero||heroFallen)return;
     if(!newStoryRequested){setCharacterChosen(true);setScreen('Adventure');return;}
@@ -128,14 +161,19 @@ function QuestboundApp() {
     storyLock.current=true;setCreatingStory(true);setError('');
     try{
       let next;
-      if(selectedIntro==='hostile')next=hostileEncounterGame(hero,newAdventure(hero));
+      // The next chapter in the same region: the story writer is told what the hero leaves behind, and the old
+      // region joins the new map a few miles away.
+      const continuing=continuingNow,bearing=sequelBearings[Math.floor(Math.random()*sequelBearings.length)],miles=4+Math.round(Math.random()*30)/10;
+      const base=newAdventure(hero,characterChosen?carriedBase(game):undefined);
+      if(selectedIntro==='hostile'&&!continuing)next=hostileEncounterGame(hero,base);
       else{
       const endpoint=await findDmEndpoint();
-      const {ok,body}=await askDm(endpoint,{input:'Create a fresh adventure for my character.',context:{mode:'adventure',introId:selectedIntro,choices:[],player:{name:hero.name,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,body}=await askDm(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       if(!ok)throw Error(body.error||'The story could not be created.');
-      next=freshStoryGame(hero,{...body.story,introId:selectedIntro},newAdventure(hero));
+      next=freshStoryGame(hero,{...body.story,introId:continuing?'surprise':selectedIntro},base);
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
+      if(characterChosen&&game.story)next=joinRegion(next,game,{sameRegion:continuing,bearing,miles});
       next.storyHistory=[...new Set([...(game.storyHistory??[]),game.story?.title,next.story.title].filter(Boolean))].slice(-100);
       await transition.prepare(sceneArtSubjects(next));
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
@@ -152,6 +190,7 @@ function QuestboundApp() {
     setSaving(true);
     setError('');
     try {
+      if (hero && !editingHero && !await setCurrentAside()) return;
       await saveCharacter(character);
       setHero(character);
       setHealth(null); setGame(newAdventure(character));
@@ -169,6 +208,7 @@ function QuestboundApp() {
     if (loading || saving || storageError) return;
     setSaving(true); setError('');
     try {
+      if (hero && !await setCurrentAside()) return;
       if (hero) backupLocalSave();
       await saveCharacter(character);
       setHero(character); setForm({...blankBuild(), ...character, species: character.species ?? character.race});
@@ -185,7 +225,7 @@ function QuestboundApp() {
   async function saveAdvancement(character) {
     if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
-    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
+    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
     catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally {setSaving(false);}
   }
@@ -308,7 +348,7 @@ function QuestboundApp() {
           {newStoryRequested&&<Text style={s.note}>{characterChosen?'A fresh story will be created for this character. It replaces your current adventure only when it is ready and saved.':'Next, choose where your story begins.'}</Text>}
           {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
           <GameButton icon="play" label={creatingStory?'Creating your new adventure…':'Play as '+hero.name} onPress={playCharacter} variant="primary" disabled={loading||creatingStory}/>
-          <GameButton icon="quill" label="Edit character" onPress={() => {setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
+          <GameButton icon="quill" label="Edit character" onPress={() => {setEditingHero(true); setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
         </> : <>
           <Section icon="spell" title="Quick start" style={{marginTop:0}}/>
           <Text style={s.body}>Pick a ready-made hero and you'll be choosing your adventure in seconds.</Text>
@@ -316,10 +356,11 @@ function QuestboundApp() {
           {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
           <Section icon="quill" title="Or make your own"/>
         </>}
-        <GameButton icon="sheet" label="Create new character" onPress={() => {setForm(blankBuild()); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
-        {!!hero&&!heroFallen&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero replaces {hero.name} and the current adventure (a backup is kept under Multiplayer).</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
+        <GameButton icon="sheet" label="Create new character" onPress={() => {setEditingHero(false); setForm(blankBuild()); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
+        {!!hero&&!heroFallen&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero sets {hero.name} aside with their adventure; switch back below any time.</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
+        <HeroRoster roster={roster} graves={graves} onPlay={playFromRoster} onRetire={retireFromRoster} busy={saving||loading||creatingStory} compact={compact}/>
       </>}
-      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error}/>}
+      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
       {screen === 'Level Up' && hero && <Advancement hero={hero} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
@@ -356,7 +397,7 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&game.stage==='victory'&&!!hero&&hero.level<20}/>
-  {creatingStory&&selectedIntro!=='hostile'&&<StoryLoading introId={selectedIntro}/>}
+  {creatingStory&&(selectedIntro!=='hostile'||continuingNow)&&<StoryLoading introId={continuingNow?'surprise':selectedIntro}/>}
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
   </View>;
 }

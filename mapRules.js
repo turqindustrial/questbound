@@ -12,7 +12,7 @@ export const coreIds=['inn','bridge','tower'];
 export const placeKinds=['settlement','camp','road','forest','wilds','mountain','water','ruin','cave','shrine','landmark','lair'];
 export const placeIcons={settlement:'home',camp:'camp',road:'travel',forest:'leaf',wilds:'compass',mountain:'peak',water:'wave',ruin:'tower',cave:'door',shrine:'sun',landmark:'eye',lair:'skull'};
 export const bearings={N:[0,1],NE:[.7071,.7071],E:[1,0],SE:[.7071,-.7071],S:[0,-1],SW:[-.7071,-.7071],W:[-1,0],NW:[-.7071,.7071]};
-export const maxWorldPlaces=20;
+export const maxWorldPlaces=30;
 export const placeDangers=['safe','risky','lair'];
 // Kinds of creature a lair can hold (the encounter templates); kept here so the map rules stand alone.
 export const lairTemplates=['bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'];
