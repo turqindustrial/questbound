@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 let raw=null, fail=false;
 const storage={getItem:async()=>raw,setItem:async(key,value)=>{if(fail)throw Error('Disk unavailable');raw=value;}};
-const source=['campaignRules.js','mapRules.js','journalRules.js','equipmentRules.js','characterRules.js','combatRules.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','skillRules.js','storyRules.js','followerRules.js','hostileEncounter.js','encounterRules.js','adventureStorage.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=['campaignRules.js','mapRules.js','journalRules.js','equipmentRules.js','characterRules.js','combatRules.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','skillRules.js','storyRules.js','followerRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureStorage.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const open=()=>vm.runInNewContext(source+'\n({loadAdventure,saveAdventure,adventureSnapshot,validAdventure})',{AsyncStorage:storage});
 const hero={name:'Test',class:'Artificer',level:1,scores:{Strength:15,Dexterity:16,Constitution:13,Intelligence:12,Wisdom:11,Charisma:8}};
 const game={stage:'combat',map:undefined,enemyHP:5,potions:0,round:4,log:['Test turn']};

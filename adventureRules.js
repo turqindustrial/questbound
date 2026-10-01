@@ -14,6 +14,7 @@ import {fallAtZero,deathSave,causeOfFall,fallPlace} from "./deathRules";
 import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
+import {gearedHero,arrowsLeft,spendArrow,potionHealing,npcMaxHP} from "./inventoryRules";
 import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid} from "./encounterRules";
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
@@ -94,7 +95,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     stage: 'inn',
     encounterLevel: hero?.level ?? 1,
     enemyHP: 10 + 8 * ((hero?.level ?? 1) - 1),
-    potions: 1,
+    // What you carry comes with you; a fresh start always has at least one draught.
+    ...(previous?.pack ? {pack: previous.pack} : {}),
+    potions: Math.max(1, previous?.potions ?? 1),
     round: 1,
     log: []
   });
@@ -283,6 +286,10 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       }
       let remaining = victim.hp;
       for (let swing = 0; swing < attacksPerAction(hero) && remaining > 0; swing++) {
+        if (weapon.ranged) {
+          if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
+          next = spendArrow(next, hero);
+        }
         const attack = rollAttack(weapon, rangedMode(weapon, {closeEnemy: distance <= 5, distance}), random),
           hit = !attack.miss && (attack.critical || attack.total >= victim.ac);
         const damageRoll = hit ? rollDamage(weapon, attack.critical, random) : null;
@@ -407,6 +414,39 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         error: 'You need to recover before exploring.'
       };
       const exploring={...game};delete exploring.npcCombat;return discoverPlace(exploring, hp, action);
+    }
+    // A healing draught for someone else: a companion lying senseless comes round (and owes you their life).
+    const givePotion = () => {
+      const person = npcScene(game).find(n => n.id === action.target && n.present && n.fate !== 'dead');
+      if (!person) return 'That person is not here.';
+      if ((game.potions ?? 0) <= 0) return 'You have no healing draughts left.';
+      if (hp.current <= 0) return 'You cannot do that while down.';
+      const most = npcMaxHP(person.id), was = game.npcHP?.[person.id] ?? most;
+      if (was >= most) return person.name + ' is not hurt.';
+      const dose = potionHealing(random), now = Math.min(most, was + dose.total);
+      next.npcHP = {...game.npcHP, [person.id]: now};
+      if (was === 0 && next.npcFate?.[person.id]) { next.npcFate = {...next.npcFate}; delete next.npcFate[person.id]; if (!Object.keys(next.npcFate).length) delete next.npcFate; }
+      next.potions = game.potions - 1;
+      entries.push(`You give ${person.name} a healing draught: ${dose.a} + ${dose.b} + 2; restored ${now - was} HP.${was === 0 ? ' ' + person.name + ' stirs and opens their eyes.' : ''}`);
+      return '';
+    };
+    if (action?.type === 'give-potion' && game.stage !== 'combat') {
+      const error = givePotion();
+      if (error) return {game, health, error};
+      next.log = [...entries, ...game.log].slice(0, 40);
+      return {game: next, events: entries, health: hp};
+    }
+    // Drinking a healing draught away from a fight.
+    if (action === 'potion' && game.stage !== 'combat') {
+      if (!['inn', 'bridge', 'tower', 'wild', 'victory'].includes(game.stage)) return {game, health, error: 'You cannot drink a draught right now.'};
+      if ((game.potions ?? 0) <= 0) return {game, health, error: 'You have no healing draughts left.'};
+      if (hp.current >= stats.hp) return {game, health, error: 'You are already at full health.'};
+      const dose = potionHealing(random), healed = updateHealth(hp, stats.hp, 'heal', dose.total);
+      entries.push(`Healing draught: ${dose.a} + ${dose.b} + 2; restored ${healed.current - hp.current} HP.`);
+      hp = {current: healed.current, temp: healed.temp};
+      next.potions = game.potions - 1;
+      next.log = [...entries, ...game.log].slice(0, 40);
+      return {game: next, events: entries, health: hp};
     }
     // The Dungeon Master springs a creature on you at a found place (a hunting beast, a guardian, an ambush).
     if (action?.type === 'ambush') {
@@ -597,6 +637,10 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         bonusAction = result.bonus;
         dodge = !!result.enemyDisadvantage;
         if (bonusAction) next.bonusUsed = true;
+      } else if (action?.type === 'give-potion') {
+        // Saving a fallen companion costs your turn.
+        const error = givePotion();
+        if (error) return {game, health, error};
       } else if (action === 'potion' && game.potions > 0) {
         const a = 1 + Math.floor(random() * 4),
           b = 1 + Math.floor(random() * 4);
@@ -621,6 +665,11 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         const mode = game.heroCondition ? 'disadvantage' : rangedMode(weapon, {closeEnemy: !turnOptions.opening});
         if (game.heroCondition) entries.push(heroConditions[game.heroCondition]);
         for (let swing = 0; swing < attacksPerAction(hero) && next.enemyHP > 0; swing++) {
+          // Each bow shot uses an arrow; with none left, there is no shot.
+          if (weapon.ranged) {
+            if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
+            next = spendArrow(next, hero);
+          }
           const attack = rollAttack(weapon, mode, random);
           const hit = !attack.miss && (attack.critical || attack.total >= foe.ac);
           entries.push(`You use ${weapon.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${foe.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
@@ -895,7 +944,8 @@ function stepLogEntries(before=[],after=[]){
 export function adventureStep(game,health,hero,action,random=Math.random){
  if(game.stage==='dead')return {game,health,error:'Your hero has died. Their story is over; begin a new tale with another hero.'};
  if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
- const result=livingStep(game,health,hero,action,random);
+ // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
+ const result=livingStep(game,health,gearedHero(hero,game),action,random);
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
  if(result.game&&result.game!==game&&result.game.subdue!==undefined){result.game={...result.game};delete result.game.subdue;}
  return result;

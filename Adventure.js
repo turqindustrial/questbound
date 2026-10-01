@@ -13,6 +13,7 @@ import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
 import {npcScene} from './npcRules';
 import {attitudeLabel} from './relationshipRules';
+import {packOf,arrowsLeft} from './inventoryRules';
 import {damageIcon,damageKind} from './chronicleRules';
 import {useShownHp} from './cinematics';
 import {playSound} from './audio';
@@ -101,6 +102,17 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
     </View>
    </View>;})}
  </View>;
+ // What you carry: gold, draughts, arrows (if you have a bow) and everything found or bought.
+ const pack=packOf(game,hero),arrows=arrowsLeft(game,hero),bow=(hero.equipment?.items??[]).some(i=>/bow$/i.test(i.name))||pack.items.some(i=>/bow$/i.test(i.name));
+ const packPanel=<View dataSet={{qb:'plate'}} style={s.people}>
+  <View style={s.labelRow}><Icon name="bag" size={14} color={colors.goldMid}/><PlainText style={s.label}>Pack</PlainText></View>
+  <View style={s.packRow}>
+   <View style={s.packStat}><Icon name="coin" size={15} color={colors.gold}/><PlainText style={s.packValue}>{pack.gold}</PlainText><PlainText style={s.packUnit}>gold</PlainText></View>
+   <View style={s.packStat}><Icon name="potion" size={15} color={colors.heal}/><PlainText style={s.packValue}>{game.potions??0}</PlainText><PlainText style={s.packUnit}>{(game.potions??0)===1?'draught':'draughts'}</PlainText></View>
+   {bow&&<View style={s.packStat}><Icon name="bow" size={15} color={colors.gold}/><PlainText style={s.packValue}>{arrows}</PlainText><PlainText style={s.packUnit}>arrows</PlainText></View>}
+  </View>
+  {pack.items.filter(i=>i.name!=='Arrow').map(i=><PlainText key={i.name} style={s.packItem}>{i.name}{i.qty>1?' ×'+i.qty:''}<PlainText style={s.packUnit}>{i.kind==='treasure'&&i.value?'  ·  worth '+i.value+' gold':i.kind==='quest'?'  ·  important':i.kind==='weapon'?'  ·  weapon':''}</PlainText></PlainText>)}
+ </View>;
  const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':game.story?.npcs[n.id]?.name??(n.id==='keeper'?'The keeper':'Mara');return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}
@@ -113,6 +125,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   </View>
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
   {peoplePanel}
+  {packPanel}
   {['active','found'].includes(campaign.lensQuest)&&<Text style={s.scene}>{campaign.lensQuest==='found'?'The signal lens is in your inventory. Return it to the keeper.':'The keeper needs the signal lens from beneath the watchtower bell.'}</Text>}
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
@@ -205,6 +218,8 @@ const s=StyleSheet.create({
  logToggle:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',minHeight:40},
  logToggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
  entry:{fontFamily:fonts.story,color:'#d9d3c3',fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.12)'},
+ packRow:{flexDirection:'row',flexWrap:'wrap',gap:16},packStat:{flexDirection:'row',alignItems:'baseline',gap:6},packValue:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:colors.parchment},packUnit:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
+ packItem:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#e6dfcd'},
  people:{padding:16,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,gap:12},personRow:{flexDirection:'row',alignItems:'flex-start',gap:12},personAvatar:{width:44,height:44,borderRadius:22},
  personName:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},standing:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},standingDot:{width:7,height:7,borderRadius:4},
  standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},

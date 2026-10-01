@@ -19,6 +19,9 @@ export function quickActions(hero,game){
   const id=c.id;
   // Attacking townsfolk and declaring the story finished stay deliberate, typed decisions.
   if(/^(npc-attack|story-complete|restart-adventure)/.test(id))continue;
+  // A draught away from a fight is typed or asked for; a companion lying senseless gets a Revive chip.
+  if(id==='potion'&&game.stage!=='combat')continue;
+  if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   if(id==='death-save'){primary.push({key:id,glyph:'☠',icon:'skull',label:'Death save',question:'I fight to hold on.',action:c.action,primary:true});continue;}
   // Bare hands get a chip only when there is no weapon to hand; otherwise "I punch him" still works when typed.
   if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop();if(weapon==='Unarmed Strike'&&armed)continue;const first=!primary.some(a=>a.weapon);(first?primary:backup).push({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:weapon==='Unarmed Strike'?'Unarmed':weapon,question:weapon==='Unarmed Strike'?'I attack with my bare hands.':'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}

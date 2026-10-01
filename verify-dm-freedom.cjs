@@ -41,6 +41,14 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})}),/could not use/,'No ambush away from the wilds');
  await assert.rejects(generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})}));
  assert.ok(lastRequest.instructions.includes('DANGER IN THE WILDS'));
+ // Loot: handed over with the narration, never mid-fight, never more gold than the hero has.
+ const shop=body('I buy a healing potion from the captain.',{stage:'inn',inventory:{gold:60},player:{level:1}});
+ const potionBuy={gold:-50,items:[{name:'Potion of Healing',kind:'potion',qty:1,value:0}],reason:'Bought from the captain.'};
+ assert.equal((await generate(shop,{...keys,fetchImpl:success({narration:'She hands it over.',loot:potionBuy})})).loot.gold,-50);
+ await assert.rejects(generate(shop,{...keys,fetchImpl:success({narration:'x',loot:{...potionBuy,gold:-80}})}),/enough gold/);
+ assert.equal((await generate({...shop,context:{...shop.context,choices:[{id:'travel-inn',label:'Travel'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',loot:potionBuy})})).loot,null,'Loot waits for the narration of an action');
+ await generate(body('I loot it.',{stage:'combat',inventory:{gold:60}}),{...keys,fetchImpl:success({narration:'Not now.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','No loot mid-fight');
+ assert.ok(lastRequest.instructions.includes('LOOT AND TRADE'));
  // Relationship notes: kept on an ordinary turn or when narrating a resolved one; dropped when the turn starts an
  // action (recorded when it is narrated), for the dead, and for scene cues.
  const note={npcId:'mara',change:'grateful',memory:'The player shared their last rations with me.'};

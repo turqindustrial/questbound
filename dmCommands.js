@@ -1,4 +1,5 @@
 import {attackOptions} from './weaponRules';
+import {gearedHero} from './inventoryRules';
 import {npcScene} from './npcRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
 import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast} from './spellRules';
@@ -36,6 +37,7 @@ export const subdueIntent=text=>/\bknock (?:\w+ )?(?:out|unconscious|senseless|c
 export const withAttackIntent=(game,text)=>subdueIntent(text)?{...game,subdue:true}:game;
 // Explicit casting commands are resolved locally so model prose cannot choose a target or spend a slot.
 export function dmCommand(hero,game,message,health=null,currentTarget=null){
+  hero=gearedHero(hero,game);
   let text=message.trim();
   // A dying hero can only fight to hold on.
   if(game.stage==='dying')return /\b(?:death sav|saving throw|hold on|stay alive|survive|breathe|stay conscious|fight (?:to|for)|roll)\w*/i.test(text)?{action:'death-save'}:null;
@@ -61,6 +63,10 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     const parts=[npc.name,...npc.name.split(/[\s,]+/).filter(t=>t.length>=3&&!npcTitleWords.includes(t.toLowerCase()))];
     for(const part of parts){const re=new RegExp('(^|[^A-Za-z])'+part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z])','i');if(re.test(text)){text=text.replace(re,(m,lead)=>lead+id);break;}}
   }
+  // Healing draughts: drink one, or give one to someone here ("give Tobin a potion", "pour a draught into the captain").
+  if(/^(?:I )?(?:drink|quaff|down|swig|take) (?:a |my |one |the )?(?:healing )?(?:potion|draught)/i.test(text))return {action:'potion'};
+  const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara)\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara))/i);
+  if(gift)return {action:{type:'give-potion',target:(gift[1]??gift[2]).toLowerCase()}};
   if(game.story&&/^(?:I )?(?:go to|travel to|move to) /i.test(text)){const target=Object.entries(game.story.locations).find(([id,p])=>text.toLowerCase().includes(p.name.toLowerCase()));if(target)return {action:{type:'travel',destination:target[0]}};}
   if(game.npcCombat?.active){
     const combat=text.replace(/^I /i,'').replace(/[.!]$/,'').toLowerCase();
