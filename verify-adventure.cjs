@@ -11,7 +11,11 @@ const done=game;step('attack:Dagger');assert.equal(game,done);
 game={...r.newAdventure(),stage:'combat',map:undefined};health={current:2,temp:0};let dice=[0,0,0];step('potion',()=>dice.shift());assert.equal(health.current,6);assert.equal(game.potions,0);
 const noPotion=game;step('potion');assert.equal(game,noPotion);
 step('flee');assert.equal(game.stage,'escaped');
-game={...r.newAdventure(),stage:'combat',map:undefined};health={current:1,temp:0};dice=[0,0.99,0.99,0.99];step('attack:Dagger',()=>dice.shift());assert.equal(game.stage,'dying');assert.equal(health.current,0);
+game={...r.newAdventure(),stage:'combat',map:undefined,potions:0};health={current:1,temp:0};dice=[0,0.99,0.99,0.99];step('attack:Dagger',()=>dice.shift());assert.equal(game.stage,'dying');assert.equal(health.current,0);
+// Hurt, with a draught to hand: the turn waits after the action for a bonus action or End turn; a Dodge still counts.
+game={...r.newAdventure(),stage:'combat',map:undefined};health={current:3,temp:0};step('dodge');assert.equal(game.actionUsed,true);assert.equal(game.dodging,true);assert.equal(game.round,1);
+assert.match(r.adventureStep(game,health,hero,'attack:Dagger').error,/already used your action/);
+dice=[0.99,0,0.99];step('end-turn',()=>dice.shift());assert.equal(game.round,2);assert.equal(game.actionUsed,undefined);assert.equal(game.dodging,undefined);assert.equal(health.current,3,'The dodge held: the worse of two dice missed');
 game={...r.newAdventure(),stage:'combat',map:undefined};health={current:9,temp:0};dice=[0.99,0];step('dodge',()=>dice.shift());assert.equal(health.current,9);assert.equal(game.round,2);
 for(const className of r.classes){const h={...hero,class:className};h.equipment=r.equipmentFor(h);const next=r.adventureStep(r.newAdventure(),null,h,'listen');assert.equal(next.game.stage,'bridge',className);}
 console.log('Passed: quest choices, all classes enter, victory stops retaliation, loss, retreat, potion consumption, dodge, and terminal state guards.');

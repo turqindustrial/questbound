@@ -1,6 +1,8 @@
 import {modifier,martialDie,proficiencyBonus,subclassActive} from './characterRules';
 import {combatBasics} from './combatRules';
-import {loadoutFor} from './equipmentRules';
+import {loadoutFor,classWeapons} from './equipmentRules';
+// How well a weapon suits this hero: the chance to hit an ordinary foe times the damage of a hit.
+const weaponScore=w=>Math.max(.05,Math.min(.95,(w.attackBonus+8)/20))*(w.heavyDisadvantage?.5:1)*Math.max(1,(w.count*(w.die+1))/2+w.bonus);
 
 // Only weapons available in the current starter kits are supported.
 export const weapons = {
@@ -24,8 +26,7 @@ export function weaponAttacks(hero) {
   if (!combatBasics(hero).available || !hero.equipment?.items) return [];
   const has = name => hero.equipment.items.some(item => item.name === name && item.quantity > 0);
   const armored = hero.equipment.items.some(item => /Armor|Chain Mail|Chain Shirt/.test(item.name) && item.quantity > 0);
-  const loadout=loadoutFor(hero);
-  return hero.equipment.items.filter(item => item.quantity > 0).flatMap(item => {
+  const attacks = hero.equipment.items.filter(item => item.quantity > 0).flatMap(item => {
     const name = item.name.includes('(Quarterstaff)') ? 'Quarterstaff' : item.name;
     const weapon = weapons[name];
     if (!weapon) return [];
@@ -37,7 +38,30 @@ export function weaponAttacks(hero) {
     const heavyDisadvantage = !!weapon.heavy && hero.scores[weapon.ranged ? 'Dexterity' : 'Strength'] < 13;
     return [{...weapon,name,die,count:weapon.count ?? 1,ability,bonus,attackBonus:bonus+(proficient?proficiencyBonus(hero.level):0),proficient,monk,heavyDisadvantage,
       criticalThreshold:combatBasics(hero).criticalThreshold,blocked:weapon.twoHands && has('Shield') ? 'This weapon needs two free hands. Shield changes are not available yet.' : weapon.ranged && !has('Arrow') ? 'No arrows available.' : ''}];
-  }).sort((a,b)=>Number(b.name===loadout.mainWeapon)-Number(a.name===loadout.mainWeapon));
+  });
+  // The main weapon leads: the close-range weapon that suits this hero best (a frail wizard's dagger, a strong
+  // one's staff), the class's usual choice settling ties.
+  const usual = classWeapons[hero.class] ?? [], rank = w => { const i = usual.indexOf(w.name); return i < 0 ? 99 : i; };
+  const main = attacks.filter(w => !w.ranged && !w.blocked).sort((a,b) => weaponScore(b) - weaponScore(a) || rank(a) - rank(b))[0]?.name ?? loadoutFor(hero).mainWeapon;
+  return attacks.sort((a,b)=>Number(b.name===main)-Number(a.name===main));
+}
+// The gear a hero has ready, with the main weapon chosen for their own abilities.
+export function readyLoadout(hero) {
+  const base = loadoutFor(hero), best = weaponAttacks(hero).find(w => !w.ranged && !w.blocked)?.name;
+  return {...base, mainWeapon: best ?? base.mainWeapon};
+}
+// Where a starter kit sits badly with this hero's abilities, in plain words.
+export function loadoutWarnings(hero) {
+  if (!combatBasics(hero).available || !hero.equipment?.items) return [];
+  const has = name => hero.equipment.items.some(item => item.name === name && item.quantity > 0), notes = [], {Strength, Dexterity} = hero.scores;
+  if (has('Chain Mail') && Strength < 13) notes.push('Chain Mail needs Strength 13: with ' + Strength + ', your Speed drops by 10 feet.');
+  for (const w of weaponAttacks(hero)) if (w.heavyDisadvantage) notes.push(w.name + ' is a heavy weapon: with ' + (w.ranged ? 'Dexterity ' + Dexterity : 'Strength ' + Strength) + ' (under 13), attacks with it have disadvantage.');
+  if (hero.class === 'Fighter') {
+    const ranged = (hero.fighterKit ?? hero.equipment.kit) === 'ranged';
+    if (!ranged && Dexterity >= Strength + 2) notes.push('Your Dexterity is higher than your Strength: the Ranged kit (a longbow, light armor and finesse blades) suits this hero better.');
+    if (ranged && Strength >= Dexterity + 2) notes.push('Your Strength is higher than your Dexterity: the Melee kit (chain mail and a greatsword) suits this hero better.');
+  }
+  return notes;
 }
 // Everyone can fight with fists, feet or a headbutt: 1 + Strength damage, or the Martial Arts die for an unarmored Monk.
 export function unarmedStrike(hero) {

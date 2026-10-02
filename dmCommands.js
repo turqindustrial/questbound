@@ -74,12 +74,19 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   }
   // Healing draughts: drink one, or give one to someone here ("give Tobin a potion", "pour a draught into the captain").
   if(/^(?:I )?(?:drink|quaff|down|swig|take) (?:a |my |one |the )?(?:healing )?(?:potion|draught)/i.test(text))return {action:'potion'};
+  // Rests and the turn itself: a short rest out of a fight; in one, ending the turn or a class's bonus action.
+  if(/^(?:I |we )?(?:take|have|make|need|grab) (?:a |my )?(?:short|quick|brief) (?:rest|breather|break)\b|^(?:I |we )?short rest\b|^(?:I )?catch my breath\b/i.test(text))return {action:'short-rest'};
+  if(game.stage==='combat'){
+    if(/^(?:I )?(?:end|finish|pass|skip) (?:my |the |this )?turn\b|^(?:end turn|pass|done|I(?:'m| am) done)[.!]?$/i.test(text))return {action:'end-turn'};
+    if(hero.class==='Fighter'&&/\bsecond wind\b/i.test(text))return {action:'class:wind'};
+    if(hero.class==='Paladin'&&/\blay(?:ing)? (?:on )?hands\b/i.test(text))return {action:'class:hands'};
+  }
   const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara|n\d{1,2})\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara|n\d{1,2}))/i);
   if(gift)return {action:{type:'give-potion',target:(gift[1]??gift[2]).toLowerCase()}};
   if(game.story&&/^(?:I )?(?:go to|travel to|move to) /i.test(text)){const target=Object.entries(game.story.locations).find(([id,p])=>text.toLowerCase().includes(p.name.toLowerCase()));if(target)return {action:{type:'travel',destination:target[0]}};}
   if(game.npcCombat?.active){
     const combat=text.replace(/^I /i,'').replace(/[.!]$/,'').toLowerCase();
-    if(['dodge','flee','run away','retreat','wait','surrender'].includes(combat))return {action:'npc-'+({'run away':'flee',retreat:'flee'}[combat]??combat)};
+    if(['dodge','flee','run away','retreat','wait','surrender','end turn','end my turn','pass'].includes(combat))return {action:'npc-'+({'run away':'flee',retreat:'flee','end turn':'wait','end my turn':'wait',pass:'wait'}[combat]??combat)};
   }
   const dungeonPhrases={'enter dungeon':'dungeon:enter','enter the dungeon':'dungeon:enter','enter the lantern vaults':'dungeon:enter','leave dungeon':'dungeon:leave','leave the dungeon':'dungeon:leave','search the archive':'dungeon:search','disarm the trap':'dungeon:disarm','speak dawn':'dungeon:dawn','drink from the basin':'dungeon:basin','claim the treasure':'dungeon:claim','recover the lantern heart':'dungeon:claim','confront the guardian':'dungeon:fight'};
   let command=dungeonPhrases[text.replace(/^I /i,'').replace(/[.!]$/,'').toLowerCase()];

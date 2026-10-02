@@ -73,3 +73,6 @@ AI-CHARACTER-*.json
 
 # Anything else the launcher or services keep on this PC (sessions, cloud saves, tunnel settings).
 .questbound-*
+
+# Local assistant tooling
+.claude/

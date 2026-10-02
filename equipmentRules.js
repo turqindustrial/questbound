@@ -42,7 +42,9 @@ export function validEquipment(form) {
 // Derive ready gear from the owned class kit instead of its inventory order.
 // This also works for existing saves without changing the character fingerprint,
 // replenishing supplies, or detaching the character's saved adventure.
-const classWeapons = {
+// A class's usual close-range weapons, most typical first. Which one a particular hero fights with is decided by
+// their own abilities (readyLoadout in weaponRules.js); this order settles ties and stands in before scores exist.
+export const classWeapons = {
   Artificer:['Dagger'], Barbarian:['Greataxe','Handaxe'], Bard:['Dagger'],
   Cleric:['Mace'], Druid:['Quarterstaff','Sickle'], Fighter:['Greatsword','Scimitar','Shortsword','Flail','Javelin'],
   Monk:['Spear','Dagger'], Paladin:['Longsword','Javelin'], Ranger:['Scimitar','Shortsword'],

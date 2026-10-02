@@ -19,7 +19,11 @@ function fightWith(hero,f){
 function choose(hero,g,h,max){
  const cur=h?.current??max,low=cur<=max*0.35,foe=g.story.foe,cast=words=>{const c=r.dmCommand(hero,g,words,h);return c?.action&&!c.error?c.action:null;};
  const weapon=()=>{const weapons=r.attackOptions(hero),w=weapons.find(x=>!x.unarmed&&!x.ranged)??weapons[0];return {type:'encounter-attack',weapon:w.name};};
- if(low&&(g.potions??0)>0)return 'potion';
+ // A draught or Second Wind is a bonus action: taken when low, alongside the action. Once the action is spent
+ // (the turn waits for a bonus action), anything not worth using is skipped with End turn.
+ if(!g.bonusUsed&&low&&(g.potions??0)>0)return 'potion';
+ if(!g.bonusUsed&&low&&hero.class==='Fighter'&&(g.resources?.wind??0)<(hero.level>=10?4:hero.level>=4?3:2))return 'class:wind';
+ if(g.actionUsed)return 'end-turn';
  if(hero.class==='Cleric'){if(low){const heal=cast('I cast Cure Wounds on myself');if(heal)return heal;}return cast('I cast Inflict Wounds on the '+foe)??cast('I cast Sacred Flame at the '+foe)??weapon();}
  if(hero.class==='Wizard')return cast('I cast Magic Missile at the '+foe)??cast('I cast Fire Bolt at the '+foe)??weapon();
  return weapon();

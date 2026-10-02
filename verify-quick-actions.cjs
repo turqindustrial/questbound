@@ -9,7 +9,8 @@ const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.l
 const bandit=r.hostileEncounterGame(fighter,r.newAdventure(fighter),pick('bandit'));
 const keys=list=>list.map(q=>q.key);
 // In combat: weapon attacks lead, then dodge, retreat and the potion. Nothing that belongs elsewhere.
-const combat=r.quickActions(fighter,bandit);
+const health={current:6,temp:0};
+const combat=r.quickActions(fighter,bandit,health);
 assert.ok(combat[0].primary&&/^attack:/.test(combat[0].key),'An attack is the first chip in combat: '+keys(combat));
 assert.equal(combat[0].question,'I attack with my '+combat[0].label+'.');
 for(const k of ['dodge','flee','potion'])assert.ok(keys(combat).includes(k),k+' in combat');
@@ -18,14 +19,20 @@ assert.ok(keys(combat).indexOf('potion')<combat.findIndex((q,i)=>i>0&&q.weapon),
 assert.ok(!combat.some(q=>q.destination),'No travel while fighting');
 assert.ok(!combat.some(q=>/^(npc-attack|story-complete|restart-adventure)/.test(q.key)),'No attacks on townsfolk or story endings as chips');
 assert.ok(!keys(combat).includes('cast'),'A Fighter without spells has no Cast chip');
+// Bonus actions say so, End turn waits at the end of the row, and a hero at full health is not offered healing.
+assert.equal(combat.at(-1).key,'end-turn');assert.equal(combat.find(q=>q.key==='potion').detail,'Bonus');assert.equal(combat.find(q=>q.key==='class:wind').detail,'Bonus');
+assert.ok(!keys(r.quickActions(fighter,bandit,{current:12,temp:0})).some(k=>['potion','class:wind'].includes(k)),'Nothing to heal at full health');
 // Every combat chip resolves through the same engine path as a typed action, and through the DM commit.
-const health={current:12,temp:0};
 for(const q of combat){
  const step=r.adventureStep(bandit,health,fighter,q.action,()=>.6);assert.ok(!step.error,q.key+': '+step.error);assert.ok((step.events??[]).length>0,q.key+' produces events');
  const turn=r.commitDmTurn(fighter,bandit,health,q.action,{question:q.question,narration:'Your action is resolved below.'},()=>.6);assert.ok(!turn.error,q.key+' commits: '+turn.error);
 }
 // Win the fight: travel chips appear, named after the story's places, and travelling works.
-let game=bandit,hp=health;for(let i=0;i<12&&game.stage==='combat';i++){const s=r.adventureStep(game,hp,fighter,combat[0].action,()=>.95);game=s.game;hp=s.health;}
+// Once the action is spent, End turn leads (gold) and only bonus actions stay beside it.
+const spent=r.adventureStep({...bandit,openingAttackAvailable:false},health,fighter,'dodge',()=>.01);assert.equal(spent.game.actionUsed,true);
+const waiting=r.quickActions(fighter,spent.game,spent.health);assert.equal(waiting[0].key,'end-turn');assert.equal(waiting[0].primary,true);assert.equal(JSON.stringify(keys(waiting).sort()),'["class:wind","end-turn","potion"]');
+for(const q of waiting){const s=r.adventureStep(spent.game,spent.health,fighter,q.action,()=>.01);assert.ok(!s.error,q.key+': '+s.error);assert.equal(s.game.actionUsed,undefined,q.key+' ends the turn');assert.equal(s.game.round,spent.game.round+1);}
+let game=bandit,hp=health;for(let i=0;i<24&&game.stage==='combat';i++){const s=r.adventureStep(game,hp,fighter,game.actionUsed?'end-turn':combat[0].action,()=>.95);game=s.game;hp=s.health;}
 assert.notEqual(game.stage,'combat','The bandit falls to repeated hits');
 const after=r.quickActions(fighter,game),trips=after.filter(q=>q.destination);
 assert.ok(trips.length>=1,'Travel chips after the fight: '+keys(after));

@@ -39,7 +39,7 @@ assert.equal(sprung.error,undefined);assert.equal(sprung.game.wildFight.name,'Tu
 assert.match(r.adventureStep(camp,big,kara,{type:'ambush',foe:{template:'boar',name:'Tusked Brute',appearance:'x x x'}},()=>0.5).error,/out in the wilds/);
 assert.equal(r.dmContext(kara,out,big).world.canAmbush,true);assert.equal(r.dmContext(kara,camp,big).world.canAmbush,false);
 // ---- Falling out there ----
-const doomed=r.adventureStep({...found.game,openingAttackAvailable:false},{current:1,temp:0},kara,'dodge',()=>0.9);
+const doomed=r.adventureStep({...found.game,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',()=>0.9);
 assert.equal(doomed.game.stage,'dying');assert.equal(doomed.game.dying.place,'wild');assert.equal(r.mapLocation(doomed.game),'p1');assert.equal(doomed.game.wildFight,undefined);assert.ok(doomed.game.world.places[0].threat);assert.ok(valid(doomed.game,doomed.health));
 // ---- Signature moves ----
 const kinds=key=>({...r.hostileEncounterGame(kara,r.newAdventure(kara),()=>[ 'bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'].indexOf(key)/9+0.01),openingAttackAvailable:false});
@@ -64,7 +64,7 @@ assert.ok(round.events.some(t=>t.startsWith('Bandit Cutthroat attacks Tobin Reed
 let beaten=together,bh=big;for(let i=0;i<12&&(beaten.npcHP?.mara??9)>0&&beaten.stage==='combat';i++){const s=r.adventureStep(beaten,bh,kara,'dodge',seq([0,0.9,0.95,0.9]));beaten=s.game;bh=s.health;}
 assert.equal(beaten.npcHP.mara,0,'A companion can be knocked down');assert.ok(valid(beaten));
 // A companion beside a dying hero stops the bleeding and carries them home.
-const dying=r.adventureStep({...together,openingAttackAvailable:false},{current:1,temp:0},kara,'dodge',seq([0,0.1,0.99,0.99,0.5,0.5]));
+const dying=r.adventureStep({...together,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',seq([0,0.1,0.99,0.99,0.5,0.5]));
 if(dying.game.stage==='dying'){const aided=r.adventureStep(dying.game,dying.health,kara,'death-save',()=>0.9);assert.equal(aided.game.stage,'inn');assert.equal(aided.health.current,1);assert.ok(aided.events[0].startsWith('Tobin Reed kneels beside you'));assert.ok(aided.game.npcMemory.mara.memories.at(-1).includes('brink of death'));assert.ok(valid(aided.game,aided.health));}
 else assert.fail('Setup: the hero should be dying ('+dying.game.stage+')');
 // Chips and art keep up with the creature.

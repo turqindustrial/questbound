@@ -5,6 +5,7 @@ import SpellSelector from './SpellSelector';
 import {spellsForClass,spellSelectionError} from './spellOptions';
 import { equipmentFor, instruments } from './equipmentRules';
 import LoadoutSummary from './LoadoutSummary';
+import DeveloperOptions from './DeveloperOptions';
 import StoryLoading from './StoryLoading';
 import React, {useState} from 'react';
 import {View, Text, TextInput, Pressable, StyleSheet, Modal} from 'react-native';
@@ -28,7 +29,7 @@ const basePages = [
   {title: 'Review your character', intro: 'Check your choices before saving. Use Edit to revisit a page. New characters start at level 1 and level up by winning their battles.'},
 ];
 export default function CharacterBuilder({form, setForm, onSave, saving, blocked, saveError, hasSavedCharacter, onPageChange}) {
-  const spellOptions=spellsForClass(form.class);
+  const spellOptions=spellsForClass(form.class,form.level??1);
   const isCaster=spellOptions.length>0;
   const pages=isCaster?basePages:basePages.filter((_,index)=>index!==7);
   const reviewPage=pages.length-1;
@@ -79,7 +80,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     return <View>
       <Text style={s.label}>{form.class} starter kit</Text>
       <Text style={s.intro}>{gear.summary}</Text>
-      <LoadoutSummary hero={{...form,equipment:gear}}/>
+      <LoadoutSummary hero={{...form,level:form.level??1,scores,equipment:gear}}/>
       {gear.items.map(item => <View key={item.name} style={s.reviewRow}><Text style={[s.text,{flex:1}]}>{item.name}</Text><Text style={s.selectedText}>×{item.quantity}</Text></View>)}
       <Text style={s.note}>Class kit gold: {gear.classGold} GP{'\n'}{form.background} background: {gear.backgroundGold} GP{'\n'}Starting total: {gear.totalGold} GP</Text>
     </View>;
@@ -133,6 +134,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     </>}
     {page === 6 && <>
       {form.class === 'Fighter' && choices('Fighter kit', ['Melee','Ranged'], form.fighterKit === 'ranged' ? 'Ranged' : 'Melee', value => change({fighterKit:value.toLowerCase()}))}
+      {form.class === 'Fighter' && <Text style={s.detail}>{scores.Dexterity > scores.Strength ? 'This hero is quicker than strong (Dexterity '+scores.Dexterity+', Strength '+scores.Strength+'): the Ranged kit fits best.' : scores.Strength > scores.Dexterity ? 'This hero is stronger than quick (Strength '+scores.Strength+', Dexterity '+scores.Dexterity+'): the Melee kit fits best.' : 'Strength and Dexterity are level: either kit works.'}</Text>}
       {['Bard','Monk'].includes(form.class) && <>{choices('Starter instrument', instruments, form.instrument ?? 'Flute', instrument => change({instrument}))}<Text style={s.detail}>A small starter selection. Detailed tool and instrument proficiencies will be handled with class features.</Text></>}
       {equipmentList()}
       <Text style={s.detail}>Packs contain your travel supplies. Armor and shields in your kit are equipped when your adventure starts; your other weapons and tools remain available in your inventory.</Text>
@@ -158,6 +160,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       {page > 0 && action('Previous step', () => go(page - 1), true, saving, 'back')}
     </View>
     <Text style={s.footnote}>Selections stay here while you move between pages. Save on the review page to keep them after closing the app.</Text>
+    <DeveloperOptions form={form} onChange={change}/>
   </View>;
 }
 const s = StyleSheet.create({

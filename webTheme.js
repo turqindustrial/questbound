@@ -139,6 +139,15 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=slot]::before{content:"";position:absolute;inset:3px;pointer-events:none;opacity:.75;background:${corners.tl} top left/34px 34px no-repeat,${corners.tr} top right/34px 34px no-repeat,${corners.bl} bottom left/34px 34px no-repeat,${corners.br} bottom right/34px 34px no-repeat;}
 [data-qb=region-paper]{background:radial-gradient(ellipse 90% 70% at 50% 45%,rgba(64,82,70,.35),transparent 70%),repeating-linear-gradient(0deg,rgba(232,199,123,.035) 0 1px,transparent 1px 28px),repeating-linear-gradient(90deg,rgba(232,199,123,.035) 0 1px,transparent 1px 28px),linear-gradient(180deg,#1a2423,#111816) !important;}
 [data-qb=node-here]{box-shadow:0 0 0 4px rgba(217,174,95,.18),0 0 18px rgba(236,170,84,.55);animation:qb-breathe 2.6s ease-in-out infinite;}
+/* The drawn region map: the sheet pans inside its frame when zoomed, with a quiet scrollbar; the marker where
+   the hero stands breathes. */
+[data-qb=map-scroll]{overflow:hidden !important;scrollbar-width:thin;scrollbar-color:rgba(59,42,23,.55) rgba(59,42,23,.12);overscroll-behavior:contain;touch-action:pan-x pan-y;}
+[data-qb=map-scroll][data-zoomed=true]{overflow:auto !important;cursor:grab;}
+[data-qb=map-frame]{box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,240,196,.12);}
+[data-qb=map-here]{box-shadow:0 0 0 3px rgba(143,44,28,.22),0 0 16px rgba(143,44,28,.55);animation:qb-breathe 2.6s ease-in-out infinite;}
+[data-qb=map-tool]{background:rgba(237,222,182,.92) !important;box-shadow:0 2px 8px rgba(40,25,10,.35);}
+[data-qb=map-tool]:hover{background:#f6ebcb !important;}
+@media (prefers-reduced-motion: reduce){[data-qb=map-here]{animation:none;}}
 [data-qb=pip-good]{box-shadow:0 0 8px rgba(111,208,160,.6);}
 [data-qb=pip-bad]{box-shadow:0 0 8px rgba(240,106,79,.65);}
 @media (prefers-reduced-motion: reduce){[data-qb=node-here]{animation:none;}}

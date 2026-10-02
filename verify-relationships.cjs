@@ -50,14 +50,14 @@ const dropped=r.commitDmTurn(cleric,{...kill.game,npcCombat:undefined},hp,null,{
 assert.equal(dropped.error,undefined);assert.ok(!mem(dropped.game,'mara').memories.includes('Thanks from beyond.'));assert.ok(!mem(dropped.game,'keeper').memories.includes('x y z'));
 // ---- The main foe's end ----
 let fight=r.hostileEncounterGame(cleric,r.newAdventure(cleric),()=>0),h={current:60,temp:0};
-for(let i=0;i<40&&fight.stage==='combat';i++){const s=r.adventureStep(fight,h,cleric,'attack:Mace',()=>0.7);fight=s.game;h=s.health;}
+for(let i=0;i<80&&fight.stage==='combat';i++){const s=r.adventureStep(fight,h,cleric,fight.actionUsed?'end-turn':'attack:Mace',()=>0.7);fight=s.game;h=s.health;}
 assert.equal(fight.foeFate,'slain');assert.ok(mem(fight,'keeper').memories.includes('The player killed the Bandit Cutthroat that threatened us.'));assert.equal(mem(fight,'keeper').attitude,'friendly');
 // A story where the captain is the bandit's own kin: killing it is unforgivable, sparing it earns her thanks.
 const kinStory=r.hostileEncounterGame(cleric,r.newAdventure(cleric),()=>0);kinStory.story={...kinStory.story,npcs:{...kinStory.story.npcs,keeper:{...kinStory.story.npcs.keeper,ties:{other:'friend',foe:'kin',note:'The bandit is her runaway son.'}}}};
 assert.ok(r.validStory(kinStory.story));
-let k=kinStory;h={current:60,temp:0};for(let i=0;i<40&&k.stage==='combat';i++){const s=r.adventureStep(k,h,cleric,'attack:Mace',()=>0.7);k=s.game;h=s.health;}
+let k=kinStory;h={current:60,temp:0};for(let i=0;i<80&&k.stage==='combat';i++){const s=r.adventureStep(k,h,cleric,k.actionUsed?'end-turn':'attack:Mace',()=>0.7);k=s.game;h=s.health;}
 assert.equal(mem(k,'keeper').grudge,'The player killed Bandit Cutthroat, my own kin.');assert.equal(mem(k,'mara').attitude,'friendly');
-k=kinStory;h={current:60,temp:0};for(let i=0;i<40&&k.stage==='combat';i++){const s=r.adventureStep({...k,subdue:true},h,cleric,'attack:Mace',()=>0.7);k=s.game;h=s.health;}
+k=kinStory;h={current:60,temp:0};for(let i=0;i<80&&k.stage==='combat';i++){const s=r.adventureStep({...k,subdue:true},h,cleric,k.actionUsed?'end-turn':'attack:Mace',()=>0.7);k=s.game;h=s.health;}
 assert.equal(k.foeFate,'subdued');assert.equal(mem(k,'keeper').grudge,undefined);assert.equal(mem(k,'keeper').attitude,'friendly');
 // Bad ties are refused.
 assert.ok(!r.validStory({...camp.story,npcs:{...camp.story.npcs,mara:{...camp.story.npcs.mara,ties:{other:'soulmate',foe:'enemy'}}}}));

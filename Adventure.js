@@ -27,10 +27,14 @@ import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
 import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
+import {rememberTurn} from './turnMemory';
+import {useVisualViewport} from './webLayout';
 import {fonts,colors,type} from './theme';
-export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero}){
+export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping}){
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
+ // While the player types on a phone, everything but the story and the message box steps aside.
+ const [typing,setTypingState]=useState(false),setTyping=value=>{setTypingState(value);onTyping?.(value);},visibleHeight=useVisualViewport().height;
  const {width:windowWidth,height:windowHeight}=useWindowDimensions();
  // New turns (yours, the table's or a scene moment) bring a phone player back to the story.
  const lastTurn=game.playback?.at(-1)?.id??0;
@@ -38,12 +42,16 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game);
  const [inConversation,setInConversation]=useState(false);
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
- const act=async(action,conversation,random=Math.random)=>{const tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,game,health,action,conversation,random):adventureStep(game,health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,game,health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger)result.game=withSceneTrigger(game,result.game,action);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}setGame(result.game);setHealth(result.health);setError('');return result;};
+ // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
+ // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
+ const act=async(action,conversation,random=Math.random,options)=>{const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');return result;};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
  // One-tap actions for this moment; the map's Travel buttons send through the same Dungeon Master turn.
- const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game)];
+ const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game,health)];
+ // Whose move it is: the player's action, or (once it is spent) a bonus action or the end of the turn.
+ const turnLabel=game.actionUsed?'Bonus action or end turn':'Your turn';
  const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
  const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
@@ -55,11 +63,11 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <StatBar value={foeHp} maximum={foe.maximum} kind="enemy" height={7}/>
    {livingAllies(game).map(a=><PlainText key={'ally'+a.index} numberOfLines={1} style={s.stripAlly}>+ {a.name} · {a.hp}/{a.maximum} HP</PlainText>)}
   </View>
-  <View style={s.roundBadge}><PlainText style={s.roundBadgeLabel}>Rnd</PlainText><PlainText style={s.roundBadgeText}>{game.round}</PlainText></View>
+  <View style={s.roundBadge}><PlainText style={s.roundBadgeLabel}>{game.actionUsed?'Bonus':'Rnd'}</PlainText><PlainText style={s.roundBadgeText}>{game.round}</PlainText></View>
  </Pressable>;
  const statChip=(icon,text)=><View key={text} style={s.statChip}><Icon name={icon} size={12} color="#ffc9b8"/><PlainText style={s.statChipText}>{text}</PlainText></View>;
  const combatPlate=game.stage==='combat'&&<View dataSet={{qb:'plate-hot'}} style={[s.combat,{marginTop:0}]}>
-  <View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText numberOfLines={1} style={s.bannerText}>Round {game.round} · Your turn</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View>
+  <View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText numberOfLines={1} style={[s.bannerText,game.actionUsed&&{letterSpacing:1.6}]}>Round {game.round} · {turnLabel}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View>
   <Pressable accessibilityRole="button" accessibilityLabel={'Show everyone\'s combat HP'} disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} style={[s.foeArt,{height:Math.round(Math.min(200,sideWidth*.62,Math.max(110,windowHeight*.3)))}]}>
    {!!creature&&<View dataSet={{hit:foeHit}} style={StyleSheet.absoluteFill}><DynamicArt subject={creature} style={StyleSheet.absoluteFill} compact/></View>}
    <View dataSet={{qb:'foe-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/>
@@ -136,21 +144,23 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
  const logPanel=!!game.log.length&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.log}><View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>Adventure log</PlainText></View>{game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}</View>;
- const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>;
+ const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
+ // With the keyboard up there is little height left: the side column, strips and tabs give it to the story.
+ const cramped=typing&&(visibleHeight||windowHeight)<560;
  const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel}/>;
  const toast=!!error&&<Pressable accessibilityRole="alert" accessibilityHint="Tap to dismiss" onPress={()=>setError('')} dataSet={{qb:'enter'}} style={s.toast}><Icon name="info" size={16} color="#ffb39e"/><Text style={s.toastText}>{error}</Text><Icon name="close" size={14} color="#ffd2c2"/></Pressable>;
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
-  {wide&&<ScrollView style={[s.side,{width:sideWidth}]} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{questPanel}{mapPanel}{logPanel}</ScrollView>}
-  {!wide&&tab==='story'&&combatStrip}
-  {!wide&&tab==='story'&&dyingPanel}
-  {!wide&&tab==='story'&&deathPanel}
+  {wide&&<ScrollView style={[s.side,{width:sideWidth},cramped&&{display:'none'}]} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{questPanel}{mapPanel}{logPanel}</ScrollView>}
+  {!wide&&tab==='story'&&!cramped&&combatStrip}
+  {!wide&&tab==='story'&&!cramped&&dyingPanel}
+  {!wide&&tab==='story'&&!cramped&&deathPanel}
   {!wide&&toast}
   {/* The Dungeon Master stays mounted on every tab so a turn in progress is never interrupted. */}
   <View style={[s.main,!story&&{display:'none'}]}>{wide&&toast}{master}</View>
   {!story&&<ScrollView style={s.main} contentContainerStyle={s.tabContent}>{tab==='quest'&&<>{combatPlate}{questPanel}</>}{tab==='map'&&mapPanel}{tab==='log'&&(logPanel||<Text style={s.caption}>Nothing has happened yet.</Text>)}</ScrollView>}
-  {!wide&&<View dataSet={{qb:'tabbar'}} style={s.tabBar} accessibilityRole="tablist">{[['story','quill','Story'],['quest','scroll','Quest'],['map','map','Map'],['log','journal','Log']].map(([id,icon,label])=>{const on=tab===id,alert=id==='quest'&&game.stage==='combat'&&!on;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setTab(id);}} dataSet={{qb:on?'tab-on':undefined}} style={[s.tab,on&&s.tabOn]}><View><Icon name={icon} size={20} color={on?colors.goldBright:colors.muted}/>{alert&&<View style={s.tabAlert}/>}</View><PlainText style={[s.tabLabel,on&&s.tabOnText]}>{label}</PlainText></Pressable>;})}</View>}
+  {!wide&&<View dataSet={{qb:'tabbar'}} style={[s.tabBar,typing&&{display:'none'}]} accessibilityRole="tablist">{[['story','quill','Story'],['quest','scroll','Quest'],['map','map','Map'],['log','journal','Log']].map(([id,icon,label])=>{const on=tab===id,alert=id==='quest'&&game.stage==='combat'&&!on;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setTab(id);}} dataSet={{qb:on?'tab-on':undefined}} style={[s.tab,on&&s.tabOn]}><View><Icon name={icon} size={20} color={on?colors.goldBright:colors.muted}/>{alert&&<View style={s.tabAlert}/>}</View><PlainText style={[s.tabLabel,on&&s.tabOnText]}>{label}</PlainText></Pressable>;})}</View>}
  </View>;}
  return <View>
  {game.stage==='combat'&&<View dataSet={{qb:'plate'}} style={[s.combat,{marginTop:4,marginBottom:4}]}>

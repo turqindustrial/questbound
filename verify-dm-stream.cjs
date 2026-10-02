@@ -13,8 +13,15 @@ const cases=[
  ['It drops to 2 HP and howls.','It is badly hurt and howls.'],
  ['The cut leaves him with only 2 hit points remaining.','The cut leaves him with only 2 hit points remaining.'.replace('with only 2 hit points remaining','badly wounded')],
  ['You strike for 11 damage.','You strike for 11 damage.'],
+ ['You are back up to 4 HP now.','You are back up now.'],
+ ['You sit at 3 HP, shaking.','You sit wounded, shaking.'],
+ ['You are at 9 HP.','You are at 9 HP.'],
 ];
 for(const [said,want] of cases)assert.equal(checkedHp(said,ctx),want,said);
+// Hit points part-way through a turn are real too: healed from 5 to 11, then struck down to 7.
+const mid={player:{health:{current:7,temp:0}},turnStart:{hp:5,max:12},engineResolved:['Second Wind: 5 + 1; restored 6 HP.','1d6 [3] + 1 = 4 Slashing damage. 4 damage recorded: 0 absorbed by temporary HP, 4 HP lost.']};
+assert.equal(checkedHp('You regain 6 hit points, leaving you at 11 HP, then the blade leaves you at 7 HP.',mid),'You regain 6 hit points, leaving you at 11 HP, then the blade leaves you at 7 HP.');
+assert.equal(checkedHp('You regain 6 hit points, leaving you at 10 HP.',mid),'You regain 6 hit points, leaving you wounded.');
 assert.equal(partialNarration('{"narration":"The blade \\"sings\\"\\nand the'),'The blade "sings"\nand the');
 assert.equal(partialNarration('{"narr'),'');
 // A streamed answer from the AI service: Server-Sent Events carrying the JSON reply in pieces.

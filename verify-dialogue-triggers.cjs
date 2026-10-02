@@ -33,7 +33,7 @@ const fled=r.adventureStep({...first.game,openingAttackAvailable:false},first.he
 assert.equal(fled.game.stage,'inn');assert.ok(fled.events.some(t=>t.includes('You retreat to Caravan Camp. The Bandit Cutthroat is still out there')));assert.equal(fled.game.enemyHP,first.game.enemyHP);assert.ok(valid(fled.game,fled.health));
 assert.equal(p.sceneTrigger(first.game,fled.game,'flee').id,'retreat');
 // Knocked down, the hero lies dying where they fell; three successful death saves and they wake back at camp.
-const knocked=r.adventureStep({...first.game,openingAttackAvailable:false},{current:1,temp:0},hero,'dodge',()=>0.9);
+const knocked=r.adventureStep({...first.game,openingAttackAvailable:false,potions:0,resources:{wind:4}},{current:1,temp:0},hero,'dodge',()=>0.9);
 assert.equal(knocked.game.stage,'dying');assert.equal(knocked.health.current,0);assert.ok(knocked.events.some(t=>t.startsWith('You fall unconscious and are dying')));assert.ok(valid(knocked.game,knocked.health));
 let saving=knocked;for(let i=0;i<3;i++){const before=saving;saving=r.adventureStep(saving.game,saving.health,hero,'death-save',()=>0.6);assert.ok(valid(saving.game,saving.health));if(i===2)assert.equal(p.sceneTrigger(before.game,saving.game,'death-save').id,'wake');}
 assert.equal(saving.game.stage,'inn');assert.equal(saving.health.current,1);assert.ok(saving.events.at(-1).startsWith('You are stable. Hours later you wake with 1 HP at Caravan Camp'));

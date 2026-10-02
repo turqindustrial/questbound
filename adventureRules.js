@@ -5,7 +5,7 @@ import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
 import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace} from "./mapRules";
-import {resolveClassAction} from "./classActions";
+import {resolveClassAction,bonusOptions,shortRestLimit} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange} from "./weaponRules";
 import {modifier} from "./characterRules";
@@ -545,17 +545,54 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         }
       };
     }
-    if (action === 'long-rest' && game.stage === 'inn') return {
-      game: {
-        ...newAdventure(hero, game),
-        enemyHP: game.enemyHP,
-        firedTriggers: game.firedTriggers,
-        campaign: campaignState(game),
-        map: mapState(game),
-        log: ['You finish a long rest. HP and casting resources are restored.']
-      },
-      health: null
-    };
+    // A short rest, as in Baldur's Gate 3: two between long rests (three for a Bard with Song of Rest), anywhere
+    // out of a fight. It restores half the hero's hit points, and half of each companion's, and what returns on a
+    // short rest: a Fighter's Second Wind and a Warlock's spell slots. A long rest brings the short rests back.
+    if (action === 'short-rest') {
+      const limit = shortRestLimit(hero), used = game.shortRests ?? 0;
+      if (game.stage === 'combat' || game.npcCombat?.active) return {game, health, error: 'You cannot rest in the middle of a fight.'};
+      if (!['inn', 'bridge', 'tower', 'wild', 'victory'].includes(game.stage)) return {game, health, error: 'You cannot rest here.'};
+      if (hp.current <= 0) return {game, health, error: 'You cannot rest while down.'};
+      if (used >= limit) return {game, health, error: 'You have no short rests left. A long rest at a safe place restores them.'};
+      const lines = [], now = Math.min(stats.hp, hp.current + Math.floor(stats.hp / 2));
+      if (now > hp.current) lines.push(`You bind your wounds and catch your breath: restored ${now - hp.current} HP.`);
+      for (const n of npcScene(game)) {
+        if (game.followers?.[n.id]?.status !== 'following' || !n.present || n.fate === 'dead') continue;
+        const most = npcMaxHP(n.id, game), was = game.npcHP?.[n.id] ?? most, better = Math.min(most, was + Math.floor(most / 2));
+        if (was <= 0 || better <= was) continue;
+        next.npcHP = {...next.npcHP, [n.id]: better};
+        lines.push(`${npcLore(game, n.id)?.name ?? n.name} rests too: restored ${better - was} HP.`);
+      }
+      if (hero.class === 'Fighter' && (game.resources?.wind ?? 0) > 0) {
+        next.resources = {...game.resources, wind: 0};
+        lines.push('Second Wind is ready again.');
+      }
+      if (hero.class === 'Warlock' && ((game.spellSlotsUsed ?? []).some(n => n > 0) || (game.resources?.slots ?? 0) > 0)) {
+        next.spellSlotsUsed = Array(9).fill(0);
+        next.resources = {...(next.resources ?? game.resources), slots: 0};
+        lines.push('Your pact magic returns: spell slots restored.');
+      }
+      if (!lines.length) return {game, health, error: 'You are already rested: there is nothing to recover.'};
+      next.shortRests = used + 1;
+      entries.push(`Short rest (${used + 1} of ${limit}).`, ...lines);
+      next.log = [...entries, ...game.log].slice(0, 40);
+      return {game: next, events: entries, health: {current: now, temp: hp.temp}};
+    }
+    // A long rest restores hit points, spell slots, class features and the short rests. Everything else about the
+    // adventure stays exactly as it was: the places found, the people met, the pack, the story so far.
+    if (action === 'long-rest' && game.stage === 'inn') {
+      const rested = {...game, round: 1, potions: Math.max(1, game.potions ?? 1), map: mapState(game), campaign: campaignState(game)};
+      for (const key of ['resources', 'spellSlotsUsed', 'arcanumUsed', 'shortRests', 'concentration', 'temporarySpell', 'enemyEffects', 'bonusUsed', 'slotSpentThisTurn', 'reactionUsed', 'actionUsed', 'dodging', 'castingConditions', 'heroCondition', 'foeTricks', 'pendingSpell']) delete rested[key];
+      const lines = ['You finish a long rest. HP and casting resources are restored.'];
+      // Companions who are with you (and still on their feet) sleep it off too.
+      for (const n of npcScene(game)) {
+        if (game.followers?.[n.id]?.status !== 'following' || n.fate === 'dead') continue;
+        const most = npcMaxHP(n.id, game), was = game.npcHP?.[n.id] ?? most;
+        if (was > 0 && was < most) { rested.npcHP = {...rested.npcHP, [n.id]: most}; lines.push(`${npcLore(game, n.id)?.name ?? n.name} is rested and whole again.`); }
+      }
+      rested.log = [...lines, ...game.log].slice(0, 40);
+      return {game: rested, events: lines, health: null};
+    }
     if (game.stage === 'inn' && ['study', 'listen'].includes(action)) {
       if (mapState(game).accepted) return {
         game,
@@ -602,9 +639,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         health: hp
       };
       let dodge = false,
-        bonusAction = false;
+        bonusAction = false,
+        usedBonus = false;
+      const ending = action === 'end-turn';
       if (turnOptions.enemyOnly) {
         // The opening attack is already committed; this phase only advances the foe.
+      } else if (ending) {
+        entries.push(game.actionUsed ? 'You end your turn.' : 'You hold your ground and end your turn.');
       } else if (spellResult) {
         next = spellResult.game;
         hp = spellResult.health;
@@ -624,7 +665,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           entries.push(`The DM resolved ${spellResult.manualRounds} rounds of casting and intervening events.`);
         }
         dodge = !!spellResult.enemyDisadvantage;
-        if (spellResult.bonus) next.bonusUsed = true;
+        if (spellResult.bonus) { next.bonusUsed = true; usedBonus = true; }
         if (hp.current === 0) {
           const fell = fall(next, 'spell', 0, stats.hp);
           next = fell.game;
@@ -637,7 +678,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         const result = resolveClassAction(hero, game, hp, stats.hp, action.slice(6), random, foe);
         if (!result) return {
           game,
-          health
+          health,
+          error: game.bonusUsed ? 'Your bonus action is already used this turn.' : action === 'class:wind' && hp.current >= stats.hp ? 'You are already at full health.' : 'That is not available right now.'
         };
         next = result.game ?? next;
         next.resources = result.resources;
@@ -646,21 +688,27 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         entries.push(...result.logs);
         bonusAction = result.bonus;
         dodge = !!result.enemyDisadvantage;
-        if (bonusAction) next.bonusUsed = true;
+        if (bonusAction) { next.bonusUsed = true; usedBonus = true; }
       } else if (action?.type === 'give-potion') {
         // Saving a fallen companion costs your turn.
         const error = givePotion();
         if (error) return {game, health, error};
       } else if (action === 'potion' && game.potions > 0) {
+        // Drinking a healing draught is a bonus action: you can still act this turn.
+        if (game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
+        if (hp.current >= stats.hp) return {game, health, error: 'You are already at full health.'};
         const a = 1 + Math.floor(random() * 4),
           b = 1 + Math.floor(random() * 4);
         const healed = updateHealth(hp, stats.hp, 'heal', a + b + 2);
-        entries.push(`Healing draught: ${a} + ${b} + 2; restored ${healed.current - hp.current} HP. It uses your turn in this demo.`);
+        entries.push(`Healing draught: ${a} + ${b} + 2; restored ${healed.current - hp.current} HP.`);
         hp = {
           current: healed.current,
           temp: healed.temp
         };
         next.potions--;
+        next.bonusUsed = true;
+        bonusAction = true;
+        usedBonus = true;
       } else if (action === 'dodge') {
         dodge = true;
         entries.push(game.wildFight ? `You dodge. The ${foe.name} attacks with disadvantage this turn.` : 'You dodge. The wisp attacks with disadvantage this turn.');
@@ -727,6 +775,25 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.stage = 'victory';
         entries.push('The wisp settles into the lantern. You have restored the crossing!');
       }
+      // One action a turn: once it is spent, only a bonus action or ending the turn remains.
+      if (game.actionUsed && !usedBonus && !ending && !turnOptions.enemyOnly) return {
+        game,
+        health,
+        error: 'You have already used your action this turn. Use a bonus action or end your turn.'
+      };
+      // After the action, a hero who still has a bonus action worth using gets the chance: the turn waits for it, or
+      // for End turn. A bonus action taken after the action ends the turn by itself.
+      const acted = !bonusAction && !ending && !turnOptions.enemyOnly;
+      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && !spellResult?.manualRounds && bonusOptions(hero, next, hp, stats.hp).length > 0;
+      if (paused) {
+        next.actionUsed = true;
+        // A Dodge (or a foe thrown off by a spell) still counts when the turn ends.
+        if (dodge) next.dodging = true;
+        entries.push('You still have a bonus action: use it, or end your turn.');
+      }
+      if (usedBonus && game.actionUsed) bonusAction = false;
+      if (paused) bonusAction = true;
+      if (game.dodging && !paused) dodge = true;
       // Companions travelling with you strike the creature once, after your turn.
       if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy && !turnOptions.enemyOnly) {
         const helped = companionsAttack(next, foe, random);
@@ -816,6 +883,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.bonusUsed = false;
         next.slotSpentThisTurn = false;
         next.reactionUsed = false;
+        delete next.actionUsed;
+        delete next.dodging;
         if (next.concentration?.remaining !== null && next.concentration?.remaining !== undefined) {
           next.concentration = {
             ...next.concentration,
@@ -836,6 +905,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         if (next.enemyEffects) next.enemyEffects = Object.fromEntries(Object.entries(next.enemyEffects).filter(([, rounds]) => rounds > 1).map(([key, rounds]) => [key, rounds - 1]));
         if (hp.current === 0) delete next.concentration;
       }
+      if (next.stage !== 'combat') { delete next.actionUsed; delete next.dodging; }
     } else return {
       game,
       health
@@ -886,7 +956,8 @@ function creatureCombatStep(game,health,hero,action,random){
  }
  const result=adventureStepCore(scene,health,hero,command,random);
  if(result.game.stage==='combat'&&scene.stage!=='combat')result.game={...result.game,openingAttackAvailable:true,encounterInitiative:undefined};
- else if(scene.openingAttackAvailable&&!result.error&&!result.waiting&&result.game!==scene)result.game={...result.game,openingAttackAvailable:false};
+ // A bonus action (a draught, Second Wind) before the first blow leaves the opening attack for the action that follows.
+ else if(scene.openingAttackAvailable&&!result.error&&!result.waiting&&result.game!==scene&&!(result.game.bonusUsed&&!scene.bonusUsed&&result.game.round===scene.round))result.game={...result.game,openingAttackAvailable:false};
  return strip(result);
 }
 
@@ -1022,7 +1093,7 @@ function dyingStep(game,health,hero,action,random){
 function livingStep(game,health,hero,action,random){
  if(!game.story){const result=adventureStepEngine(game,health,hero,action,random);return {...result,events:result.events??stepLogEntries(game.log,result.game?.log)};}
  if(action==='story-complete')return {game:{...game,story:{...game.story,status:'complete'},log:['Adventure complete: '+game.story.title,...game.log].slice(0,40)},health,events:['Adventure complete: '+game.story.title]};
- const allowed=['approach','dodge','flee','potion','long-rest','npc-dodge','npc-flee','npc-wait','npc-surrender'];
+ const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  if(typeof action==='string'&&!allowed.includes(action)&&!action.startsWith('attack:'))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random);
