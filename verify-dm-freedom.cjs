@@ -28,7 +28,11 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  await assert.rejects(generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})}),/new place the map could not use/);
  await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','No new places while the player is not free to travel');
  await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','Narrating a resolved turn reveals nothing');
- await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'Both.',discovery:ridge,check:{skill:null,ability:'Wisdom',dc:10,mode:'normal',reason:'Look',success:'Yes',failure:'No',damageCount:0,damageDie:6,damageOn:'none'}})}),/invalid ruling/,'One mechanical action at a time');
+ // One game action per reply: when two arrive together the first is kept and the other dropped, not the whole reply.
+ const look={skill:null,ability:'Wisdom',dc:10,mode:'normal',reason:'Look',success:'Yes',failure:'No',damageCount:0,damageDie:6,damageOn:'none'};
+ const both=await generate(free,{...keys,fetchImpl:success({narration:'Both.',discovery:ridge,check:look})});assert.equal(both.discovery.name,'Thornback Ridge');assert.equal(both.check,null,'The journey is kept, the check dropped');
+ const walk=await generate({...free,context:{...free.context,choices:[{id:'travel-tower',label:'Travel to Lookout Rock'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-tower',check:look,discovery:ridge})});assert.equal(walk.actionId,'travel-tower');assert.equal(walk.check,null);assert.equal(walk.discovery,null);
+ assert.match(lastRequest.instructions,/WHAT IS TRUE NOW:/);assert.match(lastRequest.instructions,/never invent an obstacle/);
  await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})}),/new place the map could not use/);
  // Danger in the wilds: a lair's creature, a feature, and ambushes only where the player is out in the wilds.
  const widow={template:'spider',name:'Grey Widow',appearance:'A spider as large as a pony, grey and bristled.'};

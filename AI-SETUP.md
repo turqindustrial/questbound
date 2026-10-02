@@ -7,7 +7,7 @@
 - **Smaller requests.** The scene the model reads is trimmed in `sceneFor` (dm-server.cjs): standing guidance moved into the instructions (cached by the provider), portrait text, the played opening, duplicated place descriptions and conversation entries dropped, skill bonuses as one line each, creature templates only when a creature can appear, and no choices or spell list while narrating a resolved turn. Measured on saved scenes: 15.5k → 10.1k characters at a camp, 14.3k → 8.3k in a fight, 15.3k → 9.4k for a wizard. Validation still uses the full context.
 - **Repairs instead of refusals.** A discovery, creature or introduction whose text runs a little long is shortened; a place given a creature becomes a lair. Missing or wrong-kind fields are still refused.
 - **Logs.** Live requests append `{mode, model, input, cached, output, reasoning}` tokens to `.questbound-usage.jsonl`; `node dm-report.cjs [--days N]` sums requests, cached share, estimated cost (prices on file for the two luna models) and rejections. Test runs with a fake provider no longer write to either log; the 309 entries logged on 2026-10-01 were test runs except one.
-- The running DM picks up `generate` changes at once; the story writer and reasoning settings from the environment apply after a restart with the launcher.
+- The running DM picks up `generate` changes at once, and reads the chosen models (`.questbound-model` for play, `.questbound-story-model` for stories and heroes; `Questbound.cmd -Models` writes them) on every live request, so changing a model needs no restart. Reasoning settings from the environment and reply streaming apply after a restart with the launcher.
 
 ## Current private setup — 2026-09-29
 

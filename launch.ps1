@@ -77,7 +77,7 @@ if ($Models) {
   $chosen = Read-Models $model $storyModel
   Save-Models $chosen[0] $chosen[1]
   $summary = if ($chosen[1]) { "$($chosen[0]) for play and $($chosen[1]) for stories and heroes" } else { "$($chosen[0]) for everything" }
-  Say "  Saved: $summary. The Dungeon Master uses them after a restart: Questbound.cmd -Stop, then Questbound.cmd." 'Green'
+  Say "  Saved: $summary. A running Dungeon Master uses them from its next reply; no restart is needed." 'Green'
   return
 }
 if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }

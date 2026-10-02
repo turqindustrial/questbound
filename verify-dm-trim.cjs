@@ -75,6 +75,15 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  let usage=null;await generateAdventure({context:{introId:'garden'}},{apiKey:'k',model:'gpt-6-astra',reasoning:'medium',fetchImpl:storyFetch,onUsage:u=>{usage=u;}});
  assert.deepEqual(request.reasoning,{effort:'medium'});assert.equal(request.max_output_tokens,10200);assert.deepEqual(usage,{input_tokens:9,output_tokens:9});
  await generateAdventure({context:{introId:'garden'}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:storyFetch});assert.deepEqual(request.reasoning,{effort:'none'});assert.equal(request.max_output_tokens,4200);
+ // The models the host chose are read on live requests: the play model answers turns, the story writer follows it
+ // unless it was set apart, and a malformed file changes nothing. A stand-in provider never reads them.
+ {const {liveModels,chosenModel}=require('./dm-server.cjs'),files=f=>n=>f[n]??null;
+  assert.deepEqual(liveModels('gpt-5.6-luna','gpt-5.6-luna',files({'.questbound-model':'gpt-6-luna'})),{model:'gpt-6-luna',storyModel:'gpt-6-luna'});
+  assert.deepEqual(liveModels('gpt-5.6-luna','gpt-5.6-luna',files({'.questbound-model':'gpt-6-luna','.questbound-story-model':'gpt-5.6-luna'})),{model:'gpt-6-luna',storyModel:'gpt-5.6-luna'});
+  assert.deepEqual(liveModels('gpt-6-luna','gpt-6-astra',files({'.questbound-model':'gpt-6-nova'})),{model:'gpt-6-nova',storyModel:'gpt-6-astra'},'A story writer set apart stays');
+  assert.deepEqual(liveModels('a-model','a-model',files({})),{model:'a-model',storyModel:'a-model'});
+  assert.equal(chosenModel('no-such-file'),null);assert.equal(chosenModel('launch.ps1'),null,'Only a bare model id counts');
+  await generate(body,{apiKey:'k',model:'stand-in-model',fetchImpl:async(url,options)=>{request=JSON.parse(options.body);throw Error('stop');}}).catch(()=>{});assert.equal(request.model,'stand-in-model','Tests keep the model they pass');}
  // The setup check looks the story writer up without spending tokens.
  const calls=[];const setupFetch=status=>async(url,options)=>{calls.push(url);if(url.endsWith('/responses'))return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(blank)}]}]})};return {ok:status<400,status,json:async()=>({})};};
  assert.equal((await checkSetup({apiKey:'sk-test',model:'gpt-6-luna',storyModel:'gpt-6-astra',fetchImpl:setupFetch(200)})).ok,true);assert.ok(calls.at(-1).endsWith('/v1/models/gpt-6-astra'));
