@@ -1,5 +1,5 @@
 // Class gear presets use the 2024 starting equipment bundles.
-// Artificer uses the revised 2025 bundle; see PROGRESS-NOTE.md for sources.
+// The Artificer is a Questbound option beyond the System Reference Document; its kit is listed here in the game's own words.
 export const instruments = ['Lute', 'Flute', 'Drum'];
 export const starterKits = {
   Artificer: {items: [['Studded Leather Armor',1],['Dagger',1],["Thieves’ Tools",1],["Tinker’s Tools",1],["Dungeoneer’s Pack",1]],gold:16,summary:'Light armor, tools, and supplies for a traveling inventor.'},

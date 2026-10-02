@@ -7,6 +7,6 @@ export function validateCharacterDraft(draft){
  if(!draft||typeof draft!=='object')throw Error('The DM did not return a character. Try again.');
  const form={...blankBuild(),...draft,level:1,advancements:[],arcanum:{},bonusMode:'split',spellSelectionVersion:2};
  for(const key of ['age','backstory'])if(typeof form[key]!=='string'||!form[key].trim()||form[key].length>2000)throw Error('The generated '+key+' is incomplete. Try again.');
- const error=buildError(form)||spellSelectionError(form)||(!validPlannedSubclass(form)?'Invalid subclass.':'');if(error)throw Error(error+' Generate again or adjust the draft.');
+ const error=buildError(form)||spellSelectionError(form)||(!validPlannedSubclass(form)?'Invalid subclass.':'')||(!classes.includes(form.class)||!species.includes(form.species)?'Choose a class and species the game offers.':'')||(form.plannedSubclass&&!Object.hasOwn(subclassOptions[form.class]??{},form.plannedSubclass)?'Choose a subclass the game offers.':'');if(error)throw Error(error+' Generate again or adjust the draft.');
  return makeCharacter(form);
 }

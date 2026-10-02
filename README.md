@@ -115,6 +115,10 @@ npm run web
 
 This work includes material from the System Reference Document 5.2 (“SRD 5.2”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
 
-Questbound is an independent project, compatible with fifth edition. Fonts: Cinzel, Cinzel Decorative, EB Garamond and Inter (SIL Open Font License), served by Google Fonts.
+This work includes material taken from the System Reference Document 5.1 (“SRD 5.1”) by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+Questbound is an independent production, compatible with fifth edition, and is not affiliated with, endorsed by or sponsored by Wizards of the Coast. Its rules text comes from the two System Reference Documents; a few options beyond them (the Artificer class, its four specialities and the Goblin species) are described in Questbound's own words, with no text from any other book. Fonts: Cinzel, Cinzel Decorative, EB Garamond and Inter (SIL Open Font License), served by Google Fonts.
+
+The [privacy policy](PRIVACY.md) and [terms of use](TERMS.md) are shown in the game under Settings → About and linked from the title screen and the pairing page. They are written in `legalText.js`; `node verify-legal.cjs --write` regenerates the documents and the web pages from it.
 
 Questbound's own code, text and artwork are © 2026 turqindustrial, all rights reserved; see [LICENSE](LICENSE). You're welcome to play and test it, but please don't copy or redistribute it.

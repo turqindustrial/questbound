@@ -3,17 +3,19 @@ export const speciesDetails = {
   Dragonborn: {description: 'A draconic hero with scales and a powerful ancestral connection. Imagine the color and presence you bring to the party.'},
   Dwarf: {description: 'A sturdy, long-lived adventurer. Your story might begin among mountain halls, busy cities, or somewhere entirely unexpected.'},
   Elf: {description: 'A long-lived person with fey ancestry. Keen senses and a trance in place of sleep; the forests, courts or wandering roads you came from are yours to decide.'},
-  'Dark Elf': {description: 'A Drow elf, with a lineage often associated with the Underdark. Your upbringing, loyalties, and personality are yours to define.', note: 'Dark Elf is the Drow lineage of the 2024 Elf. It appears separately here for easy selection.', baseSpecies: 'Elf', lineage: 'Drow'},
+  'Dark Elf': {description: 'A Drow elf, of a lineage at home in the deep places under the earth. Your upbringing, loyalties, and personality are yours to define.', note: 'Dark Elf is the Drow lineage of the Elf. It appears separately here for easy selection.', baseSpecies: 'Elf', lineage: 'Drow'},
   Gnome: {description: 'A small adventurer with a spark of magic. Picture a curious explorer, thoughtful scholar, or a hero who surprises everyone.'},
-  Goblin: {description: 'A small goblinoid with a talent for slipping out of danger. A goblin can pursue any calling, including a healer or inventor.', note: 'Uses the Monsters of the Multiverse Goblin as an older species option. Ability bonuses come only from your 2024 background.', source: 'Monsters of the Multiverse (2022)'},
+  // Beyond the System Reference Document, in Questbound's own words (no text from any other book).
+  Goblin: {description: 'A small goblinoid with a talent for slipping out of danger. A goblin can pursue any calling, including a healer or inventor.', note: 'A Questbound option beyond the System Reference Document. Ability bonuses come only from your background.'},
   Goliath: {description: 'A towering adventurer with giant ancestry. Decide how that larger-than-life heritage fits a very personal story.'},
-  'Half-Elf': {description: 'A person with human and elven ancestry. Explore the connections, communities, and traditions that shaped your own identity.', note: 'Uses the 2014 Half-Elf as an older species option. Ability bonuses come only from your 2024 background.', source: 'Player’s Handbook (2014)'},
+  'Half-Elf': {description: 'A person with human and elven ancestry. Explore the connections, communities, and traditions that shaped your own identity.', note: 'From the System Reference Document 5.1. Ability bonuses come only from your background.', source: 'SRD 5.1'},
   Halfling: {description: 'A small hero with room for great courage. You might leave a familiar home behind or already know every road on the map.'},
   Human: {description: 'An adaptable adventurer from any walk of life. Decide what ambition, curiosity, or connection draws you into this story.'},
   Orc: {description: 'A resilient adventurer with a powerful presence. Your community and personal choices define the kind of hero you become.'},
   Tiefling: {description: 'A person with a supernatural fiendish legacy. Choose how your appearance expresses that heritage and how you make it your own.'},
 };
 export const classDetails = {
+  // Beyond the System Reference Document, in Questbound's own words (no text from any other book).
   Artificer: {description: 'Blend magical study with invention. Imagine solving problems with enchanted tools, crafted objects, and practical ingenuity.', ability: 'Intelligence'},
   Barbarian: {description: 'Meet danger head-on with fierce strength and endurance. A good fit if you imagine a physical protector or relentless warrior.', ability: 'Strength'},
   Bard: {description: 'Use performance and magic to inspire companions and influence a scene. Your instrument might be music, storytelling, or a commanding voice.', ability: 'Charisma'},

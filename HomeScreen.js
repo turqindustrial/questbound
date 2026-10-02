@@ -31,7 +31,7 @@ export function titleArt(width,height,{protect=false}={}){
 }
 // The compact menu and the feedback link under it take about this much of an upright phone.
 const menuBase=236;
-export default function HomeScreen({hero,game,health,saved,unprotected=false,disabled,onContinue,onNew,onOpen,onFeedback,width,height,notice}){
+export default function HomeScreen({hero,game,health,saved,unprotected=false,disabled,onContinue,onNew,onOpen,onFeedback,onLegal,width,height,notice}){
  const {landscape,wide,short,tiny,logo}=homeLayout(width,height);
  const stats=hero?combatBasics(hero):null,hp=health?.current??stats?.hp;
  const where=game?.story?.title??(saved?'The Lantern at the Crossroads':null);
@@ -64,9 +64,12 @@ export default function HomeScreen({hero,game,health,saved,unprotected=false,dis
  </View>;
  // A player with an adventure and no account: it lives on this device only, so the way to keep it safe is offered here.
  const protect=unprotected&&<Pressable accessibilityRole="button" accessibilityLabel="Keep your progress safe: create an account" disabled={disabled} onPress={()=>{playSound('page');onOpen('Settings');}} onHoverIn={()=>playSound('tick')} style={[s.protect,!wide&&{alignSelf:'center',paddingLeft:0}]}><Icon name="key" size={14} color={colors.goldMid}/><Text style={s.protectText}>Keep your progress safe: <Text style={s.protectLink}>create an account</Text></Text></Pressable>;
- const footer=<View style={[s.footer,!wide&&{justifyContent:'center'}]}>
+ // The privacy policy and the terms, a tap away on every title screen.
+ const legal=<View style={s.legalLinks}>{[['privacy','Privacy'],['terms','Terms']].map(([tab,label],i)=><React.Fragment key={tab}>{i>0&&<Text style={s.legalDot}>·</Text>}<Pressable accessibilityRole="button" accessibilityLabel={label==='Privacy'?'Privacy policy':'Terms of use'} disabled={disabled} onPress={()=>{playSound('page');onLegal?.(tab);}} onHoverIn={()=>playSound('tick')} style={s.legalLink}><Text style={s.legalText}>{label}</Text></Pressable></React.Fragment>)}</View>;
+ const footer=<View style={[s.footer,!wide&&{justifyContent:'center',flexWrap:'wrap'}]}>
   <Pressable accessibilityRole="button" onPress={onFeedback} onHoverIn={()=>playSound('tick')} style={s.feedback}><Icon name="feedback" size={15} color={colors.gold}/><Text style={s.feedbackText}>Send playtest feedback</Text></Pressable>
-  {wide&&!landscape&&<Text style={s.version}>Early access 0.1 · Playtest</Text>}
+  {(!wide||landscape)&&legal}
+  {wide&&!landscape&&<View style={{flexDirection:'row',alignItems:'center',gap:14}}>{legal}<Text style={s.version}>Early access 0.1 · Playtest</Text></View>}
  </View>;
  if(landscape)return <View dataSet={{qb:'enter-slow'}} style={s.landscape}>
   {/* A phone on its side: the name, the compact menu and the feedback link share the dark left of the painting. */}
@@ -113,5 +116,6 @@ const s=StyleSheet.create({
  version:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:tint('rgba(221,214,219,.5)'),textTransform:'uppercase'},
  notice:{maxWidth:460,marginTop:4},
  protect:{flexDirection:'row',alignItems:'center',gap:8,minHeight:36,marginTop:6,paddingLeft:22},
+ legalLinks:{flexDirection:'row',alignItems:'center',gap:6},legalLink:{minHeight:36,justifyContent:'center',paddingHorizontal:4},legalText:{fontFamily:fonts.display,fontSize:10.5,letterSpacing:2,color:tint('rgba(221,214,219,.6)'),textTransform:'uppercase'},legalDot:{color:tint('rgba(221,214,219,.4)'),fontSize:12},
  protectText:{fontFamily:fonts.ui,fontSize:12.5,color:'#c4b5af',textShadowColor:'rgba(0,0,0,.9)',textShadowRadius:6},protectLink:{color:colors.goldBright,fontWeight:'600',textDecorationLine:'underline'},
 });

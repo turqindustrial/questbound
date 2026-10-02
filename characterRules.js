@@ -1,8 +1,15 @@
 import { equipmentFor, equipmentError } from './equipmentRules';
 export const abilities = ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'];
 export const standardArray = [15, 14, 13, 12, 10, 8];
+// What a hero may be: the classes and species of the System Reference Document 5.2 and the Half-Elf of the SRD 5.1
+// (both licensed by Wizards of the Coast under CC BY 4.0), plus two options the host chose to keep that are written
+// in Questbound's own words and take no text from any other book: the Artificer class and the Goblin species. Names
+// and game mechanics are not copyrightable; only another book's wording would be, and none is used.
+// `legacyClasses` and `legacySpecies` hold options once offered and since withdrawn, so saved heroes still pass the checks.
 export const classes = ['Artificer', 'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk', 'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard'];
+export const legacyClasses = [];
 export const species = ['Dragonborn', 'Dwarf', 'Elf', 'Dark Elf', 'Gnome', 'Goblin', 'Goliath', 'Half-Elf', 'Halfling', 'Human', 'Orc', 'Tiefling'];
+export const legacySpecies = [];
 export const backgrounds = {
   Artisan: {abilities: ['Strength', 'Dexterity', 'Intelligence'], feat: 'Crafter'},
   Charlatan: {abilities: ['Dexterity', 'Constitution', 'Charisma'], feat: 'Skilled'},
@@ -37,7 +44,7 @@ export function buildError(form) {
   for(const key of ['age','backstory','connections','ideals','bonds','flaws'])if(form[key]!==undefined&&(typeof form[key]!=='string'||form[key].length>(key==='age'?60:2000)))return 'Keep '+key+' within its character limit.';
   if (form.description !== undefined && (typeof form.description !== 'string' || form.description.length > 1500)) return 'Keep appearance and personality within 1,500 characters.';
   if (!form.name?.trim() || form.name.length > 60) return 'Enter a character name (up to 60 characters).';
-  if (!species.includes(form.species) || !classes.includes(form.class)) return 'Choose a species and class from the available options.';
+  if (!(species.includes(form.species) || legacySpecies.includes(form.species)) || !(classes.includes(form.class) || legacyClasses.includes(form.class))) return 'Choose a species and class from the available options.';
   const bg = backgrounds[form.background];
   if (!bg) return 'Choose a background.';
   if (!Array.isArray(form.baseScores) || JSON.stringify([...form.baseScores].sort((a,b)=>b-a)) !== JSON.stringify(standardArray)) return 'Assign each standard-array score exactly once.';

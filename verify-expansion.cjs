@@ -5,11 +5,15 @@ const r=vm.runInNewContext(source+'\n({spellDefense,subclassOptions,validPlanned
 const scores={Strength:16,Dexterity:16,Constitution:14,Intelligence:18,Wisdom:16,Charisma:18};
 const hero=(name,level=1,spells=[])=>{const h={name:'QA',class:name,race:'Human',species:'Human',level,scores,spells};h.equipment=r.equipmentFor(h);return h;};
 for(const name of r.classes){
- assert.equal(Object.keys(r.subclassOptions[name]).length,4,name+' must have exactly four choices');
+ // One subclass a class, exactly the one the SRD 5.2 licenses; the Artificer (a Questbound option beyond the SRD) has four of its own.
+ assert.equal(Object.keys(r.subclassOptions[name]).length,name==='Artificer'?4:1,name+' offers its SRD subclass');
  for(const [sub,description] of Object.entries(r.subclassOptions[name])){assert.ok(description.length>35);assert.equal(r.validPlannedSubclass({class:name,plannedSubclass:sub}),true);}
  for(let level=1;level<=20;level++){const h=hero(name,level),stats=r.combatBasics(h);assert.ok(stats.available);assert.equal(stats.proficiency,2+Math.floor((level-1)/4));assert.ok(stats.hp>0);if(level>1)assert.ok(stats.hp>r.combatBasics(hero(name,level-1)).hp);assert.equal(r.validAdventure(r.adventureSnapshot(h,r.newAdventure(h),null,true),h),true);}
 }
 assert.equal(r.validPlannedSubclass({class:'Artificer',plannedSubclass:'Cartographer'}),true);
+// Heroes made before the game was limited to licensed content keep what they planned; new heroes are not offered it.
+assert.equal(r.validPlannedSubclass({class:'Barbarian',plannedSubclass:'Path of the Zealot'}),true);assert.equal(Object.hasOwn(r.subclassOptions.Barbarian,'Path of the Zealot'),false);
+assert.deepEqual(r.classes.includes('Artificer'),true);
 assert.equal(r.validPlannedSubclass({class:'Wizard',plannedSubclass:'Armorer'}),false);
 assert.equal(r.combatBasics(hero('Wizard',21)).available,false);
 const champion={...hero('Fighter',3),plannedSubclass:'Champion'};
@@ -19,7 +23,8 @@ assert.equal(r.weaponAttacks({...champion,level:15})[0].criticalThreshold,18);
 assert.equal(r.attacksPerAction(hero('Fighter',20)),4);
 assert.equal(r.attacksPerAction(hero('Fighter',4)),1);
 assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Alchemist'}),1);
-assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Battle Smith'}),2);
+// Subclasses outside the SRD give no features any more (the game plays out licensed content only).
+assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Battle Smith'}),1);assert.equal(r.attacksPerAction({...hero('Wizard',6),plannedSubclass:'Bladesinger'}),1);
 const dragon={...hero('Sorcerer',3),plannedSubclass:'Draconic Sorcery'};
 assert.equal(r.combatBasics(dragon).hp-r.combatBasics({...dragon,plannedSubclass:''}).hp,3);
 assert.equal(r.combatBasics(dragon).ac,17);

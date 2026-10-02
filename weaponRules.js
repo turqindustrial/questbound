@@ -113,7 +113,5 @@ export function rollDamage(weapon, critical=false, random=Math.random) {
 export function attacksPerAction(hero) {
   if(hero.class==='Fighter')return hero.level>=20?4:hero.level>=11?3:hero.level>=5?2:1;
   if(['Barbarian','Monk','Paladin','Ranger'].includes(hero.class) && hero.level>=5)return 2;
-  if(hero.class==='Artificer' && hero.level>=5 && ['Armorer','Battle Smith'].includes(hero.plannedSubclass))return 2;
-  if(hero.level>=6 && ((hero.class==='Bard' && hero.plannedSubclass==='College of Valor') || (hero.class==='Wizard' && hero.plannedSubclass==='Bladesinger')))return 2;
   return 1;
 }

@@ -7,7 +7,7 @@ import {fonts,colors,tint} from './theme';
 // Signed out: create an account or sign in. Signed in: when it last saved, loading the saved adventure onto this
 // device, signing out, and (under Manage) a new password or deleting the account.
 const when=iso=>iso?new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
-export function AccountSettings({onRestore,busy,onChange}){
+export function AccountSettings({onRestore,busy,onChange,onLegal}){
  const [account,setAccount]=useState(undefined),[mode,setMode]=useState('create'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[shown,setShown]=useState(false);
  const [message,setMessage]=useState(''),[working,setWorking]=useState(false),[manage,setManage]=useState(false),[current,setCurrent]=useState(''),[next,setNext]=useState(''),[confirm,setConfirm]=useState('');
  const refresh=()=>accountState().then(a=>{setAccount(a);onChange?.(a);return a;}).catch(()=>setAccount(null));
@@ -36,6 +36,7 @@ export function AccountSettings({onRestore,busy,onChange}){
     <Pressable accessibilityRole="button" accessibilityLabel={shown?'Hide password':'Show password'} onPress={()=>setShown(v=>!v)} dataSet={{qb:'chip'}} style={st.show}><Text style={st.showText}>{shown?'Hide':'Show'}</Text></Pressable>
    </View>
    <GameButton variant="primary" icon={mode==='create'?'quill':'key'} label={working?'One moment…':mode==='create'?'Create account':'Sign in'} disabled={busy||working} onPress={enter}/>
+   {mode==='create'&&!!onLegal&&<Text style={st.note}>By creating an account you accept the <Text accessibilityRole="link" onPress={()=>onLegal('terms')} style={st.link}>terms of use</Text> and the <Text accessibilityRole="link" onPress={()=>onLegal('privacy')} style={st.link}>privacy policy</Text>.</Text>}
    <Text style={st.note}>{mode==='create'?'Your email is only a name to sign in with: nothing is sent to it, and the host\'s PC keeps a scrambled form of it and of your password, never either one itself. Use a password you do not use anywhere else. If you forget it, ask the host to reset it.':'Forgotten your password? Ask the host to reset it; your saved adventure is kept.'}</Text>
   </>:<>
    <View dataSet={{qb:'plate'}} style={st.who}><Text selectable numberOfLines={1} style={st.email}>{account.email}</Text><Text style={st.saved}>{account.hold?'Waiting for your choice':account.savedAt?'Saved '+when(account.savedAt):'Not saved yet'}</Text></View>
@@ -78,6 +79,7 @@ const st=StyleSheet.create({
  show:{minHeight:44,minWidth:64,paddingHorizontal:12,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(20,15,21,.8)'),alignItems:'center',justifyContent:'center'},
  showText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.4,color:colors.gold,textTransform:'uppercase'},
  note:{fontFamily:fonts.ui,color:colors.faint,fontSize:12,lineHeight:18,marginTop:8},
+ link:{color:colors.goldBright,textDecorationLine:'underline'},
  who:{flexDirection:'row',flexWrap:'wrap',alignItems:'baseline',justifyContent:'space-between',gap:8,padding:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(31,24,32,.9)'),marginBottom:10},
  email:{flexShrink:1,fontFamily:fonts.ui,fontWeight:'600',fontSize:16,color:colors.goldBright},
  saved:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
