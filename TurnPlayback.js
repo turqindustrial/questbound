@@ -109,6 +109,23 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
   case 'opening':return wrap(<><Icon name="bolt" size={13} color={colors.gold}/><PlainText style={s.overText}>Opening attack</PlainText></>,s.overRow);
   case 'order':return wrap(<><PlainText style={s.overText}>Turn order</PlainText>{view.names.map((n,i)=><React.Fragment key={i}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n==='You'&&s.orderYou]}><Text style={[s.orderText,n==='You'&&{color:colors.goldBright}]}>{n}</Text></View></React.Fragment>)}</>,s.overRow);
   case 'note':return wrap(<><Icon name="spell" size={13} color={colors.arcane}/><Text style={s.noteText}>{view.text}</Text></>,s.noteRow);
+  // The long tale: a chapter closes on what it revealed, the next opens on its goal; a lead is seen through; a level is earned.
+  case 'chapter-done':case 'chapter':{const done=view.type==='chapter-done';return wrap(<>
+   <View style={s.dmgIcon}><Icon name={done?'check':'scroll'} size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}>
+    <PlainText style={s.cardOver}>Chapter {view.number} {done?'complete':'begins'}</PlainText>
+    <Text style={s.cardTitle}>{view.title}</Text>
+    <Text style={s.cardOutcome}>{view.text}</Text>
+   </View>
+  </>,[s.card,s.taleCard],{qb:'feed-roll'});}
+  case 'lead':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="check" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>Lead seen through</PlainText><Text style={s.cardTitle}>{view.title}</Text></View>
+  </>,[s.card,s.taleCard],{qb:'feed-roll'});
+  case 'level':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="starFill" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>A level earned</PlainText><PlainText style={s.cardOutcome}>Take it when you are ready, out of a fight.</PlainText></View>
+  </>,[s.card,s.taleCard],{qb:'feed-roll'});
  }
  const kind=event.kind;
  // Arriving somewhere shows that place's painting as an illustrated plate, like a page in a storybook.
@@ -208,7 +225,7 @@ const s=StyleSheet.create({panel:{marginBottom:6},
  verdict:{paddingHorizontal:9,paddingVertical:3,borderRadius:3,borderWidth:1.5},verdictText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1.6,textTransform:'uppercase'},
  total:{fontFamily:fonts.display,fontSize:22,fontWeight:'800',color:colors.goldBright,fontVariant:['tabular-nums']},
  inlineDamage:{flexDirection:'row',alignItems:'center',gap:4},inlineDamageText:{fontFamily:fonts.display,fontSize:15,fontWeight:'800',color:colors.goldBright},
- dmgCard:{borderColor:'rgba(232,199,123,.4)'},healCard:{borderColor:'rgba(111,191,142,.45)'},
+ dmgCard:{borderColor:'rgba(232,199,123,.4)'},healCard:{borderColor:'rgba(111,191,142,.45)'},taleCard:{alignItems:'flex-start',borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(40,32,18,.6)'},
  dmgIcon:{width:36,height:36,borderRadius:18,borderWidth:1,borderColor:'rgba(232,199,123,.5)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
  dmgNum:{fontFamily:fonts.display,fontSize:28,fontWeight:'800',color:colors.goldBright,minWidth:34,fontVariant:['tabular-nums'],...shadow},
  dmgLabel:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.4,color:'#ecdcb8',textTransform:'uppercase'},

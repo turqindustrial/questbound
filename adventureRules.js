@@ -1,4 +1,4 @@
-import {storyText} from './storyRules';
+import {storyText,questState} from './storyRules';
 import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants} from "./npcRules";
 import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage} from "./spellRules";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
@@ -97,6 +97,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     enemyHP: 10 + 8 * ((hero?.level ?? 1) - 1),
     // What you carry comes with you; a fresh start always has at least one draught.
     ...(previous?.pack ? {pack: previous.pack} : {}),
+    // A level earned on the road and not yet taken stays earned.
+    ...(previous?.levelsOwed ? {levelsOwed: previous.levelsOwed} : {}),
     potions: Math.max(1, previous?.potions ?? 1),
     round: 1,
     log: []
@@ -1091,9 +1093,33 @@ function dyingStep(game,health,hero,action,random){
  else if(next.stage!=='dying')next.journal=appendJournal(journalForGame(next),'encounter','Survived',hero.name+' clung to life after falling'+(game.dying.placeName?' at '+game.dying.placeName:'')+'.');
  return {...result,game:next};
 }
+// The chapter under way is finished: what it reveals is told, and the next begins. Every second chapter finished
+// earns the hero a level, taken when they choose (levelUpReady).
+function advanceChapter(game,health,hero){
+ const q=questState(game);
+ if(!q?.current||q.last||game.story.status!=='active')return {game,health,error:'There is no further chapter to begin.'};
+ const done=q.current,next=q.next,number=q.number,earns=number%2===0&&(hero?.level??1)+(game.levelsOwed??0)<20;
+ const lines=['Chapter '+number+' complete: '+done.title+'. '+done.turn,'Chapter '+(number+1)+' begins: '+next.title+'. '+next.goal,...(earns?['You have earned a level. Take it when you are ready.']:[])];
+ let journal=appendJournal(journalForGame(game),'quest',('Chapter '+number+' complete: '+done.title).slice(0,100),done.turn);
+ journal=appendJournal(journal,'quest',('Chapter '+(number+1)+': '+next.title).slice(0,100),next.goal);
+ return {game:{...game,story:{...game.story,chapter:game.story.chapter+1},...(earns?{levelsOwed:(game.levelsOwed??0)+1}:{}),journal,worldFacts:[...(game.worldFacts??[]),('Chapter '+number+' ('+done.title+') is finished: '+done.turn).slice(0,800)].slice(-60),log:[...lines,...game.log].slice(0,40)},health,events:lines};
+}
+// A lead (a side errand of the tale) has been seen through.
+function finishLead(game,health,id){
+ const lead=(game.story.leads??[]).find(l=>l.id===id);
+ if(!lead||lead.done)return {game,health,error:'That lead is not open.'};
+ const line='Lead seen through: '+lead.title+'.';
+ return {game:{...game,story:{...game.story,leads:game.story.leads.map(l=>l.id===id?{...l,done:true}:l)},journal:appendJournal(journalForGame(game),'quest',('Lead seen through: '+lead.title).slice(0,100),lead.hook),log:[line,...game.log].slice(0,40)},health,events:[line]};
+}
 function livingStep(game,health,hero,action,random){
  if(!game.story){const result=adventureStepEngine(game,health,hero,action,random);return {...result,events:result.events??stepLogEntries(game.log,result.game?.log)};}
- if(action==='story-complete')return {game:{...game,story:{...game.story,status:'complete'},log:['Adventure complete: '+game.story.title,...game.log].slice(0,40)},health,events:['Adventure complete: '+game.story.title]};
+ // A long tale ends only in its last chapter; before that the chapter under way gives place to the next.
+ if(action==='story-complete'){
+  if(!questState(game).last)return {game,health,error:'The tale has chapters still to come.'};
+  return {game:{...game,story:{...game.story,status:'complete'},log:['Adventure complete: '+game.story.title,...game.log].slice(0,40)},health,events:['Adventure complete: '+game.story.title]};
+ }
+ if(action==='story-advance')return advanceChapter(game,health,hero);
+ if(action?.type==='lead-done')return finishLead(game,health,action.id);
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  if(typeof action==='string'&&!allowed.includes(action)&&!action.startsWith('attack:'))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;

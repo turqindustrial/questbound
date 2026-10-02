@@ -1,5 +1,5 @@
 import AdventureIntros from './AdventureIntros';
-import {findDmEndpoint,askDm} from './dmConnection';
+import {findDmEndpoint,writeStory} from './dmConnection';
 import Followers from './Followers';
 import DiceRoller from './DiceRoller';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
@@ -8,7 +8,7 @@ import {usePageWheel} from './usePageWheel';
 import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import EncounterProvider,{CombatHealthButton,EntityText} from './EncounterOverlay';
-import {freshStoryGame} from './storyRules';
+import {freshStoryGame,levelUpReady,foeForLevel} from './storyRules';
 import {hostileEncounterGame} from './hostileEncounter';
 import CampaignJournal from './CampaignJournal';
 import {addJournalNote,appendJournal,appendStoryLog} from './journalRules';
@@ -40,7 +40,7 @@ import StoryLoading from './StoryLoading';
 import {shortcutsBlocked} from './keyboard';
 import {cue,useCue} from './cinematics';
 // Page headings: overline, title and icon for the screens that have one.
-const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['Victory earned','Level up','star']};
+const titles={'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['A level earned','Level up','star']};
 import {AudioToggle,AudioSettings} from './AudioControls';
 import {FullscreenToggle,DisplaySettings} from './DisplayControls';
 import {StorySettings} from './StoryControls';
@@ -57,7 +57,8 @@ import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './roster
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import FeedbackSheet from './Feedback';
 import {useVisualViewport} from './webLayout';
-const titleArt=require('./assets/map/crossroads-landscape.jpg');
+// The title painting: a wide landscape, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
+const titleArt=require('./assets/title/questbound-title.jpg');
 
 export default function App(){return <SceneTransitionProvider><QuestboundApp/></SceneTransitionProvider>;}
 function QuestboundApp() {
@@ -180,7 +181,7 @@ function QuestboundApp() {
       if(selectedIntro==='hostile'&&!continuing)next=hostileEncounterGame(hero,base);
       else{
       const endpoint=await findDmEndpoint();
-      const {ok,body}=await askDm(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       if(!ok)throw Error(body.error||'The story could not be created.');
       next=freshStoryGame(hero,{...body.story,introId:continuing?'surprise':selectedIntro},base);
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
@@ -235,8 +236,23 @@ function QuestboundApp() {
     }
   }
   async function saveAdvancement(character) {
-    if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
+    if(saving || storageError || !hero || !levelUpReady(game,hero) || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
+    // A level earned on the road (a long tale gives one every second chapter) is taken where the hero stands: rested
+    // as after a night's sleep, everything else untouched, and a main foe not yet met grows to match. A level won by
+    // beating the main foe is taken as before, back at the starting place.
+    if(game.stage!=='victory'){
+      try{
+        let advanced={...game,encounterLevel:character.level,levelsOwed:Math.max(0,(game.levelsOwed??1)-1),round:1};
+        for(const key of ['resources','spellSlotsUsed','arcanumUsed','shortRests','concentration','temporarySpell','enemyEffects','bonusUsed','slotSpentThisTurn','reactionUsed','actionUsed','dodging','castingConditions','heroCondition','foeTricks'])delete advanced[key];
+        if(!advanced.levelsOwed)delete advanced.levelsOwed;
+        advanced=foeForLevel(advanced,character.level);
+        advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);
+        await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});
+      }catch{setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
+      finally{setSaving(false);}
+      return;
+    }
     try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);if(game.wield)advanced.wield=game.wield;await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
     catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally {setSaving(false);}
@@ -295,11 +311,11 @@ function QuestboundApp() {
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
-    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titleArt} dataSet={{qb:'backdrop'}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/>}
+    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titleArt} dataSet={{qb:'backdrop',frame:compact||windowWidth<windowHeight?'tall':'wide'}} resizeMode="cover" style={s.backdrop}/>}
     <View dataSet={{qb:inGame?'atmosphere-game':home?(wideHome?'atmosphere-home':'atmosphere-home-narrow'):'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?'rgba(5,10,16,.35)':home?'rgba(6,8,12,.45)':'rgba(6,8,12,.72)'}]}/>
     {!inGame&&<View dataSet={{qb:'rays'}} style={StyleSheet.absoluteFillObject}/>}
     <View dataSet={{qb:'fog'}} style={StyleSheet.absoluteFillObject}/>
-    <View dataSet={{qb:'vignette'}} style={StyleSheet.absoluteFillObject}/>
+    <View dataSet={{qb:'vignette',home:home?'on':'off'}} style={StyleSheet.absoluteFillObject}/>
     <View dataSet={{qb:'embers'}} style={StyleSheet.absoluteFillObject}/>
     <View dataSet={{qb:'grain'}} style={StyleSheet.absoluteFillObject}/>
   </View>
@@ -308,14 +324,14 @@ function QuestboundApp() {
   {playing?<View style={s.shell}>
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. While the
         player types on a small phone, the HUD gives its row to the story too. */}
-    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
+    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
     {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
       {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color="#9fe3d8"/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
-      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={game.stage==='victory'&&hero.level<20} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreenState('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
+      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreenState('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
     </View>
   </View>:<View style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
@@ -394,7 +410,7 @@ function QuestboundApp() {
           </View>
         </View>}
         {characterChosen && hero && <View style={s.quickTabs}>{[['Journal','Campaign Journal','❦'],['Character Sheet','Character Sheet','⚔'],['Followers','Followers','♞']].map(([label,target,glyph])=><Pressable key={target} accessibilityRole="button" accessibilityLabel={'Open '+label.toLowerCase()} dataSet={{qb:'chip'}} onPress={()=>{setScreen(target);scrollRef.current?.scrollTo({y:0,animated:false});}} style={s.quickTab}><Text style={s.quickTabText}><Text style={s.quickGlyph}>{glyph}</Text>  {label}</Text></Pressable>)}<CombatHealthButton/></View>}
-        {characterChosen && hero && game.stage==='victory' && hero.level<20 && button('✦ Review earned level-up',()=>{setError('');setScreen('Level Up');scrollRef.current?.scrollTo({y:0,animated:false});},'primary')}
+        {characterChosen && hero && levelUpReady(game,hero) && button('✦ Review earned level-up',()=>{setError('');setScreen('Level Up');scrollRef.current?.scrollTo({y:0,animated:false});},'primary')}
 
         {characterChosen && hero && <Adventure table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       </>}
@@ -412,13 +428,16 @@ function QuestboundApp() {
   </ScrollView>}</View>}
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
-  <CinematicLayer levelReady={inGame&&game.stage==='victory'&&!!hero&&hero.level<20}/>
+  <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
   {creatingStory&&(selectedIntro!=='hostile'||continuingNow)&&<StoryLoading introId={continuingNow?'surprise':selectedIntro}/>}
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
   </View>;
 }
 const s = StyleSheet.create({
-  root:{flex:1,backgroundColor:colors.ink,overflow:'hidden'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},
+  root:{flex:1,backgroundColor:colors.ink,overflow:'hidden'},
+  // An image from a file brings its own pixel size as its style; the backdrop must say it fills the screen instead
+  // (without this the picture stopped at its own width and wide windows showed black on the right).
+  backdrop:{position:'absolute',left:0,top:0,right:0,bottom:0,width:'100%',height:'100%'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},
   topBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,minHeight:52,paddingHorizontal:20,paddingVertical:8},
   shell:{flex:1,minHeight:0},play:{flex:1,minHeight:0,paddingHorizontal:0,paddingTop:6},playWide:{paddingHorizontal:16,paddingTop:14,paddingBottom:14,width:'100%',maxWidth:1500,alignSelf:'center'},
   notices:{paddingHorizontal:16,paddingTop:6,gap:6},centred:{flexGrow:1,justifyContent:'center'},

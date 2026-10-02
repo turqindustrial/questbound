@@ -28,6 +28,14 @@ function mathOf(text,natural){
 }
 export function describeEvent(event){
  const text=String(event?.text??'').trim(),kind=event?.kind;
+ // The long tale's own moments: a chapter finished (with what it revealed), the next begun (with its goal), a lead
+ // seen through, a level earned. (Read before anything else: their words may mention saves or damage.)
+ if(kind!=='player'&&kind!=='dialogue'&&kind!=='narration'){
+  const done=text.match(/^Chapter (\d+) complete: (.+?)\. ([\s\S]+)$/);if(done)return {type:'chapter-done',number:Number(done[1]),title:done[2],text:done[3]};
+  const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
+  const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};
+  if(/^You have earned a level\b/.test(text))return {type:'level'};
+ }
  if(kind==='effect'){
   const hp=text.match(/^(.*): (\d+) → (\d+) HP\.?$/);
   if(hp)return {type:'hp',name:hp[1],from:Number(hp[2]),to:Number(hp[3])};

@@ -56,8 +56,9 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
   {wide&&!landscape&&<Text style={s.version}>Early access 0.1 · Playtest</Text>}
  </View>;
  if(landscape)return <View dataSet={{qb:'enter-slow'}} style={s.landscape}>
-  <View style={s.landLeft}>{brand}</View>
-  <View style={s.landRight}>{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{footer}</View>
+  {/* A phone on its side has height for the menu only: the feedback link sits under the name instead. */}
+  <View style={s.landLeft}>{brand}{footer}</View>
+  <View style={s.landRight}>{!!notice&&<View style={s.notice}>{notice}</View>}{menu}</View>
  </View>;
  if(wide)return <View dataSet={{qb:'enter-slow'}} style={s.wide}>
   <View style={s.left}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}</View>

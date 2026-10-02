@@ -27,17 +27,22 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=root],[data-qb=stage]{overflow:clip !important;}
 /* Atmosphere: painted backdrop drifting slowly, light shafts, low fog, candle glow, vignette, rising embers and film grain. */
 [data-qb=backdrop]{animation:qb-drift 70s ease-in-out infinite alternate;transform-origin:50% 40%;}
+/* The title painting keeps its tower and mountain in view on a tall phone screen, and its horizon on a wide one. */
+[data-qb=backdrop]>div{background-position:50% 42% !important;}
+[data-qb=backdrop][data-frame=tall]>div{background-position:60% 50% !important;}
 @keyframes qb-drift{from{transform:scale(1.06) translate3d(0,0,0);}to{transform:scale(1.16) translate3d(-2%,-3%,0);}}
 [data-qb=atmosphere]{background:
  radial-gradient(ellipse 80% 55% at 50% -8%,rgba(236,164,84,.20),transparent 60%),
  radial-gradient(ellipse 70% 50% at 50% 115%,rgba(35,85,115,.22),transparent 65%),
  linear-gradient(180deg,rgba(6,8,12,.45) 0%,rgba(6,8,12,.72) 45%,rgba(6,8,12,.94) 100%) !important;}
 [data-qb=atmosphere-home]{background:
- linear-gradient(90deg,rgba(5,7,11,.94) 0%,rgba(5,7,11,.78) 30%,rgba(5,7,11,.25) 62%,rgba(5,7,11,.45) 100%),
- radial-gradient(ellipse 70% 60% at 78% 20%,rgba(236,164,84,.16),transparent 65%),
- linear-gradient(180deg,rgba(6,8,12,.2) 0%,rgba(6,8,12,.1) 55%,rgba(6,8,12,.92) 100%) !important;}
+ linear-gradient(90deg,rgba(5,7,11,.9) 0%,rgba(5,7,11,.66) 28%,rgba(5,7,11,.08) 58%,rgba(5,7,11,.12) 100%),
+ radial-gradient(ellipse 70% 60% at 78% 20%,rgba(236,164,84,.12),transparent 65%),
+ linear-gradient(180deg,rgba(6,8,12,.12) 0%,rgba(6,8,12,0) 50%,rgba(6,8,12,.8) 100%) !important;}
+/* The title screen shows its painting: a lighter frame than the menus and the game use. */
+[data-qb=vignette][data-home=on]{box-shadow:inset 0 0 160px 30px rgba(0,0,0,.7);}
 [data-qb=atmosphere-home-narrow]{background:
- linear-gradient(180deg,rgba(5,7,11,.55) 0%,rgba(5,7,11,.2) 30%,rgba(5,7,11,.72) 58%,rgba(5,7,11,.97) 100%),
+ linear-gradient(180deg,rgba(5,7,11,.5) 0%,rgba(5,7,11,.08) 30%,rgba(5,7,11,.62) 58%,rgba(5,7,11,.96) 100%),
  radial-gradient(ellipse 90% 45% at 50% 18%,rgba(236,164,84,.16),transparent 70%) !important;}
 [data-qb=atmosphere-game]{background:
  radial-gradient(ellipse 90% 60% at 50% -10%,rgba(236,164,84,.12),transparent 60%),

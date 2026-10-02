@@ -89,6 +89,10 @@ export function storyEvents(before,after,hero,{action=null}={}){
  // ---- Rests, the errand, the end of the tale ----
  if(action==='long-rest'&&after!==before)add('rest','Took a long rest at '+placeNow+'.');
  if(action==='short-rest'&&(after.shortRests??0)>(before.shortRests??0))add('rest','Took a short rest at '+placeNow+'.');
+ // A long tale: a chapter finished (the next opens under its own heading) and leads seen through.
+ if(after.story?.chapters&&(after.story.chapter??0)>(before.story?.chapter??0)){const c=after.story.chapters,n=before.story?.chapter??0;add('quest','Finished chapter '+(n+1)+': '+c[n].title+'.');add('story','Chapter '+(after.story.chapter+1)+': '+c[after.story.chapter].title);}
+ for(const l of after.story?.leads??[])if(l.done&&!before.story?.leads?.find(x=>x.id===l.id)?.done)add('quest','Saw a lead through: '+l.title+'.');
+ if((after.levelsOwed??0)>(before.levelsOwed??0))add('level','Earned a level on the road.');
  if(after.story&&before.story?.status==='active'&&after.story.status==='complete')add('quest','Adventure complete: '+after.story.title+'.');
  // The crossroads adventure tells its own milestones in its journal.
  if(!after.story){const old=before.journal?.entries?.length??0;for(const e of (after.journal?.entries??[]).slice(old))if(['quest','outcome'].includes(e.kind)&&!/^Journey to /.test(e.title))add('quest',e.title+'.');}

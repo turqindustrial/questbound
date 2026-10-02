@@ -1,7 +1,8 @@
 import {useSceneTransition} from './SceneTransition';
 import {sceneArtSubjects} from './worldArtRules';
 import {EntityText as Text,useEncounter} from './EncounterOverlay';
-import {storyText} from './storyRules';
+import {storyText,questState} from './storyRules';
+import {cue} from './cinematics';
 import {quickActions} from './quickActions';
 import {recordedTurn} from './playbackRules';
 import {withSceneTrigger} from './sceneTriggers';
@@ -45,13 +46,17 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // New turns (yours, the table's or a scene moment) bring a phone player back to the story.
  const lastTurn=game.playback?.at(-1)?.id??0;
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
- const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game);
+ const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
  const [inConversation,setInConversation]=useState(false);
  const [sideTab,setSideTab]=useState('quest');
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
- const act=async(action,conversation,random=Math.random,options)=>{const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');return result;};
+ const act=async(action,conversation,random=Math.random,options)=>{const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
+  // A new chapter of a long tale is announced across the screen.
+  const opened=result.game.story?.chapters&&(result.game.story.chapter??0)>(from.game.story?.chapter??0)?result.game.story.chapters[result.game.story.chapter]:null;
+  if(opened)setTimeout(()=>cue('area',{over:'Chapter '+(result.game.story.chapter+1),title:opened.title}),500);
+  return result;};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
@@ -133,9 +138,23 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <View style={s.labelRow}><Icon name={game.story?.status==='complete'?'star':'scroll'} size={14} color={colors.goldMid}/><PlainText style={s.label}>{game.story?(game.story.status==='complete'?'Adventure complete':'Current quest'):'A written adventure · Simplified rules'}</PlainText></View>
    <Text style={s.title}>{game.story?.title??'The Lantern at the Crossroads'}</Text>
    <Ornament style={{marginVertical:10}}/>
-   {game.story&&<Text style={s.objective}>{game.story.objective}</Text>}
+   {/* A long tale shows the chapter under way (its goal is what to do now) above the aim of the whole story. */}
+   {!!quest?.current&&game.story.status!=='complete'&&<View style={s.chapter}>
+    <View style={s.chapterTop}><PlainText style={s.chapterOver}>Chapter {quest.number} of {quest.chapters}</PlainText><View style={s.chapterPips} accessibilityLabel={(quest.number-1)+' of '+quest.chapters+' chapters finished'}>{Array.from({length:quest.chapters},(_,i)=><View key={i} style={[s.chapterPip,i<quest.number-1&&s.chapterPipDone,i===quest.number-1&&s.chapterPipNow]}/>)}</View></View>
+    <PlainText style={s.chapterTitle}>{quest.current.title}</PlainText>
+    <Text style={s.objective}>{quest.current.goal}</Text>
+   </View>}
+   {game.story&&(quest?.current&&game.story.status!=='complete'?<Text style={s.aim}><PlainText style={s.aimLabel}>The tale  </PlainText>{game.story.objective}</Text>:<Text style={s.objective}>{game.story.objective}</Text>)}
    <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.stage==='dying'?'You lie unconscious, bleeding out.':game.stage==='dead'?'Your hero has died.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??(game.wildFight?foe.name:game.story.foe))+'.':game.stage==='wild'?placeDescription(game,mapLocation(game)):game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
   </View>
+  {/* Leads: side errands heard of along the way, ticked off as they are seen through. */}
+  {!!quest?.leads.length&&<View dataSet={{qb:'plate'}} style={s.people}>
+   <View style={s.labelRow}><Icon name="search" size={14} color={colors.goldMid}/><PlainText style={s.label}>Leads</PlainText><PlainText style={s.leadCount}>{quest.leads.filter(l=>l.done).length} of {quest.leads.length}</PlainText></View>
+   {quest.leads.map(l=><View key={l.id} style={s.leadRow}>
+    <View style={[s.leadMark,l.done&&s.leadMarkDone]}>{l.done&&<Icon name="check" size={11} color="#1a0f05" strokeWidth={2.6}/>}</View>
+    <View style={{flex:1,minWidth:0}}><PlainText style={[s.leadTitle,l.done&&s.leadTitleDone]}>{l.title}</PlainText>{!l.done&&<Text style={s.leadHook}>{l.hook}</Text>}</View>
+   </View>)}
+  </View>}
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
   {peoplePanel}
   {['active','found'].includes(campaign.lensQuest)&&<Text style={s.scene}>{campaign.lensQuest==='found'?'The signal lens is in your inventory. Return it to the keeper.':'The keeper needs the signal lens from beneath the watchtower bell.'}</Text>}
@@ -227,6 +246,16 @@ const s=StyleSheet.create({
  label:{...type.label},labelRow:{flexDirection:'row',alignItems:'center',gap:8},
  title:{fontFamily:fonts.display,color:colors.parchment,fontSize:21,lineHeight:28,fontWeight:'700',letterSpacing:.8,marginTop:8},
  objective:{fontFamily:fonts.story,fontSize:18,lineHeight:27,color:'#eadcb9'},
+ // A long tale: the chapter under way, the aim of the whole story, a level waiting to be taken, and the leads.
+ chapter:{marginBottom:10},chapterTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},
+ chapterOver:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},
+ chapterPips:{flexDirection:'row',gap:5,alignItems:'center'},chapterPip:{width:16,height:4,borderRadius:2,backgroundColor:'rgba(201,164,92,.22)'},chapterPipDone:{backgroundColor:colors.goldMid},chapterPipNow:{backgroundColor:colors.goldBright},
+ chapterTitle:{fontFamily:fonts.display,fontSize:16,fontWeight:'700',letterSpacing:.6,color:colors.goldBright,marginTop:6,marginBottom:6},
+ aim:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#b9b3a3',paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.16)'},aimLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
+ leadCount:{marginLeft:'auto',fontFamily:fonts.ui,fontSize:11.5,color:colors.muted,fontVariant:['tabular-nums']},
+ leadRow:{flexDirection:'row',alignItems:'flex-start',gap:10},leadMark:{width:18,height:18,borderRadius:9,borderWidth:1.5,borderColor:'rgba(201,164,92,.55)',alignItems:'center',justifyContent:'center',marginTop:2},leadMarkDone:{backgroundColor:colors.gold,borderColor:'#fff0c4'},
+ leadTitle:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.5,color:colors.parchment},leadTitleDone:{color:colors.muted,textDecorationLine:'line-through'},
+ leadHook:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#cfc8b6',marginTop:2},
  scene:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16.5,lineHeight:25,color:'#c9c3b3',marginTop:10},
  heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:20,fontWeight:'700',letterSpacing:.8,marginVertical:8},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginVertical:10},

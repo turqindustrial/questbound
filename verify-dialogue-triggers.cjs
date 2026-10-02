@@ -61,8 +61,8 @@ assert.equal(p.validStory({...story,openingDialogue:[{speakerId:'stranger',text:
  const {generateAdventure}=require('./adventure-generator.cjs');
  await assert.rejects(()=>generateAdventure({context:{introId:'hostile'}},{apiKey:'test',model:'test',fetchImpl:reply({})}),/without the AI/);
  const lines=[{speakerId:'keeper',text:'Nobody touches the wagons.'},{speakerId:'mara',text:'They only want water.'}];
- const generated=await generateAdventure({context:{introId:'caravan'}},{apiKey:'test',model:'test',fetchImpl:reply({...story,npcs:{keeper:story.npcs.keeper,mara:story.npcs.mara},openingDialogue:lines})});
+ const generated=await generateAdventure({context:{introId:'crown'}},{apiKey:'test',model:'test',fetchImpl:reply({...story,npcs:{keeper:story.npcs.keeper,mara:story.npcs.mara},openingDialogue:lines})});
  assert.ok(sent.text.format.schema.required.includes('openingDialogue'));assert.deepEqual(generated.story.openingDialogue,lines);
- await generateAdventure({context:{introId:'garden'}},{apiKey:'test',model:'test',fetchImpl:reply(story)});assert.ok(!sent.text.format.schema.required.includes('openingDialogue'));
+ await generateAdventure({context:{introId:'drowned'}},{apiKey:'test',model:'test',fetchImpl:reply(story)});assert.ok(!sent.text.format.schema.required.includes('openingDialogue'));
  console.log('Passed: return/arrival/rest triggers fire once, companions speak on arrival, trigger turns save without player lines, instant hostile encounter with opening attack and foe damage type, opening dialogue playback, and server trigger/generator schemas.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

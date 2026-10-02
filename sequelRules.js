@@ -7,10 +7,10 @@ import {appendJournal,appendStoryLog} from './journalRules';
 // way). Setting out somewhere new, only the hero's companions and pack come along. Gold, draughts and training
 // always stay with the hero.
 export const sequelBearings=Object.keys(bearings);
-export const oldPlaceLimit=18;
+export const oldPlaceLimit=20;
 // What a new story starts from: the hero's own things, nothing tied to the old region.
 export function carriedBase(previous){
- return {...(previous?.pack?{pack:previous.pack}:{}),potions:Math.max(1,previous?.potions??1),...(previous?.skillTraining?{skillTraining:previous.skillTraining}:{})};
+ return {...(previous?.pack?{pack:previous.pack}:{}),potions:Math.max(1,previous?.potions??1),...(previous?.skillTraining?{skillTraining:previous.skillTraining}:{}),...(previous?.levelsOwed?{levelsOwed:previous.levelsOwed}:{})};
 }
 // Can the hero carry on where they are? A written story, a living hero, and not in the middle of a fight.
 export function canContinueRegion(game){
@@ -36,10 +36,11 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  const placeMap={},places=[];
  // The earlier country keeps its own map: its home region becomes a region of the new story (r1), and any lands
  // it had beyond that follow as further regions.
- const regions=[],regionMap={};
+ // (A new story may already speak of far lands of its own, r1 and r2: the earlier country's regions follow those.)
+ const regions=[],regionMap={},ownRegions=next.world?.regions??[];
  if(sameRegion){
   const [dx,dy]=bearings[bearing]??bearings.N,shift={x:Math.round(dx*miles*5280),y:Math.round(dy*miles*5280)};
-  const regionFor=oldId=>{if(regionMap[oldId])return regionMap[oldId];if(regions.length>=maxRegions-1)return regions[0]?.id??null;const source=mapRegions(previous).find(r=>r.id===oldId)??homeRegion(previous);const id='r'+(regions.length+1),taken=[homeRegion(next).name,...regions.map(r=>r.name)].map(n=>n.toLowerCase());let name=source.name.slice(0,60);if(taken.includes(name.toLowerCase()))name=(oldId==='home'?'Lands about '+old.locations.inn.name:name+' (earlier)').slice(0,60);regions.push({id,name,terrain:source.terrain});return regionMap[oldId]=id;};
+  const regionFor=oldId=>{if(regionMap[oldId])return regionMap[oldId];if(ownRegions.length+regions.length>=maxRegions-1)return regions[0]?.id??null;const source=mapRegions(previous).find(r=>r.id===oldId)??homeRegion(previous);const id='r'+(ownRegions.length+regions.length+1),taken=[homeRegion(next).name,...ownRegions.map(r=>r.name),...regions.map(r=>r.name)].map(n=>n.toLowerCase());let name=source.name.slice(0,60);if(taken.includes(name.toLowerCase()))name=(oldId==='home'?'Lands about '+old.locations.inn.name:name+' (earlier)').slice(0,60);regions.push({id,name,terrain:source.terrain});return regionMap[oldId]=id;};
   const add=(from,src,oldRegion,extra={})=>{if(places.length>=Math.min(oldPlaceLimit,maxWorldPlaces-own.length))return;const name=unique(src.name);if(!name)return;const id='p'+(own.length+places.length+1),region=regionFor(oldRegion);places.push({id,name,description:String(src.description).trim().slice(0,300),kind:src.kind,x:src.x+shift.x,y:src.y+shift.y,from,...(region?{region}:{}),...extra});return id;};
   const core=id=>({name:old.locations[id].name,description:old.locations[id].description,kind:placeKinds.includes(old.locations[id].kind)?old.locations[id].kind:kindOf[id],...placeCoordinates(previous,id)});
   // The earlier starting place is joined to the new one; its two neighbours follow the earlier story's own paths.
@@ -76,14 +77,14 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  // ---- The new game ----
  const joined={...next};
  // Places the new story marked from the start come first on its own map; the earlier country follows.
- if(places.length)joined.world={places:[...own,...places],at:null,...(regions.length?{regions}:{})};
+ if(places.length)joined.world={places:[...own,...places],at:null,...(ownRegions.length+regions.length?{regions:[...ownRegions,...regions]}:{})};
  if(kept.length){joined.people=people;joined.npcMemory={...next.npcMemory,...memory};if(Object.keys(hp).length)joined.npcHP=hp;if(Object.keys(fates).length)joined.npcFate=fates;if(Object.keys(followers).length)joined.followers=followers;}
  const visited=(previous.map?.visited??[]).map(id=>placeMap[id]).filter(Boolean);
  joined.map={...next.map,visited:[...new Set([...(next.map?.visited??['inn']),...visited])]};
  const ending=previous.foeFate==='slain'?'The '+old.foe+' was slain.':previous.foeFate==='subdued'?'The '+old.foe+' was beaten and spared.':'The '+old.foe+' is still out there.';
  joined.worldFacts=[...(sameRegion?(previous.worldFacts??[]).slice(-20):[]),...(sameRegion?['Earlier, in '+old.title+': '+ending]:[]),...(next.worldFacts??[])].slice(-60);
  // The hero's story so far carries on: the earlier chapters, then the opening of this one.
- if(previous.storyLog?.length){const first=next.storyLog?.[0]?.text??next.story.title;joined.storyLog=appendStoryLog(previous.storyLog,'story',first.replace(': the tale began at ',sameRegion?': a new chapter began at ':': a new tale began, far away, at '));}
+ if(previous.storyLog?.length){const first=next.storyLog?.[0]?.text??next.story.title;joined.storyLog=appendStoryLog(previous.storyLog,'story',first.replace(': the tale began at ',sameRegion?': a new tale began nearby, at ':': a new tale began, far away, at '));}
  const companions=kept.filter(following).map(id=>people[idMap[id]].name);
  joined.journal=appendJournal(next.journal,'note','Previously',(sameRegion?old.title+' ('+(old.status==='complete'?'completed':'left unfinished')+'). '+ending+' The places and people you knew there are still on your map.':'You left '+old.locations.inn.name+' behind for new country.')+(companions.length?' Travelling with you: '+companions.join(', ')+'.':''));
  return joined;

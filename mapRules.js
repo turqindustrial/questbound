@@ -12,7 +12,7 @@ export const coreIds=['inn','bridge','tower'];
 export const placeKinds=['settlement','camp','road','forest','wilds','mountain','water','ruin','cave','shrine','landmark','lair'];
 export const placeIcons={settlement:'home',camp:'camp',road:'travel',forest:'leaf',wilds:'compass',mountain:'peak',water:'wave',ruin:'tower',cave:'door',shrine:'sun',landmark:'eye',lair:'skull'};
 export const bearings={N:[0,1],NE:[.7071,.7071],E:[1,0],SE:[.7071,-.7071],S:[0,-1],SW:[-.7071,-.7071],W:[-1,0],NW:[-.7071,.7071]};
-export const maxWorldPlaces=30;
+export const maxWorldPlaces=40;
 export const placeDangers=['safe','risky','lair'];
 // Kinds of creature a lair can hold (the encounter templates); kept here so the map rules stand alone.
 export const lairTemplates=['bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'];
@@ -158,12 +158,13 @@ export function travelTo(game,health,destination) {
   next.log=[legacy?`You travel to ${name}. ${route.feet} ft; ${route.minutes} minutes pass.`:`You travel to ${name}. ${distanceText(route.feet)}; ${passingText(route.minutes)} pass.`,...game.log].slice(0,40);
   return {game:next,health:hp};
 }
-// Places a new story marks on the map from the start (heard of, not yet visited): up to four, each off one of the
+// Places a new story marks on the map from the start (heard of, not yet visited): up to six, each off one of the
 // three starting places. What the story writer described badly is left out.
+export const maxLandmarks=6;
 export function landmarkPlaces(story,landmarks){
  const places=[],names=new Set(Object.values(story.locations).map(l=>l.name.trim().toLowerCase())),text=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
  for(const l of Array.isArray(landmarks)?landmarks:[]){
-  if(places.length>=4)break;
+  if(places.length>=maxLandmarks)break;
   if(!l||!text(l.name,2,60)||!text(l.description,10,300)||!placeKinds.includes(l.kind)||!Object.hasOwn(bearings,l.bearing)||typeof l.miles!=='number'||!Number.isFinite(l.miles))continue;
   const key=l.name.trim().toLowerCase();if(names.has(key))continue;names.add(key);
   // The compass point is a rough direction: each landmark lies a little off it, so no two maps share a grid.
@@ -172,6 +173,24 @@ export function landmarkPlaces(story,landmarks){
   places.push({id:'p'+(places.length+1),name:l.name.trim(),description:l.description.trim(),kind:l.kind==='lair'?'wilds':l.kind,x:Math.round(origin.x+dx*feet),y:Math.round(origin.y+dy*feet),from,...(l.danger==='risky'?{danger:'risky'}:{}),...(text(l.feature,3,200)?{feature:l.feature.trim()}:{})});
  }
  return places;
+}
+// Lands beyond the story's own country that the tale speaks of from the start (up to two): each is a region with its
+// own map and one known place, days away by road from the starting place. `taken` are the places already marked.
+export function farLandPlaces(story,lands,taken=[]){
+ const regions=[],places=[],text=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
+ const names=new Set([...Object.values(story.locations).map(l=>l.name),...taken.map(p=>p.name)].map(n=>n.trim().toLowerCase())),home=String(story.region??'').trim().toLowerCase();
+ for(const l of Array.isArray(lands)?lands:[]){
+  if(regions.length>=2)break;
+  const p=l?.place;
+  if(!l||!text(l.name,2,60)||!terrains.includes(l.terrain)||!Object.hasOwn(bearings,l.bearing)||typeof l.miles!=='number'||!Number.isFinite(l.miles)||!p||!text(p.name,2,60)||!text(p.description,10,300)||!placeKinds.includes(p.kind))continue;
+  const land=l.name.trim().toLowerCase(),key=p.name.trim().toLowerCase();
+  if(land===home||regions.some(r=>r.name.toLowerCase()===land)||names.has(key))continue;
+  names.add(key);
+  const id='r'+(regions.length+1),turn=(seededRandom('land:'+story.id+':'+land)()-.5)*.5,[bx,by]=bearings[l.bearing],dx=bx*Math.cos(turn)-by*Math.sin(turn),dy=bx*Math.sin(turn)+by*Math.cos(turn),feet=Math.round(Math.max(15,Math.min(300,l.miles))*FEET_PER_MILE);
+  regions.push({id,name:l.name.trim(),terrain:l.terrain});
+  places.push({id:'p'+(taken.length+places.length+1),name:p.name.trim(),description:p.description.trim(),kind:p.kind==='lair'?'wilds':p.kind,x:Math.round(dx*feet),y:Math.round(dy*feet),from:'inn',region:id,...(text(l.rumour,3,200)?{feature:l.rumour.trim()}:{})});
+ }
+ return {regions,places};
 }
 // The Dungeon Master reveals a place: named, described, and set at a bearing and distance from where the hero is.
 export function discoveryError(game,discovery){

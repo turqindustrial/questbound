@@ -35,7 +35,7 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
         <View style={s.gain}><Icon name="star" size={14} color={colors.gold}/><Text style={s.gainText}>Proficiency +{before.proficiency} → <Text style={s.gainUp}>+{stats.proficiency}</Text></Text></View>
       </View>
     </View>
-    <Text style={s.text}>Your victory earns a new level. Review your choices, then return to your adventure rested. You remain a {hero.class}. Hit points rise by your class’s fixed average.</Text>
+    <Text style={s.text}>You have earned a new level. Review your choices, then return to your adventure rested. You remain a {hero.class}. Hit points rise by your class’s fixed average.</Text>
     {nextLevel>=3 && (!hero.plannedSubclass || hero.level<3) && <>
       <Text style={s.heading}>Choose your subclass</Text>
       {Object.entries(subclassOptions[hero.class]).map(([name,description])=><View key={name}>{button(name,()=>setDraft({...draft,plannedSubclass:name}),draft.plannedSubclass===name)}<Text style={s.caption}>{description}</Text></View>)}

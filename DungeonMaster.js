@@ -25,6 +25,7 @@ import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemo
 import {touchKeyboard} from './webLayout';
 import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
+import {greeting,shouldGreet} from './greetings';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;
@@ -83,6 +84,25 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       if(!result.error){setAnimateId(result.turn?.id??null);if(speaker&&conversationPeople(result.game).some(n=>n.id===speaker.id))setConversationId(speaker.id);}
     })().catch(e=>{if(alive.current)setError(e.message);}).finally(()=>{lock.current=false;if(alive.current)setBusy(false);});
   },[game.sceneCue?.id,busy,playing]);
+  // Turning to someone (the Speak chip): the conversation opens and they speak first, in their own voice and true to
+  // how they feel about the hero. The Dungeon Master writes the line; a stand-in is used when it cannot be reached.
+  // Someone who has only just spoken is not made to greet again.
+  const engage=async id=>{
+    if(lock.current||busy||playing)return;
+    if(!await openConversation(id))return;
+    const speaker=conversationPeople(game).find(n=>n.id===id);
+    if(!speaker||waiting||tableSyncing||!shouldGreet(game,id))return;
+    const opening=greeting(game,id,hero),snapshot=fingerprint;
+    lock.current=true;setBusy(true);setError('');setDraft('');
+    try{
+      let narration=opening.aside,dialogue=[{speakerId:id,text:opening.fallback}];
+      if(connected)try{const body=await post(opening.scene,game,health,speaker,{sceneTrigger:{id:'greet:'+id,cue:opening.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>l.speakerId===id).slice(0,2);if(lines.length){narration=body.narration;dialogue=lines;}}catch{}
+      if(!alive.current||latest.current!==snapshot)return;
+      const result=await act(null,{question:opening.scene,narration,dialogue,trigger:true,npcId:id});
+      if(!result.error){setAnimateId(result.turn?.id??null);if(conversationPeople(result.game).some(n=>n.id===id))setConversationId(id);}
+    }catch(e){if(alive.current)setError(e.message);}
+    finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
+  };
   // Turns that arrive from other players at the table play out here too.
   const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
   useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined)setAnimateId(lastTurnId);seenTurn.current=lastTurnId;},[lastTurnId]);
@@ -223,7 +243,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // The guide: what every action (or spell) in the row does, one tap away.
   if(actions.length)actionChips.push(<Pressable key="guide" accessibilityRole="button" accessibilityLabel={spellsOpen?'What these spells do':'What these actions do'} onPress={()=>{playSound('open');setGuide(true);}} dataSet={{qb:'chip'}} style={[s.action,{paddingHorizontal:11}]}><Icon name="info" size={16} color={colors.gold}/></Pressable>);
   const extraChips=[...effects.map(line=><View key={'effect:'+line} style={s.effectChip}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
-    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/><PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText></View></Pressable>)];
+    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/><PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText></View></Pressable>)];
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
   const actionBar=short?row([...actionChips,...extraChips],false,actionScroll):<>{row(extraChips,false)}{row(actionChips,!swipe,actionScroll)}</>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
@@ -275,7 +295,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     <TextInput dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':'Describe your next move…'} placeholderTextColor="#7f889c" style={s.input}/>
     <View style={s.toolbar}><Text style={[s.hint,!!waiting&&{color:colors.gold}]}>{tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':compact?'Tap Send to DM':'Enter to send · Shift+Enter for a new line'}</Text><Pressable accessibilityRole="button" accessibilityState={{disabled:busy||playing||!input.trim()||!!waiting||tableSyncing}} disabled={busy||playing||!input.trim()||!!waiting||tableSyncing} onPress={()=>ask()}dataSet={{qb:'btn-primary'}} style={[s.button,(busy||playing||!input.trim()||!!waiting||tableSyncing)&&{opacity:0.45}]}><Text style={s.buttonText}>{tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing turn…':waiting?'Waiting…':'Send to DM  ➤'}</Text></Pressable></View>
     {effects.length>0&&<View style={s.effects}><Text style={[s.overline,{color:colors.arcane}]}>✧ ONGOING EFFECTS</Text>{effects.map(line=><Text key={line} style={s.effectText}>{line}</Text>)}</View>}
-    {!person&&people.length>0&&<View style={s.people}><Text style={s.overline}>PEOPLE NEARBY</Text>{people.map(n=><Pressable key={n.id} accessibilityRole="button" disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={s.personButton}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.avatar} compact/><View style={{flexShrink:1}}><PlainText style={s.chipName}>{n.name}</PlainText><PlainText style={s.chipRole} numberOfLines={1}>{n.role}</PlainText></View><PlainText style={s.chipAction} numberOfLines={1}>Speak ›</PlainText></Pressable>)}</View>}
+    {!person&&people.length>0&&<View style={s.people}><Text style={s.overline}>PEOPLE NEARBY</Text>{people.map(n=><Pressable key={n.id} accessibilityRole="button" disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={s.personButton}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.avatar} compact/><View style={{flexShrink:1}}><PlainText style={s.chipName}>{n.name}</PlainText><PlainText style={s.chipRole} numberOfLines={1}>{n.role}</PlainText></View><PlainText style={s.chipAction} numberOfLines={1}>Speak ›</PlainText></Pressable>)}</View>}
     {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
     {reply?.pending&&<Text style={s.caption}>Suggested action: {reply.pending.label}. Send “confirm action” to carry it out.</Text>}
     {reply?.pending&&reply.snapshot!==fingerprint&&<Text style={s.caption}>The scene changed. Send a new message for a current suggestion.</Text>}

@@ -26,6 +26,30 @@ export async function readTurn(response,onNarration){
  else for(const line of (await response.text()).split('\n'))take(line);
  return result??{error:'The Dungeon Master\'s reply was cut off. Nothing was applied; try again.'};
 }
+// A new story is written in the background (the story writer may think for minutes): the game asks once with a job
+// id, is told the tale is under way, and asks after it every few seconds until it is ready. No request waits long,
+// so a phone's gateway and the shared link never give up on it. A Dungeon Master from before this simply answers the
+// first request with the story. Returns {ok,body} like askDm; body.story is the tale.
+const newJobId=(random=Math.random)=>Array.from({length:24},()=>'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random()*36)]).join('');
+export async function writeStory(endpoint,payload,{fetchImpl=fetch,now=Date.now,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),every=3000,limit=480000,random=Math.random}={}){
+ const job=newJobId(random),started=now();
+ const first=await askDm(endpoint,{...payload,context:{...payload.context,job}},{fetchImpl,now,pause});
+ if(!first.ok||first.body?.story||first.body?.status===undefined)return first;
+ let state=first.body,misses=0;
+ for(;;){
+  if(state?.status==='ready')return state.result?.story?{ok:true,status:200,body:state.result}:{ok:false,status:502,body:{error:'The story came back incomplete. Your adventure is unchanged; try again.'}};
+  if(state?.status==='failed')return {ok:false,status:502,body:{error:state.error||'The story could not be written. Your adventure is unchanged.'}};
+  if(state?.status==='unknown')return {ok:false,status:502,body:{error:'The Dungeon Master was restarted while writing your story. Your adventure is unchanged; try again.'}};
+  if(now()-started>limit)return {ok:false,status:504,body:{error:'The story is taking too long to write. Your adventure is unchanged; try again.'}};
+  await pause(every);
+  // A dropped connection while waiting (a phone asleep, a tunnel hiccup) is simply asked again.
+  try{const asked=await askDm(endpoint,{input:'Is the story ready?',context:{mode:'art',choices:[],storyJob:job}},{timeout:20000,fetchImpl,now,pause});
+   if(asked.ok&&asked.body&&typeof asked.body.status==='string'){state=asked.body;misses=0;}
+   else if(asked.status===401)return asked;
+   else if(++misses>=8)return {ok:false,status:asked.status,body:{error:asked.body?.error||'The Dungeon Master stopped answering. Your adventure is unchanged; try again.'}};
+  }catch{if(++misses>=8)return {ok:false,status:503,body:{error:'The Dungeon Master stopped answering. Your adventure is unchanged; try again.'}};}
+ }
+}
 export async function findDmEndpoint(){
  for(const endpoint of dmEndpoints())try{
   const response=await fetch(endpoint+'/health',{signal:AbortSignal.timeout(3500)});

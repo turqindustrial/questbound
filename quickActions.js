@@ -25,7 +25,7 @@ export function quickActions(hero,game,health=null){
   // End turn leads (gold) once the action is spent; before that it waits at the end of the row.
   if(id==='end-turn'){(game.actionUsed?primary:last).push({key:id,glyph:'⧗',icon:'forward',label:'End turn',question:'I end my turn.',action:c.action,primary:!!game.actionUsed});continue;}
   // Attacking townsfolk and declaring the story finished stay deliberate, typed decisions.
-  if(/^(npc-attack|story-complete|restart-adventure)/.test(id))continue;
+  if(/^(npc-attack|story-complete|story-advance|lead-done|restart-adventure)/.test(id))continue;
   // A draught away from a fight is typed or asked for; a companion lying senseless gets a Revive chip.
   if(id==='potion'&&game.stage!=='combat')continue;
   // The creature beside the foe gets one chip, with the main weapon.

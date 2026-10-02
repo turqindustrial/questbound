@@ -72,9 +72,11 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  assert.equal(request.model,'gpt-6-astra','The story writer model writes the adventure');
  const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',ties:{other:'friend',foe:'neutral',note:'n'}}}};
  const storyFetch=async(url,options)=>{request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',usage:{input_tokens:9,output_tokens:9},output:[{content:[{type:'output_text',text:JSON.stringify(story)}]}]})};};
- let usage=null;await generateAdventure({context:{introId:'garden'}},{apiKey:'k',model:'gpt-6-astra',reasoning:'medium',fetchImpl:storyFetch,onUsage:u=>{usage=u;}});
- assert.deepEqual(request.reasoning,{effort:'medium'});assert.equal(request.max_output_tokens,10200);assert.deepEqual(usage,{input_tokens:9,output_tokens:9});
- await generateAdventure({context:{introId:'garden'}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:storyFetch});assert.deepEqual(request.reasoning,{effort:'none'});assert.equal(request.max_output_tokens,4200);
+ let usage=null;await generateAdventure({context:{introId:'drowned'}},{apiKey:'k',model:'gpt-6-astra',reasoning:'medium',fetchImpl:storyFetch,onUsage:u=>{usage=u;}});
+ assert.deepEqual(request.reasoning,{effort:'medium'});assert.equal(request.max_output_tokens,12000);assert.deepEqual(usage,{input_tokens:9,output_tokens:9});
+ // Deep thought about a long tale gets plenty of room.
+ await generateAdventure({context:{introId:'drowned'}},{apiKey:'k',model:'gpt-6-astra',reasoning:'high',fetchImpl:storyFetch});assert.deepEqual(request.reasoning,{effort:'high'});assert.equal(request.max_output_tokens,40000);
+ await generateAdventure({context:{introId:'drowned'}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:storyFetch});assert.deepEqual(request.reasoning,{effort:'none'});assert.equal(request.max_output_tokens,6000);
  // The models the host chose are read on live requests: the play model answers turns, the story writer follows it
  // unless it was set apart, and a malformed file changes nothing. A stand-in provider never reads them.
  {const {liveModels,chosenModel}=require('./dm-server.cjs'),files=f=>n=>f[n]??null;

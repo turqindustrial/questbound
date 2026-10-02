@@ -3,6 +3,7 @@ import {campaignState,earnedGold} from './campaignRules';
 import React,{useState} from 'react';
 import {View,Text as PlainText,TextInput,StyleSheet} from 'react-native';
 import {journalForGame,journalObjective} from './journalRules';
+import {questState,currentGoal} from './storyRules';
 import {GameButton,ScreenTitle,Segmented,Section} from './ui';
 import Icon from './Icon';
 import {fonts,colors,type} from './theme';
@@ -11,10 +12,10 @@ const shownTitle=title=>({'AI DM conversation':'Conversation','AI spell ruling':
 const kinds={ruling:['DM ruling','spell',colors.arcane],quest:['Quest','scroll',colors.gold],encounter:['Encounter','swords',colors.bloodBright],level:['Level gained','star',colors.goldBright]};
 export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
   const [note,setNote]=useState(''),[visible,setVisible]=useState(20),[folder,setFolder]=useState('dm');
-  const journal=journalForGame(game),entries=[...journal.entries].reverse().filter(e=>folder==='player'?(e.kind==='note'&&!['AI DM conversation','AI spell ruling'].includes(e.title)):!(e.kind==='note'&&!['AI DM conversation','AI spell ruling'].includes(e.title)));
+  const quest=questState(game),journal=journalForGame(game),entries=[...journal.entries].reverse().filter(e=>folder==='player'?(e.kind==='note'&&!['AI DM conversation','AI spell ruling'].includes(e.title)):!(e.kind==='note'&&!['AI DM conversation','AI spell ruling'].includes(e.title)));
   return <View>
-    <ScreenTitle eyebrow={'Campaign journal · Chapter '+journal.chapter} icon="journal" title={game.story?.title??'The Lantern at the Crossroads'}/>
-    <View dataSet={{qb:'plate'}} style={s.objective}><View style={s.objectiveHead}><Icon name={game.story?.status==='complete'?'star':'compass'} size={15} color={colors.gold}/><PlainText style={s.overline}>{game.story?.status==='complete'?'Adventure complete':'Current objective'}</PlainText></View><Text style={s.objectiveText}>{game.story?game.story.objective:journalObjective(game.stage,game.map,game.campaign)}</Text></View>
+    <ScreenTitle eyebrow={'Campaign journal'+(quest?.current?' · Chapter '+quest.number+' of '+quest.chapters:'')} icon="journal" title={game.story?.title??'The Lantern at the Crossroads'}/>
+    <View dataSet={{qb:'plate'}} style={s.objective}><View style={s.objectiveHead}><Icon name={game.story?.status==='complete'?'star':'compass'} size={15} color={colors.gold}/><PlainText style={s.overline}>{game.story?.status==='complete'?'Adventure complete':quest?.current?quest.current.title:'Current objective'}</PlainText></View><Text style={s.objectiveText}>{game.story?(game.story.status==='complete'?game.story.objective:currentGoal(game)):journalObjective(game.stage,game.map,game.campaign)}</Text></View>
     {!game.story&&<Text style={s.text}>Quest earnings: {earnedGold(game)} GP · Missing lens: {campaignState(game).lensQuest}</Text>}
     <Segmented value={folder} onChange={id=>{setFolder(id);setVisible(20);}} options={[['dm','Dungeon Master','quill'],['player','Your notes','feedback']]}/>
     {folder==='player'&&<>
@@ -23,7 +24,7 @@ export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
     <Section icon={folder==='player'?'feedback':'journal'} title={(folder==='player'?'Your notes':'Chronicle')+' · newest first'}/>
     {!entries.length&&<View style={s.empty}><Icon name="journal" size={26} color={colors.goldMid}/><PlainText style={s.emptyText}>Nothing recorded here yet.</PlainText></View>}
     {entries.slice(0,visible).map(e=>{const [label,icon,tone]=folder==='player'?['Player note','feedback',colors.gold]:kinds[e.kind]??['Dungeon Master','quill',colors.goldMid];return <View key={e.id} dataSet={{qb:'plate'}} style={[s.entry,{borderLeftColor:tone}]}>
-      <View style={s.entryHead}><Icon name={icon} size={13} color={tone}/><PlainText style={s.entryMeta}>{label} · Chapter {e.chapter}</PlainText></View>
+      <View style={s.entryHead}><Icon name={icon} size={13} color={tone}/><PlainText style={s.entryMeta}>{label}{journal.chapter>1?' · Tale '+e.chapter:''}</PlainText></View>
       <Text style={s.entryTitle}>{shownTitle(e.title)}</Text><Text style={s.text}>{String(e.text).replace(/^AI DM: /gm,'Dungeon Master: ')}</Text></View>;})}
     {entries.length>visible&&<GameButton icon="forward" label="Show older entries" onPress={()=>setVisible(v=>v+20)}/>}
     <Text style={s.caption}>Milestones and confirmed DM rulings stay here even when the combat log gets shorter. Continue and earned level-ups keep this journal; a new adventure or a new character starts a fresh one.</Text>

@@ -3,8 +3,9 @@ import {View,Text,StyleSheet,useWindowDimensions} from 'react-native';
 import intros from './adventureIntros.json';
 import Icon from './Icon';
 import {fonts,colors} from './theme';
-// While the Dungeon Master writes a new opening (usually 10–30 seconds), a loading screen in the manner of a console
-// game: the chosen opening, a turning seal, a moving progress line and a new tip every few seconds.
+// While the Dungeon Master writes a new tale (about three minutes when the story writer thinks hard, half a minute
+// when it does not), a loading screen in the manner of a console game: the chosen opening, a turning seal, a moving
+// progress line and a new tip every few seconds.
 const tips=[
  ['speak','Talk to anyone. Tap a person above the message box, or name them in what you type.'],
  ['d20','Every roll is real: the dice decide how it goes, the Dungeon Master tells you what it means.'],
@@ -13,6 +14,10 @@ const tips=[
  ['eye','Stuck? Ask the Dungeon Master what you notice.'],
  ['sound','Headphones bring out the score and the side each blow lands on.'],
  ['transfer','Settings → Move your hero copies a save code, a handy backup.'],
+ ['scroll','A long tale is told in chapters. The Quest tab shows the one under way and the leads you have heard of.'],
+ ['map','The map marks places you have only heard of, and roads that lead to other lands.'],
+ ['star','Finish chapters to earn levels. Take one whenever you are out of a fight.'],
+ ['people','People speak first when you turn to them, and they remember how you treated them.'],
 ];
 // `hero` mode covers the Dungeon Master drafting a complete character from the player's idea.
 export default function StoryLoading({introId,hero=null}){
@@ -32,7 +37,9 @@ export default function StoryLoading({introId,hero=null}){
    <Text dataSet={{qb:'title',lig:'off'}} style={[s.title,{fontSize:size,lineHeight:Math.round(size*1.25)}]}>{title}</Text>
    {!!detail&&<Text style={s.setting}>{detail}</Text>}
    <View style={s.track}><View dataSet={{qb:'shimmer'}} style={s.fill}/></View>
-   {seconds>=60&&<Text style={s.time}>Taking longer than usual; it will appear as soon as it is ready.</Text>}
+   {/* A long tale is written with care (about three minutes at the host's usual setting): say so once the wait is felt. */}
+   {hero==null&&seconds>=20&&seconds<300&&<Text style={s.time}>A long tale is written with care. This can take a few minutes.</Text>}
+   {(hero!=null?seconds>=60:seconds>=300)&&<Text style={s.time}>Taking longer than usual; it will appear as soon as it is ready.</Text>}
    <View key={tip} dataSet={{qb:'enter'}} style={s.tip}><Icon name={tips[tip][0]} size={16} color={colors.gold}/><Text style={s.tipText}>{tips[tip][1]}</Text></View>
   </View>
  </View>;

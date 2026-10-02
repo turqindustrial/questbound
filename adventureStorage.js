@@ -36,6 +36,7 @@ export function validAdventure(value,hero) {
     && (g.actionUsed===undefined || (g.actionUsed===true && g.stage==='combat'))
     && (g.dodging===undefined || (g.dodging===true && g.actionUsed===true))
     && (g.shortRests===undefined || integerBetween(g.shortRests,0,3))
+    && (g.levelsOwed===undefined || integerBetween(g.levelsOwed,0,5))
     && validStoryLog(g.storyLog)
     && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z ]{2,29}$/.test(g.wield)))
     && (g.openingAttackAvailable===undefined || typeof g.openingAttackAvailable==='boolean')

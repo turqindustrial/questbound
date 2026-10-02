@@ -28,6 +28,12 @@ v=d('effect','Kara Vell: 12 → 5 HP.');assert.equal(v.type,'hp');assert.equal(v
 assert.equal(d('effect','Spent 1 level 1 spell slot.').type,'note');
 assert.equal(d('narration','The road is quiet.').type,'text');assert.equal(d('action','The threat is defeated.').type,'text');
 assert.equal(damageIcon('fire'),'flame');assert.equal(damageIcon('unknown'),'sword');
+// The long tale's moments read as cards of their own, whatever words they contain (these mention a save and damage).
+v=d('roll','Chapter 2 complete: The Windglass Index. The Index reveals that a pulse could save the well; the storm did the damage, not the houses.');assert.equal(v.type,'chapter-done');assert.equal(v.number,2);assert.equal(v.title,'The Windglass Index');assert.match(v.text,/^The Index reveals/);
+v=d('action','Chapter 3 begins: The Bell Archive. Journey to the Bellwether Archive in the Namarra Crown.');assert.equal(v.type,'chapter');assert.equal(v.number,3);assert.equal(v.title,'The Bell Archive');assert.equal(v.text,'Journey to the Bellwether Archive in the Namarra Crown.');
+v=d('action','Lead seen through: Nemi\'s Dry Measure.');assert.equal(v.type,'lead');assert.equal(v.title,'Nemi\'s Dry Measure');
+assert.equal(d('action','You have earned a level. Take it when you are ready.').type,'level');
+assert.equal(d('narration','Chapter 3 begins: The Bell Archive. A storyteller might say this too.').type,'text','Only the game\'s own lines become cards');
 // No engine line may throw, whatever it says.
 for(const text of ['',':','d20','d20 [] = vs AC','Round x begins.','→ HP','0 HP lost','restored HP'])for(const kind of ['roll','initiative','effect','action','narration'])describeEvent({kind,text});
 // HP during playback: the blow lands, the bar drops; the summary line snaps it exact; it never leaves the turn's range.
