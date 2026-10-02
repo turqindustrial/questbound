@@ -1,6 +1,6 @@
-// Web-only finish: typefaces, metallic buttons, gilded frames, atmosphere and motion, attached through dataSet hooks (data-qb).
+// Web-only finish: typefaces, metallic buttons, crimson frames, atmosphere and motion, attached through dataSet hooks (data-qb).
 const svg=markup=>'url("data:image/svg+xml,'+encodeURIComponent(markup)+'")';
-// Corner filigree for framed panels: a rounded bracket, an inner echo, two curls and a gilded lozenge.
+// Corner filigree for framed panels: a rounded bracket, an inner echo, two curls and a lozenge.
 const flourish=transform=>svg(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${transform}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M20 1.5c3 0 4.5 1.6 4.5 3.6' stroke-opacity='.8'/><path d='M1.5 20c0 3 1.6 4.5 3.6 4.5' stroke-opacity='.8'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#be96ff' stroke='none'/></g></svg>`);
 const corners={tl:flourish(''),tr:flourish('translate(34 0) scale(-1 1)'),bl:flourish('translate(0 34) scale(1 -1)'),br:flourish('translate(34 34) scale(-1 -1)')};
 // Film grain: fractal noise baked into a small tile once; it only moves on the compositor.
@@ -82,7 +82,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=fade]{animation:qb-fade .6s ease both;}
 @keyframes qb-fade{from{opacity:0;}to{opacity:1;}}
 
-/* Title lettering: gilded, engraved, softly glowing. */
+/* Title lettering: crimson foil, engraved, softly glowing. */
 [data-qb=title]{background:linear-gradient(180deg,#ffe1e5 0%,#ff5a72 34%,#a3162c 62%,#e23a55 82%,#ff97a6 100%);-webkit-background-clip:text;background-clip:text;color:transparent !important;
  filter:drop-shadow(0 2px 0 rgba(20,4,7,.95)) drop-shadow(0 0 26px rgba(230,48,82,.4)) drop-shadow(0 0 60px rgba(140,82,255,.22));}
 /* Decorative capitals join some letter pairs; words other than the logo keep their letters separate. */
@@ -111,7 +111,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 @keyframes qb-pop{from{opacity:0;transform:translate3d(0,18px,0) scale(.97);}to{opacity:1;transform:none;}}
 [data-qb=scrim]{-webkit-backdrop-filter:blur(6px) saturate(.8);backdrop-filter:blur(6px) saturate(.8);animation:qb-fade .3s ease both;}
 
-/* Buttons: forged stone with a gold edge, and a gilded primary that catches the light. */
+/* Buttons: forged stone with a red edge, and a deep crimson primary that catches the light. */
 [data-qb=btn]{background:linear-gradient(180deg,#362a38 0%,#241b25 55%,#1b141c 100%) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.5),0 6px 18px rgba(0,0,0,.4);}
 [data-qb=btn]:hover{border-color:rgba(190,150,255,.85) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 0 0 1px rgba(190,150,255,.15),0 0 26px rgba(224,74,92,.2),0 10px 24px rgba(0,0,0,.5);transform:translateY(-1px);}
 [data-qb=btn-primary]{position:relative;overflow:hidden;background:linear-gradient(180deg,#c92f49 0%,#a51a33 40%,#7c1227 76%,#5e0d1e 100%) !important;
@@ -134,7 +134,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
  [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;padding:5px 9px;border-radius:4px;border:1px solid rgba(178,34,58,.45);background:rgba(14,10,14,.96);color:#e8dbd5;font:600 11px/1.2 Inter,system-ui,sans-serif;letter-spacing:.4px;box-shadow:0 8px 20px rgba(0,0,0,.5);pointer-events:none;z-index:50;animation:qb-fade .15s ease both;}
 }
 
-/* Title-screen menu: engraved words that light up, with a lozenge marker and a gilded underline. */
+/* Title-screen menu: engraved words that light up, with a lozenge marker and a crimson underline. */
 [data-qb=menu-item]{position:relative;cursor:pointer;}
 [data-qb=menu-item]::before{content:"";position:absolute;left:-20px;top:50%;width:9px;height:9px;margin-top:-5px;transform:rotate(45deg) scale(.4);opacity:0;background:linear-gradient(135deg,#eadaff,#7846dc);box-shadow:0 0 12px rgba(160,110,255,.85);transition:opacity .25s ease,transform .3s var(--qb-ease);}
 [data-qb=menu-item]::after{content:"";position:absolute;left:0;bottom:4px;height:1px;width:100%;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,rgba(224,74,92,.9),transparent);transition:transform .35s var(--qb-ease);}
@@ -169,7 +169,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 @media (prefers-reduced-motion: reduce){[data-qb=node-here]{animation:none;}}
 [data-qb=slot-shade]{background:linear-gradient(90deg,rgba(16,12,17,.92) 0%,rgba(16,12,17,.72) 55%,rgba(16,12,17,.45) 100%),linear-gradient(0deg,rgba(16,12,17,.85),transparent 60%) !important;}
 [data-qb=slot]:hover{border-color:rgba(190,150,255,.8) !important;box-shadow:0 0 0 1px rgba(190,150,255,.12),0 24px 60px rgba(0,0,0,.6),0 0 50px rgba(224,74,92,.14);transform:translateY(-2px);}
-/* Class crests: a gilded medallion around a line emblem. */
+/* Class crests: a crimson medallion around a line emblem. */
 [data-qb=crest]{background:radial-gradient(circle at 50% 35%,#352735 0%,#181218 55%,#0b0a07 100%) !important;box-shadow:0 0 0 1px rgba(0,0,0,.85),0 0 0 3px rgba(40,14,18,.95),0 0 0 4px rgba(196,52,78,.85),inset 0 2px 6px rgba(255,214,224,.12),inset 0 -6px 12px rgba(0,0,0,.6),0 8px 22px rgba(0,0,0,.55),0 0 26px rgba(140,82,255,.18);}
 [data-qb=crest] svg{filter:drop-shadow(0 0 6px rgba(230,48,82,.45));}
 [data-qb=badge]{background:linear-gradient(180deg,#d8364f,#8a1529) !important;box-shadow:0 0 0 1px rgba(39,7,12,.9),0 2px 6px rgba(0,0,0,.6);}

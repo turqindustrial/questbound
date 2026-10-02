@@ -5,7 +5,7 @@ import {classIcons} from './iconPaths';
 import {heroArtSubject} from './worldArtRules';
 import {subscribeArt,cachedArt,artIdentity} from './artClient';
 import {fonts,colors} from './theme';
-// The hero's painted portrait in a gilded medallion, with their level. Until the painting is ready (or if it cannot
+// The hero's painted portrait in a crimson medallion, with their level. Until the painting is ready (or if it cannot
 // be made) the class crest stands in, so the frame never shows a spinner.
 export default function HeroPortrait({hero,size=56,level,style}){
  const subject=heroArtSubject(hero),key=subject?artIdentity(subject):null;

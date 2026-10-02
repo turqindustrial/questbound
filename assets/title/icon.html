@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- The app icon, drawn by the browser so it uses the game's own title lettering: a crimson-foil Q in a red seal with a
+     violet inner ring, over the darkened title painting. make-icons.cjs photographs this page at each size.
+     Query: inset (share of the width left clear on each side), layer (full, bg, fg, mono), simple (1 for tiny sizes),
+     px (draw at exactly this many pixels in the top left corner instead of filling the window). -->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@900&display=block">
+<style>
+html,body{margin:0;overflow:hidden;background:transparent}
+body{position:relative;width:var(--w,100vw);height:var(--w,100vw)}
+.bg{position:absolute;inset:0;overflow:hidden;background:#08060a}
+.art{position:absolute;inset:0;background:url(questbound-title-tall.jpg) 50% 60%/170% auto no-repeat;opacity:.3;filter:saturate(.8) contrast(1.1)}
+.glow{position:absolute;inset:0;background:
+ radial-gradient(circle at 50% 48%,rgba(150,92,255,.36) 0,rgba(96,40,150,.2) 28%,rgba(8,6,10,0) 56%),
+ radial-gradient(circle at 50% 50%,transparent 38%,rgba(8,6,10,.9) 76%),
+ linear-gradient(180deg,rgba(120,14,34,0) 40%,rgba(120,14,34,.26))}
+.seal{position:absolute;left:50%;top:50%;width:var(--d);height:var(--d);transform:translate(-50%,-50%)}
+.disc{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 38%,rgba(58,30,96,.7),rgba(14,9,15,.86) 68%);box-shadow:0 0 calc(var(--d)*.07) rgba(230,48,82,.5),inset 0 0 calc(var(--d)*.09) rgba(140,82,255,.3)}
+.ring{position:absolute;inset:0;border-radius:50%;padding:calc(var(--d)*var(--ring));background:linear-gradient(155deg,#ff9aa9,#e04a5c 28%,#8f1429 68%,#e23a55);
+ -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.ticks{position:absolute;inset:calc(var(--d)*.05);border-radius:50%;background:repeating-conic-gradient(from 0deg,rgba(224,74,92,.85) 0deg 1.5deg,transparent 1.5deg 9deg);
+ -webkit-mask:radial-gradient(closest-side,transparent 91%,#000 92%,#000 97.5%,transparent 98.5%);mask:radial-gradient(closest-side,transparent 91%,#000 92%,#000 97.5%,transparent 98.5%)}
+.inner{position:absolute;inset:calc(var(--d)*.108);border-radius:50%;border:calc(var(--d)*.007) solid rgba(176,140,245,.8)}
+.q{position:absolute;inset:0;display:grid;place-items:center;font:900 calc(var(--d)*var(--q))/1 'Cinzel Decorative',Georgia,serif}
+.q span{display:block;transform:translate(var(--qx),var(--qy));padding:0 .12em .1em;background:linear-gradient(180deg,#ffe6ea 0%,#ff6078 32%,#a3162c 60%,#e23a55 80%,#ffa1af 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+ filter:drop-shadow(0 calc(var(--d)*.012) 0 rgba(20,4,8,.95)) drop-shadow(0 0 calc(var(--d)*.06) rgba(230,48,82,.5))}
+body{--ring:.028;--q:.5;--qx:-3%;--qy:-1%}
+body.simple{--ring:.06;--q:.56;--qx:-2%}
+body.simple .ticks,body.simple .inner{display:none}
+body.bg .seal{display:none}
+body.fg .bg,body.mono .bg{display:none}
+body.mono .disc,body.mono .ticks,body.mono .inner{display:none}
+body.mono .ring{background:#fff}
+body.mono .q span{background:none;color:#fff;filter:none}
+body.mono{--q:.4;--qx:-7%;--qy:-3%}
+</style>
+</head>
+<body>
+<div class="bg"><div class="art"></div><div class="glow"></div></div>
+<div class="seal"><div class="disc"></div><div class="ring"></div><div class="ticks"></div><div class="inner"></div><div class="q"><span>Q</span></div></div>
+<script>
+const query=new URLSearchParams(location.search),inset=Number(query.get('inset')??.09);
+const px=Number(query.get('px'))||0;if(px)document.body.style.setProperty('--w',px+'px');
+document.body.style.setProperty('--d',px?(1-2*inset)*px+'px':(1-2*inset)*100+'vw');
+document.body.classList.add(query.get('layer')??'full');
+if(query.get('simple'))document.body.classList.add('simple');
+</script>
+</body>
+</html>

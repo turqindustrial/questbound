@@ -5,7 +5,7 @@ import Icon from './Icon';
 import {playSound} from './audio';
 import {displayState} from './fullscreen';
 const web=Platform.OS==='web';
-// Building blocks for the gilded look. On web, dataSet hooks add gradients, glows and corner filigree from webTheme.js.
+// Building blocks for the crimson and violet look. On web, dataSet hooks add gradients, glows and corner filigree from webTheme.js.
 export function Panel({children,style,variant='panel',...props}){
  return <View dataSet={{qb:variant}} style={[s.panel,variant==='glass'&&s.glass,style]} {...props}>{children}</View>;
 }
@@ -20,7 +20,7 @@ export function Ornament({style,glyph='◆'}){
  return <View style={[s.ornament,style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><View dataSet={{qb:'rule-left'}} style={s.rule}/><Text style={s.glyph}>{glyph}</Text><View dataSet={{qb:'rule-right'}} style={s.rule}/></View>;
 }
 export function Eyebrow({children,style}){return <Text style={[type.eyebrow,style]}>{children}</Text>;}
-// A page heading: small engraved overline, the title, and a gilded rule.
+// A page heading: small engraved overline, the title, and a crimson rule.
 export function ScreenTitle({eyebrow,title,sub,icon,align='left',style}){
  const center=align==='center';
  return <View style={[s.screenTitle,center&&{alignItems:'center'},style]}>
@@ -34,7 +34,7 @@ export function ScreenTitle({eyebrow,title,sub,icon,align='left',style}){
 export function Section({title,icon,right,style}){
  return <View style={[s.section,style]}>{!!icon&&<Icon name={icon} size={16} color={colors.gold}/>}<Text style={s.sectionText}>{title}</Text><View dataSet={{qb:'rule-right'}} style={s.sectionRule}/>{right}</View>;
 }
-// A gilded medallion around a line emblem (class crests, hero portraits without art), with an optional level badge.
+// A crimson medallion around a line emblem (class crests, hero portraits without art), with an optional level badge.
 export function Crest({icon='star',size=56,level,style,color=colors.goldBright}){
  return <View dataSet={{qb:'crest'}} style={[{width:size,height:size,borderRadius:size/2,alignItems:'center',justifyContent:'center'},style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
   <Icon name={icon} size={Math.round(size*.5)} color={color} strokeWidth={1.5}/>
@@ -47,7 +47,7 @@ export function IconButton({icon,label,tip,onPress,hot=false,size=40,disabled,st
   <Icon name={icon} size={Math.round(size*.46)} color={hot?'#ffd2c2':active?colors.goldBright:colors.gold}/>{children}
  </Pressable>;
 }
-// Title-screen menu entries: large engraved words with an icon; the primary one is bigger and gilded.
+// Title-screen menu entries: large engraved words with an icon; the primary one is bigger and lit violet.
 export function MenuItem({label,sub,icon,onPress,primary=false,disabled=false,center=false,size='large',tight=false,style}){
  const small=size==='small';
  return <Pressable accessibilityRole="button" accessibilityLabel={sub?label+'. '+sub:label} accessibilityState={{disabled}} disabled={disabled} onPress={()=>{playSound('page');onPress?.();}} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:'menu-item',center:center?'on':'off'}} style={[s.menuItem,center&&{alignItems:'center'},small&&{paddingVertical:7},style]}>

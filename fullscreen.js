@@ -30,7 +30,7 @@ export function initializeFullscreen(){
  if(!d.querySelector('link[rel="manifest"]'))add('link',{rel:'manifest',href:'/manifest.json'});
  add('meta',{name:'apple-mobile-web-app-capable',content:'yes'});add('meta',{name:'mobile-web-app-capable',content:'yes'});
  add('meta',{name:'apple-mobile-web-app-status-bar-style',content:'black-translucent'});add('meta',{name:'apple-mobile-web-app-title',content:'Questbound'});
- add('link',{rel:'apple-touch-icon',href:'/icons/apple-touch-icon.png'});
+ if(!d.querySelector('link[rel="apple-touch-icon"]'))add('link',{rel:'apple-touch-icon',href:'/icons/apple-touch-icon.png?v=2'});
  ['fullscreenchange','webkitfullscreenchange'].forEach(e=>d.addEventListener(e,notify));
  // Optional: enter full screen on the first tap of each visit.
  const auto=event=>{if(!prefs.autoFullscreen||isFullscreen()||isInstalled()||!fullscreenSupported())return;if(event.type==='keydown'&&['Escape','f','F'].includes(event.key))return;enterFullscreen();};

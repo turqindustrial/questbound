@@ -39,6 +39,6 @@ const tick=()=>new Promise(r=>setImmediate(r));
  assert.equal(browser({supported:false,platform:'MacIntel',touch:5}).api.displayState().ios,true,'iPadOS reports as a Mac with touch');
  // The web manifest opens installs full screen with the gold icon.
  const manifest=JSON.parse(fs.readFileSync('public/manifest.json','utf8'));assert.equal(manifest.display,'fullscreen');assert.ok(manifest.icons.some(i=>i.purpose==='maskable'));
- for(const icon of manifest.icons)assert.ok(fs.existsSync('public'+icon.src),icon.src);assert.ok(fs.existsSync('public/icons/apple-touch-icon.png'));
+ for(const icon of manifest.icons)assert.ok(fs.existsSync('public'+icon.src.split('?')[0]),icon.src);assert.ok(fs.existsSync('public/icons/apple-touch-icon.png'));
  console.log('Passed: full-screen toggle, hidden browser UI and orientation, F shortcut guards, remembered auto full screen, installed and iPhone fallbacks, install tags, manifest and icons.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
