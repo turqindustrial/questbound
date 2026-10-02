@@ -34,9 +34,14 @@ New Adventure → pick a **ready-made hero** (or play your own) → tap **Random
 - [ ] Walk back and win: a **Victory** card appears with the victory sound (tap it away), then the camp greets you when you return.
 - [ ] After the win, a gold **Level up** action leads the row. Level up: a **Level 2** card celebrates it, you return to camp at full HP, and the travel actions (and the Map tab's Travel buttons) take you onward.
 
-## 3. A story opening (4 min)
-New Adventure → **A Bell Beneath the Ice** (or The Last Caravan).
-- [ ] While the opening is written, a quiet loading screen shows its name and a tip (it no longer lists what is being made); the story then opens on a title card naming it.
+## 3. A long tale (as long as you like)
+New Adventure → pick any of the seven tales (**The Ashen Crown**, **The Wolf Winter**, …) or **Let fate decide**. Tap one to read the trouble, the road and what is at stake.
+- [ ] While the tale is written, a quiet loading screen shows its name and a tip. It takes about three minutes (the story writer thinks it through); the screen says so. The story then opens on a title card naming it.
+- [ ] The **Quest** tab shows **Chapter 1 of 4 or 5**, what to do now, the aim of the whole tale, and three or four **leads**. Do what the chapter asks: when it is done the chapter closes on a revelation, the next one is announced across the screen, and the Log gains a chapter heading. Asking to "skip to the next chapter" should not work.
+- [ ] Finish the second chapter: a gold **Level up** appears. Take it out of a fight: you stay where you are, at full health, a level higher.
+- [ ] Follow a lead (the Quest tab says who wants what). When it is seen through its circle is ticked; if the Dungeon Master forgets, tap the circle yourself.
+- [ ] Tap **Speak** on one of the two locals: they speak first, in their own voice, and what they say fits how they feel about you. Tap the other: a different greeting.
+- [ ] The **Map** already shows a road leading off the sheet to another land, and that land has a tab above the map. Travel there (it takes days) and come back.
 - [ ] Open the **Map**: this story's land has its own name and look (coast, desert, marsh, mountains…), its places are not laid out the same way as your last story's, and a few places you have only heard of are already marked. Start a second story later and compare.
 - [ ] The two locals react to your hero's kind differently (the **People** panel says, for example, "Wary of elves"): it shows in how they speak to you. Help the wary one and the line goes away.
 - [ ] Portraits: women (dwarf women included) have no beards. Tell us at once if you see one.
@@ -47,7 +52,7 @@ New Adventure → **A Bell Beneath the Ice** (or The Last Caravan).
 - [ ] Open the **Log** after a while: the story so far in short lines (places reached, people met, fights and how they ended, gold and finds, rests). Nothing important should be missing, and nothing trivial should be there.
 - [ ] People remember: be kind or cruel to someone and check the **People** panel (Quest tab). Kill one of the two locals and the other should swear never to forgive you, even if you apologise or pay. Knock one out instead, then heal them with a spell (Cleric: "I cast Cure Wounds on …"): both should owe you a debt for good.
 - [ ] Meet someone new: head for a hut, a farm or a crossing and knock or call out. Whoever lives there gets a name, a portrait and a voice, appears under **People** (with where they live), and you can speak with them, ask them to join you, or make an enemy of them and their kin.
-- [ ] The next chapter: Main menu → New Adventure → Play as your hero → **Continue in this region** → Begin. The new story has its own map and the country from before keeps its own (switch between them above the map), the **People** panel lists everyone you met (companions still "With you"), and your gold is unchanged. Travel back to an old place and the people there remember you.
+- [ ] The next tale: Main menu → New Adventure → Play as your hero → **Continue in this region** → Begin. The new story has its own map and the country from before keeps its own (switch between them above the map), the **People** panel lists everyone you met (companions still "With you"), and your gold is unchanged. Travel back to an old place and the people there remember you.
 - [ ] Cloud save: Settings → Cloud save shows a code and "Saved …" a few seconds after you play. On another phone or browser, enter that code under Restore: your hero and adventure appear there.
 - [ ] Heroes: try a ready-made hero, then open **Heroes**: your first hero waits under "Your other heroes". Play them again and you're back exactly where you were.
 - [ ] Gold and loot: ask someone to sell you a healing potion and pay; the **Inventory** shows less gold and one more draught. Search something after a fight; whatever the Dungeon Master says you find appears in the Inventory, and tapping it says what it is. Try to buy something you can't afford: you're told you don't have enough gold.

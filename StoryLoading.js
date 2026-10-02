@@ -20,11 +20,12 @@ const tips=[
  ['people','People speak first when you turn to them, and they remember how you treated them.'],
 ];
 // `hero` mode covers the Dungeon Master drafting a complete character from the player's idea.
-export default function StoryLoading({introId,hero=null}){
+// `near` names the place the hero is leaving when the next tale is set in the same region.
+export default function StoryLoading({introId,hero=null,near=null}){
  const {width}=useWindowDimensions(),intro=intros.find(i=>i.id===introId),[tip,setTip]=useState(()=>Math.floor(Math.random()*tips.length)),[seconds,setSeconds]=useState(0);
  useEffect(()=>{const a=setInterval(()=>setTip(t=>(t+1)%tips.length),5200),b=setInterval(()=>setSeconds(s=>s+1),1000);return()=>{clearInterval(a);clearInterval(b);};},[]);
- const title=hero!=null?'Your hero':intro?.id==='surprise'?'A tale of your own':intro?.title??'Your next adventure';
- const detail=hero!=null?(hero.trim()?'“'+hero.trim().slice(0,160)+'”':'Anyone the dice allow'):intro?.setting;
+ const title=hero!=null?'Your hero':near?'The next tale':intro?.id==='surprise'?'A tale of your own':intro?.title??'Your next adventure';
+ const detail=hero!=null?(hero.trim()?'“'+hero.trim().slice(0,160)+'”':'Anyone the dice allow'):near?'A few miles from '+near+', in the country you know.':intro?.setting;
  const size=Math.max(24,Math.min(40,Math.floor((width-48)/(title.length*.62))));
  return <View dataSet={{qb:'scrim'}} style={[StyleSheet.absoluteFill,s.root]} accessibilityViewIsModal accessibilityLiveRegion="polite">
   <View dataSet={{qb:'launch-glow'}} style={[StyleSheet.absoluteFill,{opacity:.55,pointerEvents:'none'}]}/>

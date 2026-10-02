@@ -48,6 +48,22 @@ export function initializeWebLayout(){
  // closes the keyboard and moves the control out from under the finger, so the tap is lost.
  document.addEventListener('mousedown',event=>{if(event.target?.closest?.('[data-keepfocus]')&&editable(document.activeElement))event.preventDefault();},true);
  document.addEventListener('focusin',()=>{setTimeout(reveal,150);setTimeout(reveal,500);});
+ // A row that scrolls sideways (the action chips, the row of lands on the map) turns under a mouse wheel, so every
+ // chip can be reached without a touch screen. At either end the wheel is left to whatever lies behind.
+ document.addEventListener('wheel',event=>{
+  if(event.ctrlKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))return;
+  let el=event.target instanceof Element?event.target:null;
+  for(;el&&el!==document.body;el=el.parentElement){
+   if(el.scrollWidth<=el.clientWidth+1)continue;
+   const cs=getComputedStyle(el);
+   if(!/(auto|scroll)/.test(cs.overflowX))continue;
+   // A pane that also scrolls up and down keeps the wheel for that.
+   if(/(auto|scroll)/.test(cs.overflowY)&&el.scrollHeight>el.clientHeight+1)return;
+   const before=el.scrollLeft;el.scrollLeft+=event.deltaY;
+   if(el.scrollLeft!==before){event.preventDefault();event.stopPropagation();}
+   return;
+  }
+ },{passive:false,capture:true});
  resize();
 }
 // The visible height and whether a keyboard is covering part of the screen.

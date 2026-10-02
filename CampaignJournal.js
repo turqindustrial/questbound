@@ -14,7 +14,7 @@ export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
   const [note,setNote]=useState(''),[visible,setVisible]=useState(20),[folder,setFolder]=useState('dm');
   const quest=questState(game),journal=journalForGame(game),entries=[...journal.entries].reverse().filter(e=>folder==='player'?(e.kind==='note'&&!['AI DM conversation','AI spell ruling'].includes(e.title)):!(e.kind==='note'&&!['AI DM conversation','AI spell ruling'].includes(e.title)));
   return <View>
-    <ScreenTitle eyebrow={'Campaign journal'+(quest?.current?' · Chapter '+quest.number+' of '+quest.chapters:'')} icon="journal" title={game.story?.title??'The Lantern at the Crossroads'}/>
+    <ScreenTitle eyebrow={quest?.current?'Journal · Chapter '+quest.number+' of '+quest.chapters:'Campaign journal'} icon="journal" title={game.story?.title??'The Lantern at the Crossroads'}/>
     <View dataSet={{qb:'plate'}} style={s.objective}><View style={s.objectiveHead}><Icon name={game.story?.status==='complete'?'star':'compass'} size={15} color={colors.gold}/><PlainText style={s.overline}>{game.story?.status==='complete'?'Adventure complete':quest?.current?quest.current.title:'Current objective'}</PlainText></View><Text style={s.objectiveText}>{game.story?(game.story.status==='complete'?game.story.objective:currentGoal(game)):journalObjective(game.stage,game.map,game.campaign)}</Text></View>
     {!game.story&&<Text style={s.text}>Quest earnings: {earnedGold(game)} GP · Missing lens: {campaignState(game).lensQuest}</Text>}
     <Segmented value={folder} onChange={id=>{setFolder(id);setVisible(20);}} options={[['dm','Dungeon Master','quill'],['player','Your notes','feedback']]}/>

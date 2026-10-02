@@ -32,6 +32,14 @@ A turn in a creature fight is one action and one bonus action. Bonus actions: a 
 - People take to the hero's species in their own ways (kin, warm, curious, indifferent, wary, scornful). Persuasion, Deception and Performance aimed at someone gain +2 (kin or warm) or lose 2 (wary) or 3 (scornful) until that person is friendly, bonded or holds a grudge. This is a house rule, not a 2024 rule.
 - A written story's main foe has its own stat block from the start: 18 HP, AC 12, +3 to hit, 1d6+1 at level 1, growing with the hero's level, with the damage type the story gives it. In simulation the four ready-made heroes win 81 to 95% of these fights at level 1; a Rogue of level 5 wins about two in three (Sneak Attack is still not implemented).
 
+## Long tales: chapters, leads and levels on the road (2026-10-02)
+
+- A written story is told in four or five chapters. The Dungeon Master moves it on one chapter at a time when the chapter's goal has been met in play; the tale can only be concluded in its last chapter. Stories written before this have no chapters and play as they did.
+- Milestone levels (a house rule): every second chapter finished earns a level, taken whenever the hero is out of a fight, where they stand. Taking it restores hit points, spell slots and class features, as a long rest does. Beating the story's main foe still earns a level as before. A main foe not yet fought grows to the hero's new level; once the fight has been joined it stays as it is.
+- Leads are side errands with no rules weight of their own: closing one is recorded in the journal and the story so far. Rewards for them come through the Dungeon Master's ordinary loot.
+- Lands beyond the story's own country are on the map from the start, 15 to 300 miles away. Roads that long are walked eight hours a day.
+- The map holds up to 40 found places (was 30) and a story starts with up to six landmarks (was four).
+
 ## Fight balance (2026-10-01)
 
 `node balance-check.cjs` simulates every ready-made hero at levels 1, 3 and 5 against every creature template with a plain tactic (main weapon or the strongest simple spell, a draught or a heal when low) and flags fights under 35% or over 97% wins. The creature curve in `foeStatsFor` was softened from it: HP grows 45% per level (30% for packs, whose every member attacks) instead of 80%, and attack and damage bonuses rise every third level instead of every second. Before, a level-3 rogue beat a bandit 63% of the time and a level-5 rogue 24%; now 94% and 87%. Known gap: Sneak Attack is not implemented, so rogues stay weakest against the orc and packs. Heroes under 12 HP at levels 1–2 are never given a pack or the orc in the Random hostile encounter.

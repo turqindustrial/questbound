@@ -111,7 +111,11 @@ function RegionMap({game,travelTo,onTravel}){
  const count=sheetIds.length+(sheetIds.length===1?' place':' places'),sheetTitle=shown.id===home?shown.name+' · '+count:'Another land · '+count,sheetHeading=shown.id===home?placeName(game,here):shown.name;
  // The sheet is as wide as its panel and nearly square on a phone, where the Map tab has the height for it.
  const w=Math.max(230,Math.min(width,760)),h=Math.round(Math.max(250,Math.min(560,w*(w<480?.95:.68))));
- const bigW=Math.max(260,Math.min(winW-28,1180)),bigH=Math.max(240,Math.min(winH-(winW<600?210:170),Math.round(bigW*.8)));
+ // The full map leaves room for its heading and the row of lands, even on a phone held sideways; whatever is
+ // picked scrolls under it.
+ // On a short screen the lands sit beside the heading instead of under it, so the sheet keeps its height.
+ const shortWin=winH<480&&winW>=600;
+ const bigW=Math.max(260,Math.min(winW-28,1180)),bigH=Math.max(150,Math.min(winH-(winW<600?210:shortWin?112:150)-(regions.length>1&&!shortWin?46:0),Math.round(bigW*.8)));
  const routeTo=id=>id===here?null:travelRoute(game,here,id);
  const iconFor=id=>placeIconOf(game,id);
  // What waits at a found place: a lair's creature, a risk, or a place you have cleared.
@@ -119,7 +123,7 @@ function RegionMap({game,travelTo,onTravel}){
  const pick=selected&&ids.includes(selected)?selected:null,pickRoute=pick?routeTo(pick):null,canGo=id=>id!==here&&!!onTravel&&travelTo.includes(id);
  const places=[...sheetIds].sort((a,b)=>(a===here?-1:b===here?1:(routeTo(a)?.feet??0)-(routeTo(b)?.feet??0)));
  // The regions the hero knows, as a row of sheets to turn to (shown once there is more than one).
- const regionTabs=regions.length>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.regionBar} contentContainerStyle={s.regionRow} accessibilityRole="tablist">{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</ScrollView>;
+ const regionTabs=(inline=false)=>regions.length>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.regionBar,inline&&s.regionInline]} contentContainerStyle={s.regionRow} accessibilityRole="tablist">{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</ScrollView>;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
  const pickCard=close=>pick&&<View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLiveRegion="polite">
    <View style={{flex:1,minWidth:0}}>
@@ -136,16 +140,19 @@ function RegionMap({game,travelTo,onTravel}){
    <View style={{flex:1,minWidth:0}}><View style={s.eyebrowRow}><Icon name="map" size={14} color={colors.goldMid}/><PlainText numberOfLines={2} style={[s.eyebrow,{flexShrink:1}]}>{sheetTitle}</PlainText></View><Text style={s.heading}>{sheetHeading}</Text></View>
    <Pressable accessibilityRole="button" accessibilityLabel="Open the map full screen" onPress={()=>setOpen(true)} dataSet={{qb:'chip'}} style={s.expand}><Icon name="expand" size={15} color={colors.gold}/><PlainText style={s.travelText}>Full map</PlainText></Pressable>
   </View>
-  {regionTabs}
+  {regionTabs()}
   <RegionSheet game={game} w={w} h={h} selected={pick} onSelect={setSelected} region={shown.id} onRegion={turnTo}/>
   <Modal transparent visible={open} animationType="fade" onRequestClose={()=>setOpen(false)}>
    <View dataSet={{qb:'scrim'}} style={s.scrim}>
     <View dataSet={{qb:'sheet'}} style={[s.bigSheet,{width:bigW+24}]} accessibilityViewIsModal>
-     <View style={s.headRow}><View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={s.eyebrow}>{sheetTitle}</PlainText><PlainText numberOfLines={1} style={[s.heading,{marginTop:2}]}>{sheetHeading}</PlainText></View>
+     <View style={[s.headRow,shortWin&&{alignItems:'center'}]}><View style={{flex:1,minWidth:0}}>{!shortWin&&<PlainText numberOfLines={1} style={s.eyebrow}>{sheetTitle}</PlainText>}<PlainText numberOfLines={1} style={[s.heading,{marginTop:2},shortWin&&{fontSize:18}]}>{sheetHeading}</PlainText></View>
+      {shortWin&&regionTabs(true)}
       <Pressable accessibilityRole="button" accessibilityLabel="Close the map" onPress={()=>setOpen(false)} dataSet={{qb:'chip'}} style={s.expand}><Icon name="close" size={15} color={colors.gold}/><PlainText style={s.travelText}>Close</PlainText></Pressable></View>
-     {regionTabs}
-     {open&&<RegionSheet game={game} w={bigW} h={bigH} selected={pick} onSelect={setSelected} region={shown.id} onRegion={turnTo}/>}
-     {pickCard(()=>setOpen(false))}
+     {!shortWin&&regionTabs()}
+     <ScrollView style={s.bigScroll} contentContainerStyle={s.bigBody}>
+      {open&&<RegionSheet game={game} w={bigW} h={bigH} selected={pick} onSelect={setSelected} region={shown.id} onRegion={turnTo}/>}
+      {pickCard(()=>setOpen(false))}
+     </ScrollView>
     </View>
    </View>
   </Modal>
@@ -161,7 +168,8 @@ const s=StyleSheet.create({
  region:{alignSelf:'center',marginTop:12,borderRadius:4,overflow:'hidden',borderWidth:1,borderColor:'rgba(232,199,123,.55)',backgroundColor:'#dcc694'},
  headRow:{flexDirection:'row',alignItems:'flex-end',gap:10},expand:{flexDirection:'row',alignItems:'center',gap:6,minHeight:38,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:'rgba(201,164,92,.5)',backgroundColor:'rgba(20,25,36,.92)',justifyContent:'center'},
  herePulse:{position:'absolute',width:30,height:30,borderRadius:15,pointerEvents:'none'},
- regionBar:{flexGrow:0,marginTop:10},regionRow:{gap:6,paddingRight:8},regionTab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:34,maxWidth:230,paddingHorizontal:12,borderRadius:17,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.92)'},regionTabOn:{borderColor:colors.goldBright,backgroundColor:'rgba(58,46,26,.92)'},
+ bigScroll:{flexGrow:0,flexShrink:1},bigBody:{gap:4},
+ regionBar:{flexGrow:0,flexShrink:0,marginTop:10},regionInline:{marginTop:0,flexShrink:1,maxWidth:'50%'},regionRow:{gap:6,paddingRight:8},regionTab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:34,maxWidth:230,paddingHorizontal:12,borderRadius:17,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.92)'},regionTabOn:{borderColor:colors.goldBright,backgroundColor:'rgba(58,46,26,.92)'},
  regionTabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:.9,color:colors.gold,flexShrink:1},regionDot:{width:7,height:7,borderRadius:4,backgroundColor:'#c8412f'},
  tools:{position:'absolute',right:8,bottom:8,gap:6},tool:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(59,42,23,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'#eddeb6'},toolText:{fontFamily:fonts.display,fontSize:20,lineHeight:24,fontWeight:'800',color:'#3b2a17'},
  scrim:{flex:1,backgroundColor:'rgba(2,3,6,.82)',alignItems:'center',justifyContent:'center',padding:8},bigSheet:{maxWidth:'100%',maxHeight:'100%',padding:12,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)',gap:4},

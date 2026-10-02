@@ -21,9 +21,10 @@ export default function HeroRoster({roster,graves,onPlay,onRetire,busy,compact})
       {!!sum.story&&<Text numberOfLines={2} style={s.story}>{sum.story}{sum.place?' · '+sum.place:''}</Text>}
       <Text style={s.date}>Set aside {when(e.savedAt)}</Text>
      </View>
-     <View style={s.buttons}>
-      <GameButton icon="play" label={'Play '+sum.name.split(' ')[0]} variant="primary" disabled={busy} onPress={()=>{setConfirm(null);onPlay(e);}} style={s.button}/>
-      <GameButton icon="close" label={confirm===e.id?'Tap again to retire':'Retire'} variant={confirm===e.id?'danger':'secondary'} disabled={busy} onPress={()=>{if(confirm===e.id){setConfirm(null);onRetire(e);}else setConfirm(e.id);}} style={s.button}/>
+     {/* On a phone the two buttons sit side by side under the hero, across the whole card. */}
+     <View style={[s.buttons,compact&&s.buttonsCompact]}>
+      <GameButton icon="play" label={'Play '+sum.name.split(' ')[0]} variant="primary" disabled={busy} onPress={()=>{setConfirm(null);onPlay(e);}} style={[s.button,compact&&s.buttonCompact]}/>
+      <GameButton icon="close" label={confirm===e.id?(compact?'Tap again':'Tap again to retire'):'Retire'} variant={confirm===e.id?'danger':'secondary'} disabled={busy} onPress={()=>{if(confirm===e.id){setConfirm(null);onRetire(e);}else setConfirm(e.id);}} style={[s.button,compact&&s.buttonCompact]}/>
      </View>
     </View>;})}
   </>}
@@ -47,6 +48,7 @@ const s=StyleSheet.create({
  story:{fontFamily:fonts.story,fontStyle:'italic',color:'#dfd2b4',fontSize:15,marginTop:4},
  date:{fontFamily:fonts.ui,color:colors.faint,fontSize:11.5,marginTop:4},
  buttons:{gap:8,flexGrow:1,minWidth:170,maxWidth:260},button:{marginTop:0},
+ buttonsCompact:{flexDirection:'row',flexBasis:'100%',maxWidth:'100%'},buttonCompact:{flex:1,minWidth:0,paddingHorizontal:8},
  grave:{flexDirection:'row',gap:12,alignItems:'flex-start',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.15)'},
  graveName:{fontFamily:fonts.display,fontWeight:'700',color:'#cfc6b3',fontSize:15},graveLine:{fontFamily:fonts.ui,fontWeight:'400',color:colors.muted,fontSize:12.5},
  graveCause:{fontFamily:fonts.story,fontStyle:'italic',color:'#bdb3a0',fontSize:14.5,marginTop:2},

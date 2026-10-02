@@ -10,9 +10,10 @@ export function Panel({children,style,variant='panel',...props}){
  return <View dataSet={{qb:variant}} style={[s.panel,variant==='glass'&&s.glass,style]} {...props}>{children}</View>;
 }
 export function GameButton({label,onPress,variant='secondary',disabled,style,textStyle,accessibilityLabel,icon}){
- const primary=variant==='primary',danger=variant==='danger';
- return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:primary?'btn-primary':danger?'btn-danger':'btn'}} style={({pressed})=>[s.button,primary&&s.primary,danger&&s.danger,pressed&&!disabled&&s.pressed,disabled&&s.disabled,style]}>
-  <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?'#2a1a07':colors.gold}/>}<Text style={[s.buttonText,primary&&s.primaryText,textStyle]}>{label}</Text></View>
+ // On a phone the lettering is set a little tighter, so most labels stay on one line.
+ const primary=variant==='primary',danger=variant==='danger',narrow=useWindowDimensions().width<430;
+ return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:primary?'btn-primary':danger?'btn-danger':'btn'}} style={({pressed})=>[s.button,primary&&s.primary,danger&&s.danger,narrow&&s.buttonNarrow,pressed&&!disabled&&s.pressed,disabled&&s.disabled,style]}>
+  <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?'#2a1a07':colors.gold}/>}<Text style={[s.buttonText,narrow&&s.buttonTextNarrow,primary&&s.primaryText,textStyle]}>{label}</Text></View>
  </Pressable>;
 }
 export function Ornament({style,glyph='◆'}){
@@ -113,6 +114,7 @@ const s=StyleSheet.create({
  glass:{backgroundColor:'rgba(10,14,22,.78)'},
  button:{minHeight:52,paddingVertical:14,paddingHorizontal:20,marginTop:10,borderRadius:4,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'#1a202d',justifyContent:'center',alignItems:'center'},
  buttonRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
+ buttonNarrow:{paddingHorizontal:12},buttonTextNarrow:{fontSize:13,letterSpacing:1.1,flexShrink:1},
  primary:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},
  danger:{backgroundColor:'#5a1d17',borderColor:'#c8412f'},
  pressed:{transform:[{scale:.985}]},
@@ -138,7 +140,8 @@ const s=StyleSheet.create({
  menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:'#b9ae95',marginTop:1},
  seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(6,8,12,.55)',marginVertical:14},
  segItem:{flexGrow:1,flexBasis:0,minWidth:96,minHeight:42,paddingHorizontal:10,borderRadius:4,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:'transparent'},
- segNarrow:{minWidth:0,paddingHorizontal:4},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
+ // On a phone each tab takes the room its word needs (not an equal share), so longer labels are not cut short.
+ segNarrow:{minWidth:0,paddingHorizontal:5,flexBasis:'auto',flexShrink:1},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
  segOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
  track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(201,164,92,.35)',overflow:'hidden'},

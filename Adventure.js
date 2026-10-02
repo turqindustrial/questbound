@@ -57,6 +57,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   const opened=result.game.story?.chapters&&(result.game.story.chapter??0)>(from.game.story?.chapter??0)?result.game.story.chapters[result.game.story.chapter]:null;
   if(opened)setTimeout(()=>cue('area',{over:'Chapter '+(result.game.story.chapter+1),title:opened.title}),500);
   return result;};
+ // A lead ticked (or reopened) by hand: the same record the Dungeon Master keeps, with its line in the story so far.
+ const markLead=id=>{if(!game.story?.leads||table?.joined&&!table.synchronized)return;const next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}};setGame(withStoryLog(game,next,hero,{}));};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
@@ -150,10 +152,12 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {/* Leads: side errands heard of along the way, ticked off as they are seen through. */}
   {!!quest?.leads.length&&<View dataSet={{qb:'plate'}} style={s.people}>
    <View style={s.labelRow}><Icon name="search" size={14} color={colors.goldMid}/><PlainText style={s.label}>Leads</PlainText><PlainText style={s.leadCount}>{quest.leads.filter(l=>l.done).length} of {quest.leads.length}</PlainText></View>
+   {/* The Dungeon Master ticks a lead when it is seen through; the player can tick (or untick) one too. */}
    {quest.leads.map(l=><View key={l.id} style={s.leadRow}>
-    <View style={[s.leadMark,l.done&&s.leadMarkDone]}>{l.done&&<Icon name="check" size={11} color="#1a0f05" strokeWidth={2.6}/>}</View>
+    <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!l.done}} accessibilityLabel={(l.done?'Reopen the lead ':'Mark the lead as seen through: ')+l.title} hitSlop={10} onPress={()=>{playSound('click');markLead(l.id);}} style={[s.leadMark,l.done&&s.leadMarkDone]}>{l.done&&<Icon name="check" size={11} color="#1a0f05" strokeWidth={2.6}/>}</Pressable>
     <View style={{flex:1,minWidth:0}}><PlainText style={[s.leadTitle,l.done&&s.leadTitleDone]}>{l.title}</PlainText>{!l.done&&<Text style={s.leadHook}>{l.hook}</Text>}</View>
    </View>)}
+   <PlainText style={s.leadNote}>Tap a circle to tick a lead off yourself.</PlainText>
   </View>}
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
   {peoplePanel}
@@ -224,7 +228,8 @@ const s=StyleSheet.create({
  // Screen-fitting layouts: nothing scrolls the page; each region scrolls on its own.
  wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
  sideTabs:{flexDirection:'row',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(6,8,12,.55)'},
- sideTabItem:{flex:1,minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
+ // Each tab takes the room its word needs, so "Inventory" is never cut short in a narrow column.
+ sideTabItem:{flexGrow:1,flexShrink:1,flexBasis:'auto',minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
  sideTabText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:.8,color:colors.muted,textTransform:'uppercase',flexShrink:1},
  taleChapter:{flexDirection:'row',alignItems:'center',gap:8,marginTop:14,marginBottom:2},taleRule:{flex:1,height:1,minWidth:10},taleChapterText:{flexShrink:1,fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:.8,color:colors.gold,textAlign:'center'},
  taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
@@ -255,7 +260,7 @@ const s=StyleSheet.create({
  leadCount:{marginLeft:'auto',fontFamily:fonts.ui,fontSize:11.5,color:colors.muted,fontVariant:['tabular-nums']},
  leadRow:{flexDirection:'row',alignItems:'flex-start',gap:10},leadMark:{width:18,height:18,borderRadius:9,borderWidth:1.5,borderColor:'rgba(201,164,92,.55)',alignItems:'center',justifyContent:'center',marginTop:2},leadMarkDone:{backgroundColor:colors.gold,borderColor:'#fff0c4'},
  leadTitle:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.5,color:colors.parchment},leadTitleDone:{color:colors.muted,textDecorationLine:'line-through'},
- leadHook:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#cfc8b6',marginTop:2},
+ leadHook:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#cfc8b6',marginTop:2},leadNote:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
  scene:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16.5,lineHeight:25,color:'#c9c3b3',marginTop:10},
  heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:20,fontWeight:'700',letterSpacing:.8,marginVertical:8},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginVertical:10},

@@ -225,7 +225,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   };
   // Phones and short windows scroll the row sideways; roomy screens wrap it. On a short screen (a phone on its
   // side) people and effects join the same row so the story keeps its height.
-  const swipe=compact||short;
+  // (A window of middling height, a small laptop, also keeps the actions to one row and drops the narrator's
+  // heading, so the story has the room.)
+  const snug=viewHeight<700,swipe=compact||short||snug;
   // With a keyboard, 1–9 press the matching action (shown as a small key on each chip).
   const keysRef=useRef({});keysRef.current={actions,disabled:actionsDisabled,run:a=>runAction(a)};
   useEffect(()=>{
@@ -257,7 +259,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <IconButton icon="back" label="Back to adventure" size={36} disabled={busy||playing} onPress={()=>setConversationId(null)}/>
       <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
       <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
-    </View>:!short&&!compact&&<View style={s.fillHeader}>
+    </View>:!short&&!compact&&!snug&&<View style={s.fillHeader}>
       <View style={s.dmMark}><Icon name="quill" size={compact?17:19} color={colors.goldBright}/></View>
       <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>The Dungeon Master</Text></View>
       {statusPill}
@@ -276,7 +278,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <View style={s.tipRow}><Icon name="speak" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Something went wrong, or you meant something else? Tap DM beside the message box and tell the Dungeon Master.</PlainText></View>
       <View style={s.tipRow}><Icon name="menu" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an underlined name to learn more. The menu holds your character sheet, journal, settings and feedback.</PlainText></View>
       <Pressable accessibilityRole="button" onPress={dismissTips} dataSet={{qb:'chip'}} style={s.tipsButton}><Icon name="check" size={14} color={colors.gold}/><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
-    </View>:null} aside={(short||compact)&&!person?statusPill:null} typing={typing} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
+    </View>:null} aside={(short||compact||snug)&&!person?statusPill:null} typing={typing} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
     {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {!typing&&actionBar}

@@ -1,5 +1,5 @@
 import React,{useState,useEffect,useRef} from 'react';
-import {View,Text,Pressable,Modal,StyleSheet,useWindowDimensions} from 'react-native';
+import {View,Text,Pressable,Modal,ScrollView,StyleSheet,useWindowDimensions} from 'react-native';
 import {CombatHealthButton} from './EncounterOverlay';
 import {FullscreenToggle} from './DisplayControls';
 import {AudioToggle} from './AudioControls';
@@ -60,11 +60,14 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
 function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){
  const [display,setDisplay]=useState(displayState),[audio,setAudioState]=useState(audioSettings);
  useEffect(()=>subscribeDisplay(setDisplay),[]);useEffect(()=>subscribeAudio(setAudioState),[]);
- const cell=(icon,label,onPress)=><Pressable key={label} accessibilityRole="button" onPress={onPress} dataSet={{qb:'btn'}} style={s.cell}><Icon name={icon} size={20} color={colors.gold}/><Text style={s.cellText}>{label}</Text></Pressable>;
- return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}><Pressable accessibilityLabel="Close menu" onPress={onClose} dataSet={{qb:'scrim'}} style={s.scrim}><Pressable onPress={()=>{}} dataSet={{qb:'sheet'}} style={s.sheet} accessibilityViewIsModal>
+ // A phone gets tighter cells and a name sized to fit; on a short screen (a phone on its side) the sheet scrolls.
+ const {width,height}=useWindowDimensions(),narrow=width<430,short=height<520;
+ const cell=(icon,label,onPress)=><Pressable key={label} accessibilityRole="button" onPress={onPress} dataSet={{qb:'btn'}} style={[s.cell,narrow&&s.cellNarrow,short&&!narrow&&s.cellShort]}><Icon name={icon} size={narrow||short?18:20} color={colors.gold}/><Text style={[s.cellText,(narrow||short)&&s.cellTextNarrow]}>{label}</Text></Pressable>;
+ const nameSize=Math.max(16,Math.min(24,Math.floor((Math.min(width,480)-(narrow?132:160))/(Math.max(8,hero.name.length)*.68))));
+ return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}><Pressable accessibilityLabel="Close menu" onPress={onClose} dataSet={{qb:'scrim'}} style={[s.scrim,(narrow||short)&&{padding:10}]}><Pressable onPress={()=>{}} dataSet={{qb:'sheet'}} style={[s.sheet,short&&{maxWidth:640}]} accessibilityViewIsModal><ScrollView style={s.sheetScroll} contentContainerStyle={[s.sheetBody,narrow&&{padding:16},short&&{paddingVertical:12}]}>
   <View style={s.menuHead}>
-   <HeroPortrait hero={hero} size={52} level={hero.level}/>
-   <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={s.menuTitle}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {hero.species??hero.race} {hero.class} · {hp}/{maxHp} HP</Text></View>
+   <HeroPortrait hero={hero} size={short?40:52} level={hero.level}/>
+   <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={[s.menuTitle,{fontSize:nameSize}]}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {hero.species??hero.race} {hero.class} · {hp}/{maxHp} HP</Text></View>
   </View>
   <GameButton variant="primary" icon="play" label="Resume" onPress={onClose}/>
   <View style={s.grid}>
@@ -74,11 +77,11 @@ function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){
    {cell('settings','Settings',()=>go('Settings'))}
    {display.supported&&cell(display.fullscreen?'shrink':'expand',display.fullscreen?'Exit full screen':'Full screen',toggleFullscreen)}
    {cell(audio.muted?'sound':'mute',audio.muted?'Sound on':'Mute',()=>setAudio({muted:!audio.muted}))}
-   {cell('feedback','Send feedback',onFeedback)}
+   {cell('feedback','Feedback',onFeedback)}
    {cell('home','Main menu',()=>go('Home'))}
   </View>
   <Text style={s.menuNote}>Your adventure is saved on this device after every turn.</Text>
- </Pressable></Pressable></Modal>;
+ </ScrollView></Pressable></Pressable></Modal>;
 }
 const s=StyleSheet.create({
  bar:{position:'relative',zIndex:5,flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:16,paddingVertical:8,backgroundColor:'rgba(8,10,16,.9)'},
@@ -92,7 +95,11 @@ const s=StyleSheet.create({
  actions:{flexDirection:'row',alignItems:'center',gap:7,marginLeft:'auto'},
  levelUp:{flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:12,borderRadius:18,borderWidth:1,borderColor:'#fff0c4',backgroundColor:'#d9ae5f',justifyContent:'center'},levelUpText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:'#2a1a07',textTransform:'uppercase'},
  scrim:{flex:1,backgroundColor:'rgba(2,3,6,.72)',alignItems:'center',justifyContent:'center',padding:18},
- sheet:{width:'100%',maxWidth:480,padding:24,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)'},
+ sheet:{width:'100%',maxWidth:480,maxHeight:'100%',borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)',overflow:'hidden'},
+ sheetScroll:{flexGrow:0},sheetBody:{padding:24},
+ cellNarrow:{paddingHorizontal:9,gap:8,minHeight:54},
+ // A phone on its side: four cells to a row, so the whole menu shows without scrolling.
+ cellShort:{flexBasis:'22%',minHeight:46,paddingHorizontal:9,gap:8},cellTextNarrow:{fontSize:11.5,letterSpacing:.7},
  menuHead:{flexDirection:'row',alignItems:'center',gap:16,marginBottom:6},
  overline:{...type.label},menuTitle:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:1,color:colors.parchment,marginTop:2},menuMeta:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,marginTop:2},
  grid:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12},
