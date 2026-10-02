@@ -20,8 +20,8 @@ export function homeLayout(width,height){
 // name and the menu: a long phone shows the tall painting there (the lich over the four heroes, from his crown to their
 // feet, a little narrower than the screen if it must be); a shorter one shows the wide painting across the band, so
 // the menu never sits on top of the fight.
-export function titleArt(width,height){
- const shape=homeLayout(width,height);
+export function titleArt(width,height,{protect=false}={}){
+ const shape=homeLayout(width,height),menuHeight=menuBase+(protect&&!shape.short?42:0);
  if(shape.wide)return {frame:'wide',top:0,size:0,edge:0,fade:0};
  const bandTop=48+(shape.short?4:10)+20+Math.round(shape.logo*1.2)+(shape.tiny?0:52)+8,band=Math.max(120,height-menuHeight-bandTop);
  const tallHeight=Math.min(width*1.5,(band+20)/.75),tallWidth=tallHeight/1.5;
@@ -30,8 +30,8 @@ export function titleArt(width,height){
  return {frame:'band',top:Math.round(Math.max(bandTop-28,bandTop+(band-wideHeight)/2)),size:Math.round(wideHeight),edge:0,fade:0};
 }
 // The compact menu and the feedback link under it take about this much of an upright phone.
-const menuHeight=236;
-export default function HomeScreen({hero,game,health,saved,disabled,onContinue,onNew,onOpen,onFeedback,width,height,notice}){
+const menuBase=236;
+export default function HomeScreen({hero,game,health,saved,unprotected=false,disabled,onContinue,onNew,onOpen,onFeedback,width,height,notice}){
  const {landscape,wide,short,tiny,logo}=homeLayout(width,height);
  const stats=hero?combatBasics(hero):null,hp=health?.current??stats?.hp;
  const where=game?.story?.title??(saved?'The Lantern at the Crossroads':null);
@@ -62,6 +62,8 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
   {!tiny&&!landscape&&<><Ornament style={[s.rule,!wide&&{alignSelf:'center'}]}/>
   <Text style={[s.tagline,!wide&&{textAlign:'center'},short&&{fontSize:17}]}>Stories worth rolling for.</Text></>}
  </View>;
+ // A player with an adventure and no account: it lives on this device only, so the way to keep it safe is offered here.
+ const protect=unprotected&&<Pressable accessibilityRole="button" accessibilityLabel="Keep your progress safe: create an account" disabled={disabled} onPress={()=>{playSound('page');onOpen('Settings');}} onHoverIn={()=>playSound('tick')} style={[s.protect,!wide&&{alignSelf:'center',paddingLeft:0}]}><Icon name="key" size={14} color={colors.goldMid}/><Text style={s.protectText}>Keep your progress safe: <Text style={s.protectLink}>create an account</Text></Text></Pressable>;
  const footer=<View style={[s.footer,!wide&&{justifyContent:'center'}]}>
   <Pressable accessibilityRole="button" onPress={onFeedback} onHoverIn={()=>playSound('tick')} style={s.feedback}><Icon name="feedback" size={15} color={colors.gold}/><Text style={s.feedbackText}>Send playtest feedback</Text></Pressable>
   {wide&&!landscape&&<Text style={s.version}>Early access 0.1 · Playtest</Text>}
@@ -71,7 +73,7 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
   <View style={s.landLeft}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{footer}</View>
  </View>;
  if(wide)return <View dataSet={{qb:'enter-slow'}} style={s.wide}>
-  <View style={s.left}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}</View>
+  <View style={s.left}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{protect}</View>
   <View style={s.right}>{slot}</View>
   <View style={s.footerWide}>{footer}</View>
  </View>;
@@ -80,6 +82,7 @@ export default function HomeScreen({hero,game,health,saved,disabled,onContinue,o
   <View style={{flexGrow:1,minHeight:tiny?8:16}}/>
   {!!notice&&<View style={[s.notice,{alignSelf:'center'}]}>{notice}</View>}
   {menu}
+  {!short&&protect}
   {footer}
  </View>;
 }
@@ -109,4 +112,6 @@ const s=StyleSheet.create({
  feedbackText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.8,color:colors.gold,textTransform:'uppercase'},
  version:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:tint('rgba(221,214,219,.5)'),textTransform:'uppercase'},
  notice:{maxWidth:460,marginTop:4},
+ protect:{flexDirection:'row',alignItems:'center',gap:8,minHeight:36,marginTop:6,paddingLeft:22},
+ protectText:{fontFamily:fonts.ui,fontSize:12.5,color:'#c4b5af',textShadowColor:'rgba(0,0,0,.9)',textShadowRadius:6},protectLink:{color:colors.goldBright,fontWeight:'600',textDecorationLine:'underline'},
 });

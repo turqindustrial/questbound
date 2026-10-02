@@ -74,11 +74,12 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     return json(res,response.status,await response.json());
    }
    // Shared table: the same paired, same-origin rules as the DM, forwarded to the loopback table service.
-   const syncRoute=pathname.match(/^\/api\/sync\/(poll|save|leave|cloud-save|cloud-load)$/)?.[1];
+   const syncRoute=pathname.match(/^\/api\/sync\/(poll|save|leave|cloud-save|cloud-load|account-(?:register|login|save|load|status|logout|password|delete))$/)?.[1];
    if(syncRoute&&req.method==='POST'){
     if(req.headers.origin!==origin||!req.headers['content-type']?.startsWith('application/json'))return json(res,403,{error:'Use the Questbound game to reach the shared table.'});
     const raw=await body(req,2500000);let response;
-    try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:raw,signal:AbortSignal.timeout(15000)});}
+    // The table service is told who is asking (never trusted from the visitor), so wrong account passwords are counted per visitor.
+    try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json','X-Questbound-Client':String(client(req)??'').slice(0,80)},body:raw,signal:AbortSignal.timeout(15000)});}
     catch{return json(res,503,{error:'The shared table is not running on the PC.'});}
     return json(res,response.status,await response.json());
    }

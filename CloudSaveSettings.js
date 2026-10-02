@@ -16,8 +16,8 @@ export function CloudSaveSettings({onRestore,busy}){
  };
  if(!s)return null;
  return <View dataSet={{qb:'plate'}} style={st.panel}>
-  <Section icon="cloud" title="Cloud save" style={{marginTop:0}}/>
-  <Text style={st.body}>Your hero and adventure are also kept on the host's PC under this recovery code. Enter it on another phone or browser that can reach the game to carry on there.</Text>
+  <Section icon="cloud" title="Recovery code" style={{marginTop:0}}/>
+  <Text style={st.body}>Without an account, your hero and adventure are still kept on the host's PC under this recovery code. Write it down: entering it on another phone or browser that can reach the game carries you on there.</Text>
   <View dataSet={{qb:'plate'}} style={st.codeBox}><Text selectable style={st.code}>{showCode(s.code)}</Text><Text style={st.saved}>{!s.enabled?'Off':s.savedAt?'Saved '+new Date(s.savedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Not saved yet'}</Text></View>
   <Toggle value={s.enabled} onChange={async v=>setS(await setCloudSettings({enabled:v}))} label="Save to the host PC" description="Keep a copy a few seconds after you play."/>
   <Text style={[st.body,{marginTop:12}]}>Restore from another device's code (your current hero is set aside under Heroes first):</Text>

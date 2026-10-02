@@ -12,6 +12,7 @@ function Continuation({continuation,continuing,onContinuing,busy}){
   <View style={s.top}><Crest icon={icon} size={40} color={colors.goldBright}/><Text style={[s.title,{flex:1,fontSize:19}]}>{title}</Text>{chosen&&<View style={s.check}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
   <Text style={s.copy}>{copy}</Text></Pressable>;})}</View>;
 }
+const firstTime=()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}};
 export default function AdventureIntros({selected,onSelect,onStart,busy,error,continuation=null,continuing=false,onContinuing}){
  const narrow=useWindowDimensions().width<420;
  if(continuation&&continuing)return <View><ScreenTitle eyebrow="Next tale" icon="map" title="Where does your story go next?" sub={'After '+continuation.title+'.'}/>
@@ -19,7 +20,9 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
   <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'One moment…':'Begin the next tale'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
   <Ornament/><Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
  return <View><ScreenTitle eyebrow="New adventure" icon="compass" title="Where does your story begin?" sub="Choose a tale. Each is written fresh for your hero: a long story told in chapters, with its own country, people, side errands and roads to other lands."/>
- {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
+ {/* A first-time player (the in-game "How to play" card not yet dismissed) is told where to start. */}
+  {!continuation&&firstTime()&&<Text style={s.first}>First time here? <Text style={s.firstStrong}>Let fate decide</Text> is a fine place to start. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
+  {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {intros.map(intro=>{const chosen=selected===intro.id,hot=!!intro.local;return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>
  <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?'#ffb39e':colors.goldBright}/><View style={{flex:1,minWidth:0}}>
@@ -50,4 +53,5 @@ const s=StyleSheet.create({
  arrival:{fontFamily:fonts.story,color:tint('#de96a5'),fontSize:15.5,fontStyle:'italic'},
  begin:{marginTop:-4,marginBottom:16},
  choice:{gap:0,marginBottom:6},option:{paddingVertical:14},
- note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginBottom:4,textAlign:'center'},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});
+ note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginBottom:4,textAlign:'center'},
+ first:{fontFamily:fonts.ui,color:tint('#d4ced2'),fontSize:13.5,lineHeight:21,marginBottom:12,paddingVertical:10,paddingHorizontal:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(176,140,245,.4)'),backgroundColor:tint('rgba(48,26,78,.28)')},firstStrong:{color:colors.goldBright,fontWeight:'600'},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});

@@ -54,6 +54,8 @@ import QuickHeroes from './QuickHeroes';
 import HeroRoster from './HeroRoster';
 import {scheduleCloudSave} from './cloudRules';
 import {CloudSaveSettings} from './CloudSaveSettings';
+import {AccountSettings} from './AccountSettings';
+import {accountState} from './accountRules';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import FeedbackSheet from './Feedback';
@@ -87,6 +89,9 @@ function QuestboundApp() {
   const [storageError, setStorageError] = useState('');
   const [adventureBlocked,setAdventureBlocked] = useState(false);
   const [saveStatus,setSaveStatus] = useState('');
+  // Whether the player is signed in to an account (their adventure is then also kept on the host's PC).
+  const [account,setAccount]=useState(null);
+  useEffect(()=>{accountState().then(setAccount).catch(()=>{});},[]);
   const [saveRetry,setSaveRetry] = useState(0);
   // Heroes set aside on this device and the fallen; a new story can carry on in the same region.
   const [roster,setRoster]=useState([]),[graves,setGraves]=useState([]),[editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
@@ -310,7 +315,7 @@ function QuestboundApp() {
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=!!saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
   // The title screen's shape decides which painting is shown and how it is framed (see titleArt).
-  const homeShape=homeLayout(windowWidth,windowHeight),art=titleArt(windowWidth,windowHeight);
+  const homeShape=homeLayout(windowWidth,windowHeight),art=titleArt(windowWidth,windowHeight,{protect:saved&&!account});
   const home=screen==='Home'&&!inGame,wideHome=home&&homeShape.wide;
   useEffect(()=>{if(typeof document==='undefined')return;const set=(name,value)=>document.documentElement.style.setProperty('--qb-title-'+name,value+'px');set('top',art.top);set('size',art.size);set('edge',art.edge);set('fade',art.fade);},[art.top,art.size,art.edge,art.fade]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
@@ -345,7 +350,7 @@ function QuestboundApp() {
       <View style={s.controls}><FullscreenToggle compact/><AudioToggle compact/></View>
     </View>
   {home?<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={{flexGrow:1}} keyboardShouldPersistTaps="handled">
-    <HomeScreen hero={hero} game={game} health={health} saved={saved} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
+    <HomeScreen hero={hero} game={game} health={health} saved={saved} unprotected={saved&&!account} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
       onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
       onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackOpen(true);}}/>
     <FeedbackSheet visible={feedbackOpen} onClose={()=>setFeedbackOpen(false)} context={feedbackContext}/>
@@ -420,6 +425,7 @@ function QuestboundApp() {
         {characterChosen && hero && <Adventure table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       </>}
       {screen === 'Multiplayer' && <SharedTable table={table} hero={hero} characterChosen={characterChosen} onPlay={()=>{setNewStoryRequested(false);setScreen(characterChosen?'Adventure':'Character Selection');}}/>}
+      {screen === 'Settings' && <AccountSettings onRestore={restoreFromCloud} busy={saving||loading} onChange={setAccount}/>}
       {screen === 'Settings' && <StorySettings/>}
       {screen === 'Settings' && <ThemeSettings/>}
       {screen === 'Settings' && <DisplaySettings/>}

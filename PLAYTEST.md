@@ -53,7 +53,8 @@ New Adventure → pick any of the seven tales (**The Ashen Crown**, **The Wolf W
 - [ ] People remember: be kind or cruel to someone and check the **People** panel (Quest tab). Kill one of the two locals and the other should swear never to forgive you, even if you apologise or pay. Knock one out instead, then heal them with a spell (Cleric: "I cast Cure Wounds on …"): both should owe you a debt for good.
 - [ ] Meet someone new: head for a hut, a farm or a crossing and knock or call out. Whoever lives there gets a name, a portrait and a voice, appears under **People** (with where they live), and you can speak with them, ask them to join you, or make an enemy of them and their kin.
 - [ ] The next tale: Main menu → New Adventure → Play as your hero → **Continue in this region** → Begin. The new story has its own map and the country from before keeps its own (switch between them above the map), the **People** panel lists everyone you met (companions still "With you"), and your gold is unchanged. Travel back to an old place and the people there remember you.
-- [ ] Cloud save: Settings → Cloud save shows a code and "Saved …" a few seconds after you play. On another phone or browser, enter that code under Restore: your hero and adventure appear there.
+- [ ] Account: Settings → Your account → Create account with an email and a password (use one you use nowhere else). "Saved …" appears after a moment. Sign out, then sign in on another phone or browser: it asks which adventure to keep; **Load my saved adventure here** brings your hero over. The title screen's "Keep your progress safe" line disappears once you are signed in.
+- [ ] Recovery code: Settings → Recovery code shows a code and "Saved …" a few seconds after you play. On another phone or browser, enter that code under Restore: your hero and adventure appear there.
 - [ ] Heroes: try a ready-made hero, then open **Heroes**: your first hero waits under "Your other heroes". Play them again and you're back exactly where you were.
 - [ ] Gold and loot: ask someone to sell you a healing potion and pay; the **Inventory** shows less gold and one more draught. Search something after a fight; whatever the Dungeon Master says you find appears in the Inventory, and tapping it says what it is. Try to buy something you can't afford: you're told you don't have enough gold.
 - [ ] Settings → Story → **Brutality**: try Restrained and Brutal and kill something; the death is described precisely either way, with more or less gore.
@@ -66,6 +67,10 @@ The other: Multiplayer → another name → **Join the table** → Play at the t
 - [ ] Both devices show the same adventure, and the table bar lists two players.
 - [ ] Send an action on one device: the other shows "…is taking a turn", then plays the turn with that player's name on it.
 - [ ] Close the browser, reopen the link: you are still at the table and caught up.
+
+## 4b. First time (3 min, in a browser that has never played)
+- [ ] Title → New Adventure → a ready-made hero → the adventure list says where to start → Begin. While the tale is written: a request for patience and a six-page "How to play" you can turn yourself.
+- [ ] When the tale opens: "Try: I look around." above the message box puts the words in the box without sending; the "How to play" card goes away after a few turns or with Got it.
 
 ## 5. Move your hero (2 min)
 - [ ] Settings → **Move your hero** → Copy save code. Open the game in another browser or device, load the code there: the same hero and adventure appear.

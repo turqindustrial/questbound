@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {tableEndpoint} from './tableClient';
+import {noteSnapshot,saveToAccount} from './accountRules';
 // Cloud saves: the current hero and adventure are also kept on the host PC under this browser's recovery code, a
 // little after play settles. Entering the code in another browser or device that can reach the game restores them
 // there (and that device then saves under the same code). Only a hash of the code is stored on the PC.
@@ -28,6 +29,7 @@ export const downloadSave=(code,fetchImpl)=>cloudCall('cloud-load',{code:normalC
 // Saves are sent a few seconds after play settles, not on every step.
 let cloudTimer=null,cloudPending=null;
 export function scheduleCloudSave(snapshot,delay=8000){
- cloudPending=snapshot;clearTimeout(cloudTimer);
- cloudTimer=setTimeout(()=>{const s=cloudPending;cloudPending=null;if(s)uploadSave(s).catch(()=>{});},delay);
+ cloudPending=snapshot;noteSnapshot(snapshot);clearTimeout(cloudTimer);
+ // The same copy goes to the player's account when they are signed in (accountRules.js).
+ cloudTimer=setTimeout(()=>{const s=cloudPending;cloudPending=null;if(s){uploadSave(s).catch(()=>{});saveToAccount(s).catch(()=>{});}},delay);
 }

@@ -1,5 +1,12 @@
 # Questbound AI DM connection
 
+## The Dungeon Master is held to what the player asked — 2026-10-02
+
+- **What is true now.** Every ordinary request begins with `context.now`: plain sentences the game works out (where the player is, whether a fight is on, what became of the foe, which journeys are on offer). The model had been reading an old ambush in `recentEvents` as a fight still going on and refusing to let the player leave.
+- **A second look.** `dm-intent.cjs` checks each ordinary reply against the player's words. A plain request the game offers that the reply ignored (a known place, somewhere new, a rest, a draught, a lead handed in), a known place chosen when the words asked for somewhere new, or a fight spoken of as still going on, gets one more request with the point spelled out and light thinking; if that still does not act and the request is unmistakable, the game starts the action itself. Questions, plans and things said to someone are never forced.
+- **Unusable replies and rate limits.** A reply that cannot be used is asked for again once with the reason; a momentary `rate_limit_exceeded` is waited out. Both used to fail the turn.
+- **Measuring.** `node dm-probe.cjs [rounds]` scores the running DM on fifteen ordinary requests (paced at one every three seconds): 24 of 30 before, 29 of 30 after. `node dm-report.cjs` counts second looks beside rejections. `.questbound-dm-effort` changes how hard the play model thinks about turns, live.
+
 ## Long tales, written in the background at the host's chosen effort — 2026-10-02
 
 - **What is written.** A new story is a long tale: four or five chapters (title, goal, and the turn it ends on), three or four side leads, up to six landmarks and one or two far lands, besides the land, people and foe as before (`adventure-generator.cjs`, `storyInstructions`). The seven openings in `adventureIntros.json` give the writer a setting, the trouble, the road and the stakes; an opening the list no longer has (asked for by a browser on an earlier build) becomes a tale of the writer's own choosing.
