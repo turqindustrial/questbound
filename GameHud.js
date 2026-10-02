@@ -42,7 +42,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
     </View>
    </View>
   </Pressable>
-  {levelUp&&<Pressable accessibilityRole="button" accessibilityLabel="Level up" onPress={onLevelUp} dataSet={{qb:'btn-primary'}} style={s.levelUp}><Icon name="star" size={14} color="#2a1a07"/>{wide&&<Text style={s.levelUpText}>Level up</Text>}</Pressable>}
+  {levelUp&&<Pressable accessibilityRole="button" accessibilityLabel="Level up" onPress={onLevelUp} dataSet={{qb:'btn-primary'}} style={s.levelUp}><Icon name="star" size={14} color="#ffeef0"/>{wide&&<Text style={s.levelUpText}>Level up</Text>}</Pressable>}
   {wide?<View style={s.actions}>
     <IconButton icon="journal" label="Journal" tip="Journal · J" onPress={()=>go('Campaign Journal')}/>
     <IconButton icon="sheet" label="Character sheet" tip="Character sheet · C" onPress={()=>go('Character Sheet')}/>
@@ -84,18 +84,18 @@ function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){
  </ScrollView></Pressable></Pressable></Modal>;
 }
 const s=StyleSheet.create({
- bar:{position:'relative',zIndex:5,flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:16,paddingVertical:8,backgroundColor:'rgba(8,10,16,.9)'},
+ bar:{position:'relative',zIndex:5,flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:16,paddingVertical:8,backgroundColor:'rgba(14,10,14,.9)'},
  barCompact:{gap:8,paddingHorizontal:10,paddingVertical:6},
  brand:{flexDirection:'row',alignItems:'center',gap:14},wordmark:{fontFamily:fonts.logo,fontSize:19,fontWeight:'900',letterSpacing:2.5,color:colors.gold},
- divider:{width:1,height:26,backgroundColor:'rgba(201,164,92,.3)',marginHorizontal:2},
+ divider:{width:1,height:26,backgroundColor:'rgba(178,34,58,.3)',marginHorizontal:2},
  identity:{flexDirection:'row',alignItems:'center',gap:12,flexShrink:1,flexGrow:1,minWidth:0,maxWidth:470},
  hero:{flexShrink:1,minWidth:120,flexGrow:1,gap:5},heroTop:{flexDirection:'row',alignItems:'baseline',gap:8},
  name:{fontFamily:fonts.display,fontSize:17,fontWeight:'700',color:colors.parchment,letterSpacing:.8,flexShrink:1},meta:{fontFamily:fonts.ui,fontSize:11.5,color:colors.gold,flexShrink:0,letterSpacing:.3},
  hpRow:{flexDirection:'row',alignItems:'center',gap:7},hp:{fontFamily:fonts.display,fontSize:14,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums'],minWidth:44,textAlign:'right'},hpMax:{fontSize:11,color:colors.muted,fontWeight:'400'},temp:{fontSize:11,color:colors.arcane},
  actions:{flexDirection:'row',alignItems:'center',gap:7,marginLeft:'auto'},
- levelUp:{flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:12,borderRadius:18,borderWidth:1,borderColor:'#fff0c4',backgroundColor:'#d9ae5f',justifyContent:'center'},levelUpText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:'#2a1a07',textTransform:'uppercase'},
- scrim:{flex:1,backgroundColor:'rgba(2,3,6,.72)',alignItems:'center',justifyContent:'center',padding:18},
- sheet:{width:'100%',maxWidth:480,maxHeight:'100%',borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)',overflow:'hidden'},
+ levelUp:{flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:12,borderRadius:18,borderWidth:1,borderColor:'#f06e80',backgroundColor:'#9e1b32',justifyContent:'center'},levelUpText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:'#ffeef0',textTransform:'uppercase'},
+ scrim:{flex:1,backgroundColor:'rgba(5,3,5,.72)',alignItems:'center',justifyContent:'center',padding:18},
+ sheet:{width:'100%',maxWidth:480,maxHeight:'100%',borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(22,16,23,.98)',overflow:'hidden'},
  sheetScroll:{flexGrow:0},sheetBody:{padding:24},
  cellNarrow:{paddingHorizontal:9,gap:8,minHeight:54},
  // A phone on its side: four cells to a row, so the whole menu shows without scrolling.
@@ -103,7 +103,7 @@ const s=StyleSheet.create({
  menuHead:{flexDirection:'row',alignItems:'center',gap:16,marginBottom:6},
  overline:{...type.label},menuTitle:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:1,color:colors.parchment,marginTop:2},menuMeta:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,marginTop:2},
  grid:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12},
- cell:{flexGrow:1,flexBasis:'45%',minHeight:58,paddingHorizontal:12,borderRadius:4,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'#1a202d',flexDirection:'row',alignItems:'center',gap:12},
+ cell:{flexGrow:1,flexBasis:'45%',minHeight:58,paddingHorizontal:12,borderRadius:4,borderWidth:1,borderColor:'rgba(178,34,58,.35)',backgroundColor:'#271e29',flexDirection:'row',alignItems:'center',gap:12},
  cellText:{fontFamily:fonts.display,fontSize:12.5,fontWeight:'700',letterSpacing:1.4,color:colors.parchment,textTransform:'uppercase',flexShrink:1},
  menuNote:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint,textAlign:'center',marginTop:14},
 });

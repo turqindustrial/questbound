@@ -1,11 +1,28 @@
-# Title painting
+# Title paintings
 
-`questbound-title.jpg` (1536 × 1024) is the backdrop of the title screen and the menus. It was painted on 2026-10-02 by the game's own illustration service (`world-art.cjs`, kind `landscape`) from this description:
+Two paintings of the same battle are the backdrop of the title screen and the menus: four heroes against a lich in its lair. Both were painted on 2026-10-02 by the game's own illustration service (a high-quality `title` kind that was switched on in `world-art.cjs` only while they were made, then removed: a paired tester must not be able to ask for costly paintings).
 
-> A vast fantasy valley at dusk seen from a high ridge. On the right-hand third of the picture a lone cloaked traveller stands on a rocky outcrop holding a small warm lantern, seen from behind, small against the land. Beyond them a pale road winds down through dark pine woods past a stone bridge over a silver river toward a ruined round tower on a crag, and far snow mountains under towering storm-lit clouds with a break of gold light. The left-hand third of the picture is quiet, dark forested hillside in deep teal shadow with very little detail. Everything runs edge to edge: a full wide panorama with no frame, no vignette border and no empty margins.
+- `questbound-title-wide.jpg` (1536 × 1024): for computers and for a phone held sideways.
+- `questbound-title-tall.jpg` (1024 × 1536): for a phone held upright.
 
-How it is shown (`App.js`, `webTheme.js`):
+## What was asked for
 
-- The picture always fills the window (`s.backdrop` sets width and height to 100%). An image loaded from a file carries its own pixel size as its style, and without that the old picture stopped at 1173 pixels and left wide windows black on the right.
-- The left third is dark on purpose: the wide title screen puts the name and the menu there.
-- On a tall phone screen only a strip of the picture fits, so `data-frame=tall` moves the view to the tower and the mountain.
+Shared by both:
+
+> Four heroes fight it, each wreathed in spell-light of their own colour. A WARLOCK in dark hooded robes hurls crackling neon PURPLE eldritch blasts from an outstretched hand, violet sigils spinning around them. A CLERIC in vestments over mail raises a holy symbol blazing neon YELLOW-ORANGE radiant light, a golden sunburst behind their head. A MONK in simple wraps leaps in a flying kick, fists and feet trailing arcs of neon WHITE ki. A PALADIN in heavy plate armour with greatsword and shield burns with neon BLUE divine flame, charging. The LICH is a towering crowned skeletal sorcerer in tattered black robes, eye sockets burning, a phylactery glowing at its chest, unleashing torrents of neon GREEN necrotic lightning and swirling emerald runes. Purple, orange, white and blue light collide with the green in a storm of sparks. The lair is a vast black crypt-cathedral of obsidian pillars, chained braziers, a throne of fused bones, glowing magic circles on a cracked dark floor, drifting embers and smoke. Lit almost entirely by the spell-light: deep black shadows, saturated rim light, vivid neon glow. Monumental scale, dramatic low camera angle, the lich looming huge over the heroes.
+
+Wide:
+
+> Wide picture. The lich stands high on its dais right of centre, towering. The four heroes are in the foreground and midground across the lower centre and right, seen from behind and in three-quarter view, attacking toward it. The left third of the picture is darker and quieter (pillars, shadow, green mist, no figures), leaving room for a title. Keep every figure inside the middle band of the height: nothing important in the top or bottom tenth.
+
+Tall:
+
+> Tall picture. The lich looms huge in the upper middle of the picture on its throne of bones beneath the dark vault, arms spread, green lightning pouring down. Below it, in the middle of the picture, the four heroes fight upward toward it in a tight group, seen from behind and in three-quarter view. The top sixth is dark vaulting and green haze (room for a title); the bottom quarter is dark floor with reflected glow and smoke. Every figure stays within the central two-thirds of the width.
+
+## How they are shown (`HomeScreen.js` `titleArt`, `App.js`, `webTheme.js`)
+
+- **Wide screens and a phone on its side** (`data-frame=wide`): the wide painting covers the window (`s.backdrop` sets width and height to 100%; an image loaded from a file carries its own pixel size as its style, and without that the picture once stopped short and left wide windows black on the right). The left third is dark on purpose: the name and the menu sit there. The saved hero is a slim strip in the bottom right corner so it never covers the fighters.
+- **A long upright phone** (`data-frame=tall`): the tall painting sits between the name and the menu, from the lich's crown to the heroes' feet. When the screen is a little too short for the full width it is drawn slightly narrower with its sides fading out.
+- **A shorter upright phone or tablet** (`data-frame=band`): the wide painting is shown across the width as a band between the name and the menu, so the menu never sits on top of the fight.
+- `App.js` passes the numbers from `titleArt(width,height)` to the page as `--qb-title-top`, `--qb-title-size`, `--qb-title-edge` and `--qb-title-fade`; the frame rules in `webTheme.js` do the rest. The compact phone menu is taken to be about 236 pixels high (`menuHeight`): change both together.
+- The app icons (`make-icons.ps1`) are a crimson Q over the middle of the tall painting.

@@ -46,16 +46,16 @@ export default function StoryLoading({introId,hero=null,near=null}){
  </View>;
 }
 const s=StyleSheet.create({
- root:{zIndex:70,backgroundColor:'rgba(4,5,8,.94)',alignItems:'center',justifyContent:'center',padding:24},
+ root:{zIndex:70,backgroundColor:'rgba(7,5,7,.94)',alignItems:'center',justifyContent:'center',padding:24},
  content:{alignItems:'center',maxWidth:560,width:'100%'},
  sealWrap:{width:150,height:150,alignItems:'center',justifyContent:'center',marginBottom:18},
  bezel:{position:'absolute',width:150,height:150,pointerEvents:'none'},
  seal:{width:104,height:104,borderRadius:52,borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},
  overline:{fontFamily:fonts.display,fontSize:11,letterSpacing:4.5,color:colors.goldMid,textTransform:'uppercase',textAlign:'center'},
  title:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',marginTop:8,letterSpacing:2.5},
- setting:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:26,color:'#e6dac0',textAlign:'center',marginTop:8},
+ setting:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:26,color:'#ddcfca',textAlign:'center',marginTop:8},
  track:{width:'70%',maxWidth:320,height:2,borderRadius:1,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden',marginTop:22},fill:{width:'100%',height:'100%',backgroundColor:colors.gold},
  time:{fontFamily:fonts.ui,fontSize:12,color:colors.faint,textAlign:'center',marginTop:10},
- tip:{flexDirection:'row',alignItems:'center',gap:10,marginTop:28,paddingVertical:12,paddingHorizontal:16,borderRadius:8,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(14,18,27,.75)',maxWidth:480},
- tipText:{flex:1,fontFamily:fonts.ui,fontSize:13.5,lineHeight:20,color:'#d9dde6'},
+ tip:{flexDirection:'row',alignItems:'center',gap:10,marginTop:28,paddingVertical:12,paddingHorizontal:16,borderRadius:8,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(23,17,24,.75)',maxWidth:480},
+ tipText:{flex:1,fontFamily:fonts.ui,fontSize:13.5,lineHeight:20,color:'#e2dde1'},
 });

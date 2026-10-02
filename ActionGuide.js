@@ -35,17 +35,17 @@ export default function ActionGuide({visible,onClose,actions,hero,game,onRun,dis
  </Modal>;
 }
 const s=StyleSheet.create({
- scrim:{flex:1,backgroundColor:'rgba(2,3,6,.82)',alignItems:'center',justifyContent:'center',padding:12},
- sheet:{width:'100%',maxWidth:600,padding:16,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)',gap:10},
+ scrim:{flex:1,backgroundColor:'rgba(5,3,5,.82)',alignItems:'center',justifyContent:'center',padding:12},
+ sheet:{width:'100%',maxWidth:600,padding:16,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(22,16,23,.98)',gap:10},
  head:{flexDirection:'row',alignItems:'flex-end',gap:10},over:{...type.label},title:{fontFamily:fonts.display,fontSize:22,fontWeight:'700',letterSpacing:1,color:colors.parchment,marginTop:2},
- close:{flexDirection:'row',alignItems:'center',gap:6,minHeight:38,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:'rgba(201,164,92,.5)',backgroundColor:'rgba(20,25,36,.92)'},closeText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
+ close:{flexDirection:'row',alignItems:'center',gap:6,minHeight:38,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:'rgba(178,34,58,.5)',backgroundColor:'rgba(31,24,32,.92)'},closeText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
  list:{gap:8,paddingBottom:4},
- row:{flexDirection:'row',alignItems:'flex-start',gap:12,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.22)',backgroundColor:'rgba(14,19,29,.72)'},
- mark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(201,164,92,.45)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
+ row:{flexDirection:'row',alignItems:'flex-start',gap:12,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.22)',backgroundColor:'rgba(25,17,26,.72)'},
+ mark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(178,34,58,.45)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
  nameRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},name:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},
- cost:{paddingHorizontal:8,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:'rgba(201,164,92,.4)'},costBonus:{borderColor:'rgba(111,208,196,.5)'},costText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',letterSpacing:.4,color:colors.gold,textTransform:'uppercase'},
- facts:{fontFamily:fonts.ui,fontSize:11.5,color:'#a7afc0',marginTop:3},
- text:{fontFamily:fonts.story,fontSize:15.5,lineHeight:22,color:'#e6dcc4',marginTop:4},
- use:{alignSelf:'center',minHeight:38,minWidth:54,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:'rgba(201,164,92,.5)',backgroundColor:'rgba(20,25,36,.92)',alignItems:'center',justifyContent:'center'},useText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
+ cost:{paddingHorizontal:8,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:'rgba(178,34,58,.4)'},costBonus:{borderColor:'rgba(111,208,196,.5)'},costText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',letterSpacing:.4,color:colors.gold,textTransform:'uppercase'},
+ facts:{fontFamily:fonts.ui,fontSize:11.5,color:'#b8aeb5',marginTop:3},
+ text:{fontFamily:fonts.story,fontSize:15.5,lineHeight:22,color:'#ded2cd',marginTop:4},
+ use:{alignSelf:'center',minHeight:38,minWidth:54,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:'rgba(178,34,58,.5)',backgroundColor:'rgba(31,24,32,.92)',alignItems:'center',justifyContent:'center'},useText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
  tip:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12},tipText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:19,color:colors.muted},
 });

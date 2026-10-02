@@ -13,7 +13,7 @@ export function GameButton({label,onPress,variant='secondary',disabled,style,tex
  // On a phone the lettering is set a little tighter, so most labels stay on one line.
  const primary=variant==='primary',danger=variant==='danger',narrow=useWindowDimensions().width<430;
  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:primary?'btn-primary':danger?'btn-danger':'btn'}} style={({pressed})=>[s.button,primary&&s.primary,danger&&s.danger,narrow&&s.buttonNarrow,pressed&&!disabled&&s.pressed,disabled&&s.disabled,style]}>
-  <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?'#2a1a07':colors.gold}/>}<Text style={[s.buttonText,narrow&&s.buttonTextNarrow,primary&&s.primaryText,textStyle]}>{label}</Text></View>
+  <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?'#ffeef0':colors.gold}/>}<Text style={[s.buttonText,narrow&&s.buttonTextNarrow,primary&&s.primaryText,textStyle]}>{label}</Text></View>
  </Pressable>;
 }
 export function Ornament({style,glyph='◆'}){
@@ -48,12 +48,12 @@ export function IconButton({icon,label,tip,onPress,hot=false,size=40,disabled,st
  </Pressable>;
 }
 // Title-screen menu entries: large engraved words with an icon; the primary one is bigger and gilded.
-export function MenuItem({label,sub,icon,onPress,primary=false,disabled=false,center=false,size='large',style}){
+export function MenuItem({label,sub,icon,onPress,primary=false,disabled=false,center=false,size='large',tight=false,style}){
  const small=size==='small';
  return <Pressable accessibilityRole="button" accessibilityLabel={sub?label+'. '+sub:label} accessibilityState={{disabled}} disabled={disabled} onPress={()=>{playSound('page');onPress?.();}} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:'menu-item',center:center?'on':'off'}} style={[s.menuItem,center&&{alignItems:'center'},small&&{paddingVertical:7},style]}>
-  <View style={[s.menuRow,center&&{justifyContent:'center'}]}>
+  <View style={[s.menuRow,center&&{justifyContent:'center'},tight&&{gap:8}]}>
    {!!icon&&<View dataSet={{qb:'menu-icon',primary:primary?'on':'off'}}><Icon name={icon} size={small?16:primary?24:20} color={web?undefined:colors.gold}/></View>}
-   <Text dataSet={{qb:'menu-label'}} style={[s.menuLabel,primary&&s.menuPrimary,small&&s.menuSmall]}>{label}</Text>
+   <Text dataSet={{qb:'menu-label'}} numberOfLines={tight?1:undefined} style={[s.menuLabel,primary&&s.menuPrimary,small&&s.menuSmall,tight&&s.menuTight]}>{label}</Text>
   </View>
   {!!sub&&<Text numberOfLines={1} style={[s.menuSub,center&&{textAlign:'center'},!!icon&&!center&&{marginLeft:small?26:primary?36:32}]}>{sub}</Text>}
  </Pressable>;
@@ -108,49 +108,49 @@ export function Toggle({value,onChange,label,description,style}){
   <View dataSet={{qb:value?'btn-primary':'seg'}} style={[s.track2,value&&s.trackOn]}><View style={[s.knob,value&&s.knobOn]}/></View>
  </Pressable>;
 }
-export function KeyHint({children,style,dark=false}){return <View dataSet={{qb:'key'}} style={[s.key,dark&&{borderColor:'rgba(42,26,7,.45)',backgroundColor:'rgba(42,26,7,.12)'},style]}><Text style={[s.keyText,dark&&{color:'#3a2708'}]}>{children}</Text></View>;}
+export function KeyHint({children,style,dark=false}){return <View dataSet={{qb:'key'}} style={[s.key,dark&&{borderColor:'rgba(255,238,240,.45)',backgroundColor:'rgba(255,238,240,.12)'},style]}><Text style={[s.keyText,dark&&{color:'#ffe8eb'}]}>{children}</Text></View>;}
 const s=StyleSheet.create({
- panel:{backgroundColor:'rgba(13,17,26,.92)',borderWidth:1,borderColor:colors.goldLine,borderRadius:6,padding:24},
- glass:{backgroundColor:'rgba(10,14,22,.78)'},
- button:{minHeight:52,paddingVertical:14,paddingHorizontal:20,marginTop:10,borderRadius:4,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'#1a202d',justifyContent:'center',alignItems:'center'},
+ panel:{backgroundColor:'rgba(22,16,23,.92)',borderWidth:1,borderColor:colors.goldLine,borderRadius:6,padding:24},
+ glass:{backgroundColor:'rgba(18,13,19,.78)'},
+ button:{minHeight:52,paddingVertical:14,paddingHorizontal:20,marginTop:10,borderRadius:4,borderWidth:1,borderColor:'rgba(178,34,58,.35)',backgroundColor:'#271e29',justifyContent:'center',alignItems:'center'},
  buttonRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
  buttonNarrow:{paddingHorizontal:12},buttonTextNarrow:{fontSize:13,letterSpacing:1.1,flexShrink:1},
- primary:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},
+ primary:{backgroundColor:'#9e1b32',borderColor:'#f06e80'},
  danger:{backgroundColor:'#5a1d17',borderColor:'#c8412f'},
  pressed:{transform:[{scale:.985}]},
  disabled:{opacity:.5},
  buttonText:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
- primaryText:{color:'#2a1a07'},
+ primaryText:{color:'#ffeef0'},
  ornament:{flexDirection:'row',alignItems:'center',gap:12,marginVertical:14},
  rule:{flex:1,height:1,backgroundColor:colors.goldLine},
  glyph:{color:colors.gold,fontSize:10},
  screenTitle:{marginBottom:18},eyebrowRow:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:6},
  screenHeading:{fontFamily:fonts.display,fontSize:28,fontWeight:'700',letterSpacing:1.2,color:colors.parchment},
- screenSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,lineHeight:25,color:'#d9ccb0',marginTop:6},
+ screenSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,lineHeight:25,color:'#cfc0ba',marginTop:6},
  titleRule:{flexDirection:'row',alignItems:'center',gap:8,marginTop:12,width:'100%',maxWidth:420},titleRuleLine:{height:1,backgroundColor:colors.goldLine},
  titleLozenge:{width:7,height:7,transform:[{rotate:'45deg'}],backgroundColor:colors.gold},
  section:{flexDirection:'row',alignItems:'center',gap:10,marginTop:22,marginBottom:12},sectionText:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:1.8,color:colors.gold,textTransform:'uppercase'},sectionRule:{flex:1,height:1,backgroundColor:colors.goldFaint},
- levelBadge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#fff0c4'},
- levelText:{fontFamily:fonts.display,fontWeight:'800',color:'#2a1a07'},
- iconButton:{paddingHorizontal:8,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(12,16,24,.85)',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},
+ levelBadge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#f06e80'},
+ levelText:{fontFamily:fonts.display,fontWeight:'800',color:'#ffeef0'},
+ iconButton:{paddingHorizontal:8,borderWidth:1,borderColor:'rgba(178,34,58,.45)',backgroundColor:'rgba(20,15,21,.85)',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},
  iconHot:{borderColor:'rgba(240,106,79,.75)',backgroundColor:'rgba(60,18,14,.85)'},
  menuItem:{paddingVertical:9,alignSelf:'stretch'},menuRow:{flexDirection:'row',alignItems:'center',gap:12},
- menuLabel:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:3,color:'#e9dcc0',textTransform:'uppercase'},
- menuPrimary:{fontSize:27,letterSpacing:3.5,color:colors.goldBright},menuSmall:{fontSize:14,letterSpacing:2.2,color:'#cfc2a4'},
- menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:'#b9ae95',marginTop:1},
- seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(6,8,12,.55)',marginVertical:14},
+ menuLabel:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:3,color:'#dfd0ca',textTransform:'uppercase'},
+ menuPrimary:{fontSize:27,letterSpacing:3.5,color:colors.goldBright},menuSmall:{fontSize:14,letterSpacing:2.2,color:'#c4b5af'},menuTight:{fontSize:13,letterSpacing:1,flexShrink:1},
+ menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:'#b0a39e',marginTop:1},
+ seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(10,7,11,.55)',marginVertical:14},
  segItem:{flexGrow:1,flexBasis:0,minWidth:96,minHeight:42,paddingHorizontal:10,borderRadius:4,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:'transparent'},
  // On a phone each tab takes the room its word needs (not an equal share), so longer labels are not cut short.
  segNarrow:{minWidth:0,paddingHorizontal:5,flexBasis:'auto',flexShrink:1},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
- segOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
+ segOn:{borderColor:'rgba(224,74,92,.55)',backgroundColor:'rgba(48,26,78,.9)'},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
- track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(201,164,92,.35)',overflow:'hidden'},
- fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:'rgba(255,236,190,.4)'},
+ track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(178,34,58,.35)',overflow:'hidden'},
+ fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:'rgba(255,214,224,.4)'},
  floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:'0 2px 6px rgba(0,0,0,.9)'}:{})},
  toggleRow:{flexDirection:'row',alignItems:'center',gap:14,minHeight:48,paddingVertical:4},toggleLabel:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.parchment},
  toggleDescription:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,marginTop:2},
- track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(6,8,12,.7)',justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:'#d9ae5f',borderColor:'#fff0c4'},
- knob:{width:20,height:20,borderRadius:10,backgroundColor:'#8d96a8',...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:'#2a1a07',transform:[{translateX:20}]},
- key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:'rgba(201,164,92,.4)',backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
+ track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:'rgba(178,34,58,.45)',backgroundColor:'rgba(10,7,11,.7)',justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:'#9e1b32',borderColor:'#f06e80'},
+ knob:{width:20,height:20,borderRadius:10,backgroundColor:'#a0959d',...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:'#ffeef0',transform:[{translateX:20}]},
+ key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:'rgba(178,34,58,.4)',backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
  keyText:{fontFamily:fonts.ui,fontSize:10,fontWeight:'700',color:colors.muted},
 });

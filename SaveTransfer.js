@@ -21,7 +21,7 @@ export default function SaveTransfer(){
   <GameButton icon="transfer" label="Copy save code" onPress={copy} style={{marginTop:0}}/>
   {!!shown&&<TextInput value={shown} editable={false} selectTextOnFocus multiline accessibilityLabel="Your save code" style={s.code}/>}
   <Text style={[s.label,{marginTop:6}]}>Load a save code</Text>
-  <TextInput value={code} onChangeText={value=>{setCode(value);setPending(null);setError('');}} multiline autoCapitalize="none" autoCorrect={false} placeholder="Paste a save code here" placeholderTextColor="#7f889c" accessibilityLabel="Paste a save code" dataSet={{qb:'input'}} style={s.code}/>
+  <TextInput value={code} onChangeText={value=>{setCode(value);setPending(null);setError('');}} multiline autoCapitalize="none" autoCorrect={false} placeholder="Paste a save code here" placeholderTextColor="#938890" accessibilityLabel="Paste a save code" dataSet={{qb:'input'}} style={s.code}/>
   {pending?<>
    <Text style={s.caption}>This replaces the hero and adventure saved in this browser with <Text style={{color:colors.parchment}}>{pending.hero.name}</Text> (level {pending.hero.level} {pending.hero.class}). The current save is kept as a backup under Multiplayer.</Text>
    <GameButton variant="primary" icon="check" label={'Load '+pending.hero.name} onPress={load} style={{marginTop:0}}/>
@@ -34,6 +34,6 @@ const s=StyleSheet.create({
  panel:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginBottom:18,gap:10},
  heading:{fontFamily:fonts.display,color:colors.gold,fontSize:17,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20},label:{...type.label},
- code:{fontFamily:'monospace',fontSize:12,color:'#e2e6ec',backgroundColor:'rgba(4,6,10,.75)',borderWidth:1,borderColor:'rgba(201,164,92,.35)',borderRadius:4,padding:10,minHeight:64,maxHeight:120},
+ code:{fontFamily:'monospace',fontSize:12,color:'#e9e5e8',backgroundColor:'rgba(8,5,9,.75)',borderWidth:1,borderColor:'rgba(178,34,58,.35)',borderRadius:4,padding:10,minHeight:64,maxHeight:120},
  ok:{fontFamily:fonts.ui,color:colors.heal,fontSize:13,lineHeight:20},error:{fontFamily:fonts.ui,color:colors.danger,fontSize:13,lineHeight:20},
 });

@@ -37,7 +37,7 @@ export default function SceneTransitionProvider({children}){
  const progress=display?.total?Math.round(100*(display.completed??0)/display.total):0;
  const place=display?.items?.find(i=>i.kind==='landscape')?.name;
  return <Context.Provider value={{prepare}}>{children}<Modal transparent visible={!!state} animationType="fade" onRequestClose={proceed}><View dataSet={{qb:'scrim'}} style={s.shade}><View style={[s.panel,{maxHeight:Math.max(180,height-32)}]} accessibilityViewIsModal><ScrollView style={{flexShrink:1}} contentContainerStyle={s.content}>
-  <View style={s.ring}><ActivityIndicator color="#e8c77b" size="large"/></View>
+  <View style={s.ring}><ActivityIndicator color="#e04a5c" size="large"/></View>
   {/* A quiet pause: where you are going, a line that fills, and a way to skip it. No list of what is being made. */}
   <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={s.title}>{place??'One moment'}</Text>
   <View style={s.rule}><View dataSet={{qb:'rule-left'}} style={s.ruleLine}/><View style={s.lozenge}/><View dataSet={{qb:'rule-right'}} style={s.ruleLine}/></View>
@@ -45,15 +45,15 @@ export default function SceneTransitionProvider({children}){
   <Pressable accessibilityRole="button" onPress={proceed} style={s.button}><Text style={s.label}>Continue</Text><Icon name="forward" size={14} color={colors.gold}/></Pressable>
  </ScrollView></View></View></Modal></Context.Provider>;
 }
-const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'rgba(3,4,7,.86)',padding:24},
+const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'rgba(6,4,6,.86)',padding:24},
  panel:{width:'100%',maxWidth:440},content:{alignItems:'center',paddingVertical:8},
- ring:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:'rgba(232,199,123,.45)',alignItems:'center',justifyContent:'center',marginBottom:16,backgroundColor:'rgba(20,16,10,.6)'},
- overline:{fontFamily:fonts.display,color:'#c9a45c',fontSize:10.5,fontWeight:'700',letterSpacing:4,textTransform:'uppercase',textAlign:'center'},
- title:{color:'#f5ead0',fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.2,fontSize:26,lineHeight:33,textAlign:'center',marginTop:8},
+ ring:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:'rgba(224,74,92,.45)',alignItems:'center',justifyContent:'center',marginBottom:16,backgroundColor:'rgba(20,10,12,.6)'},
+ overline:{fontFamily:fonts.display,color:'#b2223a',fontSize:10.5,fontWeight:'700',letterSpacing:4,textTransform:'uppercase',textAlign:'center'},
+ title:{color:'#ecdfd9',fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.2,fontSize:26,lineHeight:33,textAlign:'center',marginTop:8},
  rule:{flexDirection:'row',alignItems:'center',gap:8,width:'70%',marginVertical:16},ruleLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
- items:{alignSelf:'stretch',gap:8,marginBottom:18},item:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,paddingVertical:8,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.18)',backgroundColor:'rgba(14,18,27,.7)'},
- itemName:{flex:1,fontFamily:fonts.story,fontSize:16,color:'#9aa2b2'},
- track:{alignSelf:'stretch',height:3,borderRadius:2,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden'},fill:{height:'100%',backgroundColor:'#e8c77b'},
- note:{fontFamily:fonts.ui,color:'#8f98aa',fontSize:12,lineHeight:19,textAlign:'center',marginTop:12},
+ items:{alignSelf:'stretch',gap:8,marginBottom:18},item:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,paddingVertical:8,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.18)',backgroundColor:'rgba(23,17,24,.7)'},
+ itemName:{flex:1,fontFamily:fonts.story,fontSize:16,color:'#aba1a8'},
+ track:{alignSelf:'stretch',height:3,borderRadius:2,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden'},fill:{height:'100%',backgroundColor:'#e04a5c'},
+ note:{fontFamily:fonts.ui,color:'#a2979f',fontSize:12,lineHeight:19,textAlign:'center',marginTop:12},
  button:{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,minHeight:44,marginTop:8,justifyContent:'center'},
  label:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:2,fontSize:12,textTransform:'uppercase',color:colors.gold,textAlign:'center'}});

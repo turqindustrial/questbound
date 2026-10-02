@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/questbound-icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#06080c",
+    "backgroundColor": "#08060a",
     "ios": {
       "supportsTablet": true
     },
@@ -23,8 +23,8 @@
       "name": "Questbound",
       "shortName": "Questbound",
       "display": "fullscreen",
-      "themeColor": "#06080c",
-      "backgroundColor": "#06080c"
+      "themeColor": "#08060a",
+      "backgroundColor": "#08060a"
     }
   }
 }

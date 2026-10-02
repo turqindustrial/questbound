@@ -19,6 +19,6 @@ export default function HeroPortrait({hero,size=56,level,style}){
  </View>;
 }
 const s=StyleSheet.create({
- badge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#fff0c4'},
- level:{fontFamily:fonts.display,fontWeight:'800',color:'#2a1a07'},
+ badge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#f06e80'},
+ level:{fontFamily:fonts.display,fontWeight:'800',color:'#ffeef0'},
 });

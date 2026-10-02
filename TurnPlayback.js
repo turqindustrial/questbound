@@ -38,7 +38,7 @@ function DieFace({value,animate,small,sides=20}){
  },[]);
  const shown=landed?value:face,top=landed&&value===20,low=landed&&value===1;
  return <View dataSet={{qb:'die-face',nat:top?'max':low?'one':'',roll:animate?(landed?'landed':'on'):'off'}} style={[s.die,{width:size,height:size,borderRadius:small?6:8}]}>
-  <PlainText style={[s.dieText,small&&{fontSize:14},top&&{color:'#2a1a07'},low&&{color:'#ffd2c2'}]}>{shown}</PlainText>
+  <PlainText style={[s.dieText,small&&{fontSize:14},top&&{color:'#ffeef0'},low&&{color:'#ffd2c2'}]}>{shown}</PlainText>
  </View>;
 }
 // A rolled amount (damage, healing, hit points lost): it spins through numbers and settles on the result.
@@ -56,7 +56,7 @@ function Verdict({kind,actor,live=false}){
  const bad=(actor==='foe'&&['hit','crit'].includes(kind))||['failure'].includes(kind),good=(actor!=='foe'&&['hit','crit','failed','success'].includes(kind));
  const filled=kind==='crit';
  const tone=bad?colors.bloodBright:good?(kind==='success'?colors.heal:colors.gold):colors.muted;
- return <View dataSet={{qb:live?'verdict':undefined}} style={[s.verdict,{borderColor:tone},filled&&{backgroundColor:tone}]}><PlainText style={[s.verdictText,{color:filled?'#1a0f05':tone}]}>{verdictLabels[kind]??kind}</PlainText></View>;
+ return <View dataSet={{qb:live?'verdict':undefined}} style={[s.verdict,{borderColor:tone},filled&&{backgroundColor:tone}]}><PlainText style={[s.verdictText,{color:filled?'#fff4f5':tone}]}>{verdictLabels[kind]??kind}</PlainText></View>;
 }
 function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
  const view=describeEvent(event);
@@ -132,11 +132,11 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
  const arrival=kind==='action'&&String(event.text??'').match(arrivalLine)?.[1],scene=arrival&&sceneFor?.(arrival);
  if(scene)return wrap(<ScenePlate subject={scene} over="You arrive at"/>,s.plateWrap);
  if(kind==='player'){const who=event.speakerName&&event.speakerName!==me?event.speakerName:'You';return wrap(<>
-  <View style={s.playerHead}><Icon name="quill" size={12} color="#a9bdf0"/><PlainText style={s.playerLabel}>{who}</PlainText></View>
+  <View style={s.playerHead}><Icon name="quill" size={12} color="#caa9f0"/><PlainText style={s.playerLabel}>{who}</PlainText></View>
   <Text style={s.playerText}>{event.text}</Text>
  </>,s.player,{qb:'feed-player'});}
  if(kind==='dialogue'){const subject=avatarFor?.(event.speakerId);return wrap(<>
-  <View style={s.speakerRow}>{subject?<DynamicArt dataSet={{qb:'avatar'}} subject={subject} style={s.speakerAvatar} compact/>:<View style={s.speakerMark}><Icon name="speak" size={14} color="#f0c690"/></View>}<PlainText style={s.speakerName}>{(event.speakerName??'Dungeon Master')}</PlainText></View>
+  <View style={s.speakerRow}>{subject?<DynamicArt dataSet={{qb:'avatar'}} subject={subject} style={s.speakerAvatar} compact/>:<View style={s.speakerMark}><Icon name="speak" size={14} color="#e36778"/></View>}<PlainText style={s.speakerName}>{(event.speakerName??'Dungeon Master')}</PlainText></View>
   <Text style={s.quote}>“{event.text.replace(/^[“"]|[”"]$/g,'')}”</Text>
  </>,s.dialogue,{qb:'feed-dialogue'});}
  if(kind==='narration'){const text=String(event.text??''),cap=lead&&/^[A-Za-z]/.test(text);return wrap(<>
@@ -201,62 +201,62 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  {history&&turns.length>1&&<ScrollView style={s.history} nestedScrollEnabled>{turns.slice(0,-1).map(t=><View key={t.id}><PlainText style={s.title}>Turn {t.id}</PlainText>{t.events.map((e,i)=>row(t,e,i,false))}</View>)}</ScrollView>}
  </View>;
 }
-const shadow=web?{textShadow:'0 0 14px rgba(236,170,84,.45)'}:{};
+const shadow=web?{textShadow:'0 0 14px rgba(230,48,82,.45)'}:{};
 const s=StyleSheet.create({panel:{marginBottom:6},
  fillPanel:{flex:1,minHeight:0},fillBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:30},fillTitleRow:{flexDirection:'row',alignItems:'center',gap:8,flexShrink:1},
  skipInline:{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:6,minHeight:30},
  fillScroll:{flex:1,minHeight:0,overscrollBehavior:'contain'},fillContent:{paddingBottom:8},
  pastTurn:{opacity:.8},
- divider:{flexDirection:'row',alignItems:'center',gap:10,marginVertical:12},dividerRule:{flex:1,height:1},dividerText:{fontFamily:fonts.display,color:'rgba(201,164,92,.75)',fontSize:10,letterSpacing:2.6,textTransform:'uppercase'},
+ divider:{flexDirection:'row',alignItems:'center',gap:10,marginVertical:12},dividerRule:{flex:1,height:1},dividerText:{fontFamily:fonts.display,color:'rgba(178,34,58,.75)',fontSize:10,letterSpacing:2.6,textTransform:'uppercase'},
  header:{minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},skipSlot:{minWidth:95,height:44},historyToggle:{height:44},
  title:{flexShrink:1,fontFamily:fonts.display,color:colors.goldMid,fontSize:11,fontWeight:'700',letterSpacing:2.4,textTransform:'uppercase',marginVertical:10},
  scroll:{flexGrow:0,overscrollBehavior:'auto',overflowAnchor:'none'},history:{maxHeight:320},
  opening:{fontFamily:fonts.story,color:'#efe7d4',fontSize:19,lineHeight:31,paddingVertical:12},
  // Result cards: die, title and arithmetic, verdict.
- card:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(14,19,29,.72)'},
- cardFoe:{borderColor:'rgba(240,106,79,.38)'},cardCrit:{borderColor:'rgba(255,214,140,.8)'},
+ card:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(25,17,26,.72)'},
+ cardFoe:{borderColor:'rgba(240,106,79,.38)'},cardCrit:{borderColor:'rgba(201,140,255,.8)'},
  cardBody:{flex:1,minWidth:0},cardSide:{alignItems:'flex-end',gap:6},
  cardOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
  cardTitle:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',color:colors.parchment,letterSpacing:.4,marginTop:1},
- cardMath:{fontFamily:fonts.ui,fontSize:12,color:'#a7afc0',marginTop:2,fontVariant:['tabular-nums']},
- cardOutcome:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:21,color:'#e6dcc4',marginTop:4},
- die:{alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(232,199,123,.55)',backgroundColor:'#1b2233'},
+ cardMath:{fontFamily:fonts.ui,fontSize:12,color:'#b8aeb5',marginTop:2,fontVariant:['tabular-nums']},
+ cardOutcome:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:21,color:'#ded2cd',marginTop:4},
+ die:{alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(224,74,92,.55)',backgroundColor:'#2c202e'},
  dieText:{fontFamily:fonts.display,fontSize:18,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},
  verdict:{paddingHorizontal:9,paddingVertical:3,borderRadius:3,borderWidth:1.5},verdictText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1.6,textTransform:'uppercase'},
  total:{fontFamily:fonts.display,fontSize:22,fontWeight:'800',color:colors.goldBright,fontVariant:['tabular-nums']},
  inlineDamage:{flexDirection:'row',alignItems:'center',gap:4},inlineDamageText:{fontFamily:fonts.display,fontSize:15,fontWeight:'800',color:colors.goldBright},
- dmgCard:{borderColor:'rgba(232,199,123,.4)'},healCard:{borderColor:'rgba(111,191,142,.45)'},taleCard:{alignItems:'flex-start',borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(40,32,18,.6)'},
- dmgIcon:{width:36,height:36,borderRadius:18,borderWidth:1,borderColor:'rgba(232,199,123,.5)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
+ dmgCard:{borderColor:'rgba(224,74,92,.4)'},healCard:{borderColor:'rgba(111,191,142,.45)'},taleCard:{alignItems:'flex-start',borderColor:'rgba(224,74,92,.55)',backgroundColor:'rgba(40,22,62,.6)'},
+ dmgIcon:{width:36,height:36,borderRadius:18,borderWidth:1,borderColor:'rgba(224,74,92,.5)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
  dmgNum:{fontFamily:fonts.display,fontSize:28,fontWeight:'800',color:colors.goldBright,minWidth:34,fontVariant:['tabular-nums'],...shadow},
- dmgLabel:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.4,color:'#ecdcb8',textTransform:'uppercase'},
+ dmgLabel:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.4,color:'#dfcdc5',textTransform:'uppercase'},
  hpRow:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:5,paddingHorizontal:12,marginBottom:4},
- hpName:{flexShrink:1,fontFamily:fonts.display,fontSize:13,fontWeight:'700',color:'#e7dcc4'},hpChange:{fontFamily:fonts.ui,fontSize:12.5,color:colors.muted,fontVariant:['tabular-nums']},
+ hpName:{flexShrink:1,fontFamily:fonts.display,fontSize:13,fontWeight:'700',color:'#ded2cd'},hpChange:{fontFamily:fonts.ui,fontSize:12.5,color:colors.muted,fontVariant:['tabular-nums']},
  delta:{marginLeft:'auto',paddingHorizontal:7,paddingVertical:1,borderRadius:10,borderWidth:1},deltaText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'800',fontVariant:['tabular-nums']},
  round:{flexDirection:'row',alignItems:'center',gap:10,marginVertical:10},roundRule:{flex:1,height:1},
  roundText:{fontFamily:fonts.display,fontSize:13,fontWeight:'800',letterSpacing:3.2,color:'#ffc4b0',textTransform:'uppercase'},
- turnRow:{alignItems:'center',marginVertical:8},turnPill:{flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:14,paddingVertical:5,borderRadius:14,borderWidth:1,borderColor:'rgba(232,199,123,.6)',backgroundColor:'rgba(58,46,26,.7)'},
+ turnRow:{alignItems:'center',marginVertical:8},turnPill:{flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:14,paddingVertical:5,borderRadius:14,borderWidth:1,borderColor:'rgba(224,74,92,.6)',backgroundColor:'rgba(48,26,78,.7)'},
  turnText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:2.4,color:colors.goldBright,textTransform:'uppercase'},
  overRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginVertical:6,paddingHorizontal:4},
  overText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},
- orderChip:{paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:'rgba(201,164,92,.3)',backgroundColor:'rgba(20,25,36,.8)'},orderYou:{borderColor:'rgba(232,199,123,.7)'},
+ orderChip:{paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:'rgba(178,34,58,.3)',backgroundColor:'rgba(31,24,32,.8)'},orderYou:{borderColor:'rgba(224,74,92,.7)'},
  orderText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',color:'#d9d3c3'},
  noteRow:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:4,paddingHorizontal:12,marginBottom:4},noteText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:'#a8ddd4'},
- player:{alignSelf:'flex-end',maxWidth:'88%',marginLeft:28,marginBottom:10,marginTop:4,paddingVertical:9,paddingHorizontal:14,borderRadius:10,borderTopRightRadius:3,borderWidth:1,borderColor:'rgba(142,166,230,.4)',backgroundColor:'rgba(30,40,64,.6)'},
- playerHead:{flexDirection:'row',alignItems:'center',gap:6,marginBottom:3},playerLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:'#a9bdf0',textTransform:'uppercase'},
- playerText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,lineHeight:24,color:'#e4e9f7'},
- dialogue:{marginBottom:10,marginTop:2,paddingVertical:10,paddingHorizontal:14,borderLeftWidth:2,borderColor:'#d59a55',borderRadius:4,backgroundColor:'rgba(14,19,29,.6)'},
+ player:{alignSelf:'flex-end',maxWidth:'88%',marginLeft:28,marginBottom:10,marginTop:4,paddingVertical:9,paddingHorizontal:14,borderRadius:10,borderTopRightRadius:3,borderWidth:1,borderColor:'rgba(183,142,230,.4)',backgroundColor:'rgba(54,38,56,.6)'},
+ playerHead:{flexDirection:'row',alignItems:'center',gap:6,marginBottom:3},playerLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:'#caa9f0',textTransform:'uppercase'},
+ playerText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,lineHeight:24,color:'#ede4f7'},
+ dialogue:{marginBottom:10,marginTop:2,paddingVertical:10,paddingHorizontal:14,borderLeftWidth:2,borderColor:'#c31f35',borderRadius:4,backgroundColor:'rgba(25,17,26,.6)'},
  speakerRow:{flexDirection:'row',alignItems:'center',gap:9,marginBottom:6},speakerAvatar:{width:30,height:30,borderRadius:15},
- speakerMark:{width:30,height:30,borderRadius:15,borderWidth:1,borderColor:'rgba(240,198,144,.5)',alignItems:'center',justifyContent:'center'},
- speakerName:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#f0c690',textTransform:'uppercase'},
- quote:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:28,color:'#f6ead0'},
+ speakerMark:{width:30,height:30,borderRadius:15,borderWidth:1,borderColor:'rgba(242,50,76,.5)',alignItems:'center',justifyContent:'center'},
+ speakerName:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#e36778',textTransform:'uppercase'},
+ quote:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:28,color:'#ecdfd9'},
  narration:{paddingVertical:6,paddingHorizontal:4,marginBottom:10},
  prose:{fontFamily:fonts.story,fontSize:18.5,lineHeight:29,color:'#efe7d4'},
  dropCap:{fontFamily:fonts.logo,fontSize:30,fontWeight:'900',color:colors.gold,lineHeight:29},
- actionRow:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:7,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.22)',backgroundColor:'rgba(14,19,29,.55)'},
- actionText:{flex:1,fontFamily:fonts.ui,fontSize:13.5,lineHeight:20,color:'#e2e6ec'},
- plateWrap:{marginVertical:8},plate:{height:170,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:'rgba(232,199,123,.45)',backgroundColor:'#101520',justifyContent:'flex-end'},
+ actionRow:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:7,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.22)',backgroundColor:'rgba(25,17,26,.55)'},
+ actionText:{flex:1,fontFamily:fonts.ui,fontSize:13.5,lineHeight:20,color:'#e9e5e8'},
+ plateWrap:{marginVertical:8},plate:{height:170,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:'rgba(224,74,92,.45)',backgroundColor:'#1b141c',justifyContent:'flex-end'},
  plateCaption:{padding:14,paddingTop:24},plateOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:2.4,color:colors.goldMid,textTransform:'uppercase'},
- plateName:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:1,color:'#fff4dc',marginTop:2},
- writing:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:10,paddingHorizontal:6},writingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15.5,color:'#cdbf9f'},
+ plateName:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:1,color:'#f6eae5',marginTop:2},
+ writing:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:10,paddingHorizontal:6},writingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15.5,color:'#c2b1ab'},
  dots:{flexDirection:'row',gap:4,marginLeft:2},dot:{width:5,height:5,borderRadius:3,backgroundColor:colors.gold},
  skip:{paddingVertical:12,paddingHorizontal:6,minHeight:44},link:{fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'}});

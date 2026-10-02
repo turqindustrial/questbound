@@ -43,11 +43,11 @@ export default function FeedbackSheet({visible,onClose,context={}}){
    </>:<>
     <Text style={s.text}>What was fun, confusing, slow, too loud or broken? Your device and where you are in the game are included automatically.</Text>
     <Text style={s.label}>How was it?</Text>
-    <View style={s.stars} accessibilityRole="radiogroup">{[1,2,3,4,5].map(n=><Pressable key={n} accessibilityRole="radio" accessibilityLabel={n+' of 5'} accessibilityState={{checked:rating===n}} onPress={()=>setRating(rating===n?null:n)} style={s.star}><Icon name={rating>=n?'starFill':'star'} size={30} color={rating>=n?colors.gold:'#6f7686'}/></Pressable>)}</View>
+    <View style={s.stars} accessibilityRole="radiogroup">{[1,2,3,4,5].map(n=><Pressable key={n} accessibilityRole="radio" accessibilityLabel={n+' of 5'} accessibilityState={{checked:rating===n}} onPress={()=>setRating(rating===n?null:n)} style={s.star}><Icon name={rating>=n?'starFill':'star'} size={30} color={rating>=n?colors.gold:'#7f767c'}/></Pressable>)}</View>
     <Text style={s.label}>Your note</Text>
-    <TextInput value={text} onChangeText={setText} multiline maxLength={2000} placeholder="The fight was great, but I didn’t know how to…" placeholderTextColor="#7f889c" accessibilityLabel="Your feedback" dataSet={{qb:'input'}} style={[s.input,{minHeight:110}]}/>
+    <TextInput value={text} onChangeText={setText} multiline maxLength={2000} placeholder="The fight was great, but I didn’t know how to…" placeholderTextColor="#938890" accessibilityLabel="Your feedback" dataSet={{qb:'input'}} style={[s.input,{minHeight:110}]}/>
     <Text style={s.label}>Your name (optional)</Text>
-    <TextInput value={name} onChangeText={setName} maxLength={60} placeholder="So the host knows who wrote it" placeholderTextColor="#7f889c" accessibilityLabel="Your name" dataSet={{qb:'input'}} style={s.input}/>
+    <TextInput value={name} onChangeText={setName} maxLength={60} placeholder="So the host knows who wrote it" placeholderTextColor="#938890" accessibilityLabel="Your name" dataSet={{qb:'input'}} style={s.input}/>
     {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
     <GameButton variant="primary" icon={state==='sending'?'quill':'send'} label={state==='sending'?'Sending…':'Send to the host'} disabled={state==='sending'||text.trim().length<2} onPress={send}/>
     <Text style={s.small}>Prefer GitHub? <Text accessibilityRole="link" onPress={()=>Linking.openURL(ISSUES)} style={{color:colors.gold,textDecorationLine:'underline'}}>Open an issue</Text>.</Text>
@@ -57,12 +57,12 @@ export default function FeedbackSheet({visible,onClose,context={}}){
  </Pressable></Pressable></Modal>;
 }
 const s=StyleSheet.create({
- scrim:{flex:1,backgroundColor:'rgba(2,3,6,.78)',alignItems:'center',justifyContent:'center',padding:16},
- emblem:{alignSelf:'center',width:52,height:52,borderRadius:26,borderWidth:1,borderColor:'rgba(232,199,123,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(58,46,26,.45)'},sent:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.45)'},
- sheet:{width:'100%',maxWidth:480,maxHeight:'92%',padding:22,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)'},
+ scrim:{flex:1,backgroundColor:'rgba(5,3,5,.78)',alignItems:'center',justifyContent:'center',padding:16},
+ emblem:{alignSelf:'center',width:52,height:52,borderRadius:26,borderWidth:1,borderColor:'rgba(224,74,92,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(48,26,78,.45)'},sent:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.45)'},
+ sheet:{width:'100%',maxWidth:480,maxHeight:'92%',padding:22,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(22,16,23,.98)'},
  overline:{...type.label,textAlign:'center'},title:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
- text:{fontFamily:fonts.ui,color:'#c9ced9',fontSize:14,lineHeight:22},label:{...type.label,marginTop:4},small:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,textAlign:'center'},
- stars:{flexDirection:'row',gap:6},star:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center'},starText:{fontSize:30,color:'#6f7686'},
- input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:'rgba(4,6,10,.75)',borderColor:'rgba(201,164,92,.4)',borderWidth:1,borderRadius:4,padding:12,fontSize:17,lineHeight:24,textAlignVertical:'top'},
+ text:{fontFamily:fonts.ui,color:'#d4ced2',fontSize:14,lineHeight:22},label:{...type.label,marginTop:4},small:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,textAlign:'center'},
+ stars:{flexDirection:'row',gap:6},star:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center'},starText:{fontSize:30,color:'#7f767c'},
+ input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:'rgba(8,5,9,.75)',borderColor:'rgba(178,34,58,.4)',borderWidth:1,borderRadius:4,padding:12,fontSize:17,lineHeight:24,textAlignVertical:'top'},
  error:{fontFamily:fonts.ui,color:colors.danger,fontSize:13,lineHeight:20},
 });

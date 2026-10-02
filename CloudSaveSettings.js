@@ -21,17 +21,17 @@ export function CloudSaveSettings({onRestore,busy}){
   <View dataSet={{qb:'plate'}} style={st.codeBox}><Text selectable style={st.code}>{showCode(s.code)}</Text><Text style={st.saved}>{!s.enabled?'Off':s.savedAt?'Saved '+new Date(s.savedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Not saved yet'}</Text></View>
   <Toggle value={s.enabled} onChange={async v=>setS(await setCloudSettings({enabled:v}))} label="Save to the host PC" description="Keep a copy a few seconds after you play."/>
   <Text style={[st.body,{marginTop:12}]}>Restore from another device's code (your current hero is set aside under Heroes first):</Text>
-  <View style={st.row}><TextInput value={code} onChangeText={setCode} autoCapitalize="characters" autoCorrect={false} maxLength={16} placeholder="XXXX-XXXX-XXXX" placeholderTextColor="#7f889c" accessibilityLabel="Recovery code" style={st.input}/><GameButton icon="cloud" label={working?'Restoring…':'Restore'} disabled={busy||working} onPress={restore} style={{marginTop:0}}/></View>
+  <View style={st.row}><TextInput value={code} onChangeText={setCode} autoCapitalize="characters" autoCorrect={false} maxLength={16} placeholder="XXXX-XXXX-XXXX" placeholderTextColor="#938890" accessibilityLabel="Recovery code" style={st.input}/><GameButton icon="cloud" label={working?'Restoring…':'Restore'} disabled={busy||working} onPress={restore} style={{marginTop:0}}/></View>
   {!!message&&<Text accessibilityLiveRegion="polite" style={st.message}>{message}</Text>}
  </View>;
 }
 const st=StyleSheet.create({
  panel:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginBottom:18},
- body:{fontFamily:fonts.ui,color:'#c9ced9',fontSize:13.5,lineHeight:21,marginBottom:8},
- codeBox:{flexDirection:'row',flexWrap:'wrap',alignItems:'baseline',justifyContent:'space-between',gap:8,padding:14,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.9)',marginBottom:8},
+ body:{fontFamily:fonts.ui,color:'#d4ced2',fontSize:13.5,lineHeight:21,marginBottom:8},
+ codeBox:{flexDirection:'row',flexWrap:'wrap',alignItems:'baseline',justifyContent:'space-between',gap:8,padding:14,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.35)',backgroundColor:'rgba(31,24,32,.9)',marginBottom:8},
  code:{fontFamily:fonts.display,fontWeight:'700',fontSize:22,letterSpacing:3,color:colors.goldBright},
  saved:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
  row:{flexDirection:'row',flexWrap:'wrap',gap:8,alignItems:'center'},
- input:{flexGrow:1,minWidth:180,fontFamily:fonts.display,fontSize:17,letterSpacing:2,color:'#f5efe1',backgroundColor:'rgba(4,6,10,.75)',borderColor:'rgba(201,164,92,.4)',borderWidth:1,borderRadius:3,paddingHorizontal:14,paddingVertical:11},
+ input:{flexGrow:1,minWidth:180,fontFamily:fonts.display,fontSize:17,letterSpacing:2,color:'#f5efe1',backgroundColor:'rgba(8,5,9,.75)',borderColor:'rgba(178,34,58,.4)',borderWidth:1,borderRadius:3,paddingHorizontal:14,paddingVertical:11},
  message:{fontFamily:fonts.ui,color:'#ffd49a',fontSize:13,marginTop:8},
 });

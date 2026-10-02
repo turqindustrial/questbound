@@ -5,7 +5,7 @@ import {displayState} from './fullscreen';
 import {playSound} from './audio';
 import Icon from './Icon';
 import {fonts,colors} from './theme';
-// Screen-wide moments laid over the game: a red pulse when you are hit, a gold flare on a critical, a banner sweeping in
+// Screen-wide moments laid over the game: a red pulse when you are hit, a violet flare on a critical, a banner sweeping in
 // for each new round, and title cards for victory, defeat and a level gained. Flashes never take input; a title card
 // can be tapped away and leaves by itself after a few seconds.
 const web=Platform.OS==='web';
@@ -45,7 +45,7 @@ export default function CinematicLayer({levelReady=false}){
     {!!area.sub&&<Text style={s.areaSub}>{area.sub}</Text>}
    </View>
   </View>}
-  {!!card&&<Pressable key={finale.id} accessibilityRole="button" accessibilityLabel={card.title+'. Tap to continue.'} onPress={dismiss} dataSet={{qb:'finale'}} style={[StyleSheet.absoluteFill,s.center,{backgroundColor:dark?'rgba(10,2,2,.84)':'rgba(4,5,8,.78)'}]}>
+  {!!card&&<Pressable key={finale.id} accessibilityRole="button" accessibilityLabel={card.title+'. Tap to continue.'} onPress={dismiss} dataSet={{qb:'finale'}} style={[StyleSheet.absoluteFill,s.center,{backgroundColor:dark?'rgba(10,2,2,.84)':'rgba(7,5,7,.78)'}]}>
    <View dataSet={{qb:'finale-burst',tone:dark?'dark':'gold'}} style={s.burst}/>
    {!dark&&<View dataSet={{qb:'rays-spin'}} style={s.burst}/>}
    <View dataSet={{qb:'finale-card'}} style={s.card}>
@@ -54,7 +54,7 @@ export default function CinematicLayer({levelReady=false}){
     <Text dataSet={{qb:dark?undefined:'title',sheen:'on',lig:'off'}} style={[s.title,{fontSize:fit(card.title,width,56,.78),lineHeight:Math.round(fit(card.title,width,56,.78)*1.25)},dark&&{color:'#f0c6b8'}]}>{card.title}</Text>
     <View style={[s.rule,dark&&{backgroundColor:'rgba(220,90,70,.6)'}]}/>
     {!!card.sub&&<Text style={s.sub}>{card.sub}</Text>}
-    {finale.kind==='victory'&&levelReady&&<View dataSet={{qb:'btn-primary'}} style={s.reward}><Icon name="star" size={14} color="#2a1a07"/><Text style={s.rewardText}>A new level awaits</Text></View>}
+    {finale.kind==='victory'&&levelReady&&<View dataSet={{qb:'btn-primary'}} style={s.reward}><Icon name="star" size={14} color="#ffeef0"/><Text style={s.rewardText}>A new level awaits</Text></View>}
     <Text style={s.tap}>Tap to continue</Text>
    </View>
   </Pressable>}
@@ -63,26 +63,26 @@ export default function CinematicLayer({levelReady=false}){
 // Largest size (up to max) at which a title fits the screen width on one line, roughly.
 const fit=(text,width,max,em)=>Math.max(26,Math.min(max,Math.floor((width-48)/Math.max(4,String(text).length*em))));
 const s=StyleSheet.create({
- burst2:{fontFamily:fonts.display,fontWeight:'800',color:colors.goldBright,letterSpacing:2,textAlign:'center',...(web?{textShadow:'0 0 28px rgba(236,170,84,.9),0 3px 0 rgba(40,20,4,.9)'}:{})},
+ burst2:{fontFamily:fonts.display,fontWeight:'800',color:colors.goldBright,letterSpacing:2,textAlign:'center',...(web?{textShadow:'0 0 28px rgba(230,48,82,.9),0 3px 0 rgba(37,7,12,.9)'}:{})},
  area:{alignItems:'center',paddingHorizontal:40,paddingVertical:34,maxWidth:'100%'},
- areaOver:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:'#e2c890',textTransform:'uppercase',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
+ areaOver:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:'#d26d7a',textTransform:'uppercase',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
  areaTitle:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',letterSpacing:3,marginTop:6},
  areaRule:{flexDirection:'row',alignItems:'center',gap:10,width:280,maxWidth:'80%',marginVertical:10},areaLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
- areaSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,color:'#eadfc6',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
+ areaSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,color:'#e1d4cf',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
  // box-none must live in StyleSheet.create: react-native-web only polyfills it for compiled styles, and an inline
  // 'box-none' is invalid CSS that leaves this full-screen layer catching every tap.
  layer:{zIndex:60,pointerEvents:'box-none'},none:{pointerEvents:'none'},center:{alignItems:'center',justifyContent:'center'},
  band:{width:'100%',paddingVertical:18,alignItems:'center',gap:6},
- bandRule:{width:'46%',maxWidth:420,height:1,backgroundColor:'rgba(232,199,123,.75)'},
- bandTitle:{fontFamily:fonts.display,fontSize:34,fontWeight:'800',color:colors.goldBright,textTransform:'uppercase',letterSpacing:8,textAlign:'center',...(web?{textShadow:'0 0 24px rgba(236,170,84,.6)'}:{})},
- bandSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,color:'#e9dcbd'},
+ bandRule:{width:'46%',maxWidth:420,height:1,backgroundColor:'rgba(224,74,92,.75)'},
+ bandTitle:{fontFamily:fonts.display,fontSize:34,fontWeight:'800',color:colors.goldBright,textTransform:'uppercase',letterSpacing:8,textAlign:'center',...(web?{textShadow:'0 0 24px rgba(230,48,82,.6)'}:{})},
+ bandSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,color:'#decfc8'},
  burst:{position:'absolute',width:900,height:900,borderRadius:450,pointerEvents:'none'},
  card:{alignItems:'center',paddingHorizontal:28,maxWidth:520},
- emblem:{width:76,height:76,borderRadius:38,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,10,6,.8)',marginBottom:14},
+ emblem:{width:76,height:76,borderRadius:38,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,6,7,.8)',marginBottom:14},
  over:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase'},
  title:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,letterSpacing:4,textAlign:'center',marginVertical:4},
- rule:{width:180,height:1,backgroundColor:'rgba(232,199,123,.7)',marginVertical:10},
- sub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:19,lineHeight:27,color:'#eadfc6',textAlign:'center'},
- reward:{flexDirection:'row',alignItems:'center',gap:8,marginTop:16,paddingHorizontal:16,paddingVertical:8,borderRadius:18,borderWidth:1,borderColor:'#fff0c4',backgroundColor:'#d9ae5f'},rewardText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#2a1a07',textTransform:'uppercase'},
+ rule:{width:180,height:1,backgroundColor:'rgba(224,74,92,.7)',marginVertical:10},
+ sub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:19,lineHeight:27,color:'#e1d4cf',textAlign:'center'},
+ reward:{flexDirection:'row',alignItems:'center',gap:8,marginTop:16,paddingHorizontal:16,paddingVertical:8,borderRadius:18,borderWidth:1,borderColor:'#f06e80',backgroundColor:'#9e1b32'},rewardText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#ffeef0',textTransform:'uppercase'},
  tap:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.faint,textTransform:'uppercase',marginTop:18},
 });

@@ -42,14 +42,14 @@ export default function HeroRoster({roster,graves,onPlay,onRetire,busy,compact})
 }
 const s=StyleSheet.create({
  note:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20,marginBottom:10},
- card:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:16,padding:16,marginBottom:10,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.3)',backgroundColor:'rgba(20,25,36,.9)'},
+ card:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:16,padding:16,marginBottom:10,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.3)',backgroundColor:'rgba(31,24,32,.9)'},
  name:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:19,letterSpacing:.6},
- line:{fontFamily:fonts.ui,color:'#c9ced9',fontSize:13,marginTop:2},
- story:{fontFamily:fonts.story,fontStyle:'italic',color:'#dfd2b4',fontSize:15,marginTop:4},
+ line:{fontFamily:fonts.ui,color:'#d4ced2',fontSize:13,marginTop:2},
+ story:{fontFamily:fonts.story,fontStyle:'italic',color:'#d4c5bf',fontSize:15,marginTop:4},
  date:{fontFamily:fonts.ui,color:colors.faint,fontSize:11.5,marginTop:4},
  buttons:{gap:8,flexGrow:1,minWidth:170,maxWidth:260},button:{marginTop:0},
  buttonsCompact:{flexDirection:'row',flexBasis:'100%',maxWidth:'100%'},buttonCompact:{flex:1,minWidth:0,paddingHorizontal:8},
- grave:{flexDirection:'row',gap:12,alignItems:'flex-start',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(201,164,92,.15)'},
+ grave:{flexDirection:'row',gap:12,alignItems:'flex-start',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(178,34,58,.15)'},
  graveName:{fontFamily:fonts.display,fontWeight:'700',color:'#cfc6b3',fontSize:15},graveLine:{fontFamily:fonts.ui,fontWeight:'400',color:colors.muted,fontSize:12.5},
  graveCause:{fontFamily:fonts.story,fontStyle:'italic',color:'#bdb3a0',fontSize:14.5,marginTop:2},
 });

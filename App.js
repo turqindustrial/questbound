@@ -31,7 +31,7 @@ import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, useWin
 import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
 import {fonts,colors,type} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
-import HomeScreen from './HomeScreen';
+import HomeScreen,{homeLayout,titleArt} from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
@@ -57,8 +57,9 @@ import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './roster
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import FeedbackSheet from './Feedback';
 import {useVisualViewport} from './webLayout';
-// The title painting: a wide landscape, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
-const titleArt=require('./assets/title/questbound-title.jpg');
+// The title paintings: four heroes against a lich, wide for a computer or a phone on its side (dark on the left,
+// where the menu sits) and tall for an upright phone (see assets/title/ART-NOTES.md).
+const titleWide=require('./assets/title/questbound-title-wide.jpg'),titleTall=require('./assets/title/questbound-title-tall.jpg');
 
 export default function App(){return <SceneTransitionProvider><QuestboundApp/></SceneTransitionProvider>;}
 function QuestboundApp() {
@@ -307,12 +308,15 @@ function QuestboundApp() {
     where:[game.story?placeName(game,mapLocation(game)):null,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating',dying:'while dying',dead:'after dying'}[game.stage]].filter(Boolean).join(', ')};
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=!!saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
-  const home=screen==='Home'&&!inGame,wideHome=home&&windowWidth>=860&&windowHeight>=560;
+  // The title screen's shape decides which painting is shown and how it is framed (see titleArt).
+  const homeShape=homeLayout(windowWidth,windowHeight),art=titleArt(windowWidth,windowHeight);
+  const home=screen==='Home'&&!inGame,wideHome=home&&homeShape.wide;
+  useEffect(()=>{if(typeof document==='undefined')return;const set=(name,value)=>document.documentElement.style.setProperty('--qb-title-'+name,value+'px');set('top',art.top);set('size',art.size);set('edge',art.edge);set('fade',art.fade);},[art.top,art.size,art.edge,art.fade]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
-    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titleArt} dataSet={{qb:'backdrop',frame:compact||windowWidth<windowHeight?'tall':'wide'}} resizeMode="cover" style={s.backdrop}/>}
-    <View dataSet={{qb:inGame?'atmosphere-game':home?(wideHome?'atmosphere-home':'atmosphere-home-narrow'):'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?'rgba(5,10,16,.35)':home?'rgba(6,8,12,.45)':'rgba(6,8,12,.72)'}]}/>
+    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image key={art.frame==='tall'?'tall':'wide'} source={art.frame==='tall'?titleTall:titleWide} dataSet={{qb:'backdrop',frame:art.frame}} resizeMode="cover" style={s.backdrop}/>}
+    <View dataSet={{qb:inGame?'atmosphere-game':home?(wideHome?'atmosphere-home':'atmosphere-home-narrow'):'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?'rgba(13,7,14,.35)':home?'rgba(10,7,11,.45)':'rgba(10,7,11,.72)'}]}/>
     {!inGame&&<View dataSet={{qb:'rays'}} style={StyleSheet.absoluteFillObject}/>}
     <View dataSet={{qb:'fog'}} style={StyleSheet.absoluteFillObject}/>
     <View dataSet={{qb:'vignette',home:home?'on':'off'}} style={StyleSheet.absoluteFillObject}/>
@@ -449,7 +453,7 @@ const s = StyleSheet.create({
   heroEyebrow:{marginBottom:18,textAlign:'center'},
   logo:{fontFamily:fonts.logo,fontSize:76,fontWeight:'900',letterSpacing:6,color:colors.gold,textAlign:'center',lineHeight:92},
   heroRule:{width:'72%',maxWidth:380,alignSelf:'center',marginVertical:12},
-  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:'#e9dcbd',textAlign:'center',letterSpacing:.5},
+  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:'#decfc8',textAlign:'center',letterSpacing:.5},
   header:{alignItems:'center',marginBottom:22},
     logoMedium:{fontFamily:fonts.logo,fontSize:40,fontWeight:'900',letterSpacing:4,color:colors.gold,textAlign:'center'},
   logoSmall:{fontFamily:fonts.logo,fontSize:24,fontWeight:'900',letterSpacing:3,color:colors.gold},
@@ -477,19 +481,19 @@ const s = StyleSheet.create({
   hudMax:{fontSize:13,color:colors.muted,fontWeight:'400'},
   hudTemp:{fontSize:12,color:colors.arcane},
   quickTabs:{flexDirection:'row',gap:8,marginBottom:8,flexWrap:'wrap'},
-  quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:'rgba(201,164,92,.4)',backgroundColor:'rgba(20,25,36,.9)',justifyContent:'center'},
-  quickTabText:{fontFamily:fonts.display,color:'#ecdcb8',fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+  quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:'rgba(178,34,58,.4)',backgroundColor:'rgba(31,24,32,.9)',justifyContent:'center'},
+  quickTabText:{fontFamily:fonts.display,color:'#dfcdc5',fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
   quickGlyph:{color:colors.gold},
   tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,208,196,.35)',marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:'#9fe3d8',fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:'#ffd49a',fontSize:13,lineHeight:19},
   saveStatus:{fontFamily:fonts.ui,color:colors.goldMid,fontSize:12,letterSpacing:.4,marginBottom:16},
   error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
-  note:{fontFamily:fonts.ui,color:'#d9bd84',fontSize:13,lineHeight:20,marginBottom:18},
-  footer:{fontFamily:fonts.display,color:'rgba(201,164,92,.55)',fontSize:10,letterSpacing:2.4,textAlign:'center',marginTop:30},
+  note:{fontFamily:fonts.ui,color:'#c9aab2',fontSize:13,lineHeight:20,marginBottom:18},
+  footer:{fontFamily:fonts.display,color:'rgba(178,34,58,.55)',fontSize:10,letterSpacing:2.4,textAlign:'center',marginTop:30},
   quickEyebrow:{marginTop:4,marginBottom:10},
   feedbackLink:{alignSelf:'center',marginTop:12,minHeight:44,paddingHorizontal:12,justifyContent:'center'},feedbackText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
-  about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.2)'},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},
-  backChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,paddingLeft:10,paddingRight:16,borderRadius:20,borderWidth:1,borderColor:'rgba(201,164,92,.45)',backgroundColor:'rgba(12,16,24,.8)',justifyContent:'center'},
-  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},emblem:{width:34,height:34,borderRadius:17,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,10,6,.7)'},emblemQ:{fontFamily:fonts.logo,fontSize:19,fontWeight:'900',color:colors.gold,marginTop:-2},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+  about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:'rgba(178,34,58,.2)'},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},
+  backChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,paddingLeft:10,paddingRight:16,borderRadius:20,borderWidth:1,borderColor:'rgba(178,34,58,.45)',backgroundColor:'rgba(20,15,21,.8)',justifyContent:'center'},
+  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},emblem:{width:34,height:34,borderRadius:17,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,6,7,.7)'},emblemQ:{fontFamily:fonts.logo,fontSize:19,fontWeight:'900',color:colors.gold,marginTop:-2},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
 });
 
 

@@ -26,10 +26,10 @@ export function AudioSettings(){
   <Toggle value={a.muted} onChange={muted=>setAudio({muted})} label="Mute all sound" description="Silences music, ambience and effects on this device."/>
  </View>;
 }
-const s=StyleSheet.create({toggle:{paddingHorizontal:12,paddingVertical:8,minHeight:36,borderRadius:18,borderWidth:1,borderColor:'rgba(201,164,92,.4)',backgroundColor:'rgba(12,16,24,.8)',justifyContent:'center'},toggleRow:{flexDirection:'row',alignItems:'center',gap:6},toggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.2,textTransform:'uppercase'},
+const s=StyleSheet.create({toggle:{paddingHorizontal:12,paddingVertical:8,minHeight:36,borderRadius:18,borderWidth:1,borderColor:'rgba(178,34,58,.4)',backgroundColor:'rgba(20,15,21,.8)',justifyContent:'center'},toggleRow:{flexDirection:'row',alignItems:'center',gap:6},toggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.2,textTransform:'uppercase'},
  panel:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginBottom:18,gap:12},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20},
  row:{gap:8},rowHead:{flexDirection:'row',alignItems:'center',gap:7},label:{...type.label},
- options:{flexDirection:'row',gap:4,padding:3,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.25)'},
- option:{flex:1,minWidth:0,minHeight:40,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent',justifyContent:'center',alignItems:'center'},optionOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
+ options:{flexDirection:'row',gap:4,padding:3,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.25)'},
+ option:{flex:1,minWidth:0,minHeight:40,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent',justifyContent:'center',alignItems:'center'},optionOn:{borderColor:'rgba(224,74,92,.55)',backgroundColor:'rgba(48,26,78,.9)'},
  optionText:{fontFamily:fonts.display,color:colors.muted,fontSize:12,fontWeight:'700',letterSpacing:1,textTransform:'uppercase'},
 });
