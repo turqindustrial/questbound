@@ -1,17 +1,20 @@
 // Fight balance: every ready-made hero, at levels 1, 3 and 5, against every creature template, many times over, with a
 // plain tactic (swing the main weapon or throw a damaging cantrip; drink a draught or heal when low). Prints the win
 // rate, how often the hero falls, fight length and HP left, and flags fights that look deadly or trivial. Plain Node,
-// no AI calls. Options: --fights N (default 200 per cell), --levels 1,3,5, --quiet (flags only).
+// no AI calls. Options: --fights N (default 200 per cell), --levels 1,3,5, --foe key (one creature, or "story" for a
+// written story's main foe), --quiet (flags only).
 const fs=require('fs'),vm=require('vm');
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','skillRules.js','followerRules.js','adventureStorage.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+// A written story's main foe, alongside the creature templates.
+const storyFoe={key:'story',foe:'Story Foe',species:'Unknown',type:'Slashing',appearance:'The main foe of a written story.',story:true};
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
 const fights=Math.max(10,Number(arg('--fights',200))||200),levels=String(arg('--levels','1,3,5')).split(',').map(Number).filter(n=>n>=1&&n<=20),quiet=process.argv.includes('--quiet');
 const heroAt=(entry,level)=>r.makeCharacter({...r.blankBuild(),...entry.form,level,advancements:[],spellSelectionVersion:2});
 // The same camp as the Random hostile encounter, with the chosen creature in place of the random one.
 function fightWith(hero,f){
- const g=r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stats=r.foeStatsFor(f,hero.level);
+ const g=r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stats=f.story?r.storyFoeStats(hero.level,f.type):r.foeStatsFor(f,hero.level);
  return {...g,story:{...g.story,id:'hostile-encounter-'+f.key,title:'Balance: '+f.foe,foe:f.foe,foeSpecies:f.species,foeAppearance:f.appearance,foeDamageType:f.type,foeStats:stats},enemyHP:stats.maximum};
 }
 // A plain player: heal or drink when low, spend spell slots on the strongest simple spell while they last, then
@@ -28,11 +31,11 @@ function choose(hero,g,h,max){
  if(hero.class==='Wizard')return cast('I cast Magic Missile at the '+foe)??cast('I cast Fire Bolt at the '+foe)??weapon();
  return weapon();
 }
-const flags=[],problems=new Set();
+const flags=[],problems=new Set(),only=arg('--foe',null);
 for(const entry of r.readyHeroes)for(const level of levels){
  const hero=heroAt(entry,level);if(!hero){problems.add(entry.form.name+' could not be built at level '+level);continue;}
  const max=r.combatBasics(hero).hp,row=[];
- for(const f of r.hostileFoes){
+ for(const f of [...r.hostileFoes,storyFoe].filter(f=>!only||f.key===only)){
   let wins=0,falls=0,rounds=0,hpLeft=0;
   for(let n=0;n<fights;n++){
    let g=fightWith(hero,f),h=null,t=0;

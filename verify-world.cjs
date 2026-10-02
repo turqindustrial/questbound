@@ -12,7 +12,10 @@ const discover=(game,place,travel=true)=>r.adventureStep(game,hp,hero,{type:'dis
 // Reveal a place without going there: it joins the map, linked to camp.
 const ridge={name:'Thornback Ridge',description:'A spine of wind-scoured rock above the road, crowned by a broken cairn.',kind:'mountain',bearing:'N',miles:2};
 let found=discover(g,ridge,false);assert.equal(found.error,undefined);
-assert.equal(found.game.stage,'inn');same(found.game.world.places[0],{id:'p1',name:'Thornback Ridge',description:ridge.description,kind:'mountain',x:0,y:10560,from:'inn'});
+// The place lies two miles off, north give or take a little (never dead on the compass point), the same every time.
+const spot=found.game.world.places[0];same({...spot,x:0,y:0},{id:'p1',name:'Thornback Ridge',description:ridge.description,kind:'mountain',x:0,y:0,from:'inn'});
+assert.ok(Math.abs(Math.hypot(spot.x,spot.y)-10560)<=2,'Two miles away');assert.ok(spot.y>10560*Math.cos(.31)&&Math.abs(spot.x)<10560*Math.sin(.31)+1,'Roughly north');same(discover(g,ridge,false).game.world.places[0],spot,'The same place every time');
+assert.equal(found.game.stage,'inn');
 assert.equal(found.events[0],'You learn the way to Thornback Ridge, 2 miles N of Caravan Camp.');assert.ok(valid(found.game));assert.equal(found.game.journal.entries.at(-1).title,'Learned of Thornback Ridge');
 // Travel there: time passes by distance and the hero is "in the wild" at that place.
 let trip=r.adventureStep(found.game,hp,hero,{type:'travel',destination:'p1'},()=>0.5);
@@ -23,7 +26,7 @@ const cave={name:'Hollow of Teeth',description:'A cave mouth fringed with icicle
 let deeper=discover(trip.game,cave);assert.equal(deeper.error,undefined);
 assert.equal(deeper.game.world.at,'p2');assert.equal(deeper.game.world.places[1].from,'p1');assert.equal(deeper.events.length,2);assert.ok(valid(deeper.game));
 // The way home follows the paths (cave → ridge → camp), not a straight line.
-same(r.travelRoute(deeper.game,'p2','inn'),{feet:18480,minutes:62});
+{const way=r.travelRoute(deeper.game,'p2','inn');assert.ok(Math.abs(way.feet-18480)<=3);assert.equal(way.minutes,62);}
 const home=r.adventureStep(deeper.game,hp,hero,{type:'travel',destination:'inn'},()=>0.5);
 assert.equal(home.game.stage,'inn');assert.equal(home.game.world.at,null);assert.ok(home.game.log[0].startsWith('You travel to Caravan Camp. 3.5 miles'));assert.ok(valid(home.game));
 // Choices and quick actions offer known places; the DM sees the region.

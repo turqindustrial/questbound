@@ -60,6 +60,8 @@ export const iconPaths={
  transfer:{glyph:'⇄',svg:'<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>'},
  play:{glyph:'▶',svg:'<path d="M8 5l11 7-11 7z"/>'},
  bag:{glyph:'◰',svg:'<path d="M6 8h12l1.2 12.5H4.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/><path d="M9 12h6" opacity=".55"/>'},
+ armor:{glyph:'♜',svg:'<path d="M8 3.5 5 5.5l1 5-1 2v6.5l7 2 7-2v-6.5l-1-2 1-5-3-2c-1 1.6-2.4 2.4-4 2.4S9 5.1 8 3.5z"/><path d="M12 5.9v15.1M7.6 14h8.8" opacity=".5"/>'},
+ hand:{glyph:'✋',svg:'<path d="M8 12V6.2a1.3 1.3 0 0 1 2.6 0V11"/><path d="M10.6 10.5V4.8a1.3 1.3 0 0 1 2.6 0v5.7"/><path d="M13.2 10.8V6a1.3 1.3 0 0 1 2.6 0v6"/><path d="M15.8 12V8.6a1.3 1.3 0 0 1 2.6 0V15c0 3.3-2.5 6-5.8 6h-1c-2.2 0-3.6-1-4.8-2.8l-2.9-3.8a1.4 1.4 0 0 1 2.3-1.5L8 14.6"/>'},
  coin:{glyph:'◎',svg:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5" opacity=".55"/><path d="M12 9.5v5" opacity=".8"/>'},
  book:{glyph:'✧',svg:'<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15.5H6.5A1.5 1.5 0 0 0 5 20z"/><path d="M5 20a1.5 1.5 0 0 0 1.5 1.5H19"/><path d="M12 6.5c.3 2 1 2.8 3 3.1-2 .3-2.7 1.1-3 3.1-.3-2-1-2.8-3-3.1 2-.3 2.7-1.1 3-3.1z"/>'},
  sun:{glyph:'☼',svg:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>'},

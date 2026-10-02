@@ -24,6 +24,7 @@ import {playSound} from './audio';
 import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemory';
 import {touchKeyboard} from './webLayout';
 import {combatBasics} from './combatRules';
+import ActionGuide from './ActionGuide';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;
@@ -86,7 +87,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
   useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined)setAnimateId(lastTurnId);seenTurn.current=lastTurnId;},[lastTurnId]);
   // Each new turn brings the action row back to its first (main) action.
-  const actionScroll=useRef(null),[spellsOpen,setSpellsOpen]=useState(false);
+  const actionScroll=useRef(null),[spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false);
   // A one-time "How to play" card for new players; dismissed once per device.
   const [tips,setTips]=useState(()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}});
   const dismissTips=()=>{setTips(false);try{globalThis.localStorage?.setItem('questbound.tips.v1','seen');}catch{}};
@@ -161,7 +162,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       }
       if(protocol>=3&&body.check){
         const action={type:'ai-check',check:body.check},dice=[];
-        const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null},()=>{const value=Math.random();dice.push(value);return value;});
+        const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
         let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce},undefined,()=>dice[index++]??0.5);return;
@@ -219,6 +220,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {!!a.detail&&<PlainText style={s.actionDetail}>{a.detail}</PlainText>}
     {!compact&&i<9&&<KeyHint dark={lead}>{i+1}</KeyHint>}
   </Pressable>;});
+  // The guide: what every action (or spell) in the row does, one tap away.
+  if(actions.length)actionChips.push(<Pressable key="guide" accessibilityRole="button" accessibilityLabel={spellsOpen?'What these spells do':'What these actions do'} onPress={()=>{playSound('open');setGuide(true);}} dataSet={{qb:'chip'}} style={[s.action,{paddingHorizontal:11}]}><Icon name="info" size={16} color={colors.gold}/></Pressable>);
   const extraChips=[...effects.map(line=><View key={'effect:'+line} style={s.effectChip}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
     ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/><PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText></View></Pressable>)];
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
@@ -257,6 +260,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
     {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {!typing&&actionBar}
+    <ActionGuide visible={guide} onClose={()=>setGuide(false)} actions={actions} hero={hero} game={game} spells={spellsOpen} disabled={actionsDisabled} onRun={runAction}/>
     {direct&&<View style={s.directNote}><Icon name="speak" size={13} color={colors.goldBright}/><PlainText style={s.directText}>{compact?'Out of character: the story waits.':'Out of character. Ask about a ruling, or say what went wrong or what you meant to do: the story waits, and the Dungeon Master can take your last turn back.'}</PlainText></View>}
     <View style={s.composer}>{dmSwitch}{composer}{sendButton}</View>
     {!!error&&<View accessibilityRole="alert" style={s.errorRow}><Icon name="info" size={15} color={colors.danger}/><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text></View>}

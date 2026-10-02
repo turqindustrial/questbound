@@ -6,7 +6,7 @@ import {validPeople} from './relationshipRules';
 import {validDungeon} from './dungeonRules';
 import {validCampaign} from './campaignRules';
 import {validMap} from './mapRules';
-import {validJournal} from './journalRules';
+import {validJournal,validStoryLog} from './journalRules';
 import {validDeathState} from './deathRules';
 import {validWildFight,validCombatExtras} from './encounterRules';
 import {validPack} from './inventoryRules';
@@ -36,6 +36,8 @@ export function validAdventure(value,hero) {
     && (g.actionUsed===undefined || (g.actionUsed===true && g.stage==='combat'))
     && (g.dodging===undefined || (g.dodging===true && g.actionUsed===true))
     && (g.shortRests===undefined || integerBetween(g.shortRests,0,3))
+    && validStoryLog(g.storyLog)
+    && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z ]{2,29}$/.test(g.wield)))
     && (g.openingAttackAvailable===undefined || typeof g.openingAttackAvailable==='boolean')
     && (g.encounterInitiative===undefined || (g.encounterInitiative&&integerBetween(g.encounterInitiative.player,-10,50)&&integerBetween(g.encounterInitiative.foe,-10,50)))
     && (g.resources===undefined || (g.resources!==null && typeof g.resources==='object' && !Array.isArray(g.resources) && Object.entries(g.resources).every(([key,n])=>['slots','wind','hands'].includes(key) && integerBetween(n,0,key==='hands'?5*hero.level:key==='wind'?4:4))))

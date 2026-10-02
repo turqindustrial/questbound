@@ -26,6 +26,12 @@ The full published class chapters are needed to verify non-SRD mechanics before 
 
 A turn in a creature fight is one action and one bonus action. Bonus actions: a healing draught (2024 rules), Second Wind, Lay on Hands, a Monk's Martial Arts strike and bonus-action spells. After the action the turn waits for a bonus action or End turn whenever one is worth offering. Short rests follow Baldur's Gate 3: two between long rests (three for a Bard of level 2 or more), each restoring half the hero's and each following companion's hit points, Second Wind and a Warlock's slots. A long rest restores hit points, slots, features and short rests and leaves the rest of the adventure untouched. Not yet covered: Action Surge, hit dice, reactions on a foe's turn, and bonus actions in brawls with people (those keep the simpler one-move turn with Wait).
 
+## Lands, reactions and the story's foe (2026-10-02)
+
+- Each story has its own geography, land name and terrain; far journeys open new regions with their own maps. Long roads are walked eight hours a day, so 140 miles takes about five days.
+- People take to the hero's species in their own ways (kin, warm, curious, indifferent, wary, scornful). Persuasion, Deception and Performance aimed at someone gain +2 (kin or warm) or lose 2 (wary) or 3 (scornful) until that person is friendly, bonded or holds a grudge. This is a house rule, not a 2024 rule.
+- A written story's main foe has its own stat block from the start: 18 HP, AC 12, +3 to hit, 1d6+1 at level 1, growing with the hero's level, with the damage type the story gives it. In simulation the four ready-made heroes win 81 to 95% of these fights at level 1; a Rogue of level 5 wins about two in three (Sneak Attack is still not implemented).
+
 ## Fight balance (2026-10-01)
 
 `node balance-check.cjs` simulates every ready-made hero at levels 1, 3 and 5 against every creature template with a plain tactic (main weapon or the strongest simple spell, a draught or a heal when low) and flags fights under 35% or over 97% wins. The creature curve in `foeStatsFor` was softened from it: HP grows 45% per level (30% for packs, whose every member attacks) instead of 80%, and attack and damage bonuses rise every third level instead of every second. Before, a level-3 rogue beat a bandit 63% of the time and a level-5 rogue 24%; now 94% and 87%. Known gap: Sneak Attack is not implemented, so rogues stay weakest against the orc and packs. Heroes under 12 HP at levels 1–2 are never given a pack or the orc in the Random hostile encounter.

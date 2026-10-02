@@ -629,7 +629,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       next.stage = hp.current > 0 ? 'combat' : 'defeat';
       next.openingAttackAvailable = true;
       delete next.encounterInitiative;
-      entries.push('A Lantern Wisp rises from the broken lamp. While it gathers itself, you have the first move.');
+      // A written story's foe is met in its own words; the crossroads wisp keeps its lamp.
+      entries.push(game.story ? (foe.group ? 'The ' + foe.group.plural + ' are upon you. While they gather themselves, you have the first move.' : 'The ' + game.story.foe + ' is upon you. While it gathers itself, you have the first move.') : 'A Lantern Wisp rises from the broken lamp. While it gathers itself, you have the first move.');
     } else if (game.stage === 'combat') {
       if (hp.current === 0) return {
         game: {

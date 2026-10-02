@@ -1,5 +1,6 @@
-import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation} from './npcRules';
+import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders} from './npcRules';
 import {appendJournal,journalForGame} from './journalRules';
+import {seededRandom} from './mapRules';
 // How each named character feels about the player, and why. Attitudes run from hostile to devoted; deeds move them.
 // Two marks are permanent: a grudge (the player killed or gravely harmed someone who matters to them, so they stay
 // hostile whatever happens) and a bond (the player saved their life or someone who matters to them, so they never
@@ -87,6 +88,58 @@ export function recordConsequences(before,after){
  }
  return {game,lines};
 }
+// ---------- How people take to the hero's kind ----------
+// Everyone has a view of the hero's species before a word is said: kin (one of their own), warm, curious,
+// indifferent, wary or scornful, with a reason. The story writer or the Dungeon Master may give it (regard on the
+// character); otherwise it is drawn from who they are and how that species is commonly seen, the same way every
+// time. It sets the first impression (how they feel on meeting) and sways attempts to win them over with words;
+// deeds still move people as before, and someone the hero has won over stops holding their kind against them.
+export const regardStances=['kin','warm','curious','indifferent','wary','scornful'];
+export const validRegard=r=>r===undefined||(!!r&&typeof r==='object'&&regardStances.includes(r.stance)&&typeof r.reason==='string'&&r.reason.length<=200);
+export const speciesPlurals={Human:'humans',Dwarf:'dwarves',Elf:'elves','Dark Elf':'dark elves',Gnome:'gnomes',Goblin:'goblins',Goliath:'goliaths','Half-Elf':'half-elves',Halfling:'halflings',Orc:'orcs',Tiefling:'tieflings',Dragonborn:'dragonborn'};
+export const speciesPlural=species=>{const s=String(species??'').trim();return speciesPlurals[s]??(s?s.toLowerCase()+' folk':'strangers');};
+// How each kind is commonly met by strangers: weights for warm, curious, indifferent, wary, scornful.
+const reputations={Human:[2,1,6,1,0],Dwarf:[3,1,4,2,0],Elf:[2,3,3,2,0],'Dark Elf':[0,2,2,5,1],Gnome:[3,3,3,1,0],Goblin:[0,1,2,5,2],Goliath:[1,4,3,2,0],'Half-Elf':[2,2,5,1,0],Halfling:[4,1,4,1,0],Orc:[0,1,2,5,2],Tiefling:[0,2,2,5,1],Dragonborn:[1,4,2,3,0]};
+const regardReasons={kin:'One of their own kind.',warm:'Has always got on well with {kind}.',curious:'Has met few {kind} and is full of questions.',indifferent:'',wary:'Has heard hard things about {kind} and keeps their guard up.',scornful:'Thinks little of {kind} and does not hide it.'};
+const sameKind=(a,b)=>{const x=String(a??'').toLowerCase(),y=String(b??'').toLowerCase();return !!x&&!!y&&(x===y||x.split(/[^a-z]+/).includes(y)||y.split(/[^a-z]+/).includes(x));};
+export function speciesRegard(game,id,hero){
+ const species=hero?.species??hero?.race??'',kind=speciesPlural(species),written=game?.story?.npcs?.[id]?.regard??game?.people?.[id]?.regard;
+ const lore=game?.story?.npcs?.[id]??game?.people?.[id]??null,name=lore?.name??npcProfiles[id]?.name??id;
+ const made=(stance,reason)=>({stance,reason:(reason&&reason.trim()?reason.trim():regardReasons[stance].replace('{kind}',kind)),species,kind});
+ if(written&&regardStances.includes(written.stance))return made(written.stance,written.reason);
+ if(sameKind(lore?.species,species))return made(species==='Human'?'indifferent':'kin');
+ const weights=reputations[species]??[1,3,4,2,0],random=seededRandom('regard:'+(game?.story?.id??'crossroads')+':'+name+':'+species),total=weights.reduce((a,b)=>a+b,0);
+ let roll=random()*total,index=0;while(index<weights.length-1&&roll>=weights[index]){roll-=weights[index];index++;}
+ return made(['warm','curious','indifferent','wary','scornful'][index]);
+}
+// The first impression a view of the hero's kind makes: where an attitude starts before any deed.
+export const regardAttitude=stance=>stance==='kin'||stance==='warm'?'friendly':stance==='scornful'?'unfriendly':'indifferent';
+// How it sways words (Persuasion, Deception, Performance) aimed at that person, until they are won over.
+export function regardSway(game,id,hero){
+ if(!id||!npcIdsOf(game).includes(id))return {bonus:0,note:''};
+ const m=game.npcMemory?.[id];if(m?.bond||m?.grudge||['friendly','devoted'].includes(m?.attitude)&&!['kin','warm'].includes(speciesRegard(game,id,hero).stance))return {bonus:0,note:''};
+ const r=speciesRegard(game,id,hero),bonus={kin:2,warm:2,curious:0,indifferent:0,wary:-2,scornful:-3}[r.stance];
+ return {bonus,note:bonus?(r.stance==='kin'?'kin':r.stance+' of '+r.kind):''};
+}
+export function regardLabel(r){
+ return r?{kin:'Kin: one of their own',warm:'Fond of '+r.kind,curious:'Curious about '+r.kind,wary:'Wary of '+r.kind,scornful:'Scornful of '+r.kind}[r.stance]??null:null;
+}
+// A new story's two residents meet the hero with their view of the hero's kind already formed.
+export function firstImpressions(game,hero){
+ let memory={...game.npcMemory};
+ for(const id of coreNpcIds){
+  if(memory[id]||!game.story?.npcs?.[id])continue;
+  const r=speciesRegard(game,id,hero),attitude=regardAttitude(r.stance);
+  if(attitude!=='indifferent')memory[id]={attitude,response:responses[attitude],memories:[regardMemory(r)]};
+ }
+ return Object.keys(memory).length?{...game,npcMemory:memory}:game;
+}
+// The first thing someone remembers about the hero when their kind already means something to them.
+export function regardMemory(r){
+ const one=String(r.species||'stranger').toLowerCase(),a=/^[aeiou]/.test(one)?'An ':'A ';
+ const own={kin:'One of my own kind came by: '+a.toLowerCase()+one+'.',warm:a+one+'. I have always got on well with '+r.kind+'.',curious:a+one+'. I have met few '+r.kind+', and I have questions.',wary:a+one+'. I have heard hard things about '+r.kind+', and I am keeping my guard up.',scornful:a+one+'. I think little of '+r.kind+'.'}[r.stance]??a+one+'.';
+ return (r.reason&&!Object.values(regardReasons).some(t=>t.replace('{kind}',r.kind)===r.reason)?a+one+' newcomer. '+r.reason:own).slice(0,300);
+}
 // How a character's standing reads on screen, and its tone (for colour).
 export function attitudeLabel(n){
  if(n?.fate==='dead')return {label:'Dead',tone:'dead'};
@@ -118,7 +171,7 @@ export function canMeetPeople(game){
  const here=sceneLocation(game),people=Object.entries(game.people??{});
  return people.length<maxPeople&&people.filter(([id,p])=>p.home===here&&game.npcFate?.[id]!=='dead').length<maxPeopleHere;
 }
-export function introducePerson(game,sketch){
+export function introducePerson(game,sketch,hero=null){
  if(!game.story||!['inn','bridge','tower','wild'].includes(game.stage)||game.npcCombat?.active||game.wildFight||game.dungeon?.active)return {game,error:'No one new can be met here right now.'};
  const s=sketch??{},name=typeof s.name==='string'?s.name.trim().replace(/\s+/g,' '):'';
  if(!personText(name,2,60)||!personText(s.role,3,200)||!personText(s.appearance,10,400)||!(s.species==null||personText(s.species,0,60))||!(s.personality==null||personText(s.personality,0,200))||!Object.hasOwn(personToughness,s.toughness)||!meetingAttitudes.includes(s.attitude)||!foeTieKinds.includes(s.foe))return {game,error:'The Dungeon Master described someone the game could not use.'};
@@ -134,9 +187,13 @@ export function introducePerson(game,sketch){
  }
  if(!canMeetPeople(game))return {game,error:Object.keys(game.people??{}).length>=maxPeople?'The region already has as many named people as the game can remember.':'This place already has as many named people as the game can show.'};
  const id='n'+(Math.max(0,...Object.keys(game.people??{}).map(k=>Number(k.slice(1))))+1);
- const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{})};
+ // Whether they are a woman or a man (for their portrait), and how they take to the hero's kind, when given.
+ const regard=s.regard&&validRegard(s.regard)&&s.regard.stance!=='indifferent'?{stance:s.regard.stance,reason:s.regard.reason.trim().slice(0,200)}:null;
+ const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{}),...(genders.includes(s.gender)?{gender:s.gender}:{}),...(regard?{regard}:{})};
  let next={...game,people:{...game.people,[id]:person}};
  if(s.attitude!=='indifferent')next.npcMemory={...next.npcMemory,[id]:{attitude:s.attitude,response:responses[s.attitude],memories:[]}};
+ // Met with no feelings either way, their view of the hero's kind makes the first impression.
+ else if(hero){const r=speciesRegard(next,id,hero),first=regardAttitude(r.stance);if(first!=='indifferent')next.npcMemory={...next.npcMemory,[id]:{attitude:first,response:responses[first],memories:[regardMemory(r)]}};}
  const lines=[];
  // Word has reached them: someone dear to them died by the player's hand.
  const lost=s.tie&&game.npcFate?.[s.tie.to]==='dead'&&mattersDeeply(s.tie.kind);
@@ -149,6 +206,6 @@ export function validPeople(game){
  const p=game.people;if(p===undefined)return true;
  if(!p||typeof p!=='object'||Array.isArray(p)||!game.story)return false;
  const ids=Object.keys(p),known=npcIdsOf(game);
- return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,2})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)));})
+ return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,2})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)))&&(x.gender===undefined||genders.includes(x.gender))&&validRegard(x.regard);})
   &&new Set(ids.map(id=>p[id].name.toLowerCase())).size===ids.length;
 }

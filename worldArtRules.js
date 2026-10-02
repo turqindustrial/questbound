@@ -2,12 +2,34 @@ import {mapPlaces,mapLocation,worldPlace,worldPlaces} from './mapRules';
 import {dungeonRooms} from './dungeonRules';
 import {npcScene} from './npcRules';
 const originalNPCs={keeper:{name:'The keeper',description:'Middle-aged human innkeeper, short salt-and-pepper beard, brown hair, kind but firm eyes, linen shirt and russet waistcoat.'},mara:{name:'Mara',description:'Young adult human woman, brown skin, dark curly hair loosely braided, thoughtful eyes, practical teal traveling cloak, medicine courier with a satchel.'}};
+// Whether a portrait's subject is a woman or a man: what the story says, else what their description says of them.
+const womanWords=/\b(?:she|her|hers|herself|woman|girl|lady|female|mother|sister|daughter|wife|widow|queen|princess|priestess|matron|maiden|aunt|grandmother|granny|abbess|countess|duchess|baroness|huntress|sorceress|seamstress|midwife|crone)\b/gi;
+const manWords=/\b(?:he|him|his|himself|man|boy|male|father|brother|son|husband|widower|king|prince|uncle|grandfather|abbot|duke|baron)\b/gi;
+// Only words about the subject themselves count, so this reads how they look (and, for a hero, their own story).
+export function genderOf(text,written=null){
+ if(written==='woman'||written==='man')return written;
+ if(written==='other')return null;
+ const t=String(text??''),women=(t.match(womanWords)??[]).length,men=(t.match(manWords)??[]).length;
+ return women>men?'woman':men>women?'man':null;
+}
+// A woman's portrait never has a beard, whatever her species: any facial hair written into her description is
+// taken out, and the painter is told so in plain words.
+const facialHair=/\b(?:beard(?:ed|s)?|moustach(?:e|es|ed|ioed)|mustach(?:e|es|ed|ioed)|stubbl(?:e|ed|y)|whisker(?:s|ed)?|sideburns|goatee)\b/i;
+export function portraitDescription(description,gender){
+ const text=String(description??'').trim();
+ if(gender!=='woman')return gender==='man'?('A man. '+text):text;
+ const clean=text.split(/(?<=[.!?;])\s+/).map(sentence=>facialHair.test(sentence)?sentence.split(/,\s*|\s+and\s+|\s+with\s+/).filter(part=>!facialHair.test(part)).join(', '):sentence).filter(s=>s.trim().length>2).join(' ');
+ return 'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. '+clean;
+}
+// A woman's portrait painted before this rule may wear a beard: hers is painted afresh under a new id.
+const portraitId=(id,gender)=>gender==='woman'?id+'-w':id;
 export function npcArtSubject(game,id){
  const person=!game.story?.npcs?.[id]&&game.people?.[id];
  // Someone met while exploring is painted from how the Dungeon Master described them when they were met.
- if(person)return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id,name:person.name,description:[person.appearance,person.species,person.role].filter(Boolean).join('. ').slice(0,1800),setting:(game.story?.premise??'').slice(0,800)};
+ if(person){const gender=genderOf(person.appearance,person.gender);return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id:portraitId(id,gender),name:person.name,description:portraitDescription([person.appearance,person.species,person.role].filter(Boolean).join('. '),gender).slice(0,1800),setting:(game.story?.premise??'').slice(0,800)};}
  const npc=game.story?.npcs?.[id]??originalNPCs[id];if(!npc)return null;
- return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id,name:npc.name,description:[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ').slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
+ const gender=game.story?.npcs?.[id]?genderOf(npc.appearance,npc.gender):null;
+ return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id:game.story?.npcs?.[id]?portraitId(id,gender):id,name:npc.name,description:(game.story?.npcs?.[id]?portraitDescription([npc.appearance,npc.role,npc.description].filter(Boolean).join('. '),gender):[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ')).slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
 }
 export function locationArtSubject(game){
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,id=room?'dungeon-'+game.dungeon.room:mapLocation(game),place=room?{name:room.name,description:room.text}:game.story?.locations?.[id]??worldPlace(game,id)??mapPlaces[id];
@@ -18,9 +40,9 @@ export function locationArtSubject(game){
 // (name, species, class, look), not their level, so levelling up keeps the portrait.
 export function heroArtSubject(hero){
  if(!hero?.name||!hero.class)return null;
- const species=hero.species??hero.race??'',look=[hero.description,(species+' '+hero.class).trim(),hero.background?'Former '+String(hero.background).toLowerCase():null,hero.age?'Age '+hero.age:null].filter(Boolean).join('. ');
+ const species=hero.species??hero.race??'',gender=genderOf(hero.description)??genderOf(hero.backstory),look=[portraitDescription(hero.description,gender),(species+' '+hero.class).trim(),hero.background?'Former '+String(hero.background).toLowerCase():null,hero.age?'Age '+hero.age:null].filter(Boolean).join('. ');
  let h=7;for(const c of [hero.name,species,hero.class,hero.description??''].join('|').toLowerCase())h=(h*31+c.charCodeAt(0))>>>0;
- return {campaignId:'hero-'+h.toString(36),kind:'portrait',id:'hero',name:String(hero.name).slice(0,100),description:('The player character, an adventurer. '+look).slice(0,1800),setting:'An original high-fantasy world of roads, inns, ruins and wild places.'};
+ return {campaignId:'hero-'+h.toString(36),kind:'portrait',id:portraitId('hero',gender),name:String(hero.name).slice(0,100),description:('The player character, an adventurer. '+look).slice(0,1800),setting:'An original high-fantasy world of roads, inns, ruins and wild places.'};
 }
 // The painting of a named place in this adventure (the same subject the scene uses when you are there), for the
 // illustrated arrival plates in the story feed. Only surface places; the vaults have their own scenes.

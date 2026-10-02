@@ -1,4 +1,6 @@
 // Questbound audio engine: a live-synthesized adaptive score, location ambience and layered effects, mixed like a game.
+// The score is soft by design: string and choir pads, a bowed bass, felted keys and a flute or horn that sings
+// composed phrases. Nothing in it is plucked, struck with sticks or ticked out.
 // Signal flow:
 //   music voices -> music bus -> duck -> high-pass -> ┐        hall reverb returns into the music bus
 //   ambience     -> ambience bus -> duck ------------> ├-> glue compressor -> limiter -> master -> speakers
@@ -19,7 +21,7 @@ function admit(t,end,bus,priority){
  if(!priority&&(all>=ALL_VOICES||(musical&&music>=MUSIC_VOICES)))return false;
  live.push({start:t,end,musical});return true;
 }
-const cache={noise:null,pluck:new Map()};
+const cache={noise:null};
 function load(){try{const v=JSON.parse(window.localStorage.getItem(KEY));return {...defaults,...(v&&typeof v==='object'?v:{})};}catch{return {...defaults};}}
 function persist(){try{window.localStorage.setItem(KEY,JSON.stringify(settings));}catch{}}
 export const audioSettings=()=>({...settings});
@@ -96,22 +98,13 @@ function osc(type,freq,t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))
 function noise(t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const s=ctx.createBufferSource();s.buffer=noiseBuffer();s.loop=true;const end=voice(s,t,opts);s.start(t,Math.random()*1.5);s.stop(end);}
 // FM bell: a sine carrier modulated at an inharmonic ratio — celesta, chimes and magic.
 function bell(freq,t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const car=ctx.createOscillator(),mod=ctx.createOscillator(),depth=ctx.createGain();car.frequency.value=freq;mod.frequency.value=freq*(opts.ratio??3.5);depth.gain.setValueAtTime(freq*(opts.index??2.2),t);depth.gain.exponentialRampToValueAtTime(freq*.05,t+(opts.release??1.5));mod.connect(depth);depth.connect(car.frequency);const end=voice(car,t,opts);car.start(t);mod.start(t);car.stop(end);mod.stop(end);}
-// Karplus-Strong plucked string, rendered once per pitch and cached: harp and lute.
-function pluckBuffer(midi,bright){
- const key=midi+':'+bright;if(cache.pluck.has(key))return cache.pluck.get(key);
- const sr=ctx.sampleRate,f=hz(midi),N=Math.max(2,Math.round(sr/f)),len=Math.floor(sr*3),buf=ctx.createBuffer(1,len,sr),d=buf.getChannelData(0),line=new Float32Array(N);
- let lp=0;for(let i=0;i<N;i++){lp=lp*.55+(Math.random()*2-1)*.45;line[i]=lp;}   // softened excitation: a finger, not a pick
- const decay=.9985-Math.max(0,midi-60)*.0004,w=bright;let idx=0;
- for(let i=0;i<len;i++){const a=line[idx],b=line[(idx+1)%N];d[i]=a;line[idx]=decay*(w*a+(1-w)*b);idx=(idx+1)%N;}
- for(let i=len-2000;i<len;i++)d[i]*=(len-i)/2000;
- cache.pluck.set(key,buf);return buf;
-}
-function pluck(midi,t,{bus,peak=.3,panTo=0,bright=.5,send=.5,reverb}){if(!admit(t,t+3,bus,false))return;const s=ctx.createBufferSource();s.buffer=pluckBuffer(midi,bright);s.playbackRate.value=1+(Math.random()-.5)*.002;const env=ctx.createGain();env.gain.value=peak;s.connect(env);const last=pan(env,panTo);last.connect(bus);if(reverb&&send){const g=ctx.createGain();g.gain.value=send;last.connect(g);g.connect(reverb);}s.start(t);}
 // Sidechain-style ducking: important moments pull the score and ambience down briefly.
 function duck(depth=.5,hold=.25,release=.7){if(!ctx)return;const t=ctx.currentTime;[out.musicDuck,out.ambDuck].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(depth,t,.02);n.gain.setTargetAtTime(1,t+hold,release/3);});}
 
 // ---------- Instruments for the score ----------
-function strings(notes,t,dur,level){notes.forEach((m,i)=>[-7,0,7].forEach(cents=>osc('sawtooth',hz(m),t,{bus:out.pad,peak:level/notes.length/2.2,attack:dur*.3,hold:dur*.45,release:1.6,detune:cents+(Math.random()-.5)*4,filter:{freq:500,to:1400,time:dur*.5,q:.5},panTo:(i/(notes.length-1||1)-.5)*.8})));}
+// Every voice has a soft attack (a hundredth of a second or more), so nothing clicks: the score is pads, bowed and
+// blown lines and felted keys, never plucks or sticks.
+function strings(notes,t,dur,level){notes.forEach((m,i)=>[-7,0,7].forEach(cents=>osc('sawtooth',hz(m),t,{bus:out.pad,peak:level/notes.length/2.2,attack:dur*.3,hold:dur*.45,release:1.8,detune:cents+(Math.random()-.5)*4,filter:{freq:420,to:1150,time:dur*.5,q:.5},panTo:(i/(notes.length-1||1)-.5)*.8})));}
 // Formant choir: sawtooth voices through vowel resonances ("ah") — the big cinematic pad.
 function choir(notes,t,dur,level){
  notes.forEach((m,i)=>{if(!admit(t,t+dur+2,out.pad,false))return;const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=hz(m);o.detune.value=(Math.random()-.5)*10;const vib=ctx.createOscillator(),vd=ctx.createGain();vib.frequency.value=4.6+Math.random()*.6;vd.gain.value=hz(m)*.004;vib.connect(vd);vd.connect(o.frequency);
@@ -119,33 +112,112 @@ function choir(notes,t,dur,level){
   const env=ctx.createGain();env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(level/notes.length*2.2,t+dur*.35);env.gain.linearRampToValueAtTime(level/notes.length*1.6,t+dur*.85);env.gain.linearRampToValueAtTime(0,t+dur+1.8);
   sum.connect(env);pan(env,(i/(notes.length-1||1)-.5)*.6).connect(out.pad);o.start(t);vib.start(t);o.stop(t+dur+2);vib.stop(t+dur+2);});
 }
-function bass(m,t,dur,level){osc('sine',hz(m),t,{bus:out.music,peak:level,attack:.08,hold:dur*.6,release:dur*.5});osc('triangle',hz(m+12),t,{bus:out.music,peak:level*.15,attack:.08,hold:dur*.4,release:dur*.4,filter:{freq:600}});}
-function taiko(t,strength=1,panTo=0){const p=vary(1,.03);osc('sine',82*p,t,{bus:out.music,peak:.55*strength,attack:.002,release:.55,glide:44*p,glideTime:.35,send:.25,reverb:out.hall,panTo,priority:true});noise(t,{bus:out.music,peak:.22*strength,attack:.001,release:.18,filter:{freq:900,to:200,time:.18},send:.2,reverb:out.hall,panTo});}
-function frame(t,level=.12,panTo=0){noise(t,{bus:out.music,peak:level,attack:.001,release:.09,filter:{type:'bandpass',freq:vary(1800,.1),q:1.4},panTo});osc('sine',vary(190,.05),t,{bus:out.music,peak:level*1.2,attack:.001,release:.12,glide:120});}
-function staccato(m,t,level){osc('sawtooth',hz(m),t,{bus:out.music,peak:level,attack:.004,release:.16,filter:{freq:1600,to:400,time:.14},panTo:(Math.random()-.5)*.3});}
+// Felted keys: a sine with two quiet upper partials, eased in and left to ring. The broken chords and inner lines.
+function keys(m,t,level,panTo=0,ring=2.6){
+ const f=hz(m);
+ osc('sine',f,t,{bus:out.music,peak:level,attack:.022,hold:.03,release:ring,panTo,send:.5,reverb:out.hall});
+ osc('triangle',f*2,t,{bus:out.music,peak:level*.16,attack:.024,release:ring*.45,panTo,filter:{freq:1800,to:700,time:ring*.4},send:.4,reverb:out.hall});
+ osc('sine',f*3.005,t,{bus:out.music,peak:level*.035,attack:.022,release:ring*.22,panTo});
+}
+// A held, singing line: a blown tone (flute) or a bowed or brass one (cello, horn), with a breath of vibrato that
+// arrives after the note has started. shape: [wave, lowpass, attack, release, breath].
+const lines={flute:['sine',2600,.08,.4,.025],cello:['sawtooth',520,.13,.7,0],horn:['sawtooth',880,.07,.5,0]};
+function line(kind,m,t,dur,level,panTo=0){
+ const [wave,cutoff,attack,release,breath]=lines[kind],end=t+dur+release+.05;
+ if(!admit(t,end,out.music,false))return;
+ const f=hz(m),a=ctx.createOscillator(),b=ctx.createOscillator(),lp=ctx.createBiquadFilter(),env=ctx.createGain(),vib=ctx.createOscillator(),depth=ctx.createGain();
+ a.type=wave;b.type=kind==='flute'?'triangle':wave;a.frequency.value=f;b.frequency.value=f;b.detune.value=kind==='flute'?0:6;a.detune.value=kind==='flute'?0:-6;
+ vib.frequency.value=4.8+Math.random()*.7;depth.gain.setValueAtTime(0,t);depth.gain.linearRampToValueAtTime(f*(kind==='flute'?.006:.004),t+Math.min(.6,dur*.7));vib.connect(depth);depth.connect(a.frequency);depth.connect(b.frequency);
+ lp.type='lowpass';lp.Q.value=.6;lp.frequency.setValueAtTime(cutoff*.55,t);lp.frequency.linearRampToValueAtTime(cutoff,t+attack*2);
+ const mix=ctx.createGain();mix.gain.value=kind==='flute'?.3:.5;a.connect(lp);b.connect(mix);mix.connect(lp);lp.connect(env);
+ env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(level,t+attack);env.gain.linearRampToValueAtTime(level*.82,t+Math.max(attack+.01,dur));env.gain.linearRampToValueAtTime(0,t+dur+release);
+ const last=pan(env,panTo);last.connect(out.music);const send=ctx.createGain();send.gain.value=.5;last.connect(send);send.connect(out.hall);
+ a.start(t);b.start(t);vib.start(t);a.stop(end);b.stop(end);vib.stop(end);
+ if(breath)noise(t,{bus:out.music,peak:level*breath,attack:attack,hold:Math.max(0,dur-attack),release:release,filter:{type:'bandpass',freq:Math.min(2800,f*1.5),q:1.4},panTo});
+}
+// A short bowed note for the battle pulse: eased in over a fiftieth of a second, gone in a fifth.
+function bow(m,t,level,panTo=0){[-5,5].forEach(c=>osc('sawtooth',hz(m),t,{bus:out.music,peak:level/2,attack:.02,hold:.03,release:.2,detune:c,filter:{freq:900,to:380,time:.2,q:.7},panTo}));}
+function taiko(t,strength=1,panTo=0){const p=vary(1,.03);osc('sine',82*p,t,{bus:out.music,peak:.5*strength,attack:.004,release:.6,glide:44*p,glideTime:.4,send:.25,reverb:out.hall,panTo,priority:true});noise(t,{bus:out.music,peak:.1*strength,attack:.006,release:.2,filter:{freq:520,to:160,time:.2},send:.2,reverb:out.hall,panTo});}
 function brassStab(notes,t,level=.12,len=.5){notes.forEach((m,i)=>[-6,6].forEach(c=>osc('sawtooth',hz(m),t,{bus:out.music,peak:level/notes.length,attack:.03,hold:len*.4,release:len,detune:c,filter:{freq:500,to:2600,time:.08,q:1},send:.35,reverb:out.hall,panTo:(i-notes.length/2)*.15})));}
 function swell(t,dur,level=.12){noise(t,{bus:out.music,peak:level,attack:dur,release:.25,filter:{type:'highpass',freq:3000,to:9000,time:dur},send:.4,reverb:out.hall});}
 
 // ---------- Adaptive score ----------
-// Voicings chosen for smooth voice leading. Each mood is a set of layers on a shared beat grid.
+// Each mood is a slow chord progression (voicings chosen for smooth voice leading), a key, and layers on a shared
+// beat grid: a string pad, a bowed bass, felted keys breaking each chord in a fixed figure, and a lead that sings
+// written phrases. Phrases are composed when a mood starts (stepwise lines in the key that land on chord tones)
+// and come round again (A A B A), so the music has a tune rather than notes at random.
+const minor=[0,2,3,5,7,8,10],major=[0,2,4,5,7,9,11],inKey=(root,shape)=>shape.map(s=>(root+s)%12);
 const moods={
- menu:{bpm:62,beatsPerChord:8,chords:[[50,57,62,65],[46,53,58,62],[53,57,60,65],[48,55,60,64],[43,50,58,62],[45,52,57,61]],layers:{choir:.09,strings:.07,harp:.6,bass:.14,bells:true}},
- explore:{bpm:70,beatsPerChord:8,chords:[[45,52,57,60],[41,48,53,57],[48,52,55,60],[43,50,55,59]],layers:{strings:.06,lute:.45,bass:.1}},
- // Shelter (camp, inn, after a fight): a warm major-key hearth theme on harp with soft strings.
- haven:{bpm:62,beatsPerChord:8,chords:[[50,57,62,66],[47,54,59,62],[43,50,55,59],[45,52,57,61]],layers:{strings:.05,harp:.42,bass:.09,bells:true}},
- combat:{bpm:124,beatsPerChord:8,chords:[[38,45,50,53],[34,41,46,50],[31,38,43,46],[33,40,45,49]],layers:{strings:.05,taiko:true,ostinato:.045,brass:true,bass:.16}},
+ menu:{bpm:60,beatsPerChord:8,scale:inKey(2,minor),chords:[[50,57,62,65],[46,53,58,62],[53,57,60,65],[48,55,60,64],[43,50,58,62],[45,52,57,61]],
+  layers:{strings:.06,choir:.07,bass:.11,arp:{level:.085,step:1,figure:[0,1,2,3,4,3,2,1],octave:0},lead:{voice:'flute',level:.085,low:69,high:86,every:2},bells:true}},
+ explore:{bpm:72,beatsPerChord:8,scale:inKey(9,minor),chords:[[45,52,57,60],[41,48,53,57],[48,52,55,60],[43,50,55,59]],
+  layers:{strings:.055,bass:.1,arp:{level:.075,step:1,figure:[0,2,1,2,3,2,1,2],octave:0},lead:{voice:'flute',level:.095,low:69,high:88,every:1}}},
+ // Shelter (camp, inn, after a fight): a warm major-key hearth theme.
+ haven:{bpm:64,beatsPerChord:8,scale:inKey(2,major),chords:[[50,57,62,66],[47,54,59,62],[43,50,55,59],[45,52,57,61]],
+  layers:{strings:.05,bass:.09,arp:{level:.09,step:1,figure:[0,1,2,4,3,2,1,2],octave:0},lead:{voice:'flute',level:.08,low:62,high:81,every:2},bells:true}},
+ combat:{bpm:108,beatsPerChord:8,scale:inKey(2,minor),chords:[[38,45,50,53],[34,41,46,50],[31,38,43,46],[33,40,45,49]],
+  layers:{strings:.05,choir:.045,bass:.13,pulse:.07,taiko:true,lead:{voice:'horn',level:.085,low:50,high:69,every:1}}},
 };
-const scale=chord=>[...new Set(chord.map(m=>m%12))];
+// The notes of a key that fit this chord: where the chord has a note outside the key (a major dominant in a minor
+// key), its neighbours give way to it.
+function chordScale(scale,chord){const tones=chord.map(m=>m%12),out=new Set(scale);for(const pc of tones)if(!out.has(pc)){out.delete((pc+1)%12);out.delete((pc+11)%12);out.add(pc);}return out;}
+// Rhythms for a four-bar phrase: [start beat, length in beats]. Each leaves the last bar to breathe.
+const phraseRhythms=[
+ [[0,2],[2,1],[3,1],[4,3.5],[8,1.5],[9.5,.5],[10,2],[12,3]],
+ [[0,3],[3,1],[4,2],[6,2],[8,3],[11,1],[12,3]],
+ [[1,1],[2,2],[4,1],[5,1],[6,2],[9,1],[10,1],[11,1],[12,3]],
+ [[0,1.5],[1.5,.5],[2,2],[4,4],[10,1],[11,1],[12,3]],
+ [[0,4],[4,2],[6,1],[7,1],[8,4],[12,3]],
+];
+// A phrase is a contour: steps up and down the scale from a starting height (0..1 of the lead's range).
+function composePhrase(){
+ const rhythm=phraseRhythms[Math.floor(Math.random()*phraseRhythms.length)],steps=[];let lean=Math.random()<.5?1:-1;
+ for(let i=0;i<rhythm.length;i++){const r=Math.random();steps.push(i===0?0:(r<.5?lean:r<.72?-lean:r<.86?2*lean:r<.94?0:-2*lean));if(Math.random()<.3)lean=-lean;}
+ return {rhythm,steps,start:.35+Math.random()*.3};
+}
 function startScheduler(name,startAt){
- const m=moods[name];let beat=0,next=startAt??ctx.currentTime+.1;const spb=60/m.bpm,L=m.layers;
+ const m=moods[name];let beat=0,next=startAt??ctx.currentTime+.1;const spb=60/m.bpm,L=m.layers,bpc=m.beatsPerChord,phraseBeats=16;
+ // The tune: A A B A, with a new B (and now and then a new A) each time round.
+ const tune={A:composePhrase(),B:composePhrase(),count:0,height:0,notes:[]};
  const tick=()=>{if(!ctx||scheduler?.name!==name)return;while(next<ctx.currentTime+.6){
-  const i=Math.floor(beat/m.beatsPerChord)%m.chords.length,chord=m.chords[i],onChord=beat%m.beatsPerChord===0,dur=spb*m.beatsPerChord;
-  if(onChord){if(L.strings)strings(chord,next,dur,L.strings);if(L.choir&&i%2===0)choir(chord.slice(1),next,dur*2,L.choir);if(L.bass)bass(chord[0]-12,next,dur,L.bass);if(L.brass&&i%2===0)brassStab(chord.slice(1),next,.11,.6);}
-  if(L.harp&&Math.random()<L.harp){const tones=chord.slice(1),n=tones[beat%tones.length]+12*(1+Math.floor(Math.random()*2));pluck(n,human(next),{bus:out.music,peak:.22,panTo:(Math.random()-.5)*.9,bright:.52,send:.55,reverb:out.hall});if(Math.random()<.3)pluck(n+(Math.random()<.5?7:12),human(next+spb/2),{bus:out.music,peak:.14,panTo:(Math.random()-.5)*.9,bright:.52,send:.55,reverb:out.hall});}
-  if(L.lute&&Math.random()<L.lute){const pcs=scale(chord),root=60+Math.floor(Math.random()*12);const n=root+((pcs.find(p=>p>=root%12)??pcs[0])-(root%12));pluck(n,human(next+(Math.random()<.4?spb/2:0)),{bus:out.music,peak:.2,panTo:(Math.random()-.5)*.5,bright:.62,send:.4,reverb:out.hall});}
-  if(L.bells&&beat%16===12)bell(hz(chord[2]+24),human(next),{bus:out.music,peak:.035,attack:.005,release:2.8,send:.7,reverb:out.hall,ratio:3.5,index:1.4,panTo:.3});
-  if(L.taiko){const b=beat%8;if(b===0)taiko(next,1,-.1);if(b===3||b===5)taiko(next+spb/2,.6,.15);if(b===6)taiko(next,.8,0);frame(next+spb/2,.07,(Math.random()-.5)*.6);if(beat%32===31)for(let k=0;k<4;k++)taiko(next+k*spb/4,.5+k*.12,(k%2?.2:-.2));if(beat%32===28)swell(next,spb*4,.08);}
-  if(L.ostinato){[0,.5].forEach((o,k)=>staccato(chord[0]+(k?12:0),human(next+o*spb),L.ostinato));}
+  const i=Math.floor(beat/bpc)%m.chords.length,chord=m.chords[i],inChord=beat%bpc,dur=spb*bpc;
+  if(inChord===0){
+   if(L.strings)strings(chord,next,dur,L.strings);
+   if(L.choir&&i%2===0)choir(chord.slice(1),next,dur*2,L.choir);
+   if(L.bass){let low=chord[0];while(low>=45)low-=12;if(low<33)low+=12;line('cello',low,next,dur*.9,L.bass);}
+  }
+  // Felted keys break the chord in one steady figure.
+  if(L.arp){const tones=[chord[1],chord[2],chord[3],chord[1]+12,chord[2]+12],per=Math.round(1/L.arp.step);
+   for(let k=0;k<per;k++){const at=Math.round(beat/L.arp.step)+k,tone=tones[L.arp.figure[at%L.arp.figure.length]]+L.arp.octave,accent=at%L.arp.figure.length===0?1:at%2?.62:.8;keys(tone,human(next+k*L.arp.step*spb),L.arp.level*accent,((at%5)-2)*.16);}}
+  // The lead sings its phrase, then rests a phrase when the mood asks for room.
+  if(L.lead){
+   const inPhrase=beat%phraseBeats;
+   if(inPhrase===0){
+    const round=tune.count++,slot=round%4;
+    if(slot===0&&round>0&&Math.random()<.35)tune.A=composePhrase();if(slot===2)tune.B=composePhrase();
+    const phrase=slot===2?tune.B:tune.A,singing=round%L.lead.every===0;
+    tune.notes=[];
+    if(singing){
+     // Lay the contour over the key: strong notes are pulled to the chord sounding under them, the last to its root or fifth.
+     const ladder=[];for(let p=L.lead.low;p<=L.lead.high;p++)ladder.push(p);
+     let rung=Math.round(phrase.start*(ladder.length-1)),turn=1;
+     phrase.rhythm.forEach(([start,length],n)=>{
+      const under=m.chords[Math.floor((beat+start)/bpc)%m.chords.length],allowed=chordScale(m.scale,under),tones=new Set(under.map(x=>x%12)),final=n===phrase.rhythm.length-1;
+      // Near the top or bottom of its range the line turns back.
+      let want=rung+phrase.steps[n]*2*turn;if(want<0||want>=ladder.length){turn=-turn;want=rung+phrase.steps[n]*2*turn;}
+      const strong=start%2===0||final,fits=p=>final?[under[0]%12,under[1]%12].includes(p%12):strong?tones.has(p%12):allowed.has(p%12);
+      const moving=phrase.steps[n]!==0;let best=null;for(let d=0;d<ladder.length&&best===null;d++)for(const q of [want+d,want-d])if(q>=0&&q<ladder.length&&!(moving&&q===rung)&&fits(ladder[q])){best=q;break;}
+      rung=best??Math.max(0,Math.min(ladder.length-1,want));
+      tune.notes.push({start,length,pitch:ladder[rung]});
+     });
+    }
+   }
+   for(const note of tune.notes)if(note.start>=inPhrase&&note.start<inPhrase+1)line(L.lead.voice,note.pitch,human(next+(note.start-inPhrase)*spb),note.length*spb*.92,L.lead.level,L.lead.voice==='horn'?-.15:.18);
+  }
+  if(L.bells&&beat%32===16)bell(hz(chord[2]+24),human(next),{bus:out.music,peak:.02,attack:.05,release:3.2,send:.7,reverb:out.hall,ratio:3.5,index:1.1,panTo:.3});
+  // Battle: low drums on the strong beats and a bowed pulse in quavers underneath (root, root, fifth, root…).
+  if(L.taiko){const b=beat%8;if(b===0)taiko(next,1,-.1);if(b===4)taiko(next,.75,.1);if(b===3||b===7)taiko(next+spb/2,.5,.15);if(beat%32===31)for(let k=0;k<3;k++)taiko(next+k*spb/3,.45+k*.15,(k%2?.2:-.2));if(beat%32===28)swell(next,spb*4,.06);}
+  if(L.pulse){const root=chord[0]+12;[[0,1],[7,.55]].forEach(([interval,accent],k)=>bow(root+(beat%4===3&&k?5:interval),human(next+k*spb/2),L.pulse*(beat%4===0&&!k?1.25:accent),k?.12:-.12));}
   beat++;next+=spb;}};
  const handle={name,timer:null};scheduler=handle;tick();handle.timer=setInterval(tick,90);return handle;
 }
@@ -156,7 +228,7 @@ export function setMood(name){
  if(scheduler)clearInterval(scheduler.timer);scheduler=null;
  bus.gain.cancelScheduledValues(t);bus.gain.setTargetAtTime(0,t,.35);
  // Into combat: a rising swell and a downbeat hit; the new score enters under it.
- if(name==='combat'&&from){swell(t,1.1,.14);setTimeout(()=>{if(mood==='combat'&&ctx){taiko(ctx.currentTime,1.2);brassStab([50,57,62],ctx.currentTime,.14,.8);}},1100);}
+ if(name==='combat'&&from){swell(t,1.1,.12);setTimeout(()=>{if(mood==='combat'&&ctx){taiko(ctx.currentTime,1.2);brassStab([50,57,62],ctx.currentTime,.12,.8);}},1100);}
  setTimeout(()=>{if(mood!==name||!ctx)return;applyMix();if(moods[name])startScheduler(name);},name==='combat'?1100:1400);
 }
 
@@ -172,7 +244,9 @@ function startAmbience(kind){
   s.connect(f);f.connect(g);pan(g,panTo).connect(out.amb);s.start(t,Math.random());nodes.push(s);return g;};
  const gains=[];
  if(spec.wind){gains.push(bed(spec.wind,{type:'bandpass',freq:420,q:.6},.07,-.4));gains.push(bed(spec.wind*.7,{type:'bandpass',freq:700,q:.8},.05,.4));}
- if(spec.hearth){gains.push(bed(spec.hearth*.5,{type:'lowpass',freq:320},0,0));timers.push(setInterval(()=>{if(!ctx)return;const at=ctx.currentTime+Math.random()*.2;for(let k=0,n=1+Math.floor(Math.random()*3);k<n;k++)noise(at+k*.03,{bus:out.amb,peak:vary(spec.hearth*.9,.5),attack:.001,release:.03,filter:{type:'bandpass',freq:vary(2600,.4),q:2},panTo:(Math.random()-.5)*.4});},220));}
+ if(spec.hearth){gains.push(bed(spec.hearth*.6,{type:'lowpass',freq:300},.11,0));gains.push(bed(spec.hearth*.2,{type:'bandpass',freq:520,q:.8},.07,.2));
+  // A log settles now and then: one soft, low pop, a few seconds apart.
+  timers.push(setInterval(()=>{if(!ctx||Math.random()<.55)return;const at=ctx.currentTime+Math.random()*.6;noise(at,{bus:out.amb,peak:vary(spec.hearth*.35,.4),attack:.006,release:.09,filter:{type:'bandpass',freq:vary(1100,.35),q:1.2},panTo:(Math.random()-.5)*.4});},1700));}
  if(spec.room)gains.push(bed(spec.room,{type:'lowpass',freq:180},0,0));
  if(spec.cave){gains.push(bed(spec.cave,{type:'lowpass',freq:140},.03,0));}
  if(spec.drips)timers.push(setInterval(()=>{if(!ctx||Math.random()<.4)return;const f=vary(1800,.35);osc('sine',f,ctx.currentTime,{bus:out.amb,peak:.05,attack:.001,release:.12,glide:f*.55,send:.8,reverb:out.cave,panTo:(Math.random()-.5)*1.4});},1100));
@@ -206,9 +280,12 @@ impacts.radiant=(t,p)=>{bell(1320,t,{bus:out.sfx,peak:.05,release:1.2,ratio:2,in
 impacts.lightning=impacts.thunder=(t,p)=>{noise(t,{bus:out.sfx,peak:.3,attack:.001,release:.35,filter:{freq:6000,to:400,time:.3},panTo:p,send:.4,reverb:out.room});thud(t+.02,p,.4,70);};
 impacts.acid=impacts.poison;impacts.psychic=impacts.necrotic;
 const effects={
- click:t=>{noise(t,{bus:out.sfx,peak:.06,attack:.001,release:.025,filter:{type:'bandpass',freq:vary(2400,.1),q:4}});osc('sine',vary(1250,.03),t,{bus:out.sfx,peak:.035,attack:.001,release:.05,glide:900});},
- send:t=>{for(let k=0;k<5;k++)noise(t+k*.045,{bus:out.sfx,peak:.05,attack:.004,release:.035,filter:{type:'bandpass',freq:vary(4200,.2),q:2.5}});bell(hz(86),t+.22,{bus:out.sfx,peak:.03,release:1.1,ratio:3.5,index:1,send:.5,reverb:out.room});},
- dice:t=>{let at=t,level=.2;for(let i=0;i<8;i++){noise(at,{bus:out.sfx,peak:level,attack:.001,release:.02,filter:{type:'bandpass',freq:vary(3400,.3),q:6},panTo:(Math.random()-.5)*.5});osc('sine',vary(210,.1),at,{bus:out.sfx,peak:level*.5,attack:.001,release:.04});at+=.035+i*i*.006;level*=.8;}noise(at,{bus:out.sfx,peak:.05,attack:.02,release:.12,filter:{type:'bandpass',freq:1800,q:2}});},
+ // A press: a soft, low tap (a finger on wood), not a click.
+ click:t=>{osc('sine',vary(430,.03),t,{bus:out.sfx,peak:.032,attack:.005,release:.09,glide:300,glideTime:.08});noise(t,{bus:out.sfx,peak:.012,attack:.006,release:.05,filter:{freq:900}});},
+ // Sending a turn: a breath of air and one soft note.
+ send:t=>{noise(t,{bus:out.sfx,peak:.035,attack:.09,release:.22,filter:{type:'bandpass',freq:900,to:2600,time:.28,q:.8}});osc('sine',hz(81),t+.12,{bus:out.sfx,peak:.03,attack:.015,release:.9,send:.5,reverb:out.room});},
+ // A die on felt: a few soft, low knocks that slow as it settles (in step with the tumbling die in the feed).
+ dice:t=>{let at=t,level=.11;for(let i=0;i<5;i++){osc('sine',vary(240,.12),at,{bus:out.sfx,peak:level,attack:.004,release:.06,glide:150,glideTime:.05,panTo:(Math.random()-.5)*.4});noise(at,{bus:out.sfx,peak:level*.3,attack:.004,release:.04,filter:{type:'bandpass',freq:vary(1300,.2),q:1.5},panTo:(Math.random()-.5)*.4});at+=.07+i*i*.014;level*=.78;}},
  swing:t=>whoosh(t,ME,.14,true),
  miss:t=>{whoosh(t,FOE,.16);noise(t+.12,{bus:out.sfx,peak:.05,attack:.005,release:.1,filter:{freq:500},panTo:FOE});},
  hit:t=>{impacts.slashing(t,FOE,false);duck(.65,.15,.5);},
@@ -225,12 +302,12 @@ const effects={
  chime:t=>{bell(hz(86),t,{bus:out.sfx,peak:.03,attack:.004,release:1.4,ratio:3.5,index:1,send:.6,reverb:out.room});bell(hz(93),t+.12,{bus:out.sfx,peak:.022,attack:.004,release:1.6,ratio:3.5,index:1,send:.6,reverb:out.room});},
  voice:(t,o)=>{const base=o?.speaker==='mara'?88:81;bell(hz(base),t,{bus:out.sfx,peak:.022,attack:.004,release:1,ratio:3.01,index:.7,send:.5,reverb:out.room,panTo:o?.speaker==='mara'?.25:-.25});},
  whoosh:t=>{noise(t,{bus:out.sfx,peak:.14,attack:.25,release:.45,filter:{freq:300,to:3600,time:.6,q:.8},send:.35,reverb:out.room});osc('sine',48,t,{bus:out.sfx,peak:.12,attack:.3,release:.5});},
- page:t=>{for(let k=0;k<3;k++)noise(t+k*.06,{bus:out.sfx,peak:.05,attack:.02,release:.08,filter:{type:'bandpass',freq:vary(2800,.3),q:.9}});},
+ page:t=>{noise(t,{bus:out.sfx,peak:.04,attack:.05,release:.16,filter:{type:'bandpass',freq:1400,to:2600,time:.2,q:.7}});},
  boot:t=>{duck(.2,2.5,2);osc('sine',38,t,{bus:out.sfx,peak:.55,attack:.01,release:3.2,glide:30,glideTime:2.5,priority:true});noise(t,{bus:out.sfx,peak:.14,attack:1.4,release:.6,filter:{freq:200,to:6000,time:1.8,q:.7},send:.5,reverb:out.room});choir([50,57,62,66,69],t+1.4,3,.12);strings([38,50,57,62],t+1.4,3,.1);[1175,1480,1760,2349].forEach((f,i)=>bell(f,t+1.5+i*.12,{bus:out.sfx,peak:.03,release:2.5,ratio:3.5,index:1,send:.7,reverb:out.room,panTo:(i-1.5)*.25}));taiko(t+1.4,1.3);},
  // Interface: a faint tick when the pointer finds a menu entry, a soft lift when a sheet opens, a plucked note on a choice.
- tick:t=>{noise(t,{bus:out.sfx,peak:.022,attack:.001,release:.014,filter:{type:'bandpass',freq:vary(5200,.08),q:5}});osc('sine',vary(2300,.03),t,{bus:out.sfx,peak:.012,attack:.001,release:.03,glide:1800});},
+ tick:t=>{osc('sine',vary(880,.02),t,{bus:out.sfx,peak:.007,attack:.008,release:.05});},
  open:t=>{noise(t,{bus:out.sfx,peak:.05,attack:.08,release:.22,filter:{type:'bandpass',freq:500,to:2400,time:.25,q:.9}});bell(hz(81),t+.08,{bus:out.sfx,peak:.016,release:.9,ratio:3.5,index:.8,send:.5,reverb:out.room});},
- select:t=>{pluck(74,t,{bus:out.sfx,peak:.2,bright:.6,send:.45,reverb:out.room});pluck(81,t+.07,{bus:out.sfx,peak:.12,bright:.6,send:.45,reverb:out.room});},
+ select:t=>{[[74,0,.05],[81,.08,.035]].forEach(([m,d,v])=>osc('sine',hz(m),t+d,{bus:out.sfx,peak:v,attack:.012,release:.7,send:.45,reverb:out.room}));},
  // Arriving somewhere: a low swell under two soft, open bells, as the place's name appears.
  arrive:t=>{swell(t,.9,.06);osc('sine',hz(38),t,{bus:out.sfx,peak:.14,attack:.4,hold:.4,release:1.6,send:.4,reverb:out.room});[74,81].forEach((m,i)=>bell(hz(m),t+.35+i*.22,{bus:out.sfx,peak:.026,attack:.01,release:2.2,ratio:3.5,index:.8,send:.7,reverb:out.room,panTo:i?.2:-.2}));},
  // A new round: one deep drum and a short brass call.

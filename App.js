@@ -11,7 +11,7 @@ import EncounterProvider,{CombatHealthButton,EntityText} from './EncounterOverla
 import {freshStoryGame} from './storyRules';
 import {hostileEncounterGame} from './hostileEncounter';
 import CampaignJournal from './CampaignJournal';
-import {addJournalNote,appendJournal} from './journalRules';
+import {addJournalNote,appendJournal,appendStoryLog} from './journalRules';
 import Advancement from './Advancement';
 import {spellSelectionError} from './spellOptions';
 import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure} from './adventureStorage';
@@ -180,7 +180,7 @@ function QuestboundApp() {
       if(selectedIntro==='hostile'&&!continuing)next=hostileEncounterGame(hero,base);
       else{
       const endpoint=await findDmEndpoint();
-      const {ok,body}=await askDm(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,body}=await askDm(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       if(!ok)throw Error(body.error||'The story could not be created.');
       next=freshStoryGame(hero,{...body.story,introId:continuing?'surprise':selectedIntro},base);
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
@@ -237,7 +237,7 @@ function QuestboundApp() {
   async function saveAdvancement(character) {
     if(saving || storageError || game.stage!=='victory' || !hero || hero.level>=20 || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
-    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
+    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);if(game.wield)advanced.wield=game.wield;await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);setHero(character);setForm(character);setGame(advanced);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});}
     catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally {setSaving(false);}
   }

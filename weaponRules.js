@@ -42,12 +42,14 @@ export function weaponAttacks(hero) {
   // The main weapon leads: the close-range weapon that suits this hero best (a frail wizard's dagger, a strong
   // one's staff), the class's usual choice settling ties.
   const usual = classWeapons[hero.class] ?? [], rank = w => { const i = usual.indexOf(w.name); return i < 0 ? 99 : i; };
-  const main = attacks.filter(w => !w.ranged && !w.blocked).sort((a,b) => weaponScore(b) - weaponScore(a) || rank(a) - rank(b))[0]?.name ?? loadoutFor(hero).mainWeapon;
+  const best = attacks.filter(w => !w.ranged && !w.blocked).sort((a,b) => weaponScore(b) - weaponScore(a) || rank(a) - rank(b))[0]?.name ?? loadoutFor(hero).mainWeapon;
+  // A weapon the player chose to wield (from the inventory) leads instead, bow or blade, while they can use it.
+  const chosen = hero.equipment.wield, main = chosen && attacks.some(w => w.name === chosen && !w.blocked) ? chosen : best;
   return attacks.sort((a,b)=>Number(b.name===main)-Number(a.name===main));
 }
-// The gear a hero has ready, with the main weapon chosen for their own abilities.
+// The gear a hero has ready, with the main weapon chosen for their own abilities (or by the player).
 export function readyLoadout(hero) {
-  const base = loadoutFor(hero), best = weaponAttacks(hero).find(w => !w.ranged && !w.blocked)?.name;
+  const base = loadoutFor(hero), all = weaponAttacks(hero), first = all[0], best = (first && !first.blocked && first.name === hero.equipment?.wield ? first : all.find(w => !w.ranged && !w.blocked))?.name;
   return {...base, mainWeapon: best ?? base.mainWeapon};
 }
 // Where a starter kit sits badly with this hero's abilities, in plain words.

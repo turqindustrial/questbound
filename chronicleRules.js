@@ -53,11 +53,13 @@ export function describeEvent(event){
    const foe=!!target?.[1]||/ attacks you:/.test(text);
    let title=head.replace(/^You use /,'').replace(/ against /,' → ');
    const extra=text.match(/[;:] (\d+) (\w+) damage/);
+   // "Reason: Wisdom (Perception) d20 [9] …" is a check the Dungeon Master called for: which skill, or which ability.
+   const called=text.match(/: (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)(?: \(([A-Za-z ]+)\))? d20 /),check=called?(called[2]??called[1]):null;
    // Whatever follows the verdict ("You find the latch.") is the outcome in words.
    const after=text.replace(/^.*?(?:Critical hit!?|\bHit\b\.?|\bMiss\b\.?|\bSuccess\b\.?|\bFailure\b\.?|: (?:success|failure))[;.]?\s*/,'');
    const outcome=after!==text?after.replace(/^\d+ \w+ damage(?: \([^)]*\))?[.;]?\s*/,'').replace(/^Damage \d+d\d+ \[[\d, ]+\] = \d+[^.]*\.\s*/,'').trim():'';
    return {type:initiative?'initiative':save?'save':'roll',title,actor:foe?'foe':'you',natural:d.natural,rolls:d.rolls,mode:d.mode,total:Number.isFinite(total)?total:null,
-    target:target?target[2]+' '+target[3]:null,verdict:verdictOf(text,save),math:mathOf(text,d.natural),damage:extra?{amount:Number(extra[1]),damageType:damageKind(extra[2])}:null,outcome};
+    target:target?target[2]+' '+target[3]:null,check,verdict:verdictOf(text,save),math:mathOf(text,d.natural),damage:extra?{amount:Number(extra[1]),damageType:damageKind(extra[2])}:null,outcome};
   }
  }
  return {type:'text',text};

@@ -194,9 +194,12 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=die-face]{background:radial-gradient(circle at 35% 28%,#3a4660,#1b2233 60%,#0d111a) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -3px 6px rgba(0,0,0,.5),0 3px 8px rgba(0,0,0,.5);}
 [data-qb=die-face][data-nat=max]{background:radial-gradient(circle at 35% 28%,#fff1c7,#d9ae5f 55%,#8a6a35) !important;box-shadow:0 0 16px rgba(236,170,84,.7),inset 0 -3px 6px rgba(90,55,15,.5);}
 [data-qb=die-face][data-nat=one]{background:radial-gradient(circle at 35% 28%,#8c3a2e,#4a1712 60%,#240a08) !important;box-shadow:0 0 14px rgba(200,65,47,.55);}
-[data-qb=die-face][data-roll=on]{animation:qb-roll .55s var(--qb-ease) both;}
-@keyframes qb-roll{0%{transform:rotate(-200deg) scale(.4);opacity:0;}70%{transform:rotate(12deg) scale(1.08);opacity:1;}100%{transform:none;}}
-[data-qb=verdict]{animation:qb-stamp .45s cubic-bezier(.3,1.6,.5,1) .25s both;}
+/* A rolled die tumbles in from the left, bounces once and settles; when its number lands it pops and flashes. */
+[data-qb=die-face][data-roll=on]{animation:qb-tumble .56s cubic-bezier(.25,.1,.4,1) both;}
+[data-qb=die-face][data-roll=landed]{animation:qb-land .38s cubic-bezier(.3,1.7,.5,1) both;}
+@keyframes qb-tumble{0%{transform:translate3d(-30px,-16px,0) rotate(-320deg) scale(.5);opacity:0;}18%{opacity:1;}52%{transform:translate3d(-6px,4px,0) rotate(-70deg) scale(1.06);}74%{transform:translate3d(-1px,-6px,0) rotate(-16deg) scale(1);}100%{transform:translate3d(0,0,0) rotate(0) scale(1);opacity:1;}}
+@keyframes qb-land{0%{transform:scale(1.32);filter:brightness(1.9);}60%{transform:scale(.96);filter:brightness(1.15);}100%{transform:none;filter:none;}}
+[data-qb=verdict]{animation:qb-stamp .45s cubic-bezier(.3,1.6,.5,1) .6s both;}
 @keyframes qb-stamp{from{transform:scale(1.8);opacity:0;}to{transform:none;opacity:1;}}
 [data-qb=num-pop]{animation:qb-numpop .5s cubic-bezier(.3,1.6,.5,1) both;}
 @keyframes qb-numpop{from{transform:scale(.4) translateY(6px);opacity:0;}to{transform:none;opacity:1;}}

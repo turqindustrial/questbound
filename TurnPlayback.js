@@ -26,17 +26,37 @@ function cueFor(event,sounds,view){
  }
  if(view.type==='round')cue('round',{round:view.round,sub:view.round===1?'Steel is drawn':'The fight goes on'});
 }
-function DieFace({value,animate,small}){
- const size=small?30:40;
- return <View dataSet={{qb:'die-face',nat:value===20?'max':value===1?'one':'',roll:animate?'on':'off'}} style={[s.die,{width:size,height:size,borderRadius:small?6:8}]}>
-  <PlainText style={[s.dieText,small&&{fontSize:14},value===20&&{color:'#2a1a07'},value===1&&{color:'#ffd2c2'}]}>{value}</PlainText>
+// A die as it appears in the feed: it tumbles in, its face flickering through other numbers, then lands on the
+// roll with a small bounce (a natural 20 lands gold, a 1 lands red). Past turns and reduced motion show it at rest.
+const ROLL_TICKS=9,ROLL_TICK=62;
+function DieFace({value,animate,small,sides=20}){
+ const size=small?30:40,[face,setFace]=useState(animate?1+Math.floor(Math.random()*sides):value),[landed,setLanded]=useState(!animate);
+ useEffect(()=>{
+  if(!animate)return;
+  let tick=0;const timer=setInterval(()=>{tick++;if(tick>=ROLL_TICKS){clearInterval(timer);setFace(value);setLanded(true);}else setFace(1+Math.floor(Math.random()*sides));},ROLL_TICK);
+  return()=>clearInterval(timer);
+ },[]);
+ const shown=landed?value:face,top=landed&&value===20,low=landed&&value===1;
+ return <View dataSet={{qb:'die-face',nat:top?'max':low?'one':'',roll:animate?(landed?'landed':'on'):'off'}} style={[s.die,{width:size,height:size,borderRadius:small?6:8}]}>
+  <PlainText style={[s.dieText,small&&{fontSize:14},top&&{color:'#2a1a07'},low&&{color:'#ffd2c2'}]}>{shown}</PlainText>
  </View>;
 }
-function Verdict({kind,actor}){
+// A rolled amount (damage, healing, hit points lost): it spins through numbers and settles on the result.
+function RollNumber({value,live,style,prefix=''}){
+ const [shown,setShown]=useState(live?null:value);
+ useEffect(()=>{
+  if(!live)return;
+  let tick=0;const top=Math.max(4,value*2),timer=setInterval(()=>{tick++;if(tick>=7){clearInterval(timer);setShown(value);}else setShown(1+Math.floor(Math.random()*top));},55);
+  return()=>clearInterval(timer);
+ },[]);
+ const settled=shown===value;
+ return <PlainText dataSet={{qb:live&&settled?'num-pop':undefined}} style={[style,live&&!settled&&{opacity:.75}]}>{prefix}{shown??'·'}</PlainText>;
+}
+function Verdict({kind,actor,live=false}){
  const bad=(actor==='foe'&&['hit','crit'].includes(kind))||['failure'].includes(kind),good=(actor!=='foe'&&['hit','crit','failed','success'].includes(kind));
  const filled=kind==='crit';
  const tone=bad?colors.bloodBright:good?(kind==='success'?colors.heal:colors.gold):colors.muted;
- return <View dataSet={{qb:'verdict'}} style={[s.verdict,{borderColor:tone},filled&&{backgroundColor:tone}]}><PlainText style={[s.verdictText,{color:filled?'#1a0f05':tone}]}>{verdictLabels[kind]??kind}</PlainText></View>;
+ return <View dataSet={{qb:live?'verdict':undefined}} style={[s.verdict,{borderColor:tone},filled&&{backgroundColor:tone}]}><PlainText style={[s.verdictText,{color:filled?'#1a0f05':tone}]}>{verdictLabels[kind]??kind}</PlainText></View>;
 }
 function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
  const view=describeEvent(event);
@@ -48,7 +68,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
  switch(view.type){
   case 'roll':case 'save':case 'initiative':{
    const foe=view.actor==='foe',crit=view.verdict==='crit';
-   const over=view.type==='initiative'?'Initiative':view.type==='save'?'Saving throw':foe?'Enemy attack':/check|Perception|Persuasion|Insight|Stealth|Athletics|Investigation|Convince|Search/i.test(view.title+view.math)?'Check':'Your roll';
+   const over=view.type==='initiative'?'Initiative':view.type==='save'?'Saving throw':view.check?view.check+' check':foe?'Enemy attack':/check|Perception|Persuasion|Insight|Stealth|Athletics|Investigation|Convince|Search/i.test(view.title+view.math)?'Check':'Your roll';
    return wrap(<>
     <DieFace value={view.natural} animate={live} small={view.type==='initiative'}/>
     <View style={s.cardBody}>
@@ -58,24 +78,24 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
      {!!view.outcome&&<Text style={s.cardOutcome}>{view.outcome}</Text>}
     </View>
     <View style={s.cardSide}>
-     {view.verdict?<Verdict kind={view.verdict} actor={view.actor}/>:view.total!=null&&<PlainText style={s.total}>{view.total}</PlainText>}
-     {view.damage?.amount>0&&<View style={s.inlineDamage}><Icon name={damageIcon(view.damage.damageType)} size={13} color={colors.gold}/><PlainText dataSet={{qb:live?'num-pop':undefined}} style={s.inlineDamageText}>{view.damage.amount}</PlainText></View>}
+     {view.verdict?<Verdict kind={view.verdict} actor={view.actor} live={live}/>:view.total!=null&&<PlainText style={s.total}>{view.total}</PlainText>}
+     {view.damage?.amount>0&&<View style={s.inlineDamage}><Icon name={damageIcon(view.damage.damageType)} size={13} color={colors.gold}/><RollNumber value={view.damage.amount} live={live} style={s.inlineDamageText}/></View>}
     </View>
    </>,[s.card,foe&&s.cardFoe,crit&&s.cardCrit],{qb:crit?'feed-crit':foe?'feed-hurt':'feed-roll'});
   }
   case 'damage':return wrap(<>
    <View style={s.dmgIcon}><Icon name={damageIcon(view.damageType)} size={20} color={colors.goldBright}/></View>
-   <PlainText dataSet={{qb:live?'num-pop':undefined}} style={s.dmgNum}>{view.amount}</PlainText>
+   <RollNumber value={view.amount} live={live} style={s.dmgNum}/>
    <View style={{flex:1,minWidth:0}}><PlainText style={s.dmgLabel}>{view.damageType||'damage'} damage</PlainText>{!!view.math&&<PlainText numberOfLines={1} style={s.cardMath}>{view.math}</PlainText>}</View>
   </>,[s.card,s.dmgCard],{qb:'feed-roll'});
   case 'hurt':return wrap(<>
    <View style={[s.dmgIcon,{borderColor:'rgba(240,106,79,.6)'}]}><Icon name={damageIcon(view.damageType)} size={20} color="#ffb39e"/></View>
-   <PlainText dataSet={{qb:live?'num-pop':undefined}} style={[s.dmgNum,{color:colors.bloodBright}]}>−{view.amount}</PlainText>
+   <RollNumber value={view.amount} live={live} prefix="−" style={[s.dmgNum,{color:colors.bloodBright}]}/>
    <View style={{flex:1,minWidth:0}}><PlainText style={[s.dmgLabel,{color:'#ffc9b8'}]}>HP lost{view.damageType?' · '+view.damageType:''}{view.absorbed?' · '+view.absorbed+' absorbed':''}</PlainText>{!!view.math&&<PlainText numberOfLines={1} style={s.cardMath}>{view.math}</PlainText>}</View>
   </>,[s.card,s.cardFoe],{qb:'feed-hurt'});
   case 'heal':return wrap(<>
    <View style={[s.dmgIcon,{borderColor:'rgba(111,191,142,.6)'}]}><Icon name="heal" size={18} color={colors.heal}/></View>
-   <PlainText dataSet={{qb:live?'num-pop':undefined}} style={[s.dmgNum,{color:colors.heal}]}>+{view.amount}</PlainText>
+   <RollNumber value={view.amount} live={live} prefix="+" style={[s.dmgNum,{color:colors.heal}]}/>
    <View style={{flex:1,minWidth:0}}><PlainText style={[s.dmgLabel,{color:'#bfe8cd'}]}>HP restored</PlainText><PlainText numberOfLines={1} style={s.cardMath}>{view.title}</PlainText></View>
   </>,[s.card,s.healCard],{qb:'feed-effect'});
   case 'hp':{const down=view.to<view.from;return wrap(<>
@@ -117,7 +137,7 @@ function ScenePlate({subject,over}){
  </View>;
 }
 function Divider({label}){return <View style={s.divider}><View dataSet={{qb:'rule-left'}} style={s.dividerRule}/><PlainText style={s.dividerText}>{label}</PlainText><View dataSet={{qb:'rule-right'}} style={s.dividerRule}/></View>;}
-function Writing(){return <View dataSet={{qb:'typing'}} style={s.writing} accessibilityLabel="The Dungeon Master is writing"><Icon name="quill" size={14} color={colors.gold}/><PlainText style={s.writingText}>The Dungeon Master is writing</PlainText><View style={s.dots}>{[0,1,2].map(i=><View key={i} dataSet={{qb:'dot'}} style={s.dot}/>)}</View></View>;}
+function Writing(){return <View dataSet={{qb:'typing'}} style={s.writing} accessibilityLabel="The Dungeon Master is writing"><Icon name="quill" size={14} color={colors.gold}/><View style={s.dots}>{[0,1,2].map(i=><View key={i} dataSet={{qb:'dot'}} style={s.dot}/>)}</View></View>;}
 const leadIndex=events=>events.findIndex(e=>e.kind==='narration');
 export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening,busy,me=null,fill=false,aside=null,intro=null,names=null,avatarFor=null,sceneFor=null,openingScene=null,typing=false}){
  const turn=turns.at(-1),[phase,setPhase]=useState({id:null,count:0}),[history,setHistory]=useState(false),[reduceMotion,setReduceMotion]=useState(false),scroll=useRef(null),follow=useRef(true),{height,width}=useWindowDimensions();
@@ -145,7 +165,7 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  // While the player types on a phone the feed gives its header up, and it stays on its last lines as its height
  // changes (a keyboard opening must not hide what the player is replying to).
  if(fill)return <View style={s.fillPanel}>
-  <View style={[s.fillBar,typing&&{display:'none'}]}><View style={s.fillTitleRow}><Icon name={busy?'quill':playing?'d20':'journal'} size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
+  <View style={[s.fillBar,typing&&{display:'none'}]}><View style={s.fillTitleRow}><Icon name="journal" size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
   <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onLayout={()=>{if(follow.current&&settled.current)scroll.current?.scrollToEnd({animated:false});}} onScroll={e=>{const n=e.nativeEvent,y=n.contentOffset.y;if(y+n.layoutMeasurement.height>=n.contentSize.height-80)follow.current=true;else if(y<lastY.current-2)follow.current=false;lastY.current=y;}} onContentSizeChange={()=>{if(!follow.current)return;scroll.current?.scrollToEnd({animated:settled.current&&!reduceMotion});settled.current=true;}}>
    {intro}
    {!!openingScene&&(!turn||turns[0]?.id===1)&&<ScenePlate subject={openingScene} over="Where your tale begins"/>}

@@ -6,7 +6,8 @@ const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';cons
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmCommand,dmContext,validAdventure,adventureSnapshot,validStory,attitudeLabel,npcScene,recordDeed,withAttackIntent})',{AsyncStorage:{}});
 const cleric=r.readyHero('cleric'),hp={current:10,temp:0};
 const valid=(g,h=hp)=>r.validAdventure(r.adventureSnapshot(cleric,JSON.parse(JSON.stringify(g)),h,true),cleric);
-const camp=(()=>{const g={...r.hostileEncounterGame(cleric,r.newAdventure(cleric),()=>0),stage:'inn'};delete g.openingAttackAvailable;return g;})();
+// These checks are about deeds: whatever the camp makes of a dwarf at first sight is set aside (verify-regard covers it).
+const camp=(()=>{const g={...r.hostileEncounterGame(cleric,r.newAdventure(cleric),()=>0),stage:'inn'};delete g.openingAttackAvailable;delete g.npcMemory;return g;})();
 const mem=(g,id)=>g.npcMemory?.[id];
 assert.ok(valid(camp));assert.equal(camp.story.npcs.keeper.ties.other,'friend');
 // ---- Killing someone dear: a grudge that never fades ----

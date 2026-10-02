@@ -1,4 +1,6 @@
-import {validTies} from './relationshipRules';
+import {validTies,validRegard,firstImpressions} from './relationshipRules';
+import {validGeography,makeGeography,landmarkPlaces,terrains,placeKinds} from './mapRules';
+import {genders} from './npcRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
  const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -8,7 +10,26 @@ function validFoeStats(f){
 }
 export function validStory(s){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
- return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&['keeper','mara'].includes(l.speakerId)&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties));
+ return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&['keeper','mara'].includes(l.speakerId)&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&validRegard(s.npcs[id].regard))
+  // The story's own land: where its places lie, what the country is called and what kind of country it is.
+  &&(s.geography===undefined||validGeography(s.geography))&&(s.region===undefined||text(s.region,60))&&(s.terrain===undefined||terrains.includes(s.terrain));
+}
+// A written story's main foe: the climax of the tale, so sturdier than a creature met by the road, and scaled to
+// the hero's level when the story begins. (Stories from before this have no stat block and keep the old, lighter one.)
+export function storyFoeStats(level=1,type='Slashing'){
+ const up=Math.max(0,Math.min(19,(level??1)-1));
+ return {maximum:18+10*up,ac:12+Math.floor(up/4),attackBonus:3+Math.floor(up/2),die:6,count:1+Math.floor(up/5),bonus:1+Math.floor(up/3),type:damageTypes.includes(type)?type:'Slashing',saves:{Strength:1,Dexterity:2+Math.floor(up/4),Constitution:1,Intelligence:0,Wisdom:Math.floor(up/4),Charisma:0}};
+}
+// What the story writer may add that the game checks piece by piece: anything malformed is dropped, not refused.
+function tidyStory(written){
+ const {layout,landmarks,...s}=written,story={...s,locations:{...s.locations},npcs:{...s.npcs}};
+ if(typeof story.region!=='string'||!story.region.trim()||story.region.length>60)delete story.region;else story.region=story.region.trim();
+ if(!terrains.includes(story.terrain))delete story.terrain;
+ if(story.foeDamageType!==undefined&&!damageTypes.includes(story.foeDamageType))delete story.foeDamageType;
+ for(const id of ['inn','bridge','tower'])if(story.locations[id]){story.locations[id]={...story.locations[id]};if(!placeKinds.includes(story.locations[id].kind))delete story.locations[id].kind;}
+ for(const id of ['keeper','mara'])if(story.npcs[id]){const n=story.npcs[id]={...story.npcs[id]};if(!genders.includes(n.gender))delete n.gender;if(n.regard===undefined||n.regard===null||!validRegard(n.regard)||n.regard.stance==='indifferent')delete n.regard;else n.regard={stance:n.regard.stance,reason:n.regard.reason.trim()};}
+ if(!validGeography(story.geography))story.geography=makeGeography(story.id,layout);
+ return {story,landmarks};
 }
 export function storyText(game,text){
  if(!game.story)return text;
@@ -26,10 +47,20 @@ function retell(s,text){
  return text.replace(/You retreat to the inn\. The bridge remains dark, but you live to try again\./g,`You retreat to ${s.locations.inn.name}. The ${s.foe} is still out there, but you live to try again.`).replace(/\bThe keeper\b|\bthe keeper\b|\bkeeper\b/g,s.npcs.keeper.name).replace(/\bMara\b/g,s.npcs.mara.name).replace(/\bLantern Wisp\b|\bthe wisp\b|\bwisp\b/gi,s.foe).replace(/Crossroads Inn|crossroads inn/gi,s.locations.inn.name).replace(/\bOld Stone Bridge\b|\bthe bridge\b|\bbridge\b/gi,s.locations.bridge.name).replace(/\bAbandoned Watchtower\b|\bthe watchtower\b|\bwatchtower\b/gi,s.locations.tower.name)
  .replace(/You collapse\. .*?This demo ends here\./g,'You fall unconscious. This encounter ends.').replace(/.*(?:restored the crossing|wisp settles|missing bridge light).*\n?/gi,'');
 }
-export function freshStoryGame(hero,story,base){
+export function freshStoryGame(hero,written,base){
+ if(!written||typeof written!=='object'||!written.locations||!written.npcs)throw Error('The new story was incomplete. Your current adventure is unchanged.');
+ // Every story gets its own geography (from the writer's layout, or drawn from the story itself) and may mark a
+ // few places on the map from the start.
+ const {story,landmarks}=tidyStory(written);
+ if(!story.foeStats)story.foeStats=storyFoeStats(hero?.level??1,story.foeDamageType);
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
- const game={...base,story,map:{visited:['inn'],accepted:true,clue:false,peaceful:false,minutes:0},journal:{version:1,chapter:1,nextId:2,entries:[{id:1,chapter:1,kind:'quest',title:story.title,text:story.opening+'\nGoal: '+story.objective}]},log:[story.opening],worldFacts:[story.premise]};
+ let game={...base,story,map:{visited:['inn'],accepted:true,clue:false,peaceful:false,minutes:0},enemyHP:story.foeStats.maximum,journal:{version:1,chapter:1,nextId:2,entries:[{id:1,chapter:1,kind:'quest',title:story.title,text:story.opening+'\nGoal: '+story.objective}]},log:[story.opening],worldFacts:[story.premise],
+  // The story so far starts here (a hero's earlier chapters are joined on by joinRegion).
+  storyLog:[{id:1,kind:'story',text:(story.title+': the tale began at '+story.locations.inn.name+'.').slice(0,160)}]};
+ const places=landmarkPlaces(story,landmarks);
+ if(places.length)game.world={places,at:null};
  // Opening dialogue plays as the first turn, so the residents are already talking when the player arrives.
  if(story.openingDialogue)game.playback=[{id:1,npcId:null,participants:['keeper','mara'],events:[{kind:'narration',text:story.opening},...story.openingDialogue.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:story.npcs[l.speakerId].name,text:l.text}))]}];
- return game;
+ // The residents have already formed a view of the hero's kind.
+ return firstImpressions(game,hero);
 }

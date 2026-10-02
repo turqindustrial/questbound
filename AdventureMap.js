@@ -2,13 +2,13 @@ import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import React,{useState,useEffect,useRef} from 'react';
-import {View,Image,Pressable,Platform,StyleSheet,Modal,useWindowDimensions} from 'react-native';
-import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons} from './mapRules';
+import {View,Image,Pressable,Platform,StyleSheet,Modal,ScrollView,useWindowDimensions} from 'react-native';
+import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion} from './mapRules';
 import {fonts,colors,type} from './theme';
 import Icon from './Icon';
 import {Text as PlainText} from 'react-native';
 import {regionLayout,regionLabels} from './mapLayout';
-import {regionMapSvg} from './mapArt';
+import {regionMapSvg,exitLabelBoxes} from './mapArt';
 const web=Platform.OS==='web';
 const landscape=require('./assets/map/crossroads-landscape.jpg');
 const centers={inn:{x:0.14,y:0.60},bridge:{x:0.80,y:0.66},tower:{x:0.80,y:0.015},dungeon:{x:0.78,y:0.90}};
@@ -45,29 +45,37 @@ export default function AdventureMap({game,travelTo=[],onTravel}){
   {map.clue&&<Text style={s.clue}>Known signal: low, high, low.</Text>}
  </View>;
 }
-// A written story's region, drawn as a map: every known place, the paths between them, and where the hero stands
-// (mapLayout.js places them, mapArt.js draws the sheet). Tap a place for its details; Travel sets out through the
-// Dungeon Master. The sheet can be zoomed and opened full screen once there are many places.
+// A written story's country, drawn as maps: one sheet for each region the hero knows (the land the story began in,
+// lands reached by far journeys, an earlier chapter's country), every known place on it, the paths between them, the
+// roads that lead off to other regions, and where the hero stands (mapLayout.js places them, mapArt.js draws the
+// sheet to suit the region's terrain). Tap a place for its details; Travel sets out through the Dungeon Master. A
+// sheet can be zoomed and opened full screen once there are many places.
 const coreIcons={inn:'home',bridge:'swords',tower:'tower'},coreKinds={inn:'start',bridge:'danger',tower:'high'};
+// What a place is: a found place's kind, or (for the three starting places) the kind its story gave it.
+export const placeKindOf=(game,id)=>worldPlace(game,id)?.kind??game.story?.locations?.[id]?.kind??null;
+const placeIconOf=(game,id)=>worldPlace(game,id)?placeIcons[worldPlace(game,id).kind]??'compass':id==='inn'?'home':placeIcons[game.story?.locations?.[id]?.kind]??coreIcons[id]??'compass';
 const zooms=[1,1.6,2.4];
-function RegionSheet({game,w,h,selected,onSelect}){
+function RegionSheet({game,w,h,selected,onSelect,region,onRegion}){
  const [zoom,setZoom]=useState(0),scroller=useRef(null);
  const z=zooms[zoom],W=Math.round(w*z),H=Math.round(h*z);
- const here=mapLocation(game),visited=new Set(mapState(game).visited);
+ const here=mapLocation(game),visited=new Set(mapState(game).visited),regions=mapRegions(game),land=regions.find(r=>r.id===region)??regions[0];
+ const layout=regionLayout(game,W,H,{region:land.id}),{ids,at,links,exits}=layout;
+ // Roads out are named after the land they lead to.
+ const exitNames=Object.fromEntries(exits.map(e=>[e.to,(regions.find(r=>r.id===e.region)??regions[0]).name])),exitBoxes=exitLabelBoxes(exits,exitNames,W,H);
  // At full view the corner under the zoom buttons and the map's title are kept clear of names.
- const avoid=zoom===0?[{x:W-52,y:H-98,w:52,h:98},{x:8,y:H-30,w:220,h:24}]:[{x:8,y:H-30,w:220,h:24}];
- const layout=regionLayout(game,W,H),{ids,at,links}=layout,labels=regionLabels(game,W,H,layout,{here,selected,avoid});
- const iconFor=id=>coreIcons[id]??placeIcons[worldPlace(game,id)?.kind]??'compass';
+ const avoid=[...(zoom===0?[{x:W-52,y:H-98,w:52,h:98}]:[]),{x:8,y:H-30,w:Math.min(W-70,land.name.length*8.2+14),h:24},...exitBoxes.map(e=>({x:e.lx-2,y:e.ly-2,w:e.tw+4,h:16}))];
+ const labels=regionLabels(game,W,H,layout,{here,selected,avoid});
+ const iconFor=id=>placeIconOf(game,id);
  const short=feet=>distanceText(feet).replace(' miles',' mi');
  const distances=Object.fromEntries(links.map(([a,b])=>{const p=placeCoordinates(game,a),q=placeCoordinates(game,b);return [a+'-'+b,p&&q?short(Math.round(Math.hypot(p.x-q.x,p.y-q.y))):null];}));
- const svg=web?regionMapSvg({w:W,h:H,seed:game.story?.id??'region',ids,at,links,labels,here,visited,selected,distances,avoid:avoid.slice(0,zoom===0?1:0),
-  kinds:Object.fromEntries(ids.map(id=>[id,coreKinds[id]??worldPlace(game,id)?.kind??'wilds'])),icons:Object.fromEntries(ids.map(iconFor).map((icon,i)=>[ids[i],icon])),
-  lairs:new Set(ids.filter(id=>!!worldPlace(game,id)?.threat)),cleared:new Set(ids.filter(id=>!!worldPlace(game,id)?.cleared)),title:'Lands about '+placeName(game,'inn')}):null;
- // Zooming keeps the hero's place in the middle of the frame.
+ const svg=web?regionMapSvg({w:W,h:H,seed:(game.story?.id??'region')+':'+land.id,terrain:land.terrain,ids,at,links,exits,exitNames,labels,here,visited,selected,distances,avoid:avoid.slice(0,zoom===0?1:0),
+  kinds:Object.fromEntries(ids.map(id=>[id,placeKindOf(game,id)??coreKinds[id]??'wilds'])),icons:Object.fromEntries(ids.map(iconFor).map((icon,i)=>[ids[i],icon])),
+  lairs:new Set(ids.filter(id=>!!worldPlace(game,id)?.threat)),cleared:new Set(ids.filter(id=>!!worldPlace(game,id)?.cleared)),title:land.name}):null;
+ // Zooming keeps the hero's place in the middle of the frame (or the middle of a sheet the hero is not on).
  const centre=smooth=>{const p=at[here]??{x:W/2,y:H/2};scroller.current?.scrollTo?.({left:Math.max(0,p.x-w/2),top:Math.max(0,p.y-h/2),behavior:smooth?'smooth':'auto'});};
- useEffect(()=>{centre(false);},[zoom,w,h,here]);
+ useEffect(()=>{centre(false);},[zoom,w,h,here,land.id]);
  const tool=(label,text,onPress,disabled)=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:'map-tool'}} style={[s.tool,disabled&&{opacity:.45}]}>{typeof text==='string'?<PlainText style={s.toolText}>{text}</PlainText>:text}</Pressable>;
- return <View dataSet={{qb:'map-frame'}} accessibilityLabel={'Map of '+ids.length+' known places'} style={[s.region,{width:w,height:h}]}>
+ return <View dataSet={{qb:'map-frame'}} accessibilityLabel={'Map of '+land.name+': '+ids.length+' known places'} style={[s.region,{width:w,height:h}]}>
   <View ref={scroller} dataSet={{qb:'map-scroll',zoomed:String(zoom>0)}} style={{width:w,height:h}}>
    <View style={{width:W,height:H}}>
     {web?React.createElement('svg',{viewBox:'0 0 '+W+' '+H,width:W,height:H,'aria-hidden':true,focusable:'false',style:{position:'absolute',left:0,top:0,display:'block',pointerEvents:'none'},dangerouslySetInnerHTML:{__html:svg}})
@@ -79,6 +87,8 @@ function RegionSheet({game,w,h,selected,onSelect}){
       {!!label&&(web?<Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={()=>onSelect(on?null:id)} style={{position:'absolute',left:label.x,top:label.y,width:label.w,height:label.h}}/>
        :<PlainText onPress={()=>onSelect(on?null:id)} numberOfLines={2} style={[s.nodeLabel,{left:label.x,top:label.y,width:label.w,textAlign:label.align}]}>{placeName(game,id)}</PlainText>)}
      </React.Fragment>;})}
+    {/* A road out of this region: tap where it leaves the sheet to turn to that land's map. */}
+    {exitBoxes.map(e=><Pressable key={'exit:'+e.from+':'+e.to} accessibilityRole="button" accessibilityLabel={'Show the map of '+exitNames[e.to]} onPress={()=>onRegion?.(e.region)} style={{position:'absolute',left:Math.min(e.lx,e.x-22),top:Math.min(e.ly,e.y-22),width:Math.max(e.lx+e.tw,e.x+22)-Math.min(e.lx,e.x-22),height:Math.max(e.ly+18,e.y+22)-Math.min(e.ly,e.y-22)}}/>)}
    </View>
   </View>
   <View style={s.tools}>
@@ -92,15 +102,24 @@ function RegionMap({game,travelTo,onTravel}){
  const [width,setWidth]=useState(300),[selected,setSelected]=useState(null),[open,setOpen]=useState(false);
  const {width:winW,height:winH}=useWindowDimensions();
  const map=mapState(game),here=mapLocation(game),ids=knownPlaceIds(game),visited=new Set(map.visited);
+ // Which region's sheet is showing: the one the hero is in, until another is picked (and again once they move on).
+ const regions=mapRegions(game),home=currentRegion(game),[turned,setTurned]=useState(null);
+ useEffect(()=>{setTurned(null);},[home,game.story?.id]);
+ const shown=regions.find(r=>r.id===turned)??regions.find(r=>r.id===home)??regions[0],sheetIds=ids.filter(id=>regionOfPlace(game,id)===shown.id);
+ const turnTo=id=>{setTurned(id);setSelected(null);};
+ // Over the sheet: where the hero stands (on their own land's sheet), or the name of the land being looked at.
+ const count=sheetIds.length+(sheetIds.length===1?' place':' places'),sheetTitle=shown.id===home?shown.name+' · '+count:'Another land · '+count,sheetHeading=shown.id===home?placeName(game,here):shown.name;
  // The sheet is as wide as its panel and nearly square on a phone, where the Map tab has the height for it.
  const w=Math.max(230,Math.min(width,760)),h=Math.round(Math.max(250,Math.min(560,w*(w<480?.95:.68))));
  const bigW=Math.max(260,Math.min(winW-28,1180)),bigH=Math.max(240,Math.min(winH-(winW<600?210:170),Math.round(bigW*.8)));
  const routeTo=id=>id===here?null:travelRoute(game,here,id);
- const iconFor=id=>coreIcons[id]??placeIcons[worldPlace(game,id)?.kind]??'compass';
+ const iconFor=id=>placeIconOf(game,id);
  // What waits at a found place: a lair's creature, a risk, or a place you have cleared.
  const dangerNote=id=>{const w=worldPlace(game,id);if(!w)return null;if(w.cleared)return 'Cleared';if(w.threat)return 'Lair of '+w.threat.name;if(w.danger==='risky')return 'Something may lurk here';return null;};
  const pick=selected&&ids.includes(selected)?selected:null,pickRoute=pick?routeTo(pick):null,canGo=id=>id!==here&&!!onTravel&&travelTo.includes(id);
- const places=[...ids].sort((a,b)=>(a===here?-1:b===here?1:(routeTo(a)?.feet??0)-(routeTo(b)?.feet??0)));
+ const places=[...sheetIds].sort((a,b)=>(a===here?-1:b===here?1:(routeTo(a)?.feet??0)-(routeTo(b)?.feet??0)));
+ // The regions the hero knows, as a row of sheets to turn to (shown once there is more than one).
+ const regionTabs=regions.length>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.regionBar} contentContainerStyle={s.regionRow} accessibilityRole="tablist">{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</ScrollView>;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
  const pickCard=close=>pick&&<View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLiveRegion="polite">
    <View style={{flex:1,minWidth:0}}>
@@ -114,16 +133,18 @@ function RegionMap({game,travelTo,onTravel}){
   </View>;
  return <View dataSet={{qb:'plate'}} style={s.panel} onLayout={e=>setWidth(Math.max(230,e.nativeEvent.layout.width-36))}>
   <View style={s.headRow}>
-   <View style={{flex:1,minWidth:0}}><View style={s.eyebrowRow}><Icon name="map" size={14} color={colors.goldMid}/><PlainText style={s.eyebrow}>Your region · {ids.length} places</PlainText></View><Text style={s.heading}>{placeName(game,here)}</Text></View>
+   <View style={{flex:1,minWidth:0}}><View style={s.eyebrowRow}><Icon name="map" size={14} color={colors.goldMid}/><PlainText numberOfLines={2} style={[s.eyebrow,{flexShrink:1}]}>{sheetTitle}</PlainText></View><Text style={s.heading}>{sheetHeading}</Text></View>
    <Pressable accessibilityRole="button" accessibilityLabel="Open the map full screen" onPress={()=>setOpen(true)} dataSet={{qb:'chip'}} style={s.expand}><Icon name="expand" size={15} color={colors.gold}/><PlainText style={s.travelText}>Full map</PlainText></Pressable>
   </View>
-  <RegionSheet game={game} w={w} h={h} selected={pick} onSelect={setSelected}/>
+  {regionTabs}
+  <RegionSheet game={game} w={w} h={h} selected={pick} onSelect={setSelected} region={shown.id} onRegion={turnTo}/>
   <Modal transparent visible={open} animationType="fade" onRequestClose={()=>setOpen(false)}>
    <View dataSet={{qb:'scrim'}} style={s.scrim}>
     <View dataSet={{qb:'sheet'}} style={[s.bigSheet,{width:bigW+24}]} accessibilityViewIsModal>
-     <View style={s.headRow}><View style={{flex:1,minWidth:0}}><PlainText style={s.eyebrow}>Your region · {ids.length} places</PlainText><PlainText numberOfLines={1} style={[s.heading,{marginTop:2}]}>{placeName(game,here)}</PlainText></View>
+     <View style={s.headRow}><View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={s.eyebrow}>{sheetTitle}</PlainText><PlainText numberOfLines={1} style={[s.heading,{marginTop:2}]}>{sheetHeading}</PlainText></View>
       <Pressable accessibilityRole="button" accessibilityLabel="Close the map" onPress={()=>setOpen(false)} dataSet={{qb:'chip'}} style={s.expand}><Icon name="close" size={15} color={colors.gold}/><PlainText style={s.travelText}>Close</PlainText></Pressable></View>
-     {open&&<RegionSheet game={game} w={bigW} h={bigH} selected={pick} onSelect={setSelected}/>}
+     {regionTabs}
+     {open&&<RegionSheet game={game} w={bigW} h={bigH} selected={pick} onSelect={setSelected} region={shown.id} onRegion={turnTo}/>}
      {pickCard(()=>setOpen(false))}
     </View>
    </View>
@@ -140,6 +161,8 @@ const s=StyleSheet.create({
  region:{alignSelf:'center',marginTop:12,borderRadius:4,overflow:'hidden',borderWidth:1,borderColor:'rgba(232,199,123,.55)',backgroundColor:'#dcc694'},
  headRow:{flexDirection:'row',alignItems:'flex-end',gap:10},expand:{flexDirection:'row',alignItems:'center',gap:6,minHeight:38,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:'rgba(201,164,92,.5)',backgroundColor:'rgba(20,25,36,.92)',justifyContent:'center'},
  herePulse:{position:'absolute',width:30,height:30,borderRadius:15,pointerEvents:'none'},
+ regionBar:{flexGrow:0,marginTop:10},regionRow:{gap:6,paddingRight:8},regionTab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:34,maxWidth:230,paddingHorizontal:12,borderRadius:17,borderWidth:1,borderColor:'rgba(201,164,92,.35)',backgroundColor:'rgba(20,25,36,.92)'},regionTabOn:{borderColor:colors.goldBright,backgroundColor:'rgba(58,46,26,.92)'},
+ regionTabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:.9,color:colors.gold,flexShrink:1},regionDot:{width:7,height:7,borderRadius:4,backgroundColor:'#c8412f'},
  tools:{position:'absolute',right:8,bottom:8,gap:6},tool:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(59,42,23,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'#eddeb6'},toolText:{fontFamily:fonts.display,fontSize:20,lineHeight:24,fontWeight:'800',color:'#3b2a17'},
  scrim:{flex:1,backgroundColor:'rgba(2,3,6,.82)',alignItems:'center',justifyContent:'center',padding:8},bigSheet:{maxWidth:'100%',maxHeight:'100%',padding:12,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:'rgba(13,17,26,.98)',gap:4},
  compassMark:{position:'absolute',top:8,right:10,fontFamily:fonts.display,fontSize:11,letterSpacing:1.5,color:'rgba(233,223,192,.7)'},

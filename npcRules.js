@@ -22,12 +22,14 @@ export const npcMaxHP=(id,game)=>npcProfile(game,id)?.maximumHP??10;
 // Who someone is, for the Dungeon Master, portraits and the screen: the story's residents, the people met since, or
 // the original crossroads pair.
 const crossroadsLore={keeper:{role:'Keeper of the Crossroads Inn',motive:'Keep the inn and its guests safe.',personality:null,appearance:null,species:'Human'},mara:{role:'Traveling medicine courier',motive:'Keep travelers safe and deliver medicine.',personality:null,appearance:null,species:'Human'}};
+// Whether someone is a woman or a man, when the story says so (it decides how their portrait is painted).
+export const genders=['woman','man','other'];
 export function npcLore(game,id){
  const s=game?.story?.npcs?.[id];
- if(s)return {name:s.name,role:s.role,motive:s.motive,personality:s.personality??null,appearance:s.appearance??null,species:s.species??null};
+ if(s)return {name:s.name,role:s.role,motive:s.motive,personality:s.personality??null,appearance:s.appearance??null,species:s.species??null,gender:s.gender??null};
  const p=game?.people?.[id];
- if(p&&isPersonId(id))return {name:p.name,role:p.role,motive:p.motive??null,personality:p.personality||null,appearance:p.appearance,species:p.species||null};
- return npcProfiles[id]?{name:npcProfiles[id].name,...crossroadsLore[id]}:null;
+ if(p&&isPersonId(id))return {name:p.name,role:p.role,motive:p.motive??null,personality:p.personality||null,appearance:p.appearance,species:p.species||null,gender:p.gender??null};
+ return npcProfiles[id]?{name:npcProfiles[id].name,...crossroadsLore[id],gender:id==='mara'?'woman':'man'}:null;
 }
 // Players address people by full name, first name or surname ("Tobin", "Brask"); titles alone do not count.
 const nameTitles=['the','captain','lady','lord','sir','dame','master','mistress','old','elder','brother','sister','father','mother','keeper','doctor','healer','aunt','uncle','young'];

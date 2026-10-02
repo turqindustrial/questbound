@@ -25,7 +25,7 @@ export function recordJournalTransition(before,after,action,hero) {
   if(action?.type==='discover'&&(after.world?.places?.length??0)>(before.world?.places?.length??0)){const place=after.world.places.at(-1);journal=appendJournal(journal,'quest',(action.travel?'Journey to ':'Learned of ')+place.name,place.description);}
   if(action==='inspect-tower' && !mapState(before).clue && mapState(after).clue)journal=appendJournal(journal,'quest','The watchkeeper’s signal','Three notes: low, high, low. The lost light once guarded the crossing. Try calling it home at the bridge.');
   if(action==='call-wisp')journal=appendJournal(journal,'quest','A peaceful resolution','You used the three-note signal to guide the wisp home without a fight.');
-  if(before.stage==='bridge' && after.stage==='combat')journal=appendJournal(journal,'encounter','The Lantern Wisp','A restless wisp guards the broken lamp. The encounter begins.');
+  if(before.stage==='bridge' && after.stage==='combat')journal=after.story?appendJournal(journal,'encounter',after.story.foe,'The fight with the '+after.story.foe+' at '+after.story.locations.bridge.name+' begins.'):appendJournal(journal,'encounter','The Lantern Wisp','A restless wisp guards the broken lamp. The encounter begins.');
   if(before.stage!==after.stage && ['victory','defeat','escaped'].includes(after.stage)){
     const details={victory:['Bridge light restored','The wisp settled into the lantern. The crossing is safe again.'],defeat:['Rescued by the keeper','You fell during the encounter. The keeper rescued you; the bridge remains dark.'],escaped:['Retreat from the bridge','You escaped to safety. The bridge light still needs to be restored.']}[after.stage];
     journal=appendJournal(journal,'outcome',...details);
@@ -47,6 +47,18 @@ export function journalObjective(stage,map,campaign) {
   if(stage==='inn' && map?.accepted)return 'Restore the bridge light. Follow the map to the bridge or investigate the watchtower.';
   if(stage==='bridge' && map?.clue)return 'Use the watchkeeper’s signal to call the wisp home, or approach it in combat.';
   return {tower:'Investigate the watchtower for a clue to the missing bridge light.',inn:'Speak with the keeper at the crossroads inn.',bridge:'Follow the sparks and investigate the broken bridge lamp.',combat:'Resolve the Lantern Wisp encounter to restore the bridge light.',victory:'Completed: restore the bridge light.',defeat:'Unfinished: restore the bridge light. Recover and begin another attempt.',escaped:'Unfinished: restore the bridge light. Return when you are ready.'}[stage];
+}
+// ---------- The story so far ----------
+// One short line for each thing that mattered (storyLog.js works them out turn by turn; the Log tab shows them).
+export const storyLogKinds=['story','travel','place','person','fight','victory','flight','fall','death','deed','loot','rest','level','quest'];
+export const maxStoryLog=400;
+export function appendStoryLog(log,kind,text){
+ const list=Array.isArray(log)?log:[],clean=String(text??'').replace(/\s+/g,' ').trim(),line=clean.length>150?clean.slice(0,149).trimEnd()+'…':clean;
+ if(!line||!storyLogKinds.includes(kind))return list;
+ return [...list,{id:(list.at(-1)?.id??0)+1,kind,text:line}].slice(-maxStoryLog);
+}
+export function validStoryLog(log){
+ return log===undefined||(Array.isArray(log)&&log.length<=maxStoryLog&&log.every((e,i)=>e&&Number.isSafeInteger(e.id)&&e.id>0&&(i===0||e.id>log[i-1].id)&&storyLogKinds.includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=160));
 }
 export function validJournal(journal) {
   if(!journal || journal.version!==1 || !Number.isSafeInteger(journal.chapter) || journal.chapter<1 || !Number.isSafeInteger(journal.nextId) || !Array.isArray(journal.entries) || journal.nextId!==journal.entries.length+1)return false;

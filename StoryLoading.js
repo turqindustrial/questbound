@@ -28,11 +28,11 @@ export default function StoryLoading({introId,hero=null}){
     <View dataSet={{qb:'bezel'}} style={s.bezel}/>
     <View dataSet={{qb:'launch-ring'}} style={s.seal}><Icon name="quill" size={40} color={colors.goldBright}/></View>
    </View>
-   <Text style={s.overline}>{hero!=null?'The Dungeon Master is shaping':'The Dungeon Master is writing'}</Text>
+   <Text style={s.overline}>{hero!=null?'New character':'A new tale'}</Text>
    <Text dataSet={{qb:'title',lig:'off'}} style={[s.title,{fontSize:size,lineHeight:Math.round(size*1.25)}]}>{title}</Text>
    {!!detail&&<Text style={s.setting}>{detail}</Text>}
    <View style={s.track}><View dataSet={{qb:'shimmer'}} style={s.fill}/></View>
-   <Text style={s.time}>{hero!=null?(seconds<25?'Species, class, abilities, spells, gear and a backstory':'Still shaping: you can review everything before saving'):seconds<25?'Names, places and a first conflict, made for your hero':seconds<60?'Still writing: a good opening takes a moment':'Taking longer than usual; it will appear as soon as it is ready'}</Text>
+   {seconds>=60&&<Text style={s.time}>Taking longer than usual; it will appear as soon as it is ready.</Text>}
    <View key={tip} dataSet={{qb:'enter'}} style={s.tip}><Icon name={tips[tip][0]} size={16} color={colors.gold}/><Text style={s.tipText}>{tips[tip][1]}</Text></View>
   </View>
  </View>;

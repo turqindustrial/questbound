@@ -3236,7 +3236,7 @@
       "Sorcerer",
       "Wizard"
     ],
-    "description": "",
+    "description": "A creature you touch has the Invisible condition until the spell ends. Unlike ordinary invisibility, it does not end when the creature attacks or casts a spell.",
     "higherLevel": "",
     "school": "illusion",
     "castingTime": "Action",

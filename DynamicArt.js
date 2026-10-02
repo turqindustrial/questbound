@@ -15,7 +15,7 @@ export default function DynamicArt({subject,style,compact=false,quiet=false,stat
  const waiting=current.status==='pending';
  return <View dataSet={dataSet} style={[s.frame,quiet&&{borderRadius:0},style]}>
  {current.status==='ready'?<Image dataSet={{qb:'art-img'}} source={{uri:current.dataUrl}} accessibilityLabel={(subject.kind==='landscape'?'Scene: ':'Portrait of ')+subject.name} style={StyleSheet.absoluteFillObject} resizeMode={resizeMode}/>:<View dataSet={{qb:waiting&&!quiet?'art-wait':undefined}} style={s.placeholder}>
- {quiet?null:waiting?(!compact&&<View style={s.caption}><Icon name="quill" size={15} color="#d6b582"/><Text style={s.text}>Painting {subject.name}…</Text></View>):compact?<Icon name={kindIcons[subject.kind]??'star'} size={16} color={colors.goldDeep}/>:<><Text accessibilityRole="alert" style={s.text}>{current.error}</Text><Pressable accessibilityRole="button" onPress={()=>retryArt(subject)} dataSet={{qb:'chip'}} style={s.retry}><Icon name="retreat" size={14} color={colors.gold}/><Text style={s.retryText}>Retry illustration</Text></Pressable></>}
+ {quiet?null:waiting?null:compact?<Icon name={kindIcons[subject.kind]??'star'} size={16} color={colors.goldDeep}/>:<><Text accessibilityRole="alert" style={s.text}>{current.error}</Text><Pressable accessibilityRole="button" onPress={()=>retryArt(subject)} dataSet={{qb:'chip'}} style={s.retry}><Icon name="retreat" size={14} color={colors.gold}/><Text style={s.retryText}>Retry illustration</Text></Pressable></>}
  </View>}
  </View>;
 }

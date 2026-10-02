@@ -8,14 +8,14 @@ import {fonts,colors,type} from './theme';
 const icons={hostile:'swords',surprise:'compass',caravan:'sun',harbor:'frost',canal:'eye',garden:'leaf',hollow:'spell'};
 // With a story behind them, a hero can carry on in the same region (the next chapter) or set out somewhere new.
 function Continuation({continuation,continuing,onContinuing,busy}){
- return <View style={s.choice}>{[[true,'map','Continue in this region','The next chapter begins a few miles from '+continuation.place+'. Everyone you met, the places you found, every grudge and debt, your companions and your pack come with you.'],[false,'compass','Somewhere new','Leave '+continuation.place+' behind. Your companions and your pack come with you; the rest of the world is new.']].map(([value,icon,title,copy])=>{const chosen=continuing===value;return <Pressable key={title} accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onContinuing(value);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:'gold'}} style={[s.card,s.option,chosen&&s.selected]}>
+ return <View style={s.choice}>{[[true,'map','Continue in this region','The next chapter begins a few miles from '+continuation.place+'. Everyone you met, the places you found, every grudge and debt, your companions and your pack come with you, and the country you know keeps its own map.'],[false,'compass','Somewhere new','Leave '+continuation.place+' behind. Your companions and your pack come with you; the rest of the world is new.']].map(([value,icon,title,copy])=>{const chosen=continuing===value;return <Pressable key={title} accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onContinuing(value);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:'gold'}} style={[s.card,s.option,chosen&&s.selected]}>
   <View style={s.top}><Crest icon={icon} size={40} color={colors.goldBright}/><Text style={[s.title,{flex:1,fontSize:19}]}>{title}</Text>{chosen&&<View style={s.check}><Icon name="check" size={16} color="#1a0f05" strokeWidth={2.4}/></View>}</View>
   <Text style={s.copy}>{copy}</Text></Pressable>;})}</View>;
 }
 export default function AdventureIntros({selected,onSelect,onStart,busy,error,continuation=null,continuing=false,onContinuing}){
  if(continuation&&continuing)return <View><ScreenTitle eyebrow="Next chapter" icon="map" title="Where does your story go next?" sub={'After '+continuation.title+'.'}/>
   <Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>
-  <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'The Dungeon Master is writing the next chapter…':'Begin the next chapter'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
+  <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'One moment…':'Begin the next chapter'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
   <Ornament/><Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
  return <View><ScreenTitle eyebrow="New adventure" icon="compass" title="Where does your story begin?" sub="Choose an opening. The Dungeon Master creates new names, discoveries and a way forward around it."/>
  {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
@@ -27,7 +27,7 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
  <Text style={s.setting}>{intro.setting}</Text>
  {chosen&&<><Text style={s.label}>The first conflict</Text><Text style={s.copy}>{intro.conflict}</Text></>}
  <Text style={s.arrival}>— {intro.arrival}</Text></Pressable>
- {chosen&&<View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':hot?'swords':'play'} label={busy?(hot?'Drawing steel…':'The Dungeon Master is writing your opening…'):'Begin '+(hot?'the encounter':'this adventure')} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>}</React.Fragment>;})}
+ {chosen&&<View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':hot?'swords':'play'} label={busy?(hot?'Drawing steel…':'One moment…'):'Begin '+(hot?'the encounter':'this adventure')} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>}</React.Fragment>;})}
  <Ornament/>
  <Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
 }

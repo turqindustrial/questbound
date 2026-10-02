@@ -31,7 +31,14 @@ const fresh=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g)));
 let next=r.joinRegion(fresh,g,{sameRegion:true,bearing:'N',miles:5});
 assert.ok(valid(next),'The continued story is a valid save');
 // Places: the old start, its two neighbours, then the places found there, joined in order.
-same(next.world.places.map(p=>[p.id,p.name,p.from]),[['p1','Caravan Camp','inn'],['p2','Overgrown Roadside','p1'],['p3','Lookout Rock','p1'],['p4','Smokewood Hut','p1'],['p5','Widow Hollow','p4']]);
+// The lookout hangs off whichever place the earlier story's own paths joined it to.
+const rockFrom=g.story.geography.links.some(l=>l.includes('tower')&&l.includes('inn'))?'p1':'p2';
+same(next.world.places.map(p=>[p.id,p.name,p.from]),[['p1','Caravan Camp','inn'],['p2','Overgrown Roadside','p1'],['p3','Lookout Rock',rockFrom],['p4','Smokewood Hut','p1'],['p5','Widow Hollow','p4']]);
+// The earlier country keeps a map of its own.
+same(next.world.regions.map(x=>[x.id,x.name]),[['r1','Lands about Caravan Camp']],'The new story is set on the same Caravan Road, so the earlier sheet is named for its camp');
+assert.equal(r.joinRegion(r.freshStoryGame(kara,{...story2,region:'The Brinefold'},r.newAdventure(kara,r.carriedBase(g))),g,{sameRegion:true,bearing:'N',miles:5}).world.regions[0].name,'The Caravan Road');
+// The new residents' first impressions sit beside what old acquaintances remember.
+{const warm=r.joinRegion(r.freshStoryGame(kara,{...story2,npcs:{...story2.npcs,keeper:{...story2.npcs.keeper,regard:{stance:'scornful',reason:'I have no use for sellswords.'}}}},r.newAdventure(kara,r.carriedBase(g))),g,{sameRegion:true,bearing:'N',miles:5});assert.equal(warm.npcMemory.keeper.attitude,'unfriendly');assert.equal(warm.npcMemory.n3.bond,'The player saved my brother.');assert.ok(valid(warm));}assert.ok(next.world.places.every(p=>p.region==='r1'),'Every old place is on the old map');
 assert.equal(next.world.places[0].y,26400,'Five miles north');assert.equal(next.world.places[4].threat.name,'Grey Widow');
 assert.ok(r.travelRoute(next,'inn','p4'),'There is a road back');assert.ok(next.map.visited.includes('p1')&&next.map.visited.includes('p4'));
 // People: the old residents and Harlan, with their homes, ties, memories and Tobin still at your side.

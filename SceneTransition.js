@@ -38,17 +38,11 @@ export default function SceneTransitionProvider({children}){
  const place=display?.items?.find(i=>i.kind==='landscape')?.name;
  return <Context.Provider value={{prepare}}>{children}<Modal transparent visible={!!state} animationType="fade" onRequestClose={proceed}><View dataSet={{qb:'scrim'}} style={s.shade}><View style={[s.panel,{maxHeight:Math.max(180,height-32)}]} accessibilityViewIsModal><ScrollView style={{flexShrink:1}} contentContainerStyle={s.content}>
   <View style={s.ring}><ActivityIndicator color="#e8c77b" size="large"/></View>
-  <Text style={s.overline}>The world takes shape</Text>
-  <Text accessibilityRole="header" style={s.title}>{place??'Preparing the next scene'}</Text>
+  {/* A quiet pause: where you are going, a line that fills, and a way to skip it. No list of what is being made. */}
+  <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={s.title}>{place??'One moment'}</Text>
   <View style={s.rule}><View dataSet={{qb:'rule-left'}} style={s.ruleLine}/><View style={s.lozenge}/><View dataSet={{qb:'rule-right'}} style={s.ruleLine}/></View>
-  <View style={s.items}>{(display?.items??[]).map(item=><View key={item.key} style={s.item}>
-   <Icon name={kindIcons[item.kind]??'star'} size={15} color={item.done?colors.gold:colors.faint}/>
-   <Text numberOfLines={1} style={[s.itemName,item.done&&{color:colors.parchment}]}>{item.name}</Text>
-   {item.done?<Icon name="check" size={15} color={colors.heal}/>:<ActivityIndicator size="small" color="#8d96a8"/>}
-  </View>)}</View>
   <View style={s.track}><View dataSet={{qb:'shimmer'}} style={[s.fill,{width:Math.max(8,progress)+'%'}]}/></View>
-  <Text accessibilityLiveRegion="polite" style={s.note}>{display?.completed??0} of {display?.total??0} illustrations painted · the story continues in a moment</Text>
-  <Pressable accessibilityRole="button" onPress={proceed} style={s.button}><Text style={s.label}>Continue now</Text><Icon name="forward" size={14} color={colors.gold}/></Pressable>
+  <Pressable accessibilityRole="button" onPress={proceed} style={s.button}><Text style={s.label}>Continue</Text><Icon name="forward" size={14} color={colors.gold}/></Pressable>
  </ScrollView></View></View></Modal></Context.Provider>;
 }
 const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'rgba(3,4,7,.86)',padding:24},

@@ -13,8 +13,9 @@ import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
 import {npcScene,npcLore} from './npcRules';
 import {livingAllies,allyStats} from './encounterRules';
-import {attitudeLabel} from './relationshipRules';
-import {packOf,arrowsLeft} from './inventoryRules';
+import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
+import Inventory from './Inventory';
+import {withStoryLog} from './storyLog';
 import {damageIcon,damageKind} from './chronicleRules';
 import {useShownHp} from './cinematics';
 import {playSound} from './audio';
@@ -30,6 +31,11 @@ import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
 import {rememberTurn} from './turnMemory';
 import {useVisualViewport} from './webLayout';
 import {fonts,colors,type} from './theme';
+// The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
+const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
+// The story log's marks: an icon and a tone for each kind of line.
+const taleIcon={travel:'travel',place:'map',person:'people',fight:'swords',victory:'star',flight:'retreat',fall:'heart',death:'skull',deed:'speak',loot:'coin',rest:'rest',level:'starFill',quest:'scroll'};
+const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:'#f6dc9a',level:'#f6dc9a',rest:'#6fbf8e',quest:'#f6dc9a'};
 export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping}){
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
@@ -41,10 +47,11 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
  const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game);
  const [inConversation,setInConversation]=useState(false);
+ const [sideTab,setSideTab]=useState('quest');
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
- const act=async(action,conversation,random=Math.random,options)=>{const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');return result;};
+ const act=async(action,conversation,random=Math.random,options)=>{const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');return result;};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
@@ -104,7 +111,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const voiced=t=>String(t).replace(/^The player\b/,'You').replace(/\bthe player\b/g,'you');
  const peoplePanel=<View dataSet={{qb:'plate'}} style={s.people}>
   <View style={s.labelRow}><Icon name="people" size={14} color={colors.goldMid}/><PlainText style={s.label}>People</PlainText></View>
-  {[...npcScene(game)].sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
+  {[...npcScene(game)].sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],view=n.fate==='dead'||n.grudge||n.bond?null:speciesRegard(game,n.id,hero),sour=['hostile','unfriendly'].includes(n.attitude),warm=['friendly','devoted'].includes(n.attitude),kind=!view||(sour&&['kin','warm','curious'].includes(view.stance))||(warm&&['wary','scornful'].includes(view.stance))?null:regardLabel(view),said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
    // Where they are now: beside you, or wherever they live (or were left waiting).
    const follow=game.followers?.[n.id],where=n.fate==='dead'?null:follow?.status==='following'?'With you':n.present?'Here':game.story?'At '+placeName(game,follow?follow.location:game.people?.[n.id]?.home??'inn'):null;
    return <View key={n.id} style={s.personRow}>
@@ -112,21 +119,13 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
     <View style={{flex:1,minWidth:0}}>
      <PlainText numberOfLines={1} style={s.personName}>{name}</PlainText>
      <View style={s.standing}><View style={[s.standingDot,{backgroundColor:tone}]}/><PlainText style={[s.standingText,{color:tone}]}>{standing.label}</PlainText>{!!where&&<PlainText numberOfLines={1} style={s.where}>· {where}</PlainText>}</View>
+     {!!kind&&<PlainText numberOfLines={1} style={s.regard}>{kind}</PlainText>}
      {!!said&&n.fate!=='dead'&&<PlainText numberOfLines={3} style={s.memory}>“{voiced(said)}”</PlainText>}
     </View>
    </View>;})}
  </View>;
- // What you carry: gold, draughts, arrows (if you have a bow) and everything found or bought.
- const pack=packOf(game,hero),arrows=arrowsLeft(game,hero),bow=(hero.equipment?.items??[]).some(i=>/bow$/i.test(i.name))||pack.items.some(i=>/bow$/i.test(i.name));
- const packPanel=<View dataSet={{qb:'plate'}} style={s.people}>
-  <View style={s.labelRow}><Icon name="bag" size={14} color={colors.goldMid}/><PlainText style={s.label}>Pack</PlainText></View>
-  <View style={s.packRow}>
-   <View style={s.packStat}><Icon name="coin" size={15} color={colors.gold}/><PlainText style={s.packValue}>{pack.gold}</PlainText><PlainText style={s.packUnit}>gold</PlainText></View>
-   <View style={s.packStat}><Icon name="potion" size={15} color={colors.heal}/><PlainText style={s.packValue}>{game.potions??0}</PlainText><PlainText style={s.packUnit}>{(game.potions??0)===1?'draught':'draughts'}</PlainText></View>
-   {bow&&<View style={s.packStat}><Icon name="bow" size={15} color={colors.gold}/><PlainText style={s.packValue}>{arrows}</PlainText><PlainText style={s.packUnit}>arrows</PlainText></View>}
-  </View>
-  {pack.items.filter(i=>i.name!=='Arrow').map(i=><PlainText key={i.name} style={s.packItem}>{i.name}{i.qty>1?' ×'+i.qty:''}<PlainText style={s.packUnit}>{i.kind==='treasure'&&i.value?'  ·  worth '+i.value+' gold':i.kind==='quest'?'  ·  important':i.kind==='weapon'?'  ·  weapon':''}</PlainText></PlainText>)}
- </View>;
+ // What you wear, wield and carry; a carried weapon can be taken in hand from here.
+ const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>setGame({...game,wield:name})}/>;
  const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}
@@ -139,11 +138,19 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   </View>
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
   {peoplePanel}
-  {packPanel}
   {['active','found'].includes(campaign.lensQuest)&&<Text style={s.scene}>{campaign.lensQuest==='found'?'The signal lens is in your inventory. Return it to the keeper.':'The keeper needs the signal lens from beneath the watchtower bell.'}</Text>}
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
- const logPanel=!!game.log.length&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.log}><View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>Adventure log</PlainText></View>{game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}</View>;
+ const tale=game.storyLog??[];
+ const logPanel=<View dataSet={{qb:'plate'}} style={s.log}>
+  <View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>The story so far</PlainText></View>
+  {!tale.length&&<PlainText style={[s.caption,{marginBottom:0}]}>Nothing of note yet. Every place you reach, everyone you meet, each fight and what came of it will be written here, briefly, as it happens.</PlainText>}
+  {[...tale].reverse().map(e=>e.kind==='story'
+   ?<View key={e.id} style={s.taleChapter}><View dataSet={{qb:'rule-left'}} style={s.taleRule}/><Icon name="scroll" size={13} color={colors.gold}/><PlainText style={s.taleChapterText}>{e.text}</PlainText><View dataSet={{qb:'rule-right'}} style={s.taleRule}/></View>
+   :<View key={e.id} style={s.taleRow}><View style={[s.taleMark,{borderColor:taleTone[e.kind]??'rgba(201,164,92,.4)'}]}><Icon name={taleIcon[e.kind]??'star'} size={13} color={taleTone[e.kind]??colors.gold}/></View><Text style={s.taleText}>{e.text}</Text></View>)}
+  {!!game.log.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showLog}} onPress={()=>setShowLog(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:'rgba(201,164,92,.18)'}]}><PlainText style={s.logToggleText}>{showLog?'Hide the latest rolls':'Latest rolls and rulings'}</PlainText><Icon name={showLog?'close':'d20'} size={14} color={colors.gold}/></Pressable>}
+  {showLog&&game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}
+ </View>;
  const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
  // With the keyboard up there is little height left: the side column, strips and tabs give it to the story.
  const cramped=typing&&(visibleHeight||windowHeight)<560;
@@ -152,15 +159,18 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
-  {wide&&<ScrollView style={[s.side,{width:sideWidth},cramped&&{display:'none'}]} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{questPanel}{mapPanel}{logPanel}</ScrollView>}
+  {wide&&<View style={[s.side,{width:sideWidth},cramped&&{display:'none'}]}>
+   <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={s.sideTabs}>{sideTabs.map(([id,icon,label])=>{const on=sideTab===id;return <Pressable key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setSideTab(id);}} dataSet={{qb:on?'seg-on':undefined,tip:label}} style={[s.sideTabItem,on&&s.sideTabOn]}>{(sideWidth>=440||sideWidth<280)&&<Icon name={icon} size={16} color={on?colors.goldBright:colors.muted}/>}{sideWidth>=280&&<PlainText numberOfLines={1} style={[s.sideTabText,on&&{color:colors.goldBright}]}>{label}</PlainText>}</Pressable>;})}</View>
+   <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{sideTab==='quest'&&questPanel}{sideTab==='map'&&mapPanel}{sideTab==='pack'&&inventoryPanel}{sideTab==='log'&&logPanel}</ScrollView>
+  </View>}
   {!wide&&tab==='story'&&!cramped&&combatStrip}
   {!wide&&tab==='story'&&!cramped&&dyingPanel}
   {!wide&&tab==='story'&&!cramped&&deathPanel}
   {!wide&&toast}
   {/* The Dungeon Master stays mounted on every tab so a turn in progress is never interrupted. */}
   <View style={[s.main,!story&&{display:'none'}]}>{wide&&toast}{master}</View>
-  {!story&&<ScrollView style={s.main} contentContainerStyle={s.tabContent}>{tab==='quest'&&<>{combatPlate}{questPanel}</>}{tab==='map'&&mapPanel}{tab==='log'&&(logPanel||<Text style={s.caption}>Nothing has happened yet.</Text>)}</ScrollView>}
-  {!wide&&<View dataSet={{qb:'tabbar'}} style={[s.tabBar,typing&&{display:'none'}]} accessibilityRole="tablist">{[['story','quill','Story'],['quest','scroll','Quest'],['map','map','Map'],['log','journal','Log']].map(([id,icon,label])=>{const on=tab===id,alert=id==='quest'&&game.stage==='combat'&&!on;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setTab(id);}} dataSet={{qb:on?'tab-on':undefined}} style={[s.tab,on&&s.tabOn]}><View><Icon name={icon} size={20} color={on?colors.goldBright:colors.muted}/>{alert&&<View style={s.tabAlert}/>}</View><PlainText style={[s.tabLabel,on&&s.tabOnText]}>{label}</PlainText></Pressable>;})}</View>}
+  {!story&&<ScrollView style={s.main} contentContainerStyle={s.tabContent}>{tab==='quest'&&<>{combatPlate}{questPanel}</>}{tab==='map'&&mapPanel}{tab==='pack'&&inventoryPanel}{tab==='log'&&logPanel}</ScrollView>}
+  {!wide&&<View dataSet={{qb:'tabbar'}} style={[s.tabBar,typing&&{display:'none'}]} accessibilityRole="tablist">{[['story','quill','Story'],['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']].map(([id,icon,label])=>{const on=tab===id,alert=id==='quest'&&game.stage==='combat'&&!on;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setTab(id);}} dataSet={{qb:on?'tab-on':undefined}} style={[s.tab,on&&s.tabOn]}><View><Icon name={icon} size={20} color={on?colors.goldBright:colors.muted}/>{alert&&<View style={s.tabAlert}/>}</View><PlainText numberOfLines={1} style={[s.tabLabel,on&&s.tabOnText]}>{label}</PlainText></Pressable>;})}</View>}
  </View>;}
  return <View>
  {game.stage==='combat'&&<View dataSet={{qb:'plate'}} style={[s.combat,{marginTop:4,marginBottom:4}]}>
@@ -193,7 +203,13 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
 }
 const s=StyleSheet.create({
  // Screen-fitting layouts: nothing scrolls the page; each region scrolls on its own.
- wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},side:{width:370,flexGrow:0,flexShrink:0},sideContent:{paddingBottom:12,gap:0},
+ wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
+ sideTabs:{flexDirection:'row',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(201,164,92,.28)',backgroundColor:'rgba(6,8,12,.55)'},
+ sideTabItem:{flex:1,minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:'rgba(232,199,123,.55)',backgroundColor:'rgba(58,46,26,.9)'},
+ sideTabText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:.8,color:colors.muted,textTransform:'uppercase',flexShrink:1},
+ taleChapter:{flexDirection:'row',alignItems:'center',gap:8,marginTop:14,marginBottom:2},taleRule:{flex:1,height:1,minWidth:10},taleChapterText:{flexShrink:1,fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:.8,color:colors.gold,textAlign:'center'},
+ taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
+ taleText:{flex:1,fontFamily:fonts.story,fontSize:16,lineHeight:23,color:'#e6dfcd',paddingTop:1},regard:{fontFamily:fonts.ui,fontSize:11.5,color:'#b9ae95',marginTop:2,letterSpacing:.2},
  main:{flex:1,minHeight:0,minWidth:0},narrow:{flex:1,minHeight:0},tabContent:{padding:10,paddingBottom:20},
  // Phone combat strip: the foe's portrait, name, HP and armour class, and the round.
  strip:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:10,paddingVertical:7,marginHorizontal:6,borderWidth:1,borderColor:'rgba(220,90,70,.55)',borderRadius:6,marginBottom:6},
@@ -206,7 +222,7 @@ const s=StyleSheet.create({
  tabBar:{position:'relative',flexDirection:'row',backgroundColor:'rgba(8,10,16,.96)',paddingTop:2,paddingBottom:2},
  tab:{flex:1,alignItems:'center',justifyContent:'center',minHeight:54,gap:3,borderTopWidth:2,borderTopColor:'transparent'},tabOn:{borderTopColor:colors.gold},
  tabAlert:{position:'absolute',top:-2,right:-5,width:8,height:8,borderRadius:4,backgroundColor:colors.bloodBright,borderWidth:1,borderColor:'#1a0a08'},
- tabLabel:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1.4,color:colors.muted,textTransform:'uppercase'},tabOnText:{color:colors.goldBright},
+ tabLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:.7,color:colors.muted,textTransform:'uppercase'},tabOnText:{color:colors.goldBright},
  quest:{padding:20,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6},
  label:{...type.label},labelRow:{flexDirection:'row',alignItems:'center',gap:8},
  title:{fontFamily:fonts.display,color:colors.parchment,fontSize:21,lineHeight:28,fontWeight:'700',letterSpacing:.8,marginTop:8},
