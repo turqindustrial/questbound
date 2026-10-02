@@ -32,7 +32,7 @@ assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.75,'At least
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
 const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.deepEqual(narrated.choices,[]);assert.equal(narrated.spellReference,undefined);assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
 const legacy=sceneFor({input:'x',context:{...r.dmContext(hero,r.newAdventure(hero),hp)}},{}).context;assert.ok(Array.isArray(legacy.travelRoutes),'Without a written story the routes stay');
-assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{input:'x',context:{choices:[]}},'A bare context passes through');
+assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{input:'x',context:{now:['No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.'],choices:[]}},'A bare context passes through, with what is true now put first');
 // ---- Repairs instead of refusals ----
 const long=n=>'x'.repeat(n);
 const fixed=repairedDiscovery({name:' Drowned Chapel ',description:'A '+long(400),kind:'ruin',bearing:'N',miles:30,travel:true,danger:'risky',feature:long(250),lair:{template:'wolf',name:long(80),appearance:'Grey '+long(500),ally:null}});

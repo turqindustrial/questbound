@@ -7,7 +7,7 @@ const prices={'gpt-6-luna':[0.10,0.01,0.50],'gpt-5.6-luna':[0.20,0.02,1.20]};
 const days=Math.max(1,Number(process.argv[process.argv.indexOf('--days')+1])||1);
 const since=new Date(Date.now()-(days-1)*86400000);since.setHours(0,0,0,0);
 const lines=file=>{try{return fs.readFileSync(path.join(__dirname,file),'utf8').split(/\r?\n/).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(e=>e&&new Date(e.at)>=since);}catch{return [];}};
-const usage=lines('.questbound-usage.jsonl'),rejections=lines('.questbound-diagnostics.jsonl');
+const usage=lines('.questbound-usage.jsonl'),noted=lines('.questbound-diagnostics.jsonl'),rejections=noted.filter(e=>e.error),looks=noted.filter(e=>e.secondLook);
 const money=n=>'$'+n.toFixed(n<1?3:2);
 console.log('Dungeon Master report, '+(days===1?'today':'last '+days+' days')+' (since '+since.toLocaleString()+')');
 if(!usage.length)console.log('\nNo live requests recorded yet. The usage log starts with the first turn after this version of the DM was deployed.');
@@ -26,4 +26,7 @@ else{
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
 const byError={};for(const r of rejections)byError[r.error]=(byError[r.error]??0)+1;
 for(const [error,n] of Object.entries(byError).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+error);
+// Second looks: replies that did not do what the player plainly asked (or could not be used) and were asked for again.
+console.log('\nSecond looks: '+looks.length+(usage.length?' of '+usage.length+' live requests':''));
+{const kinds={};for(const l of looks){const k=l.secondLook+' ('+l.outcome+')';kinds[k]=(kinds[k]??0)+1;}for(const [kind,n] of Object.entries(kinds).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+kind);}
 if(rejections.length){const phases={};for(const r of rejections){const k=r.context?.engineResolved?'narrating a resolved turn':r.context?.pendingSpell?'ruling on a spell':r.context?.sceneTrigger?'a scene cue':'an ordinary turn';phases[k]=(phases[k]??0)+1;}console.log('  during: '+Object.entries(phases).map(([k,n])=>n+' '+k).join(', '));}

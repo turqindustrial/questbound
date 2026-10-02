@@ -21,7 +21,9 @@ const success=reply=>async(url,options)=>{assert.equal(url,'https://api.openai.c
   const denied=await fetch(url+'/dm',{method:'POST',headers:{Origin:'https://untrusted.example','Content-Type':'application/json'},body:JSON.stringify(body)});assert.equal(denied.status,403);
  }finally{await new Promise(resolve=>server.close(resolve));}
  const live=createServer({apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'The keeper waits by the hearth.',actionId:null})});await new Promise(resolve=>live.listen(0,'127.0.0.1',resolve));
- try{const response=await fetch('http://127.0.0.1:'+live.address().port+'/dm',{method:'POST',headers:{Origin:'http://localhost:8082','Content-Type':'application/json'},body:JSON.stringify(body)});assert.equal(response.status,200);assert.equal((await response.json()).actionId,null);}finally{await new Promise(resolve=>live.close(resolve));}
+ try{const response=await fetch('http://127.0.0.1:'+live.address().port+'/dm',{method:'POST',headers:{Origin:'http://localhost:8082','Content-Type':'application/json'},body:JSON.stringify(body)});assert.equal(response.status,200);const answered=await response.json();
+  // The player asked to return to the inn and the stand-in model would not: asked twice, then the game sets out itself (dm-intent.cjs).
+  assert.equal(answered.actionId,'travel-inn');assert.equal(answered.narration,'You set out for inn.');}finally{await new Promise(resolve=>live.close(resolve));}
  // Several players share the DM: two replies are written at once, the next waits its turn, overflow is told to retry.
  let inFlight=0,peak=0;const gates=[];
  const slow=async(url,options)=>{inFlight++;peak=Math.max(peak,inFlight);await new Promise(resolve=>gates.push(resolve));inFlight--;return success({narration:'Your turn comes.',actionId:null})(url,options);};

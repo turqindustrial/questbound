@@ -10,7 +10,7 @@ import {dmCommand} from './dmCommands';
 import {adventureStep,encounterFoe} from './adventureRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {classActions,windLimit,shortRestLimit} from './classActions';
-import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,mapRegions,regionOfPlace} from './mapRules';
+import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,mapRegions,regionOfPlace,placeCoordinates} from './mapRules';
 import {campaignState,earnedGold,interactionOptions} from './campaignRules';
 import {attackOptions,readyLoadout} from './weaponRules';
 import {fallAtZero,fallPlace} from './deathRules';
@@ -121,9 +121,11 @@ export function dmContext(hero,game,health) {
     const here=mapLocation(game),visited=mapState(game).visited;
     // Lands: the one the hero is in, and every one they know (each has its own map).
     const lands=mapRegions(game),landOf=id=>lands.find(r=>r.id===regionOfPlace(game,id))??lands[0];
+    // Which way each known place lies from here (within the same land), so "north" and "along the shore south" can be told from places already known.
+    const from=placeCoordinates(game,here),wayTo=id=>{const to=placeCoordinates(game,id);if(!from||!to||id===here||regionOfPlace(game,id)!==regionOfPlace(game,here)||(to.x===from.x&&to.y===from.y))return null;return ['N','NE','E','SE','S','SW','W','NW'][Math.round(Math.atan2(to.x-from.x,to.y-from.y)/(Math.PI/4)+8)%8];};
     context.world={current:{id:here,name:placeName(game,here),description:placeDescription(game,here),kind:worldPlace(game,here)?.kind??game.story.locations?.[here]?.kind??null},
      region:{name:landOf(here).name,terrain:landOf(here).terrain},regions:lands.map(r=>r.name),
-     knownPlaces:knownPlaceIds(game).map(id=>{const r=id===here?{feet:0,minutes:0}:travelRoute(game,here,id);return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:placeDescription(game,id).slice(0,300),distance:r?distanceText(r.feet):'unknown',minutes:r?.minutes??null,visited:visited.includes(id),...(lands.length>1?{land:landOf(id).name}:{})};}),
+     knownPlaces:knownPlaceIds(game).map(id=>{const r=id===here?{feet:0,minutes:0}:travelRoute(game,here,id);return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:placeDescription(game,id).slice(0,300),distance:r?distanceText(r.feet):'unknown',bearing:wayTo(id),minutes:r?.minutes??null,visited:visited.includes(id),...(lands.length>1?{land:landOf(id).name}:{})};}),
      canDiscover:['inn','bridge','tower','wild'].includes(game.stage)&&!game.pendingSpell&&!game.npcCombat?.active&&(health?.current??1)>0&&worldPlaces(game).length<maxWorldPlaces,placesLeft:maxWorldPlaces-worldPlaces(game).length,
      canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length};
     if(game.stage==='wild')context.nearbyNPCs=[];}
