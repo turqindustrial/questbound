@@ -14,32 +14,37 @@
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&amp;family=Cinzel:wght@400;500;600;700;800&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;family=Inter:wght@400;500;600;700&amp;display=swap" />
     <link id="qb-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&amp;family=Cinzel:wght@400;500;600;700;800&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;family=Inter:wght@400;500;600;700&amp;display=swap" media="print" onload="this.media='all'" />
     <!-- react-native-web's root reset, plus a dark loading card so a phone never sees a white page while the game downloads.
-         Expo fills in the language and title placeholders and adds the game script; LaunchScreen.js removes #qb-boot. -->
+         Expo fills in the language and title placeholders and adds the game script; LaunchScreen.js removes #qb-boot.
+         The card's colours are written as the Red theme inside var(--bN, ...); the script after this style block sets
+         the variables when the player has chosen another theme (Settings, Theme). -->
     <style id="expo-reset">
-      html, body { height: 100%; margin: 0; background: #08060a; }
+      html, body { height: 100%; margin: 0; background: var(--b0, #08060a); }
       body { overflow: hidden; }
       #root { display: flex; height: 100%; flex: 1; position: relative; z-index: 1; }
       #qb-boot { position: fixed; inset: 0; display: grid; place-items: center; z-index: 0;
-        background: radial-gradient(ellipse 60% 45% at 50% 42%, rgba(200,40,70,.18), transparent 70%), radial-gradient(ellipse 120% 80% at 50% 110%, rgba(110,60,200,.16), transparent 70%), #08060a; }
+        background: radial-gradient(ellipse 60% 45% at 50% 42%, var(--b1, rgba(200,40,70,.18)), transparent 70%), radial-gradient(ellipse 120% 80% at 50% 110%, var(--b2, rgba(110,60,200,.16)), transparent 70%), var(--b0, #08060a); }
       #qb-boot .seal { position: relative; width: 132px; height: 132px; margin: 0 auto; display: grid; place-items: center; }
       #qb-boot .bezel { position: absolute; inset: 0; border-radius: 50%;
-        background: repeating-conic-gradient(from 0deg, rgba(196,52,78,.8) 0deg 1.2deg, transparent 1.2deg 7.5deg);
+        background: repeating-conic-gradient(from 0deg, var(--b3, rgba(196,52,78,.8)) 0deg 1.2deg, transparent 1.2deg 7.5deg);
         -webkit-mask: radial-gradient(circle, transparent 60px, #000 61px, #000 65px, transparent 66px); mask: radial-gradient(circle, transparent 60px, #000 61px, #000 65px, transparent 66px);
         animation: qb-turn 24s linear infinite; }
-      #qb-boot .ring { width: 96px; height: 96px; border-radius: 50%; border: 2px solid #b2223a; display: grid; place-items: center;
-        background: radial-gradient(circle at 50% 40%, rgba(48,26,78,.6), rgba(14,10,14,.95) 70%);
-        color: #e04a5c; font: 900 50px/1 'Cinzel Decorative', Georgia, 'Times New Roman', serif; box-shadow: 0 0 40px rgba(230,48,82,.38), inset 0 0 26px rgba(140,82,255,.2);
+      #qb-boot .ring { width: 96px; height: 96px; border-radius: 50%; border: 2px solid var(--b4, #b2223a); display: grid; place-items: center;
+        background: radial-gradient(circle at 50% 40%, var(--b5, rgba(48,26,78,.6)), var(--b6, rgba(14,10,14,.95)) 70%);
+        color: var(--b7, #e04a5c); font: 900 50px/1 'Cinzel Decorative', Georgia, 'Times New Roman', serif; box-shadow: 0 0 40px var(--b8, rgba(230,48,82,.38)), inset 0 0 26px var(--b9, rgba(140,82,255,.2));
         animation: qb-breathe 2.6s ease-in-out infinite; }
       #qb-boot .words { margin-top: 22px; text-align: center; font: 700 22px/1.2 Georgia, 'Times New Roman', serif; letter-spacing: 7px; text-transform: uppercase;
-        background: linear-gradient(180deg, #ffe1e5, #ff5a72 40%, #a3162c 65%, #e23a55); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        background: linear-gradient(180deg, var(--b10, #ffe1e5), var(--b11, #ff5a72) 40%, var(--b12, #a3162c) 65%, var(--b13, #e23a55)); -webkit-background-clip: text; background-clip: text; color: transparent; }
       #qb-boot .bar { width: 160px; height: 2px; margin: 16px auto 0; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
-      #qb-boot .bar i { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, #b08cf5, transparent); animation: qb-slide 1.4s ease-in-out infinite; }
-      #qb-boot .hint { margin-top: 12px; color: #8a7f8a; font: 600 10px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 3px; text-transform: uppercase; text-align: center; }
+      #qb-boot .bar i { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, var(--b14, #b08cf5), transparent); animation: qb-slide 1.4s ease-in-out infinite; }
+      #qb-boot .hint { margin-top: 12px; color: var(--b15, #8a7f8a); font: 600 10px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 3px; text-transform: uppercase; text-align: center; }
       @keyframes qb-breathe { 0%, 100% { opacity: .7; transform: scale(.98); } 50% { opacity: 1; transform: scale(1); } }
       @keyframes qb-turn { to { transform: rotate(360deg); } }
       @keyframes qb-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
       @media (prefers-reduced-motion: reduce) { #qb-boot .ring, #qb-boot .bezel, #qb-boot .bar i { animation: none; } }
     </style>
+    <!-- qb-theme-colours:start (written by `node verify-theme.cjs --write` from themeRules.js; do not edit by hand) -->
+    <script>(function(){try{var t=JSON.parse(localStorage.getItem('questbound.theme.v1')||'{}').theme,c={"orange":["#0a0604","rgba(188,92,0,.18)","rgba(131,98,0,.16)","rgba(192,92,0,.8)","#a04e00","rgba(51,38,1,.6)","rgba(15,10,7,.95)","#ec7600","rgba(227,112,0,.38)","rgba(186,139,0,.2)","#fff9f5","#ff9b5b","#8a4400","#e47100","#dbc07d","#8e8077"],"gold":["#05070d","rgba(164,129,24,.18)","rgba(151,82,0,.16)","rgba(165,132,43,.8)","#866900","rgba(59,33,6,.6)","rgba(8,11,18,.95)","#d0af56","rgba(204,165,52,.38)","rgba(207,118,29,.2)","#fff9ef","#f9d271","#705800","#cba640","#e7b07f","#7a8397"],"green":["#040806","rgba(0,151,78,.18)","rgba(127,100,0,.16)","rgba(33,152,81,.8)","#007e42","rgba(49,39,6,.6)","rgba(7,13,10,.95)","#45bd73","rgba(17,185,98,.38)","rgba(180,142,15,.2)","#f0fff1","#61de8a","#006d3b","#2ab867","#d6c284","#778880"],"blue":["#04070d","rgba(29,120,209,.18)","rgba(114,65,187,.16)","rgba(40,123,204,.8)","#1767b7","rgba(48,28,74,.6)","rgba(8,12,18,.95)","#4797ee","rgba(42,144,245,.38)","rgba(145,87,239,.2)","#f6fbff","#6cb3ff","#1058a6","#3591f1","#b18eec","#798497"],"purple":["#07060b","rgba(137,84,207,.18)","rgba(171,46,87,.16)","rgba(136,90,204,.8)","#7847b5","rgba(69,22,32,.6)","rgba(12,10,16,.95)","#a573eb","rgba(163,102,243,.38)","rgba(224,70,120,.2)","#faf9ff","#bb92ff","#6d3aa3","#a26aee","#f18ea1","#85808f"]}[t];if(c){var s=document.documentElement.style;for(var i=0;i<c.length;i++)s.setProperty('--b'+i,c[i]);}}catch(e){}})();</script>
+    <!-- qb-theme-colours:end -->
   </head>
   <body>
     <noscript>Questbound needs JavaScript to run.</noscript>

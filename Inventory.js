@@ -3,7 +3,7 @@ import {View,Text,Pressable,StyleSheet} from 'react-native';
 import Icon from './Icon';
 import HeroPortrait from './HeroPortrait';
 import {weaponIcon} from './iconPaths';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 import {combatBasics,signed} from './combatRules';
 import {attackOptions,readyLoadout,weapons} from './weaponRules';
 import {gearedHero,packOf,arrowsLeft} from './inventoryRules';
@@ -84,22 +84,22 @@ const s=StyleSheet.create({
  labelRow:{flexDirection:'row',alignItems:'center',gap:8},label:{...type.label},
  doll:{flexDirection:'row',alignItems:'center',gap:16,paddingVertical:4},
  heroName:{fontFamily:fonts.display,fontSize:19,fontWeight:'700',letterSpacing:.8,color:colors.parchment},heroLine:{fontFamily:fonts.ui,fontSize:12.5,color:colors.gold,marginTop:2},
- stats:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8},stat:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:'rgba(178,34,58,.35)',backgroundColor:'rgba(0,0,0,.25)'},statText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'700',color:'#dfcdc5'},
+ stats:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8},stat:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:'rgba(0,0,0,.25)'},statText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'700',color:'#dfcdc5'},
  slots:{flexDirection:'row',flexWrap:'wrap',gap:8},
- slot:{flexGrow:1,flexBasis:260,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:10,minHeight:60,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(25,17,26,.72)'},slotOn:{borderColor:colors.goldBright},
- slotIcon:{width:40,height:40,borderRadius:6,borderWidth:1,borderColor:'rgba(224,74,92,.5)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.35)'},
+ slot:{flexGrow:1,flexBasis:260,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:10,minHeight:60,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},slotOn:{borderColor:colors.goldBright},
+ slotIcon:{width:40,height:40,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.35)'},
  slotLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase'},
- slotName:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.4,color:colors.parchment,marginTop:1},slotStat:{fontFamily:fonts.ui,fontSize:11.5,color:'#b8aeb5',marginTop:1},
- slotBody:{paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderLeftWidth:2,borderColor:colors.gold,backgroundColor:'rgba(25,17,26,.6)'},
+ slotName:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.4,color:colors.parchment,marginTop:1},slotStat:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b8aeb5'),marginTop:1},
+ slotBody:{paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderLeftWidth:2,borderColor:colors.gold,backgroundColor:tint('rgba(25,17,26,.6)')},
  description:{fontFamily:fonts.story,fontSize:15.5,lineHeight:23,color:'#ded2cd'},
- purse:{flexDirection:'row',flexWrap:'wrap',gap:8},purseStat:{flexDirection:'row',alignItems:'baseline',gap:6,paddingHorizontal:10,paddingVertical:6,minHeight:36,borderRadius:18,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(0,0,0,.25)'},purseOn:{borderColor:colors.goldBright},
+ purse:{flexDirection:'row',flexWrap:'wrap',gap:8},purseStat:{flexDirection:'row',alignItems:'baseline',gap:6,paddingHorizontal:10,paddingVertical:6,minHeight:36,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:'rgba(0,0,0,.25)'},purseOn:{borderColor:colors.goldBright},
  purseValue:{fontFamily:fonts.display,fontSize:16,fontWeight:'800',color:colors.parchment},purseUnit:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
- item:{borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.16)',backgroundColor:'rgba(25,17,26,.5)'},itemOn:{borderColor:'rgba(224,74,92,.6)'},
+ item:{borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.16)'),backgroundColor:tint('rgba(25,17,26,.5)')},itemOn:{borderColor:tint('rgba(224,74,92,.6)')},
  itemHead:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:8,paddingHorizontal:10,minHeight:48},
- itemIcon:{width:32,height:32,borderRadius:16,borderWidth:1,borderColor:'rgba(178,34,58,.35)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
+ itemIcon:{width:32,height:32,borderRadius:16,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
  itemName:{fontFamily:fonts.story,fontSize:16,lineHeight:21,color:'#efe7d4'},qty:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,fontWeight:'700'},itemTag:{fontFamily:fonts.ui,fontSize:11,color:colors.muted,letterSpacing:.3},
  itemBody:{paddingHorizontal:12,paddingBottom:12,gap:8},
- wield:{alignSelf:'flex-start',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,borderRadius:18,borderWidth:1,borderColor:'rgba(178,34,58,.5)',backgroundColor:'rgba(31,24,32,.92)'},wieldText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
+ wield:{alignSelf:'flex-start',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.5)'),backgroundColor:tint('rgba(31,24,32,.92)')},wieldText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
  inHand:{fontFamily:fonts.ui,fontSize:12,color:colors.goldBright},
  foundHead:{flexDirection:'row',alignItems:'center',gap:10,marginTop:4},foundLabel:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},foundRule:{flex:1,height:1},
  empty:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:colors.muted},

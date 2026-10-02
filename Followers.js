@@ -9,7 +9,7 @@ import {npcArtSubject} from './worldArtRules';
 import DynamicArt from './DynamicArt';
 import {GameButton,StatBar,ScreenTitle} from './ui';
 import Icon from './Icon';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 export default function Followers({game,setGame,onBack}){
  const [error,setError]=useState(''),followers=Object.entries(game.followers??{}).filter(([,f])=>f.status!=='dismissed'),locked=game.npcCombat?.active||game.stage==='combat'||!!game.pendingSpell;
  function manage(id,action){const result=manageFollower(game,id,action);if(result.error){setError(result.error);return;}setGame(result.game);setError('');}
@@ -26,7 +26,7 @@ const s=StyleSheet.create({
  hpRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'},hpText:{fontFamily:fonts.display,color:colors.parchment,fontSize:14,fontWeight:'700'},
  body:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:16.5,lineHeight:26,marginVertical:8},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:20,marginBottom:6,textTransform:'none'},
  actions:{flexDirection:'row',flexWrap:'wrap',gap:8},error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:22},
- empty:{alignItems:'center',padding:28,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.25)',marginVertical:8,gap:6},
- emptyMark:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:'rgba(224,74,92,.5)',alignItems:'center',justifyContent:'center',marginBottom:6,backgroundColor:'rgba(48,26,78,.35)'},
+ empty:{alignItems:'center',padding:28,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),marginVertical:8,gap:6},
+ emptyMark:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',marginBottom:6,backgroundColor:tint('rgba(48,26,78,.35)')},
  emptyTitle:{fontFamily:fonts.display,fontSize:18,fontWeight:'700',letterSpacing:1,color:colors.parchment},
 });

@@ -6,7 +6,7 @@ import {journalForGame,journalObjective} from './journalRules';
 import {questState,currentGoal} from './storyRules';
 import {GameButton,ScreenTitle,Segmented,Section} from './ui';
 import Icon from './Icon';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 // Stored entry titles are kept as written; the page shows friendlier names.
 const shownTitle=title=>({'AI DM conversation':'Conversation','AI spell ruling':'Spell ruling'})[title]??title;
 const kinds={ruling:['DM ruling','spell',colors.arcane],quest:['Quest','scroll',colors.gold],encounter:['Encounter','swords',colors.bloodBright],level:['Level gained','star',colors.goldBright]};
@@ -19,7 +19,7 @@ export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
     {!game.story&&<Text style={s.text}>Quest earnings: {earnedGold(game)} GP · Missing lens: {campaignState(game).lensQuest}</Text>}
     <Segmented value={folder} onChange={id=>{setFolder(id);setVisible(20);}} options={[['dm','Dungeon Master','quill'],['player','Your notes','feedback']]}/>
     {folder==='player'&&<>
-    <TextInput dataSet={{qb:'input'}} accessibilityLabel="Campaign journal note" multiline maxLength={2000} value={note} onChangeText={setNote} placeholder="Remember a clue, a promise, or your next plan…" placeholderTextColor="#938890" style={s.input}/>
+    <TextInput dataSet={{qb:'input'}} accessibilityLabel="Campaign journal note" multiline maxLength={2000} value={note} onChangeText={setNote} placeholder="Remember a clue, a promise, or your next plan…" placeholderTextColor={tint('#938890')} style={s.input}/>
     <GameButton variant="primary" icon="quill" label="Add note" onPress={()=>{onAddNote(note);setNote('');}} disabled={blocked||!note.trim()}/></>}
     <Section icon={folder==='player'?'feedback':'journal'} title={(folder==='player'?'Your notes':'Chronicle')+' · newest first'}/>
     {!entries.length&&<View style={s.empty}><Icon name="journal" size={26} color={colors.goldMid}/><PlainText style={s.emptyText}>Nothing recorded here yet.</PlainText></View>}
@@ -34,7 +34,7 @@ export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
 const s=StyleSheet.create({overline:{...type.label},
  text:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:16.5,lineHeight:26},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:20,marginVertical:12},
  objective:{borderWidth:1,borderColor:colors.goldLine,padding:18,borderRadius:6,gap:8},objectiveHead:{flexDirection:'row',alignItems:'center',gap:8},objectiveText:{fontFamily:fonts.story,fontSize:18,lineHeight:28,color:'#e6d7d1'},
- entry:{padding:16,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.18)',borderLeftWidth:3,marginBottom:10},
+ entry:{padding:16,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.18)'),borderLeftWidth:3,marginBottom:10},
  entryHead:{flexDirection:'row',alignItems:'center',gap:7},entryMeta:{...type.label,fontSize:9,color:colors.muted},entryTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:17,fontWeight:'700',letterSpacing:.6,marginTop:6,marginBottom:6},
  empty:{alignItems:'center',gap:8,paddingVertical:24},emptyText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,color:colors.muted},
- input:{fontFamily:fonts.story,color:'#f5efe1',fontSize:17,lineHeight:25,padding:16,minHeight:110,borderWidth:1,borderColor:'rgba(178,34,58,.4)',backgroundColor:'rgba(8,5,9,.75)',borderRadius:6,marginTop:4,textAlignVertical:'top'}});
+ input:{fontFamily:fonts.story,color:'#f5efe1',fontSize:17,lineHeight:25,padding:16,minHeight:110,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(8,5,9,.75)'),borderRadius:6,marginTop:4,textAlignVertical:'top'}});

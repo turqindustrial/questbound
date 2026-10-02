@@ -1,6 +1,6 @@
 import React from 'react';
 import {View,Text,Pressable,StyleSheet} from 'react-native';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 import {Section} from './ui';
 import {skillAbilities,backgroundSkills,classSkills,classSkillCount,expertiseCount,expertiseEligible,trainedSkills,skillCheckBonus} from './skillRules';
 export default function SkillPanel({hero,game,setGame,locked}){
@@ -28,4 +28,4 @@ export default function SkillPanel({hero,game,setGame,locked}){
   })}
  </View>;
 }
-const s=StyleSheet.create({panel:{marginVertical:12},heading:{fontFamily:fonts.display,color:colors.gold,fontSize:19,fontWeight:'700',letterSpacing:1.2},text:{fontFamily:fonts.ui,color:'#e6e1e5',fontSize:14,lineHeight:22},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:18},row:{flexDirection:'row',flexWrap:'wrap',gap:6,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(178,34,58,.15)'},button:{paddingVertical:8,paddingHorizontal:14,minHeight:40,backgroundColor:'#271e29',borderWidth:1,borderColor:'rgba(178,34,58,.35)',borderRadius:20,justifyContent:'center'},on:{borderColor:'rgba(224,74,92,.7)',backgroundColor:'rgba(48,26,78,.9)'}});
+const s=StyleSheet.create({panel:{marginVertical:12},heading:{fontFamily:fonts.display,color:colors.gold,fontSize:19,fontWeight:'700',letterSpacing:1.2},text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:14,lineHeight:22},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:18},row:{flexDirection:'row',flexWrap:'wrap',gap:6,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.15)')},button:{paddingVertical:8,paddingHorizontal:14,minHeight:40,backgroundColor:tint('#271e29'),borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:20,justifyContent:'center'},on:{borderColor:tint('rgba(224,74,92,.7)'),backgroundColor:tint('rgba(48,26,78,.9)')}});

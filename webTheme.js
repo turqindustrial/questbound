@@ -1,13 +1,20 @@
-// Web-only finish: typefaces, metallic buttons, crimson frames, atmosphere and motion, attached through dataSet hooks (data-qb).
+// Web-only finish: typefaces, metallic buttons, framed panels, atmosphere and motion, attached through dataSet hooks (data-qb).
+// The colours are written as the Red theme; tint() turns each into a style variable that follows the chosen theme.
+import {tint,themeVariables} from './theme';
+import {themedText} from './themeRules';
 const svg=markup=>'url("data:image/svg+xml,'+encodeURIComponent(markup)+'")';
 // Corner filigree for framed panels: a rounded bracket, an inner echo, two curls and a lozenge.
-const flourish=transform=>svg(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${transform}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M20 1.5c3 0 4.5 1.6 4.5 3.6' stroke-opacity='.8'/><path d='M1.5 20c0 3 1.6 4.5 3.6 4.5' stroke-opacity='.8'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#be96ff' stroke='none'/></g></svg>`);
-const corners={tl:flourish(''),tr:flourish('translate(34 0) scale(-1 1)'),bl:flourish('translate(0 34) scale(1 -1)'),br:flourish('translate(34 34) scale(-1 -1)')};
+const flourishMarkup=transform=>(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${transform}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M20 1.5c3 0 4.5 1.6 4.5 3.6' stroke-opacity='.8'/><path d='M1.5 20c0 3 1.6 4.5 3.6 4.5' stroke-opacity='.8'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#be96ff' stroke='none'/></g></svg>`);
+const turns={tl:'',tr:'translate(34 0) scale(-1 1)',bl:'translate(0 34) scale(1 -1)',br:'translate(34 34) scale(-1 -1)'};
+const corners={tl:'var(--qb-corner-tl)',tr:'var(--qb-corner-tr)',bl:'var(--qb-corner-bl)',br:'var(--qb-corner-br)'};
 // Film grain: fractal noise baked into a small tile once; it only moves on the compositor.
 const grain=svg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>`);
 // A bezel of ticks and lozenges that turns slowly around the launch emblem.
-const bezel=svg(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='#c4344e'><circle cx='100' cy='100' r='96' stroke-opacity='.35' stroke-width='.8'/><circle cx='100' cy='100' r='88' stroke-opacity='.2' stroke-width='.6'/>${Array.from({length:48},(_,i)=>{const a=i*7.5*Math.PI/180,long=i%4===0,r1=long?86:90,r2=95,x1=100+r1*Math.sin(a),y1=100-r1*Math.cos(a),x2=100+r2*Math.sin(a),y2=100-r2*Math.cos(a);return `<path d='M${x1.toFixed(2)} ${y1.toFixed(2)}L${x2.toFixed(2)} ${y2.toFixed(2)}' stroke-opacity='${long?.9:.45}' stroke-width='${long?1.2:.7}'/>`;}).join('')}${[0,90,180,270].map(d=>`<path transform='rotate(${d} 100 100)' d='M100 0.5 103.5 4 100 7.5 96.5 4Z' fill='#be96ff' stroke='none'/>`).join('')}</svg>`);
-const css=`
+const bezelMarkup=(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='#c4344e'><circle cx='100' cy='100' r='96' stroke-opacity='.35' stroke-width='.8'/><circle cx='100' cy='100' r='88' stroke-opacity='.2' stroke-width='.6'/>${Array.from({length:48},(_,i)=>{const a=i*7.5*Math.PI/180,long=i%4===0,r1=long?86:90,r2=95,x1=100+r1*Math.sin(a),y1=100-r1*Math.cos(a),x2=100+r2*Math.sin(a),y2=100-r2*Math.cos(a);return `<path d='M${x1.toFixed(2)} ${y1.toFixed(2)}L${x2.toFixed(2)} ${y2.toFixed(2)}' stroke-opacity='${long?.9:.45}' stroke-width='${long?1.2:.7}'/>`;}).join('')}${[0,90,180,270].map(d=>`<path transform='rotate(${d} 100 100)' d='M100 0.5 103.5 4 100 7.5 96.5 4Z' fill='#be96ff' stroke='none'/>`).join('')}</svg>`);
+// A picture written as text cannot read a style variable, so these are written out afresh for each theme.
+const bezel='var(--qb-bezel)';
+themeVariables(theme=>({...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme))])),'--qb-bezel':svg(themedText(bezelMarkup,theme))}));
+const css=tint(`
 :root{--qb-gold:#e04a5c;--qb-gold-mid:#b2223a;--qb-ink:#0a070b;--qb-ease:cubic-bezier(.2,.8,.2,1);}
 html,body{background:#0a070b;color-scheme:dark;}
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;}
@@ -303,7 +310,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 /* Touch devices keep the grain and light shafts still: the look stays, the battery is spared. */
 @media (hover:none){[data-qb=grain],[data-qb=rays]{animation:none !important;}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;}}
-`;
+`);
 export function initializeWebTheme(){
  if(typeof document==='undefined'||document.getElementById('questbound-theme'))return;
  for(const href of ['https://fonts.googleapis.com','https://fonts.gstatic.com']){const l=document.createElement('link');l.rel='preconnect';l.href=href;if(href.includes('gstatic'))l.crossOrigin='anonymous';document.head.appendChild(l);}

@@ -9,7 +9,7 @@ Use headphones if you have them.
 - [ ] The main menu fits on the screen upright and on its side. Buttons are easy to hit with a thumb; nothing scrolls sideways.
 - [ ] The title menu (Continue, New Adventure, Heroes, Play Together, Dice, Settings) fits the screen upright and on its side; on a computer, entries light up under the mouse with a soft tick.
 - [ ] Menu music is playing: slow strings, soft keys and a flute, with no plucking or ticking. The speaker button (top right) mutes; Settings → Sound has the Master, Music, Ambience and Effects levels and Night mode. Tell us what you think of the new music in each place (menu, exploring, shelter, a fight).
-- [ ] Tap the full-screen button (top right). Android: the game fills the screen, and tapping ⛶ again leaves. iPhone: follow the Add to Home Screen steps, open the crimson Q icon, pair once, and check there are no browser bars.
+- [ ] Tap the full-screen button (top right). Android: the game fills the screen, and tapping ⛶ again leaves. iPhone: follow the Add to Home Screen steps, open the red Q icon, pair once, and check there are no browser bars.
 
 ## 2. Combat test (5 min)
 New Adventure → pick a **ready-made hero** (or play your own) → tap **Random hostile encounter** → **Begin the encounter** (right under the card).
@@ -18,8 +18,8 @@ New Adventure → pick a **ready-made hero** (or play your own) → tap **Random
 - [ ] The game fills the screen with no page scrolling: your HP bar at the top, the story in the middle, the message box above the Story/Quest/Map/Inventory/Log tabs.
 - [ ] The foe's HP strip (HP bar, AC) sits above the story; tapping it shows everyone's HP. The Quest tab has the full nameplate; for a group, it shows how many are standing.
 - [ ] Entering the fight fades up from black and names the place. Combat starts with a drum hit and the music changes to drums and brass; a **Round 1** banner sweeps in on your first action.
-- [ ] Above the message box: your weapon in crimson, then Dodge and Retreat; once you are hurt, Potion (and a Fighter's Second Wind) marked **Bonus**; End turn at the end. Swipe the row for more.
-- [ ] Get hurt, then attack: the turn waits ("You still have a bonus action"), **End turn** lights up crimson, and the foe does not strike until you drink the potion, use Second Wind or tap End turn. Drinking a potion first and then attacking works too.
+- [ ] Above the message box: your weapon lit in the theme colour, then Dodge and Retreat; once you are hurt, Potion (and a Fighter's Second Wind) marked **Bonus**; End turn at the end. Swipe the row for more.
+- [ ] Get hurt, then attack: the turn waits ("You still have a bonus action"), **End turn** lights up in the theme colour, and the foe does not strike until you drink the potion, use Second Wind or tap End turn. Drinking a potion first and then attacking works too.
 - [ ] On a phone, tap the message box: the keyboard opens, the box sits right above it, and the story's last lines stay in view above the box (the action row and bottom tabs step aside until you send or close the keyboard). Send takes one tap.
 - [ ] Tap **DM** beside the message box and ask why something happened, or say "I meant to use my dagger": the Dungeon Master answers plainly, and takes your last turn back if it went wrong.
 - [ ] Each roll shows as a card: the die tumbles in, flickers through numbers and lands on the roll, then Hit/Miss is stamped; damage rolls up to its number. When the foe hits you, the screen flashes red and your HP bar drops at that moment, not before.
@@ -30,15 +30,15 @@ New Adventure → pick a **ready-made hero** (or play your own) → tap **Random
 - [ ] Turn the phone on its side: the story and the side column sit next to each other and still fit.
 - [ ] Type an attack your own way ("I punch him", "I swing my sword at the bandit", "I attack with my axe" when you have none): the right weapon is used, or you are told what you carry. Wizard: "I cast a spell at it" gets asked which spell; "I cast FB at the bandit" casts Fire Bolt.
 - [ ] Retreat: you end up at the Caravan Camp and the captain or scout speaks first.
-- [ ] Get knocked down to 0 HP: a **You fall** card, the **Dying** panel with success and failure marks, and a crimson **Death save** chip. Roll until you stabilise (you wake at the camp with 1 HP and someone speaks to you) or die (a **You have died** card, an epitaph, and **Begin a new hero**; the fallen hero can't be played again).
+- [ ] Get knocked down to 0 HP: a **You fall** card, the **Dying** panel with success and failure marks, and a lit **Death save** chip. Roll until you stabilise (you wake at the camp with 1 HP and someone speaks to you) or die (a **You have died** card, an epitaph, and **Begin a new hero**; the fallen hero can't be played again).
 - [ ] Walk back and win: a **Victory** card appears with the victory sound (tap it away), then the camp greets you when you return.
-- [ ] After the win, a crimson **Level up** action leads the row. Level up: a **Level 2** card celebrates it, you return to camp at full HP, and the travel actions (and the Map tab's Travel buttons) take you onward.
+- [ ] After the win, a lit **Level up** action leads the row. Level up: a **Level 2** card celebrates it, you return to camp at full HP, and the travel actions (and the Map tab's Travel buttons) take you onward.
 
 ## 3. A long tale (as long as you like)
 New Adventure → pick any of the seven tales (**The Ashen Crown**, **The Wolf Winter**, …) or **Let fate decide**. Tap one to read the trouble, the road and what is at stake.
 - [ ] While the tale is written, a quiet loading screen shows its name and a tip. It takes about three minutes (the story writer thinks it through); the screen says so. The story then opens on a title card naming it.
 - [ ] The **Quest** tab shows **Chapter 1 of 4 or 5**, what to do now, the aim of the whole tale, and three or four **leads**. Do what the chapter asks: when it is done the chapter closes on a revelation, the next one is announced across the screen, and the Log gains a chapter heading. Asking to "skip to the next chapter" should not work.
-- [ ] Finish the second chapter: a crimson **Level up** appears. Take it out of a fight: you stay where you are, at full health, a level higher.
+- [ ] Finish the second chapter: a lit **Level up** appears. Take it out of a fight: you stay where you are, at full health, a level higher.
 - [ ] Follow a lead (the Quest tab says who wants what). When it is seen through its circle is ticked; if the Dungeon Master forgets, tap the circle yourself.
 - [ ] Tap **Speak** on one of the two locals: they speak first, in their own voice, and what they say fits how they feel about you. Tap the other: a different greeting.
 - [ ] The **Map** already shows a road leading off the sheet to another land, and that land has a tab above the map. Travel there (it takes days) and come back.

@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import {View,Text,Pressable,StyleSheet} from 'react-native';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 import {abilities,advancementLevels,finalScores,buildError,makeCharacter} from './characterRules';
 import {subclassOptions} from './subclassOptions';
 import {spellLimits,spellSelectionError,spellLibrary} from './spellOptions';
@@ -52,7 +52,7 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
     <GameButton icon="back" label="Back to the adventure" disabled={saving} onPress={onCancel}/>
   </View>;
 }
-const s=StyleSheet.create({levelCard:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:16,padding:18,borderRadius:6,borderWidth:1,borderColor:'rgba(224,74,92,.5)',marginBottom:14},
+const s=StyleSheet.create({levelCard:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:16,padding:18,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),marginBottom:14},
  newLevel:{alignItems:'center'},newLevelLabel:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:colors.goldMid,textTransform:'uppercase'},newLevelValue:{fontFamily:fonts.logo,fontSize:48,lineHeight:56,fontWeight:'900',color:colors.gold},
- gains:{flexGrow:1,gap:6,minWidth:180},gain:{flexDirection:'row',alignItems:'center',gap:8},gainText:{fontFamily:fonts.ui,fontSize:14,color:'#e2dde1'},gainUp:{fontWeight:'800',color:colors.goldBright},buttonRow:{flexDirection:'row',alignItems:'center',gap:8},
- heading:{fontFamily:fonts.display,fontSize:20,color:colors.gold,fontWeight:'700',letterSpacing:1.2,marginTop:22,marginBottom:8,textTransform:'uppercase'},text:{fontFamily:fonts.ui,color:'#e6e1e5',fontSize:15,lineHeight:24},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:22,marginVertical:10},button:{backgroundColor:'#271e29',borderColor:'rgba(178,34,58,.35)',borderWidth:1,borderRadius:22,paddingVertical:10,paddingHorizontal:16,minHeight:44,marginTop:8,justifyContent:'center'},active:{borderColor:'rgba(224,74,92,.7)',backgroundColor:'rgba(48,26,78,.92)'},row:{flexDirection:'row',flexWrap:'wrap',gap:8},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});
+ gains:{flexGrow:1,gap:6,minWidth:180},gain:{flexDirection:'row',alignItems:'center',gap:8},gainText:{fontFamily:fonts.ui,fontSize:14,color:tint('#e2dde1')},gainUp:{fontWeight:'800',color:colors.goldBright},buttonRow:{flexDirection:'row',alignItems:'center',gap:8},
+ heading:{fontFamily:fonts.display,fontSize:20,color:colors.gold,fontWeight:'700',letterSpacing:1.2,marginTop:22,marginBottom:8,textTransform:'uppercase'},text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:15,lineHeight:24},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:22,marginVertical:10},button:{backgroundColor:tint('#271e29'),borderColor:tint('rgba(178,34,58,.35)'),borderWidth:1,borderRadius:22,paddingVertical:10,paddingHorizontal:16,minHeight:44,marginTop:8,justifyContent:'center'},active:{borderColor:tint('rgba(224,74,92,.7)'),backgroundColor:tint('rgba(48,26,78,.92)')},row:{flexDirection:'row',flexWrap:'wrap',gap:8},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});

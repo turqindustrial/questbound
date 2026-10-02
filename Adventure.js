@@ -31,12 +31,12 @@ import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
 import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
 import {rememberTurn} from './turnMemory';
 import {useVisualViewport} from './webLayout';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 // The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
 const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
 // The story log's marks: an icon and a tone for each kind of line.
 const taleIcon={travel:'travel',place:'map',person:'people',fight:'swords',victory:'star',flight:'retreat',fall:'heart',death:'skull',deed:'speak',loot:'coin',rest:'rest',level:'starFill',quest:'scroll'};
-const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:'#cba6ff',level:'#cba6ff',rest:'#6fbf8e',quest:'#cba6ff'};
+const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:tint('#cba6ff'),level:tint('#cba6ff'),rest:'#6fbf8e',quest:tint('#cba6ff')};
 export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping}){
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
@@ -111,7 +111,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <PlainText style={s.epitaphLine}>Level {hero.level} {hero.species??hero.race} {hero.class}</PlainText>
    <PlainText style={s.epitaphCause}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</PlainText>
   </View>
-  {!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color="#ffeef0"/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
+  {!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
  </View>;
  // The people of this story and how they feel about you: a grudge or a debt, else the last thing they remember.
  const toneColor={bad:colors.bloodBright,warn:'#e0a860',good:colors.heal,best:colors.goldBright,calm:colors.muted,dead:colors.faint};
@@ -154,7 +154,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <View style={s.labelRow}><Icon name="search" size={14} color={colors.goldMid}/><PlainText style={s.label}>Leads</PlainText><PlainText style={s.leadCount}>{quest.leads.filter(l=>l.done).length} of {quest.leads.length}</PlainText></View>
    {/* The Dungeon Master ticks a lead when it is seen through; the player can tick (or untick) one too. */}
    {quest.leads.map(l=><View key={l.id} style={s.leadRow}>
-    <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!l.done}} accessibilityLabel={(l.done?'Reopen the lead ':'Mark the lead as seen through: ')+l.title} hitSlop={10} onPress={()=>{playSound('click');markLead(l.id);}} style={[s.leadMark,l.done&&s.leadMarkDone]}>{l.done&&<Icon name="check" size={11} color="#fff4f5" strokeWidth={2.6}/>}</Pressable>
+    <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!l.done}} accessibilityLabel={(l.done?'Reopen the lead ':'Mark the lead as seen through: ')+l.title} hitSlop={10} onPress={()=>{playSound('click');markLead(l.id);}} style={[s.leadMark,l.done&&s.leadMarkDone]}>{l.done&&<Icon name="check" size={11} color={tint('#fff4f5')} strokeWidth={2.6}/>}</Pressable>
     <View style={{flex:1,minWidth:0}}><PlainText style={[s.leadTitle,l.done&&s.leadTitleDone]}>{l.title}</PlainText>{!l.done&&<Text style={s.leadHook}>{l.hook}</Text>}</View>
    </View>)}
    <PlainText style={s.leadNote}>Tap a circle to tick a lead off yourself.</PlainText>
@@ -170,8 +170,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!tale.length&&<PlainText style={[s.caption,{marginBottom:0}]}>Nothing of note yet. Every place you reach, everyone you meet, each fight and what came of it will be written here, briefly, as it happens.</PlainText>}
   {[...tale].reverse().map(e=>e.kind==='story'
    ?<View key={e.id} style={s.taleChapter}><View dataSet={{qb:'rule-left'}} style={s.taleRule}/><Icon name="scroll" size={13} color={colors.gold}/><PlainText style={s.taleChapterText}>{e.text}</PlainText><View dataSet={{qb:'rule-right'}} style={s.taleRule}/></View>
-   :<View key={e.id} style={s.taleRow}><View style={[s.taleMark,{borderColor:taleTone[e.kind]??'rgba(178,34,58,.4)'}]}><Icon name={taleIcon[e.kind]??'star'} size={13} color={taleTone[e.kind]??colors.gold}/></View><Text style={s.taleText}>{e.text}</Text></View>)}
-  {!!game.log.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showLog}} onPress={()=>setShowLog(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:'rgba(178,34,58,.18)'}]}><PlainText style={s.logToggleText}>{showLog?'Hide the latest rolls':'Latest rolls and rulings'}</PlainText><Icon name={showLog?'close':'d20'} size={14} color={colors.gold}/></Pressable>}
+   :<View key={e.id} style={s.taleRow}><View style={[s.taleMark,{borderColor:taleTone[e.kind]??tint('rgba(178,34,58,.4)')}]}><Icon name={taleIcon[e.kind]??'star'} size={13} color={taleTone[e.kind]??colors.gold}/></View><Text style={s.taleText}>{e.text}</Text></View>)}
+  {!!game.log.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showLog}} onPress={()=>setShowLog(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')}]}><PlainText style={s.logToggleText}>{showLog?'Hide the latest rolls':'Latest rolls and rulings'}</PlainText><Icon name={showLog?'close':'d20'} size={14} color={colors.gold}/></Pressable>}
   {showLog&&game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}
  </View>;
  const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
@@ -227,9 +227,9 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
 const s=StyleSheet.create({
  // Screen-fitting layouts: nothing scrolls the page; each region scrolls on its own.
  wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
- sideTabs:{flexDirection:'row',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(10,7,11,.55)'},
+ sideTabs:{flexDirection:'row',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(10,7,11,.55)')},
  // Each tab takes the room its word needs, so "Inventory" is never cut short in a narrow column.
- sideTabItem:{flexGrow:1,flexShrink:1,flexBasis:'auto',minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:'rgba(224,74,92,.55)',backgroundColor:'rgba(48,26,78,.9)'},
+ sideTabItem:{flexGrow:1,flexShrink:1,flexBasis:'auto',minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
  sideTabText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:.8,color:colors.muted,textTransform:'uppercase',flexShrink:1},
  taleChapter:{flexDirection:'row',alignItems:'center',gap:8,marginTop:14,marginBottom:2},taleRule:{flex:1,height:1,minWidth:10},taleChapterText:{flexShrink:1,fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:.8,color:colors.gold,textAlign:'center'},
  taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
@@ -243,7 +243,7 @@ const s=StyleSheet.create({
  acBadge:{flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:6,paddingVertical:1,borderRadius:9,borderWidth:1,borderColor:'rgba(255,180,160,.35)'},acText:{fontFamily:fonts.ui,fontSize:11,fontWeight:'700',color:'#ffc9b8'},
  roundBadge:{alignItems:'center',justifyContent:'center',minWidth:36,paddingLeft:8,borderLeftWidth:1,borderLeftColor:'rgba(255,180,160,.25)'},roundBadgeLabel:{fontFamily:fonts.display,fontSize:8.5,letterSpacing:1.4,color:'#e79a86',textTransform:'uppercase'},roundBadgeText:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:'#f5e6e0'},
  toast:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,paddingVertical:9,marginBottom:6,marginHorizontal:6,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.5)',backgroundColor:'rgba(60,18,14,.92)'},toastText:{flex:1,fontFamily:fonts.ui,color:'#ffd2c2',fontSize:13,lineHeight:19},
- tabBar:{position:'relative',flexDirection:'row',backgroundColor:'rgba(14,10,14,.96)',paddingTop:2,paddingBottom:2},
+ tabBar:{position:'relative',flexDirection:'row',backgroundColor:tint('rgba(14,10,14,.96)'),paddingTop:2,paddingBottom:2},
  tab:{flex:1,alignItems:'center',justifyContent:'center',minHeight:54,gap:3,borderTopWidth:2,borderTopColor:'transparent'},tabOn:{borderTopColor:colors.gold},
  tabAlert:{position:'absolute',top:-2,right:-5,width:8,height:8,borderRadius:4,backgroundColor:colors.bloodBright,borderWidth:1,borderColor:'#1a0a08'},
  tabLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:.7,color:colors.muted,textTransform:'uppercase'},tabOnText:{color:colors.goldBright},
@@ -254,11 +254,11 @@ const s=StyleSheet.create({
  // A long tale: the chapter under way, the aim of the whole story, a level waiting to be taken, and the leads.
  chapter:{marginBottom:10},chapterTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},
  chapterOver:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},
- chapterPips:{flexDirection:'row',gap:5,alignItems:'center'},chapterPip:{width:16,height:4,borderRadius:2,backgroundColor:'rgba(178,34,58,.22)'},chapterPipDone:{backgroundColor:colors.goldMid},chapterPipNow:{backgroundColor:colors.goldBright},
+ chapterPips:{flexDirection:'row',gap:5,alignItems:'center'},chapterPip:{width:16,height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.22)')},chapterPipDone:{backgroundColor:colors.goldMid},chapterPipNow:{backgroundColor:colors.goldBright},
  chapterTitle:{fontFamily:fonts.display,fontSize:16,fontWeight:'700',letterSpacing:.6,color:colors.goldBright,marginTop:6,marginBottom:6},
- aim:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#b9b3a3',paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(178,34,58,.16)'},aimLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
+ aim:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#b9b3a3',paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.16)')},aimLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
  leadCount:{marginLeft:'auto',fontFamily:fonts.ui,fontSize:11.5,color:colors.muted,fontVariant:['tabular-nums']},
- leadRow:{flexDirection:'row',alignItems:'flex-start',gap:10},leadMark:{width:18,height:18,borderRadius:9,borderWidth:1.5,borderColor:'rgba(178,34,58,.55)',alignItems:'center',justifyContent:'center',marginTop:2},leadMarkDone:{backgroundColor:colors.gold,borderColor:'#f06e80'},
+ leadRow:{flexDirection:'row',alignItems:'flex-start',gap:10},leadMark:{width:18,height:18,borderRadius:9,borderWidth:1.5,borderColor:tint('rgba(178,34,58,.55)'),alignItems:'center',justifyContent:'center',marginTop:2},leadMarkDone:{backgroundColor:colors.gold,borderColor:tint('#f06e80')},
  leadTitle:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.5,color:colors.parchment},leadTitleDone:{color:colors.muted,textDecorationLine:'line-through'},
  leadHook:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#cfc8b6',marginTop:2},leadNote:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
  scene:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16.5,lineHeight:25,color:'#c9c3b3',marginTop:10},
@@ -269,7 +269,7 @@ const s=StyleSheet.create({
  combat:{padding:16,paddingTop:0,marginTop:14,borderWidth:1,borderColor:'rgba(220,90,70,.6)',borderRadius:6,overflow:'hidden'},
  banner:{flexDirection:'row',justifyContent:'center',gap:10,marginHorizontal:-16,paddingVertical:8,marginBottom:12,alignItems:'center',backgroundColor:'rgba(120,24,16,.55)',borderBottomWidth:1,borderBottomColor:'rgba(240,106,79,.35)'},
  bannerText:{fontFamily:fonts.display,color:'#ffd9c9',fontSize:12,fontWeight:'800',letterSpacing:3,textTransform:'uppercase'},
- foeArt:{borderRadius:4,overflow:'hidden',backgroundColor:'#140c0c',borderWidth:1,borderColor:'rgba(220,90,70,.5)',marginBottom:12,justifyContent:'flex-end'},
+ foeArt:{borderRadius:4,overflow:'hidden',backgroundColor:tint('#140c0c'),borderWidth:1,borderColor:'rgba(220,90,70,.5)',marginBottom:12,justifyContent:'flex-end'},
  foeCaption:{padding:12,paddingTop:30},foeOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:2,color:'#ffb39e',textTransform:'uppercase'},
  foeName:{fontFamily:fonts.display,color:'#fff0e6',fontSize:23,lineHeight:28,fontWeight:'800',letterSpacing:.8,marginTop:2},
  foeRow:{flexDirection:'row',alignItems:'center',gap:7,marginBottom:7},
@@ -278,12 +278,12 @@ const s=StyleSheet.create({
  statChipText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',color:'#f0d6cc'},
  yourAc:{flexDirection:'row',alignItems:'center',gap:6,marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(255,180,160,.15)'},yourAcText:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
  order:{fontFamily:fonts.display,color:colors.parchment,fontSize:16,fontWeight:'700',letterSpacing:.6,marginVertical:8},
- orderRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:6,marginVertical:8},orderChip:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:'rgba(178,34,58,.3)',backgroundColor:'rgba(31,24,32,.8)'},
+ orderRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:6,marginVertical:8},orderChip:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(31,24,32,.8)')},
  orderText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'600',color:'#e6dfcd'},
- log:{borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.25)',padding:16,marginTop:14},
+ log:{borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),padding:16,marginTop:14},
  logToggle:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',minHeight:40},
  logToggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
- entry:{fontFamily:fonts.story,color:'#d9d3c3',fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(178,34,58,.12)'},
+ entry:{fontFamily:fonts.story,color:'#d9d3c3',fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.12)')},
  packRow:{flexDirection:'row',flexWrap:'wrap',gap:16},packStat:{flexDirection:'row',alignItems:'baseline',gap:6},packValue:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:colors.parchment},packUnit:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
  packItem:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#e6dfcd'},
  people:{padding:16,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,gap:12},personRow:{flexDirection:'row',alignItems:'flex-start',gap:12},personAvatar:{width:44,height:44,borderRadius:22},
@@ -294,7 +294,7 @@ const s=StyleSheet.create({
  dyingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:24,color:'#e6cfc6'},
  pipRows:{flexDirection:'row',gap:18,alignItems:'center'},pipRow:{flexDirection:'row',alignItems:'center',gap:6},
  pip:{width:14,height:14,borderRadius:7,borderWidth:1.5,borderColor:'rgba(255,200,185,.45)'},pipGood:{backgroundColor:colors.heal,borderColor:colors.heal},pipBad:{backgroundColor:colors.bloodBright,borderColor:colors.bloodBright},
- epitaph:{alignItems:'center',gap:8,padding:20,marginTop:14,borderWidth:1,borderColor:'rgba(178,34,58,.35)',borderRadius:6},epitaphStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,padding:12,flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:10},
+ epitaph:{alignItems:'center',gap:8,padding:20,marginTop:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:6},epitaphStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,padding:12,flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:10},
  epitaphOver:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.faint,textTransform:'uppercase'},epitaphName:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:1,color:colors.parchment},
  epitaphLine:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.5},epitaphCause:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:22,color:'#cfc6b4',textAlign:'center',marginTop:2},
- epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:'#f06e80',backgroundColor:'#9e1b32',marginTop:4},epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:'#ffeef0',textTransform:'uppercase'}});
+ epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:tint('#f06e80'),backgroundColor:tint('#9e1b32'),marginTop:4},epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:tint('#ffeef0'),textTransform:'uppercase'}});

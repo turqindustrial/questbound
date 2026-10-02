@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {View,Text,Pressable,StyleSheet,Platform,useWindowDimensions} from 'react-native';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {playSound} from './audio';
 import {displayState} from './fullscreen';
@@ -13,7 +13,7 @@ export function GameButton({label,onPress,variant='secondary',disabled,style,tex
  // On a phone the lettering is set a little tighter, so most labels stay on one line.
  const primary=variant==='primary',danger=variant==='danger',narrow=useWindowDimensions().width<430;
  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:primary?'btn-primary':danger?'btn-danger':'btn'}} style={({pressed})=>[s.button,primary&&s.primary,danger&&s.danger,narrow&&s.buttonNarrow,pressed&&!disabled&&s.pressed,disabled&&s.disabled,style]}>
-  <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?'#ffeef0':colors.gold}/>}<Text style={[s.buttonText,narrow&&s.buttonTextNarrow,primary&&s.primaryText,textStyle]}>{label}</Text></View>
+  <View style={s.buttonRow}>{!!icon&&<Icon name={icon} size={17} color={primary?tint('#ffeef0'):colors.gold}/>}<Text style={[s.buttonText,narrow&&s.buttonTextNarrow,primary&&s.primaryText,textStyle]}>{label}</Text></View>
  </Pressable>;
 }
 export function Ornament({style,glyph='◆'}){
@@ -108,19 +108,19 @@ export function Toggle({value,onChange,label,description,style}){
   <View dataSet={{qb:value?'btn-primary':'seg'}} style={[s.track2,value&&s.trackOn]}><View style={[s.knob,value&&s.knobOn]}/></View>
  </Pressable>;
 }
-export function KeyHint({children,style,dark=false}){return <View dataSet={{qb:'key'}} style={[s.key,dark&&{borderColor:'rgba(255,238,240,.45)',backgroundColor:'rgba(255,238,240,.12)'},style]}><Text style={[s.keyText,dark&&{color:'#ffe8eb'}]}>{children}</Text></View>;}
+export function KeyHint({children,style,dark=false}){return <View dataSet={{qb:'key'}} style={[s.key,dark&&{borderColor:tint('rgba(255,238,240,.45)'),backgroundColor:tint('rgba(255,238,240,.12)')},style]}><Text style={[s.keyText,dark&&{color:tint('#ffe8eb')}]}>{children}</Text></View>;}
 const s=StyleSheet.create({
- panel:{backgroundColor:'rgba(22,16,23,.92)',borderWidth:1,borderColor:colors.goldLine,borderRadius:6,padding:24},
- glass:{backgroundColor:'rgba(18,13,19,.78)'},
- button:{minHeight:52,paddingVertical:14,paddingHorizontal:20,marginTop:10,borderRadius:4,borderWidth:1,borderColor:'rgba(178,34,58,.35)',backgroundColor:'#271e29',justifyContent:'center',alignItems:'center'},
+ panel:{backgroundColor:tint('rgba(22,16,23,.92)'),borderWidth:1,borderColor:colors.goldLine,borderRadius:6,padding:24},
+ glass:{backgroundColor:tint('rgba(18,13,19,.78)')},
+ button:{minHeight:52,paddingVertical:14,paddingHorizontal:20,marginTop:10,borderRadius:4,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('#271e29'),justifyContent:'center',alignItems:'center'},
  buttonRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
  buttonNarrow:{paddingHorizontal:12},buttonTextNarrow:{fontSize:13,letterSpacing:1.1,flexShrink:1},
- primary:{backgroundColor:'#9e1b32',borderColor:'#f06e80'},
+ primary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},
  danger:{backgroundColor:'#5a1d17',borderColor:'#c8412f'},
  pressed:{transform:[{scale:.985}]},
  disabled:{opacity:.5},
  buttonText:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
- primaryText:{color:'#ffeef0'},
+ primaryText:{color:tint('#ffeef0')},
  ornament:{flexDirection:'row',alignItems:'center',gap:12,marginVertical:14},
  rule:{flex:1,height:1,backgroundColor:colors.goldLine},
  glyph:{color:colors.gold,fontSize:10},
@@ -130,27 +130,27 @@ const s=StyleSheet.create({
  titleRule:{flexDirection:'row',alignItems:'center',gap:8,marginTop:12,width:'100%',maxWidth:420},titleRuleLine:{height:1,backgroundColor:colors.goldLine},
  titleLozenge:{width:7,height:7,transform:[{rotate:'45deg'}],backgroundColor:colors.gold},
  section:{flexDirection:'row',alignItems:'center',gap:10,marginTop:22,marginBottom:12},sectionText:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:1.8,color:colors.gold,textTransform:'uppercase'},sectionRule:{flex:1,height:1,backgroundColor:colors.goldFaint},
- levelBadge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#f06e80'},
- levelText:{fontFamily:fonts.display,fontWeight:'800',color:'#ffeef0'},
- iconButton:{paddingHorizontal:8,borderWidth:1,borderColor:'rgba(178,34,58,.45)',backgroundColor:'rgba(20,15,21,.85)',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},
+ levelBadge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
+ levelText:{fontFamily:fonts.display,fontWeight:'800',color:tint('#ffeef0')},
+ iconButton:{paddingHorizontal:8,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(20,15,21,.85)'),flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},
  iconHot:{borderColor:'rgba(240,106,79,.75)',backgroundColor:'rgba(60,18,14,.85)'},
  menuItem:{paddingVertical:9,alignSelf:'stretch'},menuRow:{flexDirection:'row',alignItems:'center',gap:12},
  menuLabel:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:3,color:'#dfd0ca',textTransform:'uppercase'},
  menuPrimary:{fontSize:27,letterSpacing:3.5,color:colors.goldBright},menuSmall:{fontSize:14,letterSpacing:2.2,color:'#c4b5af'},menuTight:{fontSize:13,letterSpacing:1,flexShrink:1},
  menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:'#b0a39e',marginTop:1},
- seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(10,7,11,.55)',marginVertical:14},
+ seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(10,7,11,.55)'),marginVertical:14},
  segItem:{flexGrow:1,flexBasis:0,minWidth:96,minHeight:42,paddingHorizontal:10,borderRadius:4,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:'transparent'},
  // On a phone each tab takes the room its word needs (not an equal share), so longer labels are not cut short.
  segNarrow:{minWidth:0,paddingHorizontal:5,flexBasis:'auto',flexShrink:1},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
- segOn:{borderColor:'rgba(224,74,92,.55)',backgroundColor:'rgba(48,26,78,.9)'},
+ segOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
- track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:'rgba(178,34,58,.35)',overflow:'hidden'},
- fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:'rgba(255,214,224,.4)'},
+ track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),overflow:'hidden'},
+ fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:tint('rgba(255,214,224,.4)')},
  floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:'0 2px 6px rgba(0,0,0,.9)'}:{})},
  toggleRow:{flexDirection:'row',alignItems:'center',gap:14,minHeight:48,paddingVertical:4},toggleLabel:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.parchment},
  toggleDescription:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,marginTop:2},
- track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:'rgba(178,34,58,.45)',backgroundColor:'rgba(10,7,11,.7)',justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:'#9e1b32',borderColor:'#f06e80'},
- knob:{width:20,height:20,borderRadius:10,backgroundColor:'#a0959d',...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:'#ffeef0',transform:[{translateX:20}]},
- key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:'rgba(178,34,58,.4)',backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
+ track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(10,7,11,.7)'),justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},
+ knob:{width:20,height:20,borderRadius:10,backgroundColor:tint('#a0959d'),...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:tint('#ffeef0'),transform:[{translateX:20}]},
+ key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
  keyText:{fontFamily:fonts.ui,fontSize:10,fontWeight:'700',color:colors.muted},
 });

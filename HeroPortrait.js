@@ -4,7 +4,7 @@ import {Crest} from './ui';
 import {classIcons} from './iconPaths';
 import {heroArtSubject} from './worldArtRules';
 import {subscribeArt,cachedArt,artIdentity} from './artClient';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 // The hero's painted portrait in a crimson medallion, with their level. Until the painting is ready (or if it cannot
 // be made) the class crest stands in, so the frame never shows a spinner.
 export default function HeroPortrait({hero,size=56,level,style}){
@@ -19,6 +19,6 @@ export default function HeroPortrait({hero,size=56,level,style}){
  </View>;
 }
 const s=StyleSheet.create({
- badge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:'#f06e80'},
- level:{fontFamily:fonts.display,fontWeight:'800',color:'#ffeef0'},
+ badge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
+ level:{fontFamily:fonts.display,fontWeight:'800',color:tint('#ffeef0')},
 });

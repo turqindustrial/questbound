@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {View,Text,Pressable,Animated,Easing,Platform,StyleSheet,useWindowDimensions,AccessibilityInfo} from 'react-native';
 import {playSound} from './audio';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 const native=Platform.OS!=='web';
 // The launch sequence: the emblem draws in, the title rises out of the dark, then one tap begins the game.
 // That tap is also what browsers require before sound (and full screen) may start.
@@ -62,7 +62,7 @@ export default function LaunchScreen({ready,onBegin}){
 }
 const s=StyleSheet.create({
  root:{zIndex:100,backgroundColor:colors.ink},passThrough:{pointerEvents:'none'},fill:{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:18,overflow:'hidden'},
- ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},bezel:{position:'absolute',pointerEvents:'none'},inner:{position:'absolute',borderWidth:1,borderColor:'rgba(178,34,58,.45)'},
+ ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},bezel:{position:'absolute',pointerEvents:'none'},inner:{position:'absolute',borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')},
  q:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center'},
  eyebrow:{fontFamily:fonts.display,fontSize:11,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase',marginBottom:6},
  logo:{fontFamily:fonts.logo,fontWeight:'900',letterSpacing:5,color:colors.gold,textAlign:'center'},

@@ -37,6 +37,7 @@ You don't install anything. The host runs the game on their PC and sends you a *
 - **Gold and loot.** Search a body or a satchel, sell a trinket, buy a healing potion from someone who has one: gold and finds go into your **Inventory**. A weapon you find can be used straight away, arrows run out, and you can drink a healing draught or give one to a companion, even one lying senseless.
 - **Inventory.** The Inventory tab shows what your hero has equipped (weapon in hand, off hand, armor, bow, focus) around their portrait, then everything in the pack. Tap anything to read what it is; tap a carried weapon and **Take in hand** to fight with it.
 - **What does that do?** The **ⓘ** at the end of the action row explains every action on offer (and, under Cast…, every spell): what it does and whether it costs your action or your bonus action.
+- **Your colour.** Settings → Theme recolours the whole game at once: Red, Orange, Gold, Green, Blue or Purple. It is remembered on that device.
 - **The Log** keeps the story so far in short lines: each place you reached, everyone you met, each fight and how it ended, gold and finds, rests and levels.
 - Tap a person above the message box to talk to them. Tap an underlined name in the story to see their details.
 - On a phone, the tabs along the bottom switch between the **Story**, your **Quest**, the **Map**, your **Inventory** and the **Log**. On a wider screen the same four sit in tabs beside the story.

@@ -4,7 +4,7 @@ import {MenuItem,StatBar,Ornament} from './ui';
 import Icon from './Icon';
 import HeroPortrait from './HeroPortrait';
 import {combatBasics} from './combatRules';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 import {playSound} from './audio';
 // The title screen: the battle painting behind, the name in crimson foil, and a console-style menu. Wide screens put
 // the menu in a column on the left (where the painting is dark) and the saved hero's "slot" on the right. An upright
@@ -99,7 +99,7 @@ const s=StyleSheet.create({
  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:20,color:'#decfc8',letterSpacing:.4},
  menu:{marginTop:14,paddingLeft:22,gap:2},menuNarrow:{paddingLeft:0,alignItems:'stretch',marginTop:6},
  menuGroup:{marginTop:10,gap:0},
- slot:{width:360,maxWidth:'100%',flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:14,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:'rgba(178,34,58,.5)'},
+ slot:{width:360,maxWidth:'100%',flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:14,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:tint('rgba(178,34,58,.5)')},
  slotOverline:{fontFamily:fonts.display,fontSize:9.5,letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase',flexShrink:0},
  slotTop:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:10},
  slotName:{fontFamily:fonts.display,fontSize:16,fontWeight:'700',letterSpacing:.6,color:colors.parchment,flexShrink:1},
@@ -107,6 +107,6 @@ const s=StyleSheet.create({
  footer:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:8},
  feedback:{flexDirection:'row',alignItems:'center',gap:8,minHeight:40,paddingHorizontal:4},
  feedbackText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.8,color:colors.gold,textTransform:'uppercase'},
- version:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:'rgba(221,214,219,.5)',textTransform:'uppercase'},
+ version:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:tint('rgba(221,214,219,.5)'),textTransform:'uppercase'},
  notice:{maxWidth:460,marginTop:4},
 });

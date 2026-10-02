@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import {View,Text,Pressable,StyleSheet} from 'react-native';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 import {Section} from './ui';
 import Icon from './Icon';
 import featureCatalog from './classFeatureCatalog.json';
@@ -22,4 +22,4 @@ export default function FeaturePanel({hero}) {
     {hero.level>=3 && !features.some(f=>f.subclass) && <Text style={s.caption}>Your subclass is recorded on your sheet. Describe its powers to the Dungeon Master when you use them.</Text>}
   </View>;
 }
-const s=StyleSheet.create({heading:{fontFamily:fonts.display,color:colors.gold,fontSize:19,fontWeight:'700',letterSpacing:1.2,marginVertical:16},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:16,fontWeight:'700',letterSpacing:.6},text:{fontFamily:fonts.ui,color:'#e6e1e5',fontSize:14,lineHeight:23,marginVertical:8},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:20,marginVertical:8},card:{paddingHorizontal:14,paddingVertical:6,backgroundColor:'rgba(255,214,224,.03)',borderWidth:1,borderColor:'rgba(178,34,58,.2)',borderRadius:6,marginVertical:5},featureRow:{flexDirection:'row',alignItems:'center',gap:10},lvl:{fontFamily:fonts.ui,fontSize:11,fontWeight:'700',color:colors.goldMid},button:{minHeight:44,justifyContent:'center'}});
+const s=StyleSheet.create({heading:{fontFamily:fonts.display,color:colors.gold,fontSize:19,fontWeight:'700',letterSpacing:1.2,marginVertical:16},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:16,fontWeight:'700',letterSpacing:.6},text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:14,lineHeight:23,marginVertical:8},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:20,marginVertical:8},card:{paddingHorizontal:14,paddingVertical:6,backgroundColor:tint('rgba(255,214,224,.03)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.2)'),borderRadius:6,marginVertical:5},featureRow:{flexDirection:'row',alignItems:'center',gap:10},lvl:{fontFamily:fonts.ui,fontSize:11,fontWeight:'700',color:colors.goldMid},button:{minHeight:44,justifyContent:'center'}});

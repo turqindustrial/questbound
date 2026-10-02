@@ -15,7 +15,7 @@ import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 
 export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame}) {
   const [tab,setTab]=useState('Overview');
@@ -88,19 +88,19 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
 }
 const s = StyleSheet.create({overline:{...type.label},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:32,lineHeight:38,fontWeight:'700',letterSpacing:1,marginTop:4},subtitle:{fontFamily:fonts.ui,color:colors.gold,fontSize:14.5,lineHeight:22,letterSpacing:.4},
  header:{flexDirection:'row',alignItems:'center',gap:20,marginBottom:14},
- tags:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tag:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:'rgba(178,34,58,.3)',backgroundColor:'rgba(0,0,0,.2)'},tagText:{fontFamily:fonts.ui,fontSize:12,color:'#d8cbc5'},
+ tags:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tag:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:'rgba(0,0,0,.2)'},tagText:{fontFamily:fonts.ui,fontSize:12,color:'#d8cbc5'},
  hpBlock:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.3)',backgroundColor:'rgba(10,20,16,.45)',marginBottom:4},
  hpText:{fontFamily:fonts.display,fontSize:18,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},hpMax:{fontSize:12,color:colors.muted,fontWeight:'400'},
- gold:{fontFamily:fonts.ui,color:'#d6a0aa',fontSize:14,lineHeight:23,marginVertical:8},grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:12},
+ gold:{fontFamily:fonts.ui,color:tint('#d6a0aa'),fontSize:14,lineHeight:23,marginVertical:8},grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:12},
  tile:{flexBasis:145,flexGrow:1,padding:16,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},tileHead:{flexDirection:'row',alignItems:'center',gap:6},
  label:{...type.label,fontSize:10,textAlign:'center'},value:{fontFamily:fonts.display,color:colors.goldBright,fontSize:36,fontWeight:'800',marginVertical:4},
  ability:{flexBasis:96,flexGrow:1,paddingVertical:12,paddingHorizontal:8,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},
  abilityValue:{fontFamily:fonts.display,color:colors.goldBright,fontSize:30,fontWeight:'800',marginVertical:2},
- modPill:{paddingHorizontal:10,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:'rgba(224,74,92,.5)',backgroundColor:'rgba(48,26,78,.6)'},modText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'700',color:colors.gold},
+ modPill:{paddingHorizontal:10,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),backgroundColor:tint('rgba(48,26,78,.6)')},modText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'700',color:colors.gold},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginTop:6},center:{textAlign:'center'},
- panel:{padding:16,borderWidth:1,borderColor:'rgba(178,34,58,.22)',borderRadius:6,marginVertical:10},
+ panel:{padding:16,borderWidth:1,borderColor:tint('rgba(178,34,58,.22)'),borderRadius:6,marginVertical:10},
  text:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:17,lineHeight:27},
- item:{flexDirection:'row',gap:10,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'rgba(178,34,58,.15)'},qty:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',color:colors.gold},
- purse:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},purseCell:{flexGrow:1,flexBasis:160,flexDirection:'row',alignItems:'center',gap:12,padding:14,borderRadius:6,borderWidth:1,borderColor:'rgba(178,34,58,.28)',backgroundColor:'rgba(0,0,0,.2)'},
+ item:{flexDirection:'row',gap:10,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.15)')},qty:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',color:colors.gold},
+ purse:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},purseCell:{flexGrow:1,flexBasis:160,flexDirection:'row',alignItems:'center',gap:12,padding:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:'rgba(0,0,0,.2)'},
  purseValue:{fontFamily:fonts.display,fontSize:20,fontWeight:'800',color:colors.parchment,marginTop:2},
 });

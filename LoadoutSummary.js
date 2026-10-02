@@ -1,6 +1,6 @@
 import React from 'react';
 import {View,Text,StyleSheet} from 'react-native';
-import {fonts,colors,type} from './theme';
+import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {readyLoadout,loadoutWarnings,weaponAttacks} from './weaponRules';
 
@@ -24,5 +24,5 @@ export default function LoadoutSummary({hero}) {
     <Text style={s.note}>{gear.armor||gear.shield?'Your listed protection is equipped. ':''}{main?'Of the weapons in this kit, the '+gear.mainWeapon+' suits this hero’s abilities best, so it is used for an attack unless you name another.':'Your main close-range weapon is used for an attack unless you name another.'}{gear.focus?' Casting uses your focus when the spell allows it.':''}</Text>
   </View>;
 }
-const s=StyleSheet.create({titleRow:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:12},panel:{padding:18,borderRadius:6,backgroundColor:'rgba(24,17,25,.9)',borderWidth:1,borderColor:colors.goldLine,marginVertical:12},title:{fontFamily:fonts.display,color:colors.gold,fontSize:17,fontWeight:'700',letterSpacing:1.2},row:{marginBottom:10},label:{...type.label,fontSize:9,lineHeight:16},value:{fontFamily:fonts.ui,color:'#e8e3d6',fontSize:15,lineHeight:23},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19,marginTop:4},
- warning:{flexDirection:'row',alignItems:'flex-start',gap:8,marginBottom:8,padding:10,borderRadius:4,borderWidth:1,borderColor:'rgba(224,168,96,.45)',backgroundColor:'rgba(60,12,20,.35)'},warningText:{flex:1,fontFamily:fonts.ui,color:'#e27d8a',fontSize:13,lineHeight:19}});
+const s=StyleSheet.create({titleRow:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:12},panel:{padding:18,borderRadius:6,backgroundColor:tint('rgba(24,17,25,.9)'),borderWidth:1,borderColor:colors.goldLine,marginVertical:12},title:{fontFamily:fonts.display,color:colors.gold,fontSize:17,fontWeight:'700',letterSpacing:1.2},row:{marginBottom:10},label:{...type.label,fontSize:9,lineHeight:16},value:{fontFamily:fonts.ui,color:'#e8e3d6',fontSize:15,lineHeight:23},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19,marginTop:4},
+ warning:{flexDirection:'row',alignItems:'flex-start',gap:8,marginBottom:8,padding:10,borderRadius:4,borderWidth:1,borderColor:'rgba(224,168,96,.45)',backgroundColor:tint('rgba(60,12,20,.35)')},warningText:{flex:1,fontFamily:fonts.ui,color:tint('#e27d8a'),fontSize:13,lineHeight:19}});

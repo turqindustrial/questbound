@@ -2,7 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {View,Text,Image,Pressable,StyleSheet} from 'react-native';
 import {subscribeArt,retryArt,artIdentity,cachedArt} from './artClient';
 import Icon from './Icon';
-import {fonts,colors} from './theme';
+import {fonts,colors,tint} from './theme';
 const kindIcons={landscape:'map',portrait:'sheet',creature:'swords'};
 // A painted illustration from the world-art service. While it is being painted the frame shimmers softly (with a
 // caption when there is room); the finished painting fades in; a failure offers a retry where it appears.
@@ -19,7 +19,7 @@ export default function DynamicArt({subject,style,compact=false,quiet=false,stat
  </View>}
  </View>;
 }
-const s=StyleSheet.create({frame:{overflow:'hidden',backgroundColor:'#1b141c',borderRadius:4},placeholder:{flex:1,alignItems:'center',justifyContent:'center',padding:8,gap:8},
+const s=StyleSheet.create({frame:{overflow:'hidden',backgroundColor:tint('#1b141c'),borderRadius:4},placeholder:{flex:1,alignItems:'center',justifyContent:'center',padding:8,gap:8},
  caption:{flexDirection:'row',alignItems:'center',gap:8,paddingHorizontal:8},
  text:{fontFamily:fonts.story,fontStyle:'italic',color:'#c1b5b0',fontSize:14,lineHeight:20,textAlign:'center',flexShrink:1},
- retry:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:12,minHeight:38,borderRadius:19,borderWidth:1,borderColor:'rgba(178,34,58,.45)',justifyContent:'center'},retryText:{fontFamily:fonts.display,letterSpacing:1.2,color:colors.gold,fontSize:12,fontWeight:'700',textTransform:'uppercase'}});
+ retry:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:12,minHeight:38,borderRadius:19,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),justifyContent:'center'},retryText:{fontFamily:fonts.display,letterSpacing:1.2,color:colors.gold,fontSize:12,fontWeight:'700',textTransform:'uppercase'}});

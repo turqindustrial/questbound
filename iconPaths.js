@@ -74,6 +74,7 @@ export const iconPaths={
  eldritch:{glyph:'◉',svg:'<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><path d="M12 8.2c1.3 1.3 1.3 6.3 0 7.6-1.3-1.3-1.3-6.3 0-7.6z" fill="currentColor" stroke="none"/><path d="M12 2.5v1.8M12 19.7v1.8M5.2 4.8l1.1 1.4M18.8 4.8l-1.1 1.4M5.2 19.2l1.1-1.4M18.8 19.2l-1.1-1.4" opacity=".6"/>'},
  people:{glyph:'♞',svg:'<circle cx="7.5" cy="8.5" r="2.6"/><circle cx="16.5" cy="8.5" r="2.6"/><path d="M2.5 18.5c.5-3 2.4-4.6 5-4.6s4.5 1.6 5 4.6M11.5 18.5c.5-3 2.4-4.6 5-4.6s4.5 1.6 5 4.6"/>'},
  feedback:{glyph:'✎',svg:'<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M12 8l.8 1.7 1.9.3-1.4 1.3.3 1.9L12 12.3l-1.7.9.3-1.9-1.4-1.3 1.9-.3z" fill="currentColor" stroke="none"/>'},
+ palette:{glyph:'◐',svg:'<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 2-.9 2-1.9 0-.6-.3-1-.6-1.4-.3-.4-.5-.8-.5-1.3 0-1 .8-1.9 2-1.9H17a3.5 3.5 0 0 0 3.5-3.5c0-3.9-3.8-7-8.5-7Z"/><circle cx="7.8" cy="11.8" r="1.1"/><circle cx="10" cy="7.9" r="1.1"/><circle cx="14.4" cy="7.4" r="1.1"/><circle cx="17.2" cy="10.6" r="1.1"/>'},
  dots:{glyph:'…',svg:'<circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none"/>'},
 };
 // Class crests and weapon families, so a hero or a weapon always gets a fitting emblem.
