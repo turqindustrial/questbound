@@ -205,7 +205,7 @@ function storyEffort(fallback,read=chosenModel){const chosen=read('.questbound-s
 function turnEffort(fallback,read=chosenModel){const chosen=read('.questbound-dm-effort');return ['none','minimal','low','medium','high'].includes(chosen)?chosen:fallback;}
 // Stories in the making are kept in a module of their own, which stays loaded while this file is reloaded.
 // The day's spending and the host's daily allowance for guests (spending.cjs) also stay loaded between requests.
-function loadSpending(){if(require('./spending.cjs').revision!==1)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
+function loadSpending(){if(require('./spending.cjs').revision!==2)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
 const guestOf=body=>typeof body?.guest==='string'&&/^[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;

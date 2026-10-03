@@ -131,6 +131,13 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
  clock+=86400000;assert.equal(spend.check('g1').ok,true,'a new day, a new allowance');clock-=86400000;
  fs.renameSync(log,log+'.old');line({mode:'turn',guest:'g1',input:100,output:10});assert.equal(spend.check('g1').ok,false,'a rotated log forgets nothing spent today');
  assert.ok(costOf({model:'mystery-model',input:1e6})>costOf({model:'gpt-6-luna',input:1e6}),'an unknown model is priced high on purpose');
+ // The host may set what each player may use a day (.questbound-player-budget), apart from the guests' total.
+ const data2=path.join(tmp,'data2'),log2=path.join(data2,'.questbound-usage.jsonl'),each=path.join(data2,'.questbound-player-budget');fs.mkdirSync(data2);
+ const spend2=createSpending({dir:data2,now:()=>clock});fs.writeFileSync(each,'1\n');
+ for(let i=0;i<34;i++)fs.appendFileSync(log2,JSON.stringify({at:new Date(clock).toISOString(),mode:'art',model:'gpt-6-luna',guest:'p1',images:1})+'\n');
+ assert.match(spend2.check('p1').error,/your share/,'a dollar a day each');assert.equal(spend2.check('p2').ok,true);assert.equal(spend2.summary().share,1);
+ fs.writeFileSync(path.join(data2,'.questbound-guest-budget'),'off\n');assert.equal(spend2.check('p1').ok,false,'the per-player limit holds with no total');
+ fs.writeFileSync(each,'off\n');assert.equal(spend2.check('p1').ok,true,'and can be turned off');
  fs.rmSync(tmp,{recursive:true,force:true});
  console.log('Security: page policies and safe headers on every page, loopback services that answer only to this PC, visitors told apart by headers they cannot forge, the Wi-Fi link only at home, the gateway\'s guest label, plain feedback, weak passwords refused and the guests\' daily allowance.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

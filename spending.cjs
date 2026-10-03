@@ -3,11 +3,12 @@
 // line with its tokens, any painting and, for a guest, the guest's label (a scrambled form of their pairing, made by
 // phone-server.cjs; never a name). Once guests together have used the day's allowance, or one guest their share of it,
 // their turns, new tales and new paintings wait for tomorrow. The host's own play on this PC is never stopped.
-// The allowance is the host's choice in .questbound-guest-budget: US dollars a day (5 unless set), or "off"; it is read
-// on every request, so a change needs no restart. `node dm-report.cjs` shows where today stands.
+// The allowance is the host's choice in .questbound-guest-budget: US dollars a day for all guests together (5 unless
+// set), or "off"; and in .questbound-player-budget: US dollars a day for each player (40% of the total unless set; "off"
+// for none). Both are read on every request, so a change needs no restart. `node dm-report.cjs` shows where today stands.
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs);
 // bump `revision` when it changes and the server loads it afresh.
-const revision=1;
+const revision=2;
 const fs=require('node:fs'),path=require('node:path');
 // Prices in US dollars per million tokens (input, cached input, output) and per painting. A model with no price on
 // file, and every painting, is priced on the high side on purpose, so the allowance errs towards stopping early.
@@ -21,13 +22,15 @@ function costOf(entry){
 }
 // The host's calendar day (the PC's own time zone).
 const dayOf=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-function readBudget(file){
- let raw;try{raw=fs.readFileSync(file,'utf8').replace(/^﻿/,'').trim().toLowerCase();}catch{return defaultBudget;}
+function readBudget(file,fallback=defaultBudget){
+ let raw;try{raw=fs.readFileSync(file,'utf8').replace(/^\uFEFF/,'').trim().toLowerCase();}catch{return fallback;}
  if(raw==='off'||raw==='none')return null;
- const n=Number(raw.replace(/^\$/,''));return Number.isFinite(n)&&n>=0?n:defaultBudget;
+ const n=Number(raw.replace(/^\$/,''));return Number.isFinite(n)&&n>=0?n:fallback;
 }
 function createSpending({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.now}={}){
- const file=path.join(dir,'.questbound-usage.jsonl'),budgetFile=path.join(dir,'.questbound-guest-budget');
+ const file=path.join(dir,'.questbound-usage.jsonl'),budgetFile=path.join(dir,'.questbound-guest-budget'),playerFile=path.join(dir,'.questbound-player-budget');
+ // Each player's limit: the host's own figure, else 40% of the guests' total (at least 50 cents); null for none.
+ const eachLimit=limit=>{const own=readBudget(playerFile,'unset');return own!=='unset'?own:limit===null?null:Math.max(0.5,limit*guestShare);};
  let offset=0,rest='',identity=null,days=new Map();
  const add=entry=>{
   const t=Date.parse(entry?.at);if(!Number.isFinite(t))return;
@@ -52,13 +55,13 @@ function createSpending({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.now
  // May this guest ask for more today? The host (no guest label) always may.
  function check(guest){
   if(!guest)return {ok:true};
-  const limit=readBudget(budgetFile);if(limit===null)return {ok:true};
+  const limit=readBudget(budgetFile),each=eachLimit(limit);if(limit===null&&each===null)return {ok:true};
   const d=today();
-  if(d.guests>=limit)return {ok:false,error:'The host\'s daily allowance for the Dungeon Master is used up. Play resumes tomorrow; your adventure is unchanged.'};
-  if((d.byGuest.get(guest)??0)>=Math.max(0.5,limit*guestShare))return {ok:false,error:'You have had your share of the Dungeon Master for today. Play resumes tomorrow; your adventure is unchanged.'};
+  if(limit!==null&&d.guests>=limit)return {ok:false,error:'The host\'s daily allowance for the Dungeon Master is used up. Play resumes tomorrow; your adventure is unchanged.'};
+  if(each!==null&&(d.byGuest.get(guest)??0)>=each)return {ok:false,error:'You have had your share of the Dungeon Master for today. Play resumes tomorrow; your adventure is unchanged.'};
   return {ok:true};
  }
- function summary(){const d=today(),limit=readBudget(budgetFile);return {day:dayOf(now()),all:d.all,guests:d.guests,guestCount:d.byGuest.size,topGuest:Math.max(0,...d.byGuest.values()),budget:limit,share:limit===null?null:Math.max(0.5,limit*guestShare)};}
+ function summary(){const d=today(),limit=readBudget(budgetFile);return {day:dayOf(now()),all:d.all,guests:d.guests,guestCount:d.byGuest.size,topGuest:Math.max(0,...d.byGuest.values()),budget:limit,share:eachLimit(limit)};}
  return {check,summary};
 }
 const spending=createSpending();

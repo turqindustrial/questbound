@@ -27,7 +27,7 @@ else{
  const guests=usage.filter(u=>u.guest),guestCost=guests.reduce((n,u)=>n+costOf(u),0);
  if(guests.length)console.log('Guests: '+guests.length+' requests from '+new Set(guests.map(u=>u.guest)).size+' browser(s), about '+money(guestCost)+'.');
  const now=createSpending({dir:__dirname}).summary();
- console.log('Today\'s allowance for guests: '+(now.budget===null?'off (.questbound-guest-budget says off)':money(now.guests)+' of '+money(now.budget)+' used; each guest may use up to '+money(now.share)+' (set the dollars a day in .questbound-guest-budget).'));
+ console.log('Today\'s allowance for guests: '+(now.budget===null?'no total (.questbound-guest-budget says off)':money(now.guests)+' of '+money(now.budget)+' used by all guests together (.questbound-guest-budget)')+'; '+(now.share===null?'no limit for each player':'each player may use up to '+money(now.share)+' a day (.questbound-player-budget); the most any one used today: '+money(now.topGuest))+'.');
  const avg=usage.filter(u=>u.mode==='turn');if(avg.length)console.log('A game turn request averages '+Math.round(avg.reduce((a,u)=>a+u.input,0)/avg.length)+' input tokens, of which '+Math.round(avg.reduce((a,u)=>a+u.cached,0)/avg.length)+' cached, and '+Math.round(avg.reduce((a,u)=>a+u.output,0)/avg.length)+' output tokens.');
 }
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
