@@ -3,6 +3,10 @@ import {knownSpells,automaticEffects} from './spellRules';
 import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 import {combatBasics} from './combatRules';
+import {attackOptions,thrownAttack} from './weaponRules';
+import {gearedHero,arrowsLeft} from './inventoryRules';
+import {foeLabel} from './encounterRules';
+import {npcLore} from './npcRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
 // Spells need a target, so "Cast…" starts the sentence in the message box instead. `icon` names a line icon
@@ -34,8 +38,10 @@ export function quickActions(hero,game,health=null){
   if(id.startsWith('give-potion:party:')){const member=game.party?.members?.[c.action.target.slice(6)];if(member?.status!=='down')continue;const name=c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ')[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   if(id==='death-save'){primary.push({key:id,glyph:'☠',icon:'skull',label:'Death save',question:'I fight to hold on.',action:c.action,primary:true});continue;}
+  // Throws, and attacks with the other weapons, are in the Attack… picker.
+  if(/^(throw|encounter-throw|ally-throw|npc-throw):/.test(id))continue;
   // Bare hands get a chip only when there is no weapon to hand; otherwise "I punch him" still works when typed.
-  if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop();if(weapon==='Unarmed Strike'&&armed)continue;const first=!primary.some(a=>a.weapon);(first?primary:backup).push({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:weapon==='Unarmed Strike'?'Unarmed':weapon,question:weapon==='Unarmed Strike'?'I attack with my bare hands.':'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}
+  if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop();if(weapon==='Unarmed Strike'&&armed)continue;const first=!primary.some(a=>a.weapon);if(!first)continue;(first?primary:backup).push({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:weapon==='Unarmed Strike'?'Unarmed':weapon,question:weapon==='Unarmed Strike'?'I attack with my bare hands.':'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}
   if(id==='approach'){primary.push({key:id,glyph:'⚔',icon:'swords',label:c.label,question:'I '+c.label[0].toLowerCase()+c.label.slice(1)+'.',action:c.action,primary:true});continue;}
   // The Lantern Vaults belong to the crossroads; in a written story they are only reached by asking the DM.
   if(id.startsWith('dungeon:')){if(game.story&&id==='dungeon:enter')continue;const [glyph,label,icon]=dungeonLabels(id,c.label);(id==='dungeon:fight'?primary:rest).push({key:id,glyph,icon,label,question:'I '+c.label[0].toLowerCase()+c.label.slice(1)+'.',action:c.action,primary:id==='dungeon:fight'});continue;}
@@ -47,10 +53,48 @@ export function quickActions(hero,game,health=null){
   if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action,...(fighting&&bonusIds.includes(id)?{detail:'Bonus'}:{})});continue;}
   rest.push({key:id,glyph:'✦',icon:'star',label:c.label.replace(/:.*$/,''),question:c.label.replace(/:.*$/,'')+'.',action:c.action});
  }
+ // Attack…: every weapon, melee and ranged, at whoever can be attacked now (attackActions). In a fight it sits beside
+  // the main weapon; elsewhere it waits with the other actions.
+ if(!game.actionUsed&&attackTargets(hero,game,health).length){const chip={key:'attack-menu',glyph:'⚔',icon:'swords',label:'Attack…'};const at=primary.findIndex(a=>a.weapon);if(at>=0)primary.splice(at+1,0,chip);else if(fighting)primary.push(chip);else rest.push(chip);}
  // Once the action is spent, only bonus-action spells can still be cast.
  const castable=knownSpells(hero).filter(s=>!game.actionUsed||s.castingTime==='Bonus Action');
  if(!game.pendingSpell&&!['dying','dead'].includes(game.stage)&&castable.length&&!(game.actionUsed&&game.bonusUsed))primary.push({key:'cast',glyph:'✧',icon:'spell',label:'Cast…',prefill:'I cast '});
  return [...primary,...rest,...backup,...last];
+}
+// Who can be attacked right now, each with the weapons that can reach them (drawn from the engine's own choices, so
+// every move is one the rules accept): the foe of this fight (or the one waiting at the bridge), a creature beside
+// it, and the people here.
+export function attackTargets(hero,game,health=null){
+ const targets=new Map(),put=(key,name,kind,weapon,thrown,choice)=>{if(!targets.has(key))targets.set(key,{key,name,kind,moves:[]});targets.get(key).moves.push({weapon,thrown,choice});};
+ for(const c of dmChoices(hero,game,health)){
+  let m;
+  if((m=c.id.match(/^(attack|throw|encounter-attack|encounter-throw):(.+)$/)))put('foe',foeLabel(game),'foe',m[2],m[1].endsWith('throw'),c);
+  else if((m=c.id.match(/^(ally-attack|ally-throw):(\d+):(.+)$/))){const ally=game.foeAllies?.[Number(m[2])];if(ally)put('ally:'+m[2],ally.name,'ally',m[3],m[1]==='ally-throw',c);}
+  else if((m=c.id.match(/^(npc-attack|npc-throw):([^:]+):(.+)$/)))put('npc:'+m[2],npcLore(game,m[2])?.name??m[2],'person',m[3],m[1]==='npc-throw',c);
+ }
+ return [...targets.values()];
+}
+// The Attack… picker: Back, the target (chosen first when there is more than one, and always when only people are
+// there: attacking someone is never a default), then the weapons under Melee and Ranged with their numbers. A weapon
+// chip sends the attack at once, like any other chip.
+export function attackActions(hero,game,health=null,targetKey=null){
+ const targets=attackTargets(hero,game,health),armed=gearedHero(hero,game),options=attackOptions(armed);
+ const target=targets.find(t=>t.key===targetKey)??targets.find(t=>t.kind==='foe')??null;
+ const row=[{key:'attack-back',glyph:'‹',icon:'back',label:'Back',back:true}];
+ if(targets.length>1||!target)for(const t of targets)row.push({key:'target:'+t.key,glyph:'◎',icon:t.kind==='person'?'people':'swords',label:t.name.replace(/^the /i,'').split(' ').slice(0,2).join(' '),target:t.key,primary:t===target,detail:t===target?'Target':undefined});
+ if(!target){row.push({key:'heading:choose',heading:'Choose who to attack'});return row;}
+ const the=target.kind==='person'?target.name:'the '+target.name.replace(/^the /i,'');
+ const signed=n=>(n>=0?'+':'−')+Math.abs(n),dice=w=>w.flat?String(Math.max(1,1+w.bonus)):w.count+'d'+w.die+(w.bonus?(w.bonus>0?'+':'−')+Math.abs(w.bonus):'');
+ const held=name=>(armed.equipment?.items??[]).filter(i=>i.name===name).reduce((n,i)=>n+(i.quantity??0),0);
+ const melee=[],ranged=[];
+ for(const move of target.moves){
+  const base=options.find(o=>o.name===move.weapon);if(!base)continue;
+  const w=move.thrown?thrownAttack(base):base,count=w.ranged?arrowsLeft(game,hero):move.thrown?held(w.name):null;
+  const question=w.unarmed?'I attack '+the+' with my bare hands.':move.thrown?'I throw my '+w.name.toLowerCase()+' at '+the+'.':w.ranged?'I shoot '+the+' with my '+w.name.toLowerCase()+'.':'I attack '+the+' with my '+w.name.toLowerCase()+'.';
+  (w.ranged||move.thrown?ranged:melee).push({key:move.choice.id,glyph:'⚔',icon:w.unarmed?'fist':move.thrown?'spear':weaponIcon(w.name),label:w.unarmed?'Unarmed':w.name,detail:signed(w.attackBonus)+' · '+dice(w)+(count!==null?' · ×'+count:''),question,action:move.choice.action,weapon:w.name});
+ }
+ row.push({key:'heading:melee',heading:'Melee'},...melee,{key:'heading:ranged',heading:'Ranged'},...(ranged.length?ranged:[{key:'heading:no-ranged',heading:'Nothing to shoot or throw',quiet:true}]));
+ return row;
 }
 // The Cast… picker: every spell the hero knows, cantrips first. Spells the rules resolve on their own cast in one tap:
 // healing, protection and detection on yourself; attacks and blasts at the enemy during a fight. Anything else starts

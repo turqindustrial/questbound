@@ -1,6 +1,6 @@
 import {useSceneTransition} from './SceneTransition';
 import {dmEndpoints,askDm} from './dmConnection';
-import {spellActions} from './quickActions';
+import {spellActions,attackActions} from './quickActions';
 import {recruitmentTargets} from './followerRules';
 import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
@@ -114,6 +114,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined)setAnimateId(lastTurnId);seenTurn.current=lastTurnId;},[lastTurnId]);
   // Each new turn brings the action row back to its first (main) action.
   const actionScroll=useRef(null),[spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false);
+  // The Attack… picker, and the target chosen in it (null: the foe, or nobody yet when only people are here).
+  const [attackOpen,setAttackOpen]=useState(false),[attackTarget,setAttackTarget]=useState(null);
+  const closeAttack=()=>{setAttackOpen(false);setAttackTarget(null);};
   // A one-time "How to play" card for new players; dismissed once per device.
   const [tips,setTips]=useState(()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}});
   // A player who read the primer while their tale was written needs only a reminder; the Skirmish teaches as it goes.
@@ -121,7 +124,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const lesson=tips?skirmishHint(game,health,combatBasics(hero).hp):null;
   const dismissTips=()=>{setTips(false);try{globalThis.localStorage?.setItem('questbound.tips.v1','seen');}catch{}};
   useEffect(()=>{if(tips&&lastTurnId>=3)dismissTips();},[lastTurnId]);
-  useEffect(()=>{actionScroll.current?.scrollTo?.({x:0,animated:true});setSpellsOpen(false);},[lastTurnId]);
+  useEffect(()=>{actionScroll.current?.scrollTo?.({x:0,animated:true});setSpellsOpen(false);closeAttack();},[lastTurnId]);
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
   const waiting=table?.joined?table.otherActing:null; const tableSyncing=!!table?.joined&&!table.synchronized;
@@ -224,9 +227,13 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   if(sendRef)sendRef.current=preset=>ask(preset);
   // Cast… swaps the row for the hero's spells; a spell casts in one tap (or starts the sentence when it needs a target).
   const spellRow=[{key:'spells-back',glyph:'‹',icon:'back',label:'Back',run:()=>setSpellsOpen(false)},...spellActions(hero,game)];
-  const actions=person?[]:spellsOpen?spellRow:quick,actionsDisabled=busy||playing||!!waiting||tableSyncing;
+  const attackRow=attackOpen?attackActions(hero,game,health,attackTarget).map(a=>a.back?{...a,run:closeAttack}:a.target?{...a,run:()=>setAttackTarget(a.target)}:a):[];
+  const actions=person?[]:spellsOpen?spellRow:attackOpen?attackRow:quick,actionsDisabled=busy||playing||!!waiting||tableSyncing;
   const runAction=a=>{
-    if(a.key==='cast'){setSpellsOpen(true);return;}
+    if(a.key==='cast'){closeAttack();setSpellsOpen(true);return;}
+    if(a.key==='attack-menu'){setSpellsOpen(false);setAttackOpen(true);return;}
+    if(a.heading)return;
+    if(attackOpen&&a.action)closeAttack();
     if(a.run){a.run();return;}
     if(a.key.startsWith('spell:'))setSpellsOpen(false);
     if(a.prefill){setInput(a.prefill);setTimeout(()=>inputRef.current?.focus(),30);return;}
@@ -238,14 +245,18 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // heading, so the story has the room.)
   const snug=viewHeight<700,swipe=compact||short||snug;
   // With a keyboard, 1–9 press the matching action (shown as a small key on each chip).
-  const keysRef=useRef({});keysRef.current={actions,disabled:actionsDisabled,run:a=>runAction(a)};
+  const keysRef=useRef({});keysRef.current={actions:actions.filter(a=>!a.heading),disabled:actionsDisabled,run:a=>runAction(a)};
   useEffect(()=>{
     if(typeof document==='undefined')return;
     const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[1-9]$/.test(e.key)||shortcutsBlocked())return;
       const {actions,disabled,run}=keysRef.current,a=actions[Number(e.key)-1];if(!a||disabled)return;e.preventDefault();playSound('click');run(a);};
     document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
   },[]);
-  const actionChips=actions.map((a,i)=>{const lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip',pulse:lead&&i===0&&game.stage==='combat'&&!actionsDisabled&&!spellsOpen?'on':'off'}} style={[s.action,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
+  const pressable=actions.filter(a=>!a.heading);
+  const actionChips=actions.map(a=>{
+    // A heading in the Attack… picker (Melee, Ranged): a small label, not a button.
+    if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}} style={s.actionHeading}><PlainText style={[s.actionHeadingText,a.quiet&&{color:colors.faint}]}>{a.heading}</PlainText></View>;
+    const i=pressable.indexOf(a),lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip',pulse:lead&&i===0&&game.stage==='combat'&&!actionsDisabled&&!spellsOpen&&!attackOpen?'on':'off'}} style={[s.action,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
     <Icon name={a.icon??'star'} size={16} color={lead?tint('#ffeef0'):colors.gold}/>
     <PlainText numberOfLines={1} style={[s.actionText,lead&&s.actionPrimaryText]}>{a.label}</PlainText>
     {!!a.detail&&<PlainText style={s.actionDetail}>{a.detail}</PlainText>}
@@ -297,7 +308,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {tips&&lesson&&!person&&<View dataSet={{qb:'enter'}} style={s.lesson}><Icon name="info" size={14} color={colors.goldMid}/><PlainText style={s.lessonText}>{lesson}</PlainText></View>}
     {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {!typing&&actionBar}
-    <ActionGuide visible={guide} onClose={()=>setGuide(false)} actions={actions} hero={hero} game={game} spells={spellsOpen} disabled={actionsDisabled} onRun={runAction}/>
+    <ActionGuide visible={guide} onClose={()=>setGuide(false)} actions={pressable} hero={hero} game={game} spells={spellsOpen} disabled={actionsDisabled} onRun={runAction}/>
     {direct&&<View style={s.directNote}><Icon name="speak" size={13} color={colors.goldBright}/><PlainText style={s.directText}>{compact?'Out of character: the story waits.':'Out of character. Ask about a ruling, or say what went wrong or what you meant to do: the story waits, and the Dungeon Master can take your last turn back.'}</PlainText></View>}
     <View style={s.composer}>{dmSwitch}{composer}{sendButton}</View>
     {!!error&&<View accessibilityRole="alert" style={s.errorRow}><Icon name="info" size={15} color={colors.danger}/><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text></View>}
@@ -354,7 +365,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(31,24,32,.92)'),maxWidth:260},
  tips:{padding:14,paddingBottom:10,marginTop:4,marginBottom:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),gap:2},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
  tipsText:{flex:1,fontFamily:fonts.ui,color:tint('#dfd9dd'),fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,marginTop:8,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
- actionPrimary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
+ actionPrimary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},actionHeading:{minHeight:40,justifyContent:'center',paddingLeft:6,paddingRight:2},actionHeadingText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
  actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:'#dfcdc5',textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:tint('#ffeef0')},
  fillInput:{flex:1,minHeight:48,maxHeight:130,paddingVertical:12,fontSize:17,lineHeight:24},
  fillSend:{minHeight:48,paddingHorizontal:18,justifyContent:'center',alignItems:'center'},

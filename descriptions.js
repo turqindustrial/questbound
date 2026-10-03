@@ -1,4 +1,4 @@
-import {weapons,attackOptions,attacksPerAction} from './weaponRules';
+import {weapons,attackOptions,attacksPerAction,canThrow} from './weaponRules';
 import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
 import {knownSpells} from './spellRules';
@@ -63,6 +63,12 @@ export const draughtDescription=gearNotes['Potion of Healing'];
 
 // ---------- Actions ----------
 const damageText=w=>w.flat?(1+w.bonus)+' bludgeoning':(w.count>1?w.count:1)+'d'+w.die+(w.bonus?' '+(w.bonus>0?'+ ':'− ')+Math.abs(w.bonus):'')+' '+w.type.toLowerCase();
+// A throw: the same roll and damage as a ranged attack, and the weapon lands where it falls until the fight is over.
+function throwText(hero,name){
+ const w=attackOptions(hero).find(o=>o.name===name&&canThrow(o));if(!w)return 'Throw it. Uses your action.';
+ const swings=attacksPerAction(hero);
+ return 'Throw it: roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage. A ranged attack: with the foe right beside you it has disadvantage. The '+w.name.toLowerCase()+' stays where it lands until you gather it up after the fight. Uses your action'+(swings>1?' ('+swings+' throws)':'')+'.';
+}
 function attackText(hero,name){
  const w=attackOptions(hero).find(o=>o.name===name);if(!w)return 'Attack with it. Uses your action.';
  const swings=attacksPerAction(hero);
@@ -76,6 +82,13 @@ export function actionDescription(action,hero,game){
  if(key==='spells-back')return 'Back to your other actions.';
  if(key.startsWith('spell:'))return spellSummary(knownSpells(hero).find(s=>'spell:'+s.id===key));
  if(key==='end-turn')return game.actionUsed?'Finish your turn without a bonus action. The enemy acts next.':'Pass your turn without acting. The enemy acts next.';
+ if(key==='attack-menu')return 'Choose a weapon to attack with: everything you carry for close fighting under Melee, bows and throwing weapons under Ranged, and who to attack when there is more than one.';
+ if(key==='attack-back')return 'Back to your other actions.';
+ if(key.startsWith('target:'))return 'Attack this one: the weapons below are aimed at them.';
+ if(/^(throw|encounter-throw):/.test(key))return throwText(hero,key.split(':').pop());
+ if(key.startsWith('ally-throw:'))return 'Throw at the creature fighting beside your foe. '+throwText(hero,key.split(':').pop());
+ if(key.startsWith('npc-throw:'))return 'Throw at them. Someone you hurt will remember it. '+throwText(hero,key.split(':').pop());
+ if(key.startsWith('npc-attack:'))return 'Attack them. Someone you hurt will remember it, and a blow that drops them kills them unless you set out to knock them out. '+attackText(hero,key.split(':').pop());
  if(/^(attack|encounter-attack):/.test(key))return attackText(hero,key.split(':').pop());
  if(key.startsWith('ally-attack:'))return 'Strike the creature fighting beside your foe. '+attackText(hero,key.split(':').pop());
  if(key==='dodge'||key==='npc-dodge')return 'Give your whole turn to defence: until your next turn, attacks against you are rolled with disadvantage. Uses your action.';

@@ -15,7 +15,7 @@ assert.ok(combat[0].primary&&/^attack:/.test(combat[0].key),'An attack is the fi
 assert.equal(combat[0].question,'I attack with my '+combat[0].label+'.');
 for(const k of ['dodge','flee','potion'])assert.ok(keys(combat).includes(k),k+' in combat');
 assert.equal(combat.filter(q=>q.primary).length,1,'Only the main weapon is highlighted');
-assert.ok(keys(combat).indexOf('potion')<combat.findIndex((q,i)=>i>0&&q.weapon),'Backup weapons come after dodge, retreat and the potion');
+assert.equal(combat[1].key,'attack-menu','Attack… sits right beside the main weapon; the other weapons are in it');assert.equal(combat.filter(q=>q.weapon).length,1,'one weapon chip in the row');
 assert.ok(!combat.some(q=>q.destination),'No travel while fighting');
 assert.ok(!combat.some(q=>/^(npc-attack|story-complete|restart-adventure)/.test(q.key)),'No attacks on townsfolk or story endings as chips');
 assert.ok(!keys(combat).includes('cast'),'A Fighter without spells has no Cast chip');
@@ -27,7 +27,7 @@ assert.ok(!keys(combat).includes('cast'),'A Fighter without spells has no Cast c
 assert.equal(combat.at(-1).key,'end-turn');assert.equal(combat.find(q=>q.key==='potion').detail,'Bonus');assert.equal(combat.find(q=>q.key==='class:wind').detail,'Bonus');
 assert.ok(!keys(r.quickActions(fighter,bandit,{current:12,temp:0})).some(k=>['potion','class:wind'].includes(k)),'Nothing to heal at full health');
 // Every combat chip resolves through the same engine path as a typed action, and through the DM commit.
-for(const q of combat){
+for(const q of combat.filter(q=>q.action)){
  const step=r.adventureStep(bandit,health,fighter,q.action,()=>.6);assert.ok(!step.error,q.key+': '+step.error);assert.ok((step.events??[]).length>0,q.key+' produces events');
  const turn=r.commitDmTurn(fighter,bandit,health,q.action,{question:q.question,narration:'Your action is resolved below.'},()=>.6);assert.ok(!turn.error,q.key+' commits: '+turn.error);
 }

@@ -16,11 +16,21 @@ export function gearedHero(hero,game){
  if((!game?.pack&&!game?.wield)||!hero?.equipment||hero.equipment.startingItems)return hero;
  const items=(hero.equipment.items??[]).filter(i=>i.name!=='Arrow').map(i=>({...i}));
  for(const it of game.pack?.items??[])if(it.kind==='weapon'&&weapons[it.name]){const have=items.find(i=>i.name===it.name);if(have)have.quantity+=it.qty;else items.push({name:it.name,quantity:it.qty});}
+ // Weapons thrown in a fight and not yet gathered up are not in hand.
+ for(const [name,n] of Object.entries(game.pack?.spent??{}))if(name!=='Arrow'){const have=items.find(i=>i.name===name);if(have)have.quantity=Math.max(0,have.quantity-n);}
  const arrows=arrowsLeft(game,hero);if(arrows>0)items.push({name:'Arrow',quantity:arrows});
  return {...hero,equipment:{...hero.equipment,items,startingItems:hero.equipment.items,...(game.wield?{wield:game.wield}:{})}};
 }
 // A bow shot uses an arrow.
 export function spendArrow(game,hero){const p=packOf(game,hero);return {...game,pack:{...p,spent:{...p.spent,Arrow:(p.spent?.Arrow??0)+1}}};}
+// A throw leaves the weapon where it landed until the fight is over.
+export function spendThrown(game,hero,name){const p=packOf(game,hero);return {...game,pack:{...p,spent:{...p.spent,[name]:(p.spent?.[name]??0)+1}}};}
+// After the fight: every thrown weapon is gathered up again (arrows stay spent). Null when nothing was thrown.
+export function gatherThrown(game){
+ const spent=game.pack?.spent??{},names=Object.keys(spent).filter(k=>k!=='Arrow'&&spent[k]>0);if(!names.length)return null;
+ const kept=spent.Arrow!==undefined?{Arrow:spent.Arrow}:{};
+ return {game:{...game,pack:{...game.pack,spent:kept}},line:'You gather up your thrown '+names.map(n=>n.toLowerCase()+(spent[n]>1?'s':'')).join(' and ')+'.'};
+}
 const lootText=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
 // Normalise what the Dungeon Master hands over: known weapon names, "healing potion" → Potion of Healing, arrows.
 function normalise(it){
@@ -55,7 +65,7 @@ export function applyLoot(game,hero,loot){
 }
 export function validPack(p){
  if(p===undefined)return true;
- return !!p&&Number.isInteger(p.gold)&&p.gold>=0&&p.gold<=1e6&&Array.isArray(p.items)&&p.items.length<=40&&new Set(p.items.map(i=>i?.name?.toLowerCase())).size===p.items.length&&p.items.every(i=>i&&lootText(i.name,60)&&itemKinds.includes(i.kind)&&i.kind!=='potion'&&Number.isInteger(i.qty)&&i.qty>=1&&i.qty<=999&&(i.value===undefined||(Number.isFinite(i.value)&&i.value>=0&&i.value<=5000))&&(i.note===undefined||lootText(i.note,160))&&(i.kind!=='weapon'||!!weapons[i.name]))&&!!p.spent&&typeof p.spent==='object'&&Object.entries(p.spent).every(([k,v])=>k==='Arrow'&&Number.isInteger(v)&&v>=0&&v<=10000);
+ return !!p&&Number.isInteger(p.gold)&&p.gold>=0&&p.gold<=1e6&&Array.isArray(p.items)&&p.items.length<=40&&new Set(p.items.map(i=>i?.name?.toLowerCase())).size===p.items.length&&p.items.every(i=>i&&lootText(i.name,60)&&itemKinds.includes(i.kind)&&i.kind!=='potion'&&Number.isInteger(i.qty)&&i.qty>=1&&i.qty<=999&&(i.value===undefined||(Number.isFinite(i.value)&&i.value>=0&&i.value<=5000))&&(i.note===undefined||lootText(i.note,160))&&(i.kind!=='weapon'||!!weapons[i.name]))&&!!p.spent&&typeof p.spent==='object'&&Object.entries(p.spent).every(([k,v])=>(k==='Arrow'||/^Thrown\b/.test(weapons[k]?.range??''))&&Number.isInteger(v)&&v>=0&&v<=10000);
 }
 // A healing draught for someone else: it brings round a companion lying senseless.
 export function potionHealing(random){const a=1+Math.floor(random()*4),b=1+Math.floor(random()*4);return {a,b,total:a+b+2};}

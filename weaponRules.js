@@ -78,14 +78,19 @@ export function attackOptions(hero) {
   const unarmed = unarmedStrike(hero);
   return [...weaponAttacks(hero).filter(w => !w.blocked), ...(unarmed ? [unarmed] : [])];
 }
-// Normal and long range in feet for a bow ("Range 80/320 ft.").
+// A weapon with the Thrown property (Dagger, Handaxe, Javelin, Spear) can also be thrown: the same attack and damage
+// as a ranged attack (disadvantage once the foe is within 5 feet, or beyond normal range), and it leaves your hand
+// until you gather it up after the fight (inventoryRules.js).
+export const canThrow=weapon=>/^Thrown\b/.test(String(weapon?.range??''));
+export const thrownAttack=weapon=>({...weapon,thrown:true});
+// Normal and long range in feet for a bow ("Range 80/320 ft.") or a throw ("Thrown 20/60 ft.").
 export function weaponRange(weapon) {
   const m = String(weapon?.range ?? '').match(/(\d+)\/(\d+)/);
   return m ? {normal:Number(m[1]),long:Number(m[2])} : null;
 }
-// A bow shot has disadvantage with an enemy within 5 feet (once a foe has closed in) or beyond normal range.
+// A bow shot or a throw has disadvantage with an enemy within 5 feet (once a foe has closed in) or beyond normal range.
 export function rangedMode(weapon, {closeEnemy=false,distance=5}={}) {
-  if (!weapon?.ranged) return 'normal';
+  if (!weapon?.ranged && !weapon?.thrown) return 'normal';
   const range = weaponRange(weapon);
   return closeEnemy || (range && distance > range.normal) ? 'disadvantage' : 'normal';
 }

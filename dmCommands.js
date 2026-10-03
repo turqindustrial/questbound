@@ -1,4 +1,4 @@
-import {attackOptions} from './weaponRules';
+import {attackOptions,canThrow} from './weaponRules';
 import {gearedHero} from './inventoryRules';
 import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {livingAllies} from './encounterRules';
@@ -65,6 +65,18 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     const resolved=dmCommand(hero,game,normalizedCommand,health);
     return resolved?{...resolved,normalizedCommand}:null;
   }
+  // A throw: "I throw my javelin at the bandit", "I hurl a dagger at him". It is an attack with that weapon, thrown
+  // ("throw a punch" stays a punch). Without a target it goes at whoever an attack would.
+  const hurl=text.match(/^(?:I )?(?:throw|hurl|toss|fling|lob)\s+(?:my |a |an |the |one of my |another )?(.+?)(?:\s+(?:at|toward|towards|into)\s+(.+?))?[.!]?$/i);
+  if(hurl&&!unarmedWords.test(hurl[1])){
+    const weapon=commandWeapon(hero,text,hurl[1]);
+    if(!weapon)return missingWeapon(hero,hurl[1]);
+    if(!canThrow(weapon))return {error:'A '+weapon.name+' is not made for throwing. Daggers, handaxes, javelins and spears are.'};
+    const resolved=dmCommand(hero,game,'I attack '+(hurl[2]??'it')+' with '+weapon.name,health,currentTarget);
+    if(resolved?.action&&typeof resolved.action==='object'&&['encounter-attack','npc-attack'].includes(resolved.action.type))return {...resolved,action:{...resolved.action,thrown:true}};
+    return resolved;
+  }
+  if(hurl)return dmCommand(hero,game,'I punch '+(hurl[2]??'it'),health,currentTarget);
   // People are named in full, by first name or by surname ("Tobin", "Brask"); titles alone do not count.
   // Longer names first, so "Edda Reed" is not mistaken for Tobin Reed; a surname two people share names neither.
   if(game.story){

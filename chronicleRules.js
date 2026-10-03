@@ -59,7 +59,7 @@ export function describeEvent(event){
    const head=text.match(/^(.+?):\s/)?.[1]??'',save=/ save d20/.test(text),initiative=/initiative$/i.test(head)||/initiative:/.test(text);
    const target=text.match(/vs (your )?(AC|DC) (\d+)/),total=Number(text.match(/= (\d+)(?: vs|\.)/)?.[1]??NaN);
    const foe=!!target?.[1]||/ attacks you:/.test(text);
-   let title=head.replace(/^You use /,'').replace(/ against /,' → ');
+   let title=head.replace(/^You use /,'').replace(/^You throw (.+?) at /,'Thrown $1 → ').replace(/^You throw /,'Thrown ').replace(/ against /,' → ');
    const extra=text.match(/[;:] (\d+) (\w+) damage/);
    // "Reason: Wisdom (Perception) d20 [9] …" is a check the Dungeon Master called for: which skill, or which ability.
    const called=text.match(/: (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)(?: \(([A-Za-z ]+)\))? d20 /),check=called?(called[2]??called[1]):null;
