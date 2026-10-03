@@ -39,6 +39,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>()=>clearTimeout(blurTimer.current),[]);
   const typing=fill&&focused&&touchKeyboard();
   useEffect(()=>{onTyping?.(typing);return()=>onTyping?.(false);},[typing]);
+  // When the Dungeon Master cannot be reached: the host is told what to start, a guest only that it is not answering.
+  const offline=()=>dmEndpoints()[0]==='/api'?'The host\'s Dungeon Master is not answering right now. Your words are kept here; try again in a moment.':'The Dungeon Master service is not running on this PC. Start it with Questbound.cmd, then try again; your words are kept here.';
   // Out of character: the next message goes to the Dungeon Master as a player, not into the story.
   const [direct,setDirect]=useState(false);
   const transition=useSceneTransition();
@@ -131,7 +133,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     // DM agrees it went wrong. Nothing else about the game changes.
     if(toDm){
       try{
-        if(!connected)throw Error('The AI service is disconnected. Open your private AI setup window.');
+        if(!connected)throw Error(offline());
         const said=withoutAddress(question)||question,back=table?.joined?null:turnToRewind(game),last=game.playback?.at(-1);
         const body=await post(said,game,health,null,{recruitmentTargets:[],outOfCharacter:{canRewind:!!back,lastTurn:last?{said:last.events.find(e=>e.kind==='player')?.text??null,resolved:last.events.filter(e=>['initiative','roll','action','effect'].includes(e.kind)).map(e=>e.text).slice(0,30)}:null}});
         if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');
@@ -149,7 +151,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     if(target&&!await openConversation(target)){lock.current=false;setBusy(false);return;}
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
-    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error('The AI service is disconnected. Open your private AI setup window.');const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
+    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
     const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setConversationId(conversationPeople(result.game).some(n=>n.id===target)?target:null);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.

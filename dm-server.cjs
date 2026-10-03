@@ -174,7 +174,7 @@ function partialNarration(text){
  while(i<text.length){const c=text[i];if(c==='"')break;if(c==='\\'){const e=text[i+1];if(e===undefined)break;if(e==='u'){if(i+6>text.length)break;out+=String.fromCharCode(parseInt(text.slice(i+2,i+6),16));i+=6;continue;}out+={n:'\n',t:' ',r:'',b:'',f:''}[e]??e;i+=2;continue;}out+=c;i++;}
  return out;
 }
-async function streamedText(response,onNarration,onUsage=null){
+async function streamedText(response,onNarration,onUsage=null,onCompleted=null){
  const decoder=new TextDecoder();let buffer='',text='',completed=null,shown='',last=0;
  for await(const chunk of response.body){
   buffer+=decoder.decode(chunk,{stream:true});
@@ -188,6 +188,7 @@ async function streamedText(response,onNarration,onUsage=null){
   }
  }
  if(completed&&onUsage)try{onUsage(completed.usage);}catch{}
+ if(completed&&onCompleted)try{onCompleted(completed);}catch{}
  if(!completed||completed.status!=='completed')throw Error('The AI reply was incomplete. No game action was applied.');
  return (completed.output??[]).flatMap(o=>o.content??[]).filter(c=>c.type==='output_text').map(c=>c.text).join('')||text;
 }
@@ -252,7 +253,9 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   const replyProperties={narration:{type:'string'},dialogue:dialogueSchema,recruitment:recruitmentSchema,relationships:relationshipSchema(canRelate?2:0,knownPeople(body.context)),introduce:canIntroduce?introduceSchema(knownPeople(body.context)):{type:'null'},loot:canLoot?lootSchema(4):{type:'null'},actionId:resolvingSpell?nullSchema:{type:['string','null'],enum:[null,...choices]},castCommand:resolvingSpell?nullSchema:{type:['string','null']},ruling:resolvingSpell?{...rulingSchema,type:'object'}:rulingSchema,worldEvent:{type:['string','null']},check:resolvingSpell?nullSchema:checkSchema,discovery:canDiscover?discoverySchema:nullSchema,ambush:canAmbush?creatureSchema:nullSchema,rewind:ooc?{type:'boolean'}:nullSchema};
   if(body.context.engineResolved||sceneTrigger||ooc)for(const key of ['actionId','castCommand','ruling','worldEvent','check','discovery','ambush'])replyProperties[key]=nullSchema;
   const turnReasoning=fetchImpl===fetch?turnEffort(reasoning):reasoning;
-  // One request to the model: `note` is added after the standing instructions (which stay cached).
+  // One request to the model: `note` is added after the standing instructions (which stay cached). The provider's
+  // completed response is kept beside the text so an unreadable reply can be described (replyShape).
+  let lastReply=null;
   const ask=async(note,effort,limit=90000)=>{
   let response;
   for(let waits=0;;waits++){
@@ -266,11 +269,16 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   await new Promise(resolve=>setTimeout(resolve,Math.min(8000,Math.max(1500,(Number.isFinite(asked)&&asked>0?asked*1000:2500)*(waits+1)))));
   }
   const usage=u=>recordUsage('turn',model,u,fetchImpl===fetch);
-  return onNarration?await streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage):await (async()=>{const data=await response.json();usage(data.usage);if(data.status!=='completed')throw Error('The AI reply was incomplete. No game action was applied.');return (data.output??[]).flatMap(o=>o.content??[]).filter(c=>c.type==='output_text').map(c=>c.text).join('');})();
+  return onNarration?await streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage,c=>{lastReply=c;}):await (async()=>{const data=await response.json();lastReply=data;usage(data.usage);if(data.status!=='completed')throw Error('The AI reply was incomplete. No game action was applied.');return (data.output??[]).flatMap(o=>o.content??[]).filter(c=>c.type==='output_text').map(c=>c.text).join('');})();
   };
   // Reading a reply: repaired where the fault is small, refused where it is not.
   const digest=text=>{
-  let result;try{result=JSON.parse(text);}catch{recordRejection('unparseable reply',null,body,fetchImpl===fetch);throw Error('The AI did not return a usable reply.');}
+  let result;try{result=JSON.parse(text);}catch{
+   // Fences or prose around the JSON are stripped; anything else is recorded by its shape and refused (a refusal in its own words).
+   const repaired=repairedJson(text);
+   if(repaired!==null){recordSecondLook('unparseable reply','repaired',body,fetchImpl===fetch);result=repaired;}
+   else{const shape=replyShape(text,lastReply);recordRejection('unparseable reply',null,body,fetchImpl===fetch,shape);throw Error(shape.refusal?'The Dungeon Master declined to answer that. Try other words.':'The AI did not return a usable reply.');}
+  }
   try{
   // A scene moment answered with spoken lines alone (someone greets the player) is whole: the framing is supplied.
   if(sceneTrigger&&typeof result.narration==='string'&&!result.narration.trim()&&Array.isArray(result.dialogue)&&result.dialogue.some(l=>typeof l?.text==='string'&&l.text.trim())){const who=(body.context.conversationParticipants??[]).find(n=>n.id===result.dialogue[0]?.speakerId)?.name;result.narration=who?who+' looks up.':'A voice breaks the quiet.';}
@@ -352,11 +360,25 @@ function recordUsage(mode,model,usage,live=true){
 }
 // Rejected AI replies are logged locally (mechanical fields only, never keys or story text) so intermittent failures can
 // be diagnosed. Test runs against a fake provider are not logged.
-function recordRejection(error,result,body,live=true){
+// A reply that is not JSON: JSON wrapped in markdown fences or prose is recovered; anything else is refused.
+function repairedJson(text){
+ if(typeof text!=='string')return null;
+ const unfenced=text.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
+ for(const candidate of [unfenced,unfenced.slice(unfenced.indexOf('{'),unfenced.lastIndexOf('}')+1)]){if(!candidate||candidate[0]!=='{')continue;try{const value=JSON.parse(candidate);if(value&&typeof value==='object'&&!Array.isArray(value))return value;}catch{}}
+ return null;
+}
+// What an unreadable reply looked like, in mechanical terms only (never its words): how long, how it starts and ends,
+// which output items the provider sent, and whether it was a refusal or cut short.
+function replyShape(text,reply){
+ const t=typeof text==='string'?text:'',head=t.trimStart(),tail=t.trimEnd();
+ const items=(reply?.output??[]).map(o=>String(o?.type??'?')+(Array.isArray(o?.content)?':'+o.content.map(c=>String(c?.type??'?')).join('+'):'')).slice(0,8);
+ return {length:t.length,start:!head?'empty':head[0]==='{'?'brace':head.startsWith('```')?'fence':'text',end:!tail?'empty':tail.at(-1)==='}'?'brace':tail.endsWith('```')?'fence':'text',items,status:reply?.status??null,incomplete:reply?.incomplete_details?.reason??null,refusal:items.some(i=>/refusal/.test(i))};
+}
+function recordRejection(error,result,body,live=true,shape=null){
  if(!live)return;
  try{
   const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-diagnostics.jsonl');
-  const r=result??{},entry={at:new Date().toISOString(),error:String(error).slice(0,300),context:{stage:body.context?.stage??null,pendingSpell:!!body.context?.pendingSpell,engineResolved:!!body.context?.engineResolved,sceneTrigger:!!body.context?.sceneTrigger,recruitmentTargets:body.context?.recruitmentTargets??[],participants:(body.context?.conversationParticipants??[]).map(p=>p.id)},
+  const r=result??{},entry={at:new Date().toISOString(),error:String(error).slice(0,300),...(shape?{shape}:{}),context:{stage:body.context?.stage??null,pendingSpell:!!body.context?.pendingSpell,engineResolved:!!body.context?.engineResolved,sceneTrigger:!!body.context?.sceneTrigger,recruitmentTargets:body.context?.recruitmentTargets??[],participants:(body.context?.conversationParticipants??[]).map(p=>p.id)},
    reply:{actionId:r.actionId??null,castCommand:r.castCommand?String(r.castCommand).slice(0,120):null,ruling:r.ruling??null,check:r.check?{...r.check,reason:undefined,success:undefined,failure:undefined}:null,recruitment:(r.recruitment??[]).map(p=>({npcId:p?.npcId,decision:p?.decision,dc:p?.dc,reasonLength:p?.reason?.length??0,termsLength:p?.terms?.length??0})),dialogueSpeakers:(r.dialogue??[]).map(l=>l?.speakerId),narrationLength:typeof r.narration==='string'?r.narration.length:null,worldEventLength:typeof r.worldEvent==='string'?r.worldEvent.length:null}};
   if(fs.existsSync(file)&&fs.statSync(file).size>2e6)fs.renameSync(file,file+'.old');
   fs.appendFileSync(file,JSON.stringify(entry)+'\n');
@@ -405,4 +427,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,contractInstructions};
+module.exports={turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

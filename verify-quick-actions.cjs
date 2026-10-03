@@ -19,6 +19,10 @@ assert.ok(keys(combat).indexOf('potion')<combat.findIndex((q,i)=>i>0&&q.weapon),
 assert.ok(!combat.some(q=>q.destination),'No travel while fighting');
 assert.ok(!combat.some(q=>/^(npc-attack|story-complete|restart-adventure)/.test(q.key)),'No attacks on townsfolk or story endings as chips');
 assert.ok(!keys(combat).includes('cast'),'A Fighter without spells has no Cast chip');
+// After a win with nothing to recover (health null is full hit points) no rest is offered that the engine would refuse; hurt, a short rest is.
+{const won={...bandit,stage:'victory',enemyHP:0};assert.ok(!keys(r.quickActions(fighter,won,null)).includes('short-rest'),'no short rest at full health');assert.ok(!r.dmChoices(fighter,won,null).some(c=>c.id==='short-rest'));
+ assert.ok(keys(r.quickActions(fighter,won,{current:6,temp:0})).includes('short-rest'),'a short rest when hurt');
+ for(const q of r.quickActions(fighter,won,null)){const s=r.adventureStep(won,null,fighter,q.action,()=>.5);assert.ok(!s.error,q.key+' at full health after a win: '+s.error);}}
 // Bonus actions say so, End turn waits at the end of the row, and a hero at full health is not offered healing.
 assert.equal(combat.at(-1).key,'end-turn');assert.equal(combat.find(q=>q.key==='potion').detail,'Bonus');assert.equal(combat.find(q=>q.key==='class:wind').detail,'Bonus');
 assert.ok(!keys(r.quickActions(fighter,bandit,{current:12,temp:0})).some(k=>['potion','class:wind'].includes(k)),'Nothing to heal at full health');

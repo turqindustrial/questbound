@@ -40,9 +40,10 @@ function bonusChoices(hero,game,health){
 }
 // Short rests: where one can be taken, and how many are left before the next long rest.
 export function shortRestsLeft(hero,game){return Math.max(0,shortRestLimit(hero)-(game.shortRests??0));}
-// Worth offering: the hero is hurt (when their hit points are known), a companion is, or a short-rest ability is spent.
+// Worth offering: the hero is hurt (health null means full hit points, as everywhere else), a companion is, or a
+// short-rest ability is spent. The engine refuses a rest with nothing to recover, so nothing offers one.
 function restWouldHelp(hero,game,health){
-  if(!health||health.current<combatBasics(hero).hp)return true;
+  if(health&&Number.isFinite(health.current)&&health.current<combatBasics(hero).hp)return true;
   if(hero.class==='Fighter'&&(game.resources?.wind??0)>0)return true;
   if(hero.class==='Warlock'&&((game.spellSlotsUsed??[]).some(n=>n>0)||(game.resources?.slots??0)>0))return true;
   return npcScene(game).some(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.fate!=='dead'&&n.hp>0&&n.hp<npcMaxHP(n.id,game));

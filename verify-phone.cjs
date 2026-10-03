@@ -114,7 +114,7 @@ async function sharedLink(){
  try{
   let r=await request('/');assert.equal(r.status,200);assert.ok(r.text.includes('Pairing code'));assert.ok(!r.text.includes('12345678'));assert.ok(r.text.includes('rel="manifest"'));
   // Install files are public so browsers can install the game; everything else still needs pairing.
-  assert.equal((await request('/manifest.json')).text,'{"name":"Questbound"}');assert.equal((await request('/icons/icon-192.png')).status,200);
+  assert.equal((await request('/manifest.json')).text,'{"name":"Questbound"}');assert.equal((await request('/icons/icon-192.png')).status,200);assert.equal((await request('/favicon.ico')).status,404,'the tab icon is public too (not built in this test folder)');
   assert.equal((await request('/_expo/app.js')).status,401);assert.equal((await request('/icons/../_expo/app.js')).status,401);assert.equal((await request('/manifest.json',{method:'POST'})).status,401);
   assert.equal((await request('/api/health')).status,401);assert.equal(calls.length,0);
   assert.equal((await request('/',{headers:{Host:'evil.test:0'}})).status,403);

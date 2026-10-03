@@ -60,7 +60,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     return json(res,200,{paired:true},{'Set-Cookie':'questbound_phone='+token+'; HttpOnly; SameSite=Strict; Path=/; Max-Age='+Math.floor(lifetime/1000)+(shared?'; Secure':'')});
    }
    // Install files (manifest and icons) carry no game data; browsers fetch them without the pairing cookie.
-   const publicAsset=req.method==='GET'&&(/^\/manifest\.json$/.test(pathname)||/^\/icons\/[a-z0-9-]+\.png$/.test(pathname)||/^\/(privacy|terms|permissions)\.html$/.test(pathname)||/^\/fonts\/[a-z0-9-]+\.(woff2|css|txt)$/.test(pathname));
+   const publicAsset=req.method==='GET'&&(/^\/manifest\.json$/.test(pathname)||/^\/favicon\.ico$/.test(pathname)||/^\/icons\/[a-z0-9-]+\.png$/.test(pathname)||/^\/(privacy|terms|permissions)\.html$/.test(pathname)||/^\/fonts\/[a-z0-9-]+\.(woff2|css|txt)$/.test(pathname));
    const cookie=req.headers.cookie?.match(/(?:^|;\s*)questbound_phone=([a-f0-9]{64})(?:;|$)/)?.[1],token=cookie?digest(cookie):null,paired=(sessions.get(token)??0)>now();
    if(!paired&&!publicAsset){if(req.method==='GET'&&pathname==='/'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(pairingPage(!!shared));}return json(res,401,{error:shared?'Open the link you were sent and enter the invite code to continue.':'Reopen your Phone link and pair this browser to continue.'});}
    if(pathname==='/api/health'&&req.method==='GET'){

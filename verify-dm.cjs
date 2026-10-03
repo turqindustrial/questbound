@@ -1,11 +1,19 @@
 const assert=require('node:assert/strict');
-const {generate,createServer,validRequest}=require('./dm-server.cjs');
+const {generate,createServer,validRequest,repairedJson,replyShape}=require('./dm-server.cjs');
 const body={input:'I return to the inn.',context:{choices:[{id:'travel-inn',label:'Travel to inn'}]}};
 const success=reply=>async(url,options)=>{assert.equal(url,'https://api.openai.com/v1/responses');const request=JSON.parse(options.body);assert.equal(request.store,false);assert.equal(request.text.format.strict,true);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(reply)}]}]})};};
 (async()=>{
  assert.ok(validRequest(body));assert.equal(validRequest({...body,input:''}),false);
  const reply=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'The road leads back to the inn. Shall we go?',actionId:'travel-inn'})});assert.equal(reply.actionId,'travel-inn');
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'You gain 900 gold.',actionId:'invent-gold'})}));
+ // A reply wrapped in markdown fences or prose is read anyway; prose alone is refused by its shape; a refusal is told apart.
+ const raw=(text,items)=>async()=>({ok:true,json:async()=>({status:'completed',output:items??[{type:'message',content:[{type:'output_text',text}]}]})});
+ const fenced=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('```json\n'+JSON.stringify({narration:'The inn is near.',actionId:'travel-inn'})+'\n```')});assert.equal(fenced.actionId,'travel-inn');
+ const wrapped=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('Here is the reply: '+JSON.stringify({narration:'Back to the inn.',actionId:'travel-inn'})+' Enjoy.')});assert.equal(wrapped.actionId,'travel-inn');
+ await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('The inn is that way.')}),/usable reply/);
+ await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('',[{type:'message',content:[{type:'refusal',refusal:'no'}]}])}),/declined to answer/);
+ assert.equal(repairedJson('[1,2]'),null);assert.equal(repairedJson('nonsense'),null);assert.deepEqual(repairedJson(' ```json {"a":1} ``` '),{a:1});
+ const shape=replyShape('The inn is that way.',{status:'completed',output:[{type:'reasoning'},{type:'message',content:[{type:'output_text'}]}]});assert.deepEqual(shape,{length:20,start:'text',end:'text',items:['reasoning','message:output_text'],status:'completed',incomplete:null,refusal:false});
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:false,status:429})}),/usage limit/);
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:true,json:async()=>({status:'incomplete'})})}),/incomplete/);
  const adjudication={...body,context:{...body.context,pendingSpell:{id:'acid-splash'}}};
