@@ -50,6 +50,8 @@ import {placeName,mapLocation} from './mapRules';
 import {displayState} from './fullscreen';
 import GameHud from './GameHud';
 import LaunchScreen from './LaunchScreen';
+import Agreement from './Agreement';
+import {agreementStatus,acceptAgreement} from './agreementRules';
 import SaveTransfer from './SaveTransfer';
 import QuickHeroes from './QuickHeroes';
 import HeroRoster from './HeroRoster';
@@ -279,6 +281,8 @@ function QuestboundApp() {
   // The score waits for the launch screen; after that it follows the scene. Ambience follows the location,
   // and a heartbeat rises when the hero is at 30% HP or less.
   const [launched,setLaunched]=useState(false);
+  // The permissions agreement is asked once per browser, after the launch screen and before anything else.
+  const [agreed,setAgreed]=useState(()=>agreementStatus().accepted);
   // A blow against the hero shakes the play area for a moment.
   const [shake,setShake]=useState(0);
   useCue(useCallback(event=>{if(event.kind==='hurt'&&displayState().screenEffects){setShake(event.id);setTimeout(()=>setShake(value=>value===event.id?0:value),450);}},[]));
@@ -438,7 +442,7 @@ function QuestboundApp() {
       {screen === 'Settings' && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
       {screen === 'Settings' && <SaveTransfer/>}
       {screen === 'Settings' && <View style={s.about}><Section icon="info" title="About" style={{marginTop:0}}/><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>Questbound is an independent production, compatible with fifth edition, and is not affiliated with Wizards of the Coast. Its rules text includes material from the System Reference Documents 5.2 and 5.1 by Wizards of the Coast LLC under the Creative Commons Attribution 4.0 International License (see Licences and credits).</Text>
-        <View style={s.legalRow}>{[['privacy','Privacy policy','key'],['terms','Terms of use','scroll'],['licences','Licences and credits','book']].map(([tab,label,icon])=><GameButton key={tab} icon={icon} label={label} onPress={()=>openLegal(tab,'Settings')} style={s.legalButton}/>)}</View></View>}
+        <View style={s.legalRow}>{[['privacy','Privacy policy','key'],['terms','Terms of use','scroll'],['permissions','Permissions agreement','check'],['licences','Licences and credits','book']].map(([tab,label,icon])=><GameButton key={tab} icon={icon} label={label} onPress={()=>openLegal(tab,'Settings')} style={s.legalButton}/>)}</View></View>}
       {/* Screens inside the adventure have their own way back; Settings opened from the game returns there. */}
       {screen === 'Character Creation' ? <GameButton icon="back" label="Back to heroes" onPress={() => setScreen('Character Selection')} disabled={loading||creatingStory}/> : screen==='Legal' ? <GameButton icon="back" label={legalFrom==='Settings'?'Back to settings':'Main menu'} onPress={()=>setScreen(legalFrom==='Settings'?'Settings':'Home')}/> : screen==='Settings'&&returnToGame&&saved ? <GameButton icon="back" label="Back to the adventure" onPress={backToGame} variant="primary"/> : screen !== 'Home' && !(gameScreen&&screen!=='Adventure') && screen!=='Level Up' && <GameButton icon="back" label="Main menu" onPress={() => setScreen('Home')} disabled={loading||creatingStory}/>}
     </Panel>
@@ -448,6 +452,7 @@ function QuestboundApp() {
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
   {creatingStory&&(selectedIntro!=='hostile'||continuingNow)&&<StoryLoading introId={continuingNow?'surprise':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
+  <Agreement visible={launched&&!agreed&&screen!=='Legal'} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
   </View>;
 }

@@ -8,7 +8,7 @@ const clean=(v,max)=>typeof v==='string'?v.replace(/[\u0000-\u001f<>]/g,'').trim
 // Cloud saves: a hero and adventure kept on this PC under a recovery code, so a player can carry on in another
 // browser or device. Only a hash of the code is stored (it names the file); last write wins; at most 200 saves.
 const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');return /^[A-Z0-9]{12}$/.test(c)?require('node:crypto').createHash('sha256').update('questbound-cloud-v1:'+c).digest('hex'):null;};
-function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,now=Date.now}={}){
+function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now}={}){
  const file=path.join(dir,'table.json');
  let table={version:0,snapshot:null,updatedAt:null,updatedBy:null};
  try{const saved=JSON.parse(fs.readFileSync(file,'utf8'));if(Number.isInteger(saved.version)&&saved.version>=0)table={...table,...saved};}catch{}
@@ -20,6 +20,11 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
  const validSnapshot=s=>!!s&&typeof s==='object'&&s.version===1&&typeof s.character==='string'&&s.character.length<200000&&!!s.game&&typeof s.game==='object'&&typeof s.chosen==='boolean';
  // Player accounts (accounts.cjs): an email and password that keep a hero and adventure here for any device.
  const accounts=createAccounts({dir:accountsDir,now,validSnapshot});
+ // Request limits per caller (the phone gateway names each visitor; this PC's own browsers are 'this-pc'), counted in
+ // memory within ten minutes (an hour for sign-ups). Phones meet the gateway's tighter limits first; these stand behind them.
+ const quota={poll:[1200,600000],save:[300,600000],'cloud-save':[120,600000],'cloud-load':[30,600000],'account-register':[10,3600000],'account-login':[30,600000],other:[300,600000],...limits};
+ const hits=new Map();
+ const overLimit=(caller,route)=>{const [max,span]=quota[route]??quota.other,t=now(),key=caller+' '+route;let recent=hits.get(key);if(!recent){recent=[];hits.set(key,recent);}while(recent.length&&recent[0]<=t-span)recent.shift();if(hits.size>4000)for(const [k,v] of hits)if(!v.length)hits.delete(k);if(recent.length>=max)return Math.max(1,Math.ceil((recent[0]+span-t)/1000));recent.push(t);return 0;};
  const server=http.createServer(async(req,res)=>{
   const origin=req.headers.origin,send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store',...(allowedOrigins.has(origin)?{'Access-Control-Allow-Origin':origin,'Vary':'Origin'}:{})});res.end(JSON.stringify(data));};
   if(origin&&!allowedOrigins.has(origin))return send(403,{error:'Origin not allowed.'});
@@ -29,6 +34,8 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(req.method!=='POST'||!req.headers['content-type']?.startsWith('application/json'))return send(404,{error:'Not found.'});
    let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>MAX_BODY)return send(413,{error:'This adventure is too large to share.'});}
    let b;try{b=JSON.parse(raw);}catch{return send(400,{error:'Invalid request.'});}
+   const caller=clean(req.headers['x-questbound-client'],80)||'this-pc',route=req.url.slice(1);
+   {const seconds=overLimit(caller,route);if(seconds){res.setHeader('Retry-After',String(seconds));return send(429,{error:route.startsWith('account')||route==='cloud-load'?'Too many tries. Wait a few minutes and try again.':'The shared table is being asked too often. Try again in a moment.'});}}
    if(req.url==='/poll'){const id=touch(b);return send(200,{...state(Number.isInteger(b.knownVersion)?b.knownVersion:-1),you:id});}
    if(req.url==='/save'){
     const id=touch(b);if(!validSnapshot(b.snapshot))return send(400,{error:'That adventure could not be shared.'});
@@ -52,15 +59,15 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
     }
    if(req.url.startsWith('/account-')){
     // Who is asking, for counting wrong passwords: the phone gateway names the visitor; this PC's own browser is itself.
-    const client=clean(req.headers['x-questbound-client'],80)||'this-pc',route=req.url.slice(9);
-    if(route==='register')return send(200,await accounts.register(b.email,b.password,client));
-    if(route==='login')return send(200,await accounts.login(b.email,b.password,client));
-    if(route==='save')return send(200,await accounts.save(b.token,b.snapshot));
-    if(route==='load')return send(200,await accounts.load(b.token));
-    if(route==='status')return send(200,await accounts.status(b.token));
-    if(route==='logout')return send(200,await accounts.logout(b.token));
-    if(route==='password')return send(200,await accounts.changePassword(b.token,b.password,b.newPassword,client));
-    if(route==='delete')return send(200,await accounts.remove(b.token,b.password,client));
+    const action=route.slice(8);
+    if(action==='register')return send(200,await accounts.register(b.email,b.password,caller));
+    if(action==='login')return send(200,await accounts.login(b.email,b.password,caller));
+    if(action==='save')return send(200,await accounts.save(b.token,b.snapshot));
+    if(action==='load')return send(200,await accounts.load(b.token));
+    if(action==='status')return send(200,await accounts.status(b.token));
+    if(action==='logout')return send(200,await accounts.logout(b.token));
+    if(action==='password')return send(200,await accounts.changePassword(b.token,b.password,b.newPassword,caller));
+    if(action==='delete')return send(200,await accounts.remove(b.token,b.password,caller));
    }
    return send(404,{error:'Not found.'});
   }catch(e){send(e.status??500,{error:e.status?e.message:'The table service could not complete that request.'});}

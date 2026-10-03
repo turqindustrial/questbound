@@ -4,13 +4,13 @@
 // link to them) and to PRIVACY.md and TERMS.md in the repository. Every statement here describes what the code does:
 // change the code, change the words, and run the check.
 // A paragraph that begins with "- " is a bullet. The host is whoever runs the launcher and shares a link or code.
-export const legalUpdated='2 October 2026';
+export const legalUpdated='3 October 2026';
 export const privacyPolicy={id:'privacy',title:'Privacy policy',sections:[
  {heading:'Who this is about',paragraphs:[
   'Questbound is a game you play in a web browser. The copy you are playing is run by one person, the host: the person who gave you your link or code. The host\'s own computer runs the game\'s services and keeps your saved adventures. Questbound\'s software is written by turqindustrial, who does not run your copy and receives none of your data. For everything in this policy, the host is the person responsible for your data (under European and UK law, the "controller").',
  ]},
  {heading:'What stays on your device',paragraphs:[
-  'The game keeps these in your browser\'s storage, on your device only, until you clear your browser\'s site data: your hero and adventure (your current save and the heroes set aside under Heroes), your settings (theme, sound, display, brutality), a recovery code the game makes for you, the sign-in token for your account if you have one (never your password), small flags such as whether you have seen the How to play card, and the name and id you use at a shared table.',
+  'The game keeps these in your browser\'s storage, on your device only, until you clear your browser\'s site data: your hero and adventure (your current save and the heroes set aside under Heroes), your settings (theme, sound, display, brutality), a recovery code the game makes for you, the sign-in token for your account if you have one (never your password), small flags such as whether you have seen the How to play card and when you accepted the permissions agreement, and the name and id you use at a shared table.',
   'On the phone and tester links the game also sets one cookie that marks your browser as paired. It holds a random token and nothing about you, and the game cannot work without it.',
  ]},
  {heading:'What is sent to the host\'s computer and kept there',paragraphs:[
@@ -18,7 +18,7 @@ export const privacyPolicy={id:'privacy',title:'Privacy policy',sections:[
   '- Your account, if you make one: a hash of your email address, a salted hash of your password, hashes of your sign-in tokens and when you last saved. The email address itself and your password are never written down, and the host cannot read or recover them. Nothing is ever sent to your email address; it is only a name to sign in with.',
   '- Feedback you send from the game: your note, the star rating, the name you use at the shared table if any, your hero\'s name, where you are in the game and a short description of your device (such as "Android phone"). The host reads these notes to improve the game.',
   '- Play together: the shared adventure, the names players choose and when each was last seen.',
-  '- Service records: how many words the AI used for each request (never the words themselves), a note of any reply the game refused (which fields were wrong, never story text) and whether the Dungeon Master had to be asked twice. To stop guessing, the services also count wrong pairing codes and wrong passwords by network address for up to an hour, in memory only.',
+  '- Service records: how many words the AI used for each request (never the words themselves), a note of any reply the game refused (which fields were wrong, never story text) and whether the Dungeon Master had to be asked twice. To stop guessing and flooding, the services also count requests, wrong pairing codes and wrong passwords by paired browser and by network address for up to an hour, in memory only.',
   '- The pairing or invite code you enter is checked and not stored; your browser\'s paired state is kept as a hash.',
  ]},
  {heading:'What goes to other companies',paragraphs:[
@@ -54,7 +54,7 @@ export const privacyPolicy={id:'privacy',title:'Privacy policy',sections:[
 ]};
 export const termsOfUse={id:'terms',title:'Terms of use',sections:[
  {heading:'What this is',paragraphs:[
-  'Questbound is an early-access game in testing, shared privately by its host with invited players. By playing you accept these terms and the privacy policy. If you do not accept them, do not play.',
+  'Questbound is an early-access game in testing, shared privately by its host with invited players. By playing you accept these terms and the privacy policy. If you do not accept them, do not play. Before your first game in each browser the game asks you to agree (the permissions agreement, a short summary of what it will do), and asks again when these texts change.',
  ]},
  {heading:'Who may play',paragraphs:[
   '- You must be 16 or older.',
@@ -66,7 +66,7 @@ export const termsOfUse={id:'terms',title:'Terms of use',sections:[
  ]},
  {heading:'Fair play',paragraphs:[
   '- Do not try to break into, overload, probe or disrupt the game\'s services, or to reach other players\' data.',
-  '- Do not automate requests or script play. The host pays for every word the AI writes: play, do not flood.',
+  '- Do not automate requests or script play. The host pays for every word the AI writes: play, do not flood. The services hold each browser and each network address to a fair number of requests, and past that number they answer "try again later".',
   '- Do not use the game to produce unlawful content or content that harasses, threatens or defames real people, and do not type other people\'s personal information into it.',
   '- Respect the people you play with at a shared table.',
  ]},
@@ -79,6 +79,31 @@ export const termsOfUse={id:'terms',title:'Terms of use',sections:[
  ]},
  {heading:'Changes and law',paragraphs:[
   'These terms may change as the game changes; the date at the top says when, and the current version is always in the game under Settings → About → Terms of use. The law of the country where the host lives applies, unless the law of your own country says otherwise and cannot be set aside. Questions go to the host or through the Feedback form in the game.',
+ ]},
+]};
+// What the player agrees to before the first game in a browser (Agreement.js shows these seven points with one tap to
+// agree; the record is the date and the version, kept in that browser only, and the question returns when the texts change).
+export const permissionsAgreement={id:'permissions',title:'Permissions agreement',sections:[
+ {heading:'Your words go to an AI',paragraphs:[
+  'What you type, your hero and the state of your game are sent to the host\'s computer and from there to OpenAI, which writes the Dungeon Master\'s replies and paints the pictures. Type nothing you would not want processed that way: no personal, financial or health details, yours or anyone else\'s.',
+ ]},
+ {heading:'Saves in this browser',paragraphs:[
+  'Your hero, adventure, settings and a few small flags are kept in this browser\'s storage until you clear its site data. On a phone or tester link one cookie marks this browser as paired; it holds a random token and nothing about you.',
+ ]},
+ {heading:'Copies on the host\'s computer',paragraphs:[
+  'When you use a recovery code, an account or the shared table, a copy of your adventure is kept on the host\'s computer under a hash of the code or of your email address. The host can delete it, and so can you (Settings → Recovery code, Settings → Your account).',
+ ]},
+ {heading:'Feedback and service records',paragraphs:[
+  'Notes you send from the game reach the host with your hero\'s name, where you are in the game and a short description of your device. The services count requests, wrong codes and wrong passwords by browser and network address for up to an hour, in memory only, and record how many words the AI used (never the words themselves).',
+ ]},
+ {heading:'Sound and full screen',paragraphs:[
+  'The game plays music and sound effects once you tap to begin, and goes full screen only when you ask it to. Both can be turned off at any time from the buttons at the top of the screen.',
+ ]},
+ {heading:'Age and conduct',paragraphs:[
+  'You confirm that you are 16 or older. The Dungeon Master is an AI and the game is lethal: its stories can be violent, unexpected or upsetting. You accept the terms of use, including fair play: no flooding the services, no scripting play, no reaching for other players\' data.',
+ ]},
+ {heading:'Changing your mind',paragraphs:[
+  'You can withdraw at any time by clearing this browser\'s site data, deleting your account under Settings → Your account and asking the host to remove any copies. Your agreement is recorded in this browser only (the date and the version of these texts), and you will be asked again when they change.',
  ]},
 ]};
 export const licences={id:'licences',title:'Licences and credits',sections:[
@@ -97,4 +122,4 @@ export const licences={id:'licences',title:'Licences and credits',sections:[
   'The title paintings, the portraits of heroes and people, and the pictures of places are generated with OpenAI\'s image models at the host\'s request. The icons, interface and music are Questbound\'s own.',
  ]},
 ]};
-export const legalDocuments=[privacyPolicy,termsOfUse,licences];
+export const legalDocuments=[privacyPolicy,termsOfUse,permissionsAgreement,licences];

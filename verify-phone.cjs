@@ -25,7 +25,7 @@ const pair=code=>request('/pair',{method:'POST',headers:{Origin:origin,'Content-
 async function sharedLink(){
  assert.throws(()=>createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'http://insecure.example'}),/https/);
  let now=Date.now();
- const share=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'87654321',pairingHours:168,sessionHours:168,dmLimit:2,now:()=>now,fetchImpl});
+ const share=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'87654321',pairingHours:168,sessionHours:168,dmLimit:2,artLimit:3,syncLimit:40,now:()=>now,fetchImpl});
  await new Promise(resolve=>share.server.listen(0,'127.0.0.1',resolve));
  const call=(route,{method='GET',headers={},body}={})=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:share.server.address().port,path:route,method,headers:{Host:'quest.example.com',...headers}},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text}));});req.on('error',reject);req.end(body);});
  const join=(code,ip)=>call('/pair',{method:'POST',headers:{Origin:'https://quest.example.com','Content-Type':'application/json','CF-Connecting-IP':ip},body:JSON.stringify({code})});
@@ -45,6 +45,19 @@ async function sharedLink(){
   assert.equal((await dm()).status,200);assert.equal((await dm('art')).status,200);assert.equal((await dm()).status,200);
   assert.equal((await dm()).status,429);assert.equal((await dm('art')).status,200);
   now+=601000;assert.equal((await dm()).status,200,'The cap resets after ten minutes');
+  // Illustration checks have an allowance of their own; past it the game is told how long to wait (and waits quietly).
+  for(let i=0;i<3;i++)assert.equal((await dm('art')).status,200);
+  let limited=await dm('art');assert.equal(limited.status,429);assert.ok(Number(limited.headers['retry-after'])>=1,'says how long to wait');
+  assert.doesNotMatch(JSON.parse(limited.text).error,/Please wait before asking|busy with other players/,'not mistaken for a busy DM, which the game would retry at once');
+  // The shared table has its own allowance per browser; sign-ups (five an hour) and sign-ins (twenty) are counted per visitor, recovery codes (twenty) per browser.
+  const sync=(route,body={})=>call('/api/sync/'+route,{method:'POST',headers,body:JSON.stringify(body)});
+  now+=601000;for(let i=0;i<40;i++)assert.equal((await sync('poll',{playerId:'player-one'})).status,200);
+  limited=await sync('poll',{playerId:'player-one'});assert.equal(limited.status,429);assert.match(JSON.parse(limited.text).error,/asked too often/);
+  now+=601000;for(let i=0;i<5;i++)assert.equal((await sync('account-register',{email:'tester'+i+'@quest.example',password:'made-up-pass'})).status,200);
+  limited=await sync('account-register',{email:'tester9@quest.example',password:'made-up-pass'});assert.equal(limited.status,429);assert.match(JSON.parse(limited.text).error,/Too many tries/);
+  now+=601000;for(let i=0;i<20;i++)assert.equal((await sync('cloud-load',{code:'AAAAAAAAAAAA'})).status,200);assert.equal((await sync('cloud-load',{code:'AAAAAAAAAAAA'})).status,429);
+  now+=601000;for(let i=0;i<20;i++)assert.equal((await sync('account-login',{email:'tester0@quest.example',password:'made-up-pass'})).status,200);assert.equal((await sync('account-login',{email:'tester0@quest.example',password:'made-up-pass'})).status,429);
+  now+=601000;
   // A global brake: after 50 wrong codes in an hour, pairing pauses for everyone, so guessing from many addresses fails.
   for(let i=0;i<50;i++)await join('22222222','192.0.2.'+i);
   assert.equal((await join('87654321','198.51.100.99')).status,429);
@@ -63,6 +76,14 @@ async function sharedLink(){
   const r=await hit('/api/dm',{method:'POST',headers:{Cookie:paired.headers['set-cookie'][0].split(';')[0],Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({input:'Hi',context:{choices:[]}})});
   assert.equal(r.status,200);assert.equal(JSON.parse(r.text).narration,'Your turn.');assert.equal(dmCalls,3,'Two busy replies, then the answer');
  }finally{await new Promise(resolve=>patient.server.close(resolve));}
+ // A flood from one address is refused before any work, whatever it asks for; a home gateway has limits of its own by default.
+ const flood=createPhoneServer({host:'127.0.0.1',port:0,root,code:'11112222',requestLimit:3,fetchImpl});
+ assert.deepEqual(flood.info.limits,{turns:120,turnsInAll:600,art:600,table:600,requests:3});
+ await new Promise(resolve=>flood.server.listen(0,'127.0.0.1',resolve));
+ try{
+  const get=()=>new Promise((resolve,reject)=>http.get({hostname:'127.0.0.1',port:flood.server.address().port,path:'/',headers:{Host:'127.0.0.1:0'}},res=>{res.resume();res.on('end',()=>resolve({status:res.statusCode,retry:res.headers['retry-after']}));}).on('error',reject));
+  for(let i=0;i<3;i++)assert.equal((await get()).status,200);const refused=await get();assert.equal(refused.status,429);assert.ok(Number(refused.retry)>=1);
+ }finally{await new Promise(resolve=>flood.server.close(resolve));}
  // Paired browsers survive a gateway restart (only cookie hashes are stored), built files are cached and compressed,
  // and feedback notes land in the host's file.
  const store=path.join(root,'sessions.json'),notes=path.join(root,'feedback.md'),zlib=require('node:zlib');
@@ -112,6 +133,6 @@ async function sharedLink(){
   clock+=61000;for(let i=0;i<5;i++)assert.equal((await pair('00000000')).status,401);assert.equal((await pair('12345678')).status,429);
   clock+=86400000;assert.equal((await request('/api/health',{headers})).status,401);assert.equal((await pair('12345678')).status,401);
   await sharedLink();
-  console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap that spares illustrations, busy-DM retries, invite and paired browsers kept across gateway restarts, cached and compressed game files, in-game feedback notes).');
+  console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap with separate allowances for illustrations, the shared table, sign-ups, sign-ins and recovery codes, a per-address flood brake, busy-DM retries, invite and paired browsers kept across gateway restarts, cached and compressed game files, in-game feedback notes).');
  }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

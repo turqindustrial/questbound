@@ -8,12 +8,15 @@ const call=(port,route,{method='POST',headers={},body,host}={})=>new Promise((re
 const snapshot={version:1,character:JSON.stringify({name:'Kara Vell'}),game:{stage:'inn'},health:null,chosen:true};
 (async()=>{
  // ---- The table service keeps cloud saves ----
- const {server:sync}=createSyncServer({dir:path.join(tmp,'table'),cloudDir:path.join(tmp,'cloud'),cloudLimit:2});const sp=await listen(sync);
+ const {server:sync}=createSyncServer({dir:path.join(tmp,'table'),cloudDir:path.join(tmp,'cloud'),cloudLimit:2,limits:{'cloud-load':[2,600000]}});const sp=await listen(sync);
  assert.equal((await call(sp,'/cloud-save',{body:{code:'short',snapshot}})).status,400);
  const saved=await call(sp,'/cloud-save',{body:{code:'abcd-efgh-jk23',snapshot}});assert.equal(saved.status,200);
  const files=fs.readdirSync(path.join(tmp,'cloud'));assert.equal(files.length,1);assert.match(files[0],/^[a-f0-9]{64}\.json$/,'Only a hash of the code names the file');
  const loaded=JSON.parse((await call(sp,'/cloud-load',{body:{code:'ABCDEFGHJK23'}})).text);assert.equal(loaded.snapshot.character,snapshot.character,'Codes ignore case and dashes');
  assert.equal((await call(sp,'/cloud-load',{body:{code:'ZZZZZZZZZZZZ'}})).status,404);
+ // Each caller may try only so many codes; the answer says how long to wait.
+ const limited=await call(sp,'/cloud-load',{body:{code:'ZZZZZZZZZZZZ'}});assert.equal(limited.status,429);assert.ok(Number(limited.headers['retry-after'])>=1);assert.match(limited.text,/Too many tries/);
+ assert.equal((await call(sp,'/cloud-load',{body:{code:'ZZZZZZZZZZZZ'},headers:{'X-Questbound-Client':'another-visitor'}})).status,404,'counted per caller');
  for(const code of ['BBBBBBBBBBBB','CCCCCCCCCCCC'])await call(sp,'/cloud-save',{body:{code,snapshot}});
  assert.equal(fs.readdirSync(path.join(tmp,'cloud')).filter(f=>f.endsWith('.json')).length,2,'Old saves are pruned');
  assert.equal((await call(sp,'/cloud-save',{body:{code:'BBBBBBBBBBBB',snapshot:{version:2}}})).status,400);

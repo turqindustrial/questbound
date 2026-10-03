@@ -65,9 +65,10 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
  assert.deepEqual(await accounts.remove(renewed.token,pass,'phone-f'),{removed:true});await fails(accounts.load(renewed.token),401);
  assert.equal(fs.readdirSync(dir).filter(f=>f.includes('.save.')).length,0);assert.equal(accounts.count(),2);assert.equal(accounts.removeByEmail('two@questbound.test'),true);assert.equal(accounts.count(),1);
  // ---- Through the table service, and through the phone gateway for a paired phone ----
- const {server:sync}=createSyncServer({dir:path.join(tmp,'table'),cloudDir:path.join(tmp,'cloud'),accountsDir:path.join(tmp,'served')});const sp=await listen(sync);
+ const {server:sync}=createSyncServer({dir:path.join(tmp,'table'),cloudDir:path.join(tmp,'cloud'),accountsDir:path.join(tmp,'served'),limits:{'account-register':[2,3600000]}});const sp=await listen(sync);
  let r=await call(sp,'/account-register',{body:{email,password:pass}});assert.equal(r.status,200);const token=r.json.token;
  assert.equal((await call(sp,'/account-register',{body:{email,password:pass}})).status,409);
+ assert.equal((await call(sp,'/account-register',{body:{email:'third@questbound.test',password:pass}})).status,429,'sign-ups are counted per caller');
  assert.equal((await call(sp,'/account-save',{body:{token,snapshot}})).status,200);assert.equal((await call(sp,'/account-save',{body:{token,snapshot:{nope:true}}})).status,400);
  r=await call(sp,'/account-load',{body:{token}});assert.equal(r.status,200);assert.deepEqual(r.json.snapshot,snapshot);
  assert.equal((await call(sp,'/account-login',{body:{email,password:'wrong-guess'}})).status,401);assert.equal((await call(sp,'/account-nonsense',{body:{}})).status,404);

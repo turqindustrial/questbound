@@ -84,7 +84,8 @@ To play on your own devices only (home Wi-Fi, no internet link), double-click **
 
 - Your API key never leaves your PC. The Dungeon Master, shared table and game server listen only on your PC; testers reach a gateway that serves nothing until a valid invite code is entered.
 - Wrong codes are throttled per visitor, and pairing pauses for everyone after 50 wrong codes in an hour.
-- An invite lasts 7 days, up to 40 browsers. Each player can make 60 Dungeon Master requests per 10 minutes, and each can send 10 feedback notes an hour.
+- An invite lasts 7 days, up to 40 browsers. Every request is counted: each player may ask the Dungeon Master 60 times per 10 minutes on the tester link (120 on home Wi-Fi) and the gateway as a whole 600 times; illustration and story checks, the shared table, sign-ups (5 an hour per visitor), sign-ins (20 per 10 minutes), recovery codes and feedback notes (10 an hour) each have their own allowance, and more than 3000 requests of any kind from one address in 10 minutes are refused. Over the limit the answer is 429 with a Retry-After header; the game shows a short message or quietly waits.
+- Before the first game in a browser the player agrees to a short permissions agreement (what the game stores, sends and plays; age 16+); it is asked again when the legal texts change.
 - When several people act at once, turns wait their turn for the Dungeon Master instead of failing. Scene art is painted two at a time in the background and never holds up play.
 - Updating the game while sharing runs doesn't send testers back to the invite page: paired browsers are remembered (by a hash, never the cookie itself) for the same link.
 - The link is a random `https://….trycloudflare.com` address. If sharing stops (for example after a reboot), double-click **Questbound-Share.cmd** again for a new link and code and re-send them. While sharing is running, the launcher just shows the current ones.

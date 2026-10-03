@@ -1,6 +1,6 @@
 # Questbound: Privacy policy
 
-_Last updated 2 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 3 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Privacy policy
 
@@ -10,7 +10,7 @@ Questbound is a game you play in a web browser. The copy you are playing is run 
 
 ### What stays on your device
 
-The game keeps these in your browser's storage, on your device only, until you clear your browser's site data: your hero and adventure (your current save and the heroes set aside under Heroes), your settings (theme, sound, display, brutality), a recovery code the game makes for you, the sign-in token for your account if you have one (never your password), small flags such as whether you have seen the How to play card, and the name and id you use at a shared table.
+The game keeps these in your browser's storage, on your device only, until you clear your browser's site data: your hero and adventure (your current save and the heroes set aside under Heroes), your settings (theme, sound, display, brutality), a recovery code the game makes for you, the sign-in token for your account if you have one (never your password), small flags such as whether you have seen the How to play card and when you accepted the permissions agreement, and the name and id you use at a shared table.
 
 On the phone and tester links the game also sets one cookie that marks your browser as paired. It holds a random token and nothing about you, and the game cannot work without it.
 
@@ -20,7 +20,7 @@ On the phone and tester links the game also sets one cookie that marks your brow
 - Your account, if you make one: a hash of your email address, a salted hash of your password, hashes of your sign-in tokens and when you last saved. The email address itself and your password are never written down, and the host cannot read or recover them. Nothing is ever sent to your email address; it is only a name to sign in with.
 - Feedback you send from the game: your note, the star rating, the name you use at the shared table if any, your hero's name, where you are in the game and a short description of your device (such as "Android phone"). The host reads these notes to improve the game.
 - Play together: the shared adventure, the names players choose and when each was last seen.
-- Service records: how many words the AI used for each request (never the words themselves), a note of any reply the game refused (which fields were wrong, never story text) and whether the Dungeon Master had to be asked twice. To stop guessing, the services also count wrong pairing codes and wrong passwords by network address for up to an hour, in memory only.
+- Service records: how many words the AI used for each request (never the words themselves), a note of any reply the game refused (which fields were wrong, never story text) and whether the Dungeon Master had to be asked twice. To stop guessing and flooding, the services also count requests, wrong pairing codes and wrong passwords by paired browser and by network address for up to an hour, in memory only.
 - The pairing or invite code you enter is checked and not stored; your browser's paired state is kept as a hash.
 ### What goes to other companies
 
