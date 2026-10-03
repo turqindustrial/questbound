@@ -7,6 +7,7 @@ import {attackOptions,thrownAttack} from './weaponRules';
 import {gearedHero,arrowsLeft} from './inventoryRules';
 import {foeLabel} from './encounterRules';
 import {npcLore} from './npcRules';
+import {masteryOf,unarmedDC} from './masteryRules';
 import {partyMembers} from './partyRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
@@ -42,7 +43,9 @@ export function quickActions(hero,game,health=null){
   if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   if(id==='death-save'){primary.push({key:id,glyph:'☠',icon:'skull',label:'Death save',question:'I fight to hold on.',action:c.action,primary:true});continue;}
   // Throws, and attacks with the other weapons, are in the Attack… picker.
-  if(/^(throw|encounter-throw|ally-throw|npc-throw):/.test(id))continue;
+  if(/^(throw|encounter-throw|ally-throw|npc-throw):/.test(id)||/^(grapple|shove)$|^(ally|npc)-(grapple|shove):/.test(id))continue;
+  // Two-weapon fighting: after a Light weapon's attack, the other hand's (a bonus action, or with Nick part of the action).
+  if(id.startsWith('offhand:')){const weapon=id.slice(8),nick=/Nick/.test(c.label);primary.push({key:id,glyph:'⚔',icon:weaponIcon(weapon),label:weapon,detail:nick?'Nick':'Bonus',question:'I strike with the '+weapon.toLowerCase()+' in my other hand.',action:c.action,primary:true});continue;}
   // Bare hands get a chip only when there is no weapon to hand; otherwise "I punch him" still works when typed.
   if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop();if(weapon==='Unarmed Strike'&&armed)continue;const first=!primary.some(a=>a.weapon);if(!first)continue;(first?primary:backup).push({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:weapon==='Unarmed Strike'?'Unarmed':weapon,question:weapon==='Unarmed Strike'?'I attack with my bare hands.':'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}
   if(id==='approach'){primary.push({key:id,glyph:'⚔',icon:'swords',label:c.label,question:'I '+c.label[0].toLowerCase()+c.label.slice(1)+'.',action:c.action,primary:true});continue;}
@@ -68,12 +71,16 @@ export function quickActions(hero,game,health=null){
 // every move is one the rules accept): the foe of this fight (or the one waiting at the bridge), a creature beside
 // it, and the people here.
 export function attackTargets(hero,game,health=null){
- const targets=new Map(),put=(key,name,kind,weapon,thrown,choice)=>{if(!targets.has(key))targets.set(key,{key,name,kind,moves:[]});targets.get(key).moves.push({weapon,thrown,choice});};
+ const targets=new Map(),put=(key,name,kind,weapon,thrown,choice,unarmed=null)=>{if(!targets.has(key))targets.set(key,{key,name,kind,moves:[]});targets.get(key).moves.push({weapon,thrown,choice,unarmed});};
  for(const c of dmChoices(hero,game,health)){
   let m;
   if((m=c.id.match(/^(attack|throw|encounter-attack|encounter-throw):(.+)$/)))put('foe',foeLabel(game),'foe',m[2],m[1].endsWith('throw'),c);
   else if((m=c.id.match(/^(ally-attack|ally-throw):(\d+):(.+)$/))){const ally=game.foeAllies?.[Number(m[2])];if(ally)put('ally:'+m[2],ally.name,'ally',m[3],m[1]==='ally-throw',c);}
   else if((m=c.id.match(/^(npc-attack|npc-throw):([^:]+):(.+)$/)))put('npc:'+m[2],npcLore(game,m[2])?.name??m[2],'person',m[3],m[1]==='npc-throw',c);
+  // An Unarmed Strike that grapples or shoves (masteryRules.js).
+  else if(c.id==='grapple'||c.id==='shove')put('foe',foeLabel(game),'foe','Unarmed Strike',false,c,c.id);
+  else if((m=c.id.match(/^ally-(grapple|shove):(\d+)$/))){const ally=game.foeAllies?.[Number(m[2])];if(ally)put('ally:'+m[2],ally.name,'ally','Unarmed Strike',false,c,m[1]);}
+  else if((m=c.id.match(/^npc-(grapple|shove):(.+)$/)))put('npc:'+m[2],npcLore(game,m[2])?.name??m[2],'person','Unarmed Strike',false,c,m[1]);
  }
  return [...targets.values()];
 }
@@ -91,10 +98,12 @@ export function attackActions(hero,game,health=null,targetKey=null){
  const held=name=>(armed.equipment?.items??[]).filter(i=>i.name===name).reduce((n,i)=>n+(i.quantity??0),0);
  const melee=[],ranged=[];
  for(const move of target.moves){
+  // Grapple and Shove: the creature saves against the hero's Strength DC.
+  if(move.unarmed){melee.push({key:move.choice.id,glyph:'✊',icon:'fist',label:move.unarmed==='grapple'?'Grapple':'Shove',detail:'DC '+unarmedDC(armed),question:move.unarmed==='grapple'?'I grapple '+the+'.':'I shove '+the+' to the ground.',action:move.choice.action,unarmed:move.unarmed});continue;}
   const base=options.find(o=>o.name===move.weapon);if(!base)continue;
   const w=move.thrown?thrownAttack(base):base,count=w.ranged?arrowsLeft(game,hero):move.thrown?held(w.name):null;
   const question=w.unarmed?'I attack '+the+' with my bare hands.':move.thrown?'I throw my '+w.name.toLowerCase()+' at '+the+'.':w.ranged?'I shoot '+the+' with my '+w.name.toLowerCase()+'.':'I attack '+the+' with my '+w.name.toLowerCase()+'.';
-  (w.ranged||move.thrown?ranged:melee).push({key:move.choice.id,glyph:'⚔',icon:w.unarmed?'fist':move.thrown?'spear':weaponIcon(w.name),label:w.unarmed?'Unarmed':w.name,detail:signed(w.attackBonus)+' · '+dice(w)+(count!==null?' · ×'+count:''),question,action:move.choice.action,weapon:w.name});
+  (w.ranged||move.thrown?ranged:melee).push({key:move.choice.id,glyph:'⚔',icon:w.unarmed?'fist':move.thrown?'spear':weaponIcon(w.name),label:w.unarmed?'Unarmed':w.name,detail:signed(w.attackBonus)+' · '+dice(w)+(count!==null?' · ×'+count:'')+(masteryOf(armed,w)?' · '+masteryOf(armed,w):''),question,action:move.choice.action,weapon:w.name,mastery:masteryOf(armed,w)});
  }
  row.push({key:'heading:melee',heading:'Melee'},...melee,{key:'heading:ranged',heading:'Ranged'},...(ranged.length?ranged:[{key:'heading:no-ranged',heading:'Nothing to shoot or throw',quiet:true}]));
  return row;

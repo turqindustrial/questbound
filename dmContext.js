@@ -13,6 +13,7 @@ import {classActions,windLimit,shortRestLimit} from './classActions';
 import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,mapRegions,regionOfPlace,placeCoordinates} from './mapRules';
 import {campaignState,earnedGold,interactionOptions} from './campaignRules';
 import {attackOptions,readyLoadout,canThrow} from './weaponRules';
+import {offhandWeapons,masteryOf,masteredWeapons,masteryText,creatureSize,withinGrip,unarmedDC,grappledBy,markOf} from './masteryRules';
 import {fallAtZero,fallPlace} from './deathRules';
 import {withAttackIntent} from './dmCommands';
 import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway} from './relationshipRules';
@@ -32,8 +33,13 @@ export function travelChoices(game,limit=8){
 // Class features used as a bonus action in a fight, while they have uses left (healing ones only when hurt, if the
 // caller knows the hero's HP).
 function bonusChoices(hero,game,health){
-  if(game.stage!=='combat'||game.bonusUsed)return [];
-  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[];
+  if(game.stage!=='combat')return [];
+  // Two-weapon fighting: after a Light weapon's attack, the other hand's (a bonus action, or with Nick part of the
+  // Attack action).
+  const offhand=[];
+  if(game.lightAttack&&!game.nickUsed)for(const w of offhandWeapons(hero,game.lightAttack.weapon)){const nick=masteryOf(hero,w)==='Nick'&&!game.nickUsed;if(nick||!game.bonusUsed)offhand.push(['offhand:'+w.name,'Strike with the '+w.name+' in your other hand ('+(nick?'Nick: part of your Attack action':'bonus action')+')']);}
+  if(game.bonusUsed)return offhand;
+  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[...offhand];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if(hero.class==='Monk')list.push(['class:strike','Martial Arts strike (bonus action)']);
@@ -66,14 +72,25 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='bridge'&&game.enemyHP>0){for(const w of attackChoices(hero))add('encounter-attack:'+w.name,'Attack '+(game.story?.foe??'Lantern Wisp')+' with '+w.name,{type:'encounter-attack',weapon:w.name});for(const w of throwChoices(hero))add('encounter-throw:'+w.name,'Throw '+w.name+' at '+(game.story?.foe??'Lantern Wisp'),{type:'encounter-attack',weapon:w.name,thrown:true});}
   // Anyone present and not dead can be attacked; someone lying unconscious can be finished off.
   const victims=npcScene(game).filter(n=>n.present&&n.fate!=='dead');
+  // An Unarmed Strike can grapple or shove (prone) a creature no more than one size larger than the hero.
+  const addUnarmed=()=>{
+    const dc=unarmedDC(hero);
+    for(const key of ['foe',...livingAllies(game).map(a=>'ally:'+a.index)]){
+      if(!withinGrip(hero,creatureSize(game,key)))continue;
+      const name=key==='foe'?(game.wildFight?.name??game.story?.foe??(game.dungeon?.active?'the guardian':'the wisp')):'the '+game.foeAllies[Number(key.slice(5))].name,ally=key!=='foe'?':'+key.slice(5):'';
+      if(!grappledBy(game,key,health))add((ally?'ally-':'')+'grapple'+ally,'Grapple '+name+' (an Unarmed Strike: it saves against DC '+dc+' or is held)',ally?{type:'encounter-attack',weapon:'Unarmed Strike',target:key,unarmed:'grapple'}:'grapple');
+      if(!markOf(game,key).prone)add((ally?'ally-':'')+'shove'+ally,'Shove '+name+' to the ground (an Unarmed Strike: it saves against DC '+dc+' or falls prone)',ally?{type:'encounter-attack',weapon:'Unarmed Strike',target:key,unarmed:'shove'}:'shove');
+    }
+  };
+  const addPersonUnarmed=npc=>{if(npc.hp<=0)return;const dc=unarmedDC(hero),name=npcLore(game,npc.id)?.name??npc.name;if(!grappledBy(game,npc.id,health))add('npc-grapple:'+npc.id,'Grapple '+name+' (an Unarmed Strike: they save against DC '+dc+' or are held)',{type:'npc-attack',target:npc.id,weapon:'Unarmed Strike',unarmed:'grapple'});if(!markOf(game,npc.id).prone)add('npc-shove:'+npc.id,'Shove '+name+' to the ground (an Unarmed Strike: they save against DC '+dc+' or fall prone)',{type:'npc-attack',target:npc.id,weapon:'Unarmed Strike',unarmed:'shove'});};
   // A healing draught can be given to anyone here who is hurt (and brings round someone lying senseless).
   const addPotionGifts=()=>{if((game.potions??0)>0){for(const n of victims)if((game.npcHP?.[n.id]??npcMaxHP(n.id,game))<npcMaxHP(n.id,game))add('give-potion:'+n.id,'Give '+(npcLore(game,n.id)?.name??n.name)+' a healing draught',{type:'give-potion',target:n.id});
    // Another player's hero who is hurt or has fallen (a party at the shared table).
    for(const m of partyOthers(game))if(m.status!=='dead'&&(m.status==='down'||m.hp<m.maxHp))add('give-potion:party:'+m.id,'Give '+m.name+' a healing draught',{type:'give-potion',target:'party:'+m.id});}};
   if(game.story){
-    if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});}
+    if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
     if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);return choices;}
-    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}for(const id of ['dodge','flee'])add(id,id);for(const [id,label] of bonusChoices(hero,game,health))add(id,label);addPotionGifts();add('end-turn','End your turn without acting');}
+    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();for(const id of ['dodge','flee'])add(id,id);for(const [id,label] of bonusChoices(hero,game,health))add(id,label);addPotionGifts();add('end-turn','End your turn without acting');}
     else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
       // The tale: the chapter under way gives place to the next (or, in the last one, the story ends), and each open lead can be closed.
       if(game.story.status==='active'){const q=questState(game);
@@ -100,6 +117,7 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='combat'){
     for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);
     for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);
+    addUnarmed();
     add('dodge','Dodge');add('flee','Retreat');for(const [id,label] of bonusChoices(hero,game,health))add(id,label);
     add('end-turn','End your turn without acting');
   }
@@ -115,7 +133,7 @@ export function offeredChoices(list,limit=30){
   if(list.length<=limit)return list;
   const armed=new Set();
   let kept=list.filter(c=>{if(c.id.startsWith('npc-throw:'))return false;if(!c.id.startsWith('npc-attack:'))return true;const who=c.id.split(':')[1];if(armed.has(who))return false;armed.add(who);return true;});
-  for(const drop of ['ally-throw:','encounter-throw:','travel-','give-potion:','npc-attack:'])while(kept.length>limit){const i=kept.map(c=>c.id.startsWith(drop)).lastIndexOf(true);if(i<0)break;kept=kept.filter((c,n)=>n!==i);}
+  for(const drop of ['npc-shove:','npc-grapple:','ally-shove:','ally-grapple:','ally-throw:','encounter-throw:','travel-','give-potion:','npc-attack:'])while(kept.length>limit){const i=kept.map(c=>c.id.startsWith(drop)).lastIndexOf(true);if(i<0)break;kept=kept.filter((c,n)=>n!==i);}
   return kept.slice(0,limit);
 }
 // The other players' heroes in a party at the shared table (partyRules.js): who they are and how they stand, never
@@ -155,7 +173,13 @@ export function dmContext(hero,game,health) {
   {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items,priceList};}
   context.foeFate=game.foeFate??null;context.npcFates=game.npcFate??{};context.dying=game.dying??null;context.death=game.death??null;
   const weapons=attackOptions(hero);
-  context.attackOptions={mainWeapon:weapons.find(w=>!w.unarmed)?.name??'Unarmed Strike',carried:weapons.filter(w=>!w.unarmed).map(w=>w.name+(w.ranged?' (ranged)':'')),unarmed:'Unarmed Strike'};
+  context.attackOptions={mainWeapon:weapons.find(w=>!w.unarmed)?.name??'Unarmed Strike',carried:weapons.filter(w=>!w.unarmed).map(w=>w.name+(w.ranged?' (ranged)':'')),unarmed:'Unarmed Strike',
+    // Weapon Mastery (2024 rules): the engine applies these on its own; narrate them as the engine's lines say.
+    masteries:masteredWeapons(hero).map(name=>{const w=weapons.find(o=>o.name===name);return name+': '+(w?masteryText[masteryOf(hero,w)]:'');}),
+    grappleAndShove:'An Unarmed Strike can grapple or shove a creature prone instead of striking (the grapple and shove choices); it saves against DC '+unarmedDC(hero)+'.',
+    twoWeapons:'After an attack with a light weapon, a second light weapon in the other hand can strike as a bonus action (the offhand: choices).'};
+  // How the creatures in this fight stand: prone, grappled, or sapped (disadvantage on their next attack).
+  if(game.marks)context.fightConditions=Object.entries(game.marks).map(([k,m])=>({who:k==='foe'?foeLabel(game):k.startsWith('ally:')?(game.foeAllies?.[Number(k.slice(5))]?.name??k):(npcLore(game,k)?.name??k),conditions:[m.prone?'prone':null,m.grappled?'grappled':null,m.sapped?'sapped':null].filter(Boolean)}));
   context.actionContract.openingAttack='Questbound house rule: an initiating hostile attack resolves once before initiative. Initiative then determines the first normal turn among surviving participants. Do not narrate a defender acting before that opening strike or roll initiative yourself; use engineResolved in its supplied order.';
   context.encounterInitiative=game.encounterInitiative??null;
   // How each person nearby takes to the hero's kind (kin, warm, curious, wary, scornful), with their reason.

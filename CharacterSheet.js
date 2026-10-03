@@ -2,7 +2,9 @@ import {EntityText as Text} from './EncounterOverlay';
 import SkillPanel from './SkillPanel';
 import MagicPanel from './MagicPanel';
 import {campaignState} from './campaignRules';
-import {packOf} from './inventoryRules';
+import {packOf,gearedHero} from './inventoryRules';
+import {masteryCount,masteredWeapons,masteryText} from './masteryRules';
+import {weapons} from './weaponRules';
 import {spellDefense} from './spellRules';
 import FeaturePanel from './FeaturePanel';
 import React, {useState} from 'react';
@@ -48,6 +50,8 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         {tile('Proficiency',signed(stats.proficiency),'Bonus for trained abilities','star')}
       </View>
       <View dataSet={{qb:'plate'}} style={s.panel}><Section icon="shield" title="Defense" style={{marginTop:0}}/><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>With your armor worn and any shield on your arm. A protective spell in effect is counted in the armor class above.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
+      {/* Weapon Mastery (masteryRules.js): the kinds this hero has mastered and what each one's property does. */}
+      {masteryCount(hero)>0&&(mastered=>mastered.length>0&&<View dataSet={{qb:'plate'}} style={s.panel}><Section icon="swords" title="Weapon mastery" style={{marginTop:0}}/>{mastered.map(name=><Text key={name} style={s.text}>{name} · {masteryText[weapons[name].mastery]}</Text>)}<Text style={s.caption}>A {hero.class} masters {masteryCount(hero)} kinds of weapon at level {hero.level}, chosen from the weapons you carry: your main weapon first, then one for range.</Text></View>)(masteredWeapons(game?gearedHero(hero,game):hero))}
       <GameButton icon="info" label={showCalculations ? 'Hide calculations' : 'How are these calculated?'} onPress={() => setShowCalculations(!showCalculations)}/>
       {showCalculations && <View dataSet={{qb:'plate'}} style={s.panel}>
         <Text style={s.text}>Maximum HP: {stats.hpFormula} = {stats.hp}</Text>

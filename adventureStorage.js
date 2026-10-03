@@ -11,6 +11,7 @@ import {validDeathState} from './deathRules';
 import {validWildFight,validCombatExtras} from './encounterRules';
 import {validPack} from './inventoryRules';
 import {validEarnedDeeds} from './deedRules';
+import {validMarks} from './masteryRules';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {combatBasics} from './combatRules';
 
@@ -51,7 +52,7 @@ export function validAdventure(value,hero) {
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
     && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>npcIdsOf(g).includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
     && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && (g.encounterLevel===hero.level || !!g.party)))
-    && validParty(g) && validTurnOrder(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
+    && validParty(g) && validTurnOrder(g) && validMarks(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
     && validWildFight(g) && validCombatExtras(g) && integerBetween(g.potions,0,20) && validPack(g.pack) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
     && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||someone(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=10&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(someone)))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||someone(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))

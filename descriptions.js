@@ -1,4 +1,5 @@
 import {weapons,attackOptions,attacksPerAction,canThrow} from './weaponRules';
+import {masteryOf,masteryText,unarmedDC} from './masteryRules';
 import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
 import {knownSpells} from './spellRules';
@@ -17,7 +18,7 @@ const weaponNotes={
 // How a weapon reads on its own (no hero): what kind it is, its damage and its properties.
 export function weaponSummary(name){
  const w=weapons[name];if(!w)return '';
- const traits=[w.finesse?'finesse (Strength or Dexterity)':null,w.versatile?'versatile':null,w.heavy?'heavy':null,w.twoHands?'two-handed':null,w.range?w.range.replace(/\.$/,'').toLowerCase():null].filter(Boolean);
+ const traits=[w.finesse?'finesse (Strength or Dexterity)':null,w.light?'light (one in each hand)':null,w.versatile?'versatile':null,w.heavy?'heavy':null,w.twoHands?'two-handed':null,w.range?w.range.replace(/\.$/,'').toLowerCase():null].filter(Boolean);
  return (w.martial?'Martial ':'Simple ')+(w.ranged?'ranged':'melee')+' weapon: '+(w.count??1)+'d'+w.die+' '+w.type.toLowerCase()+' damage'+(traits.length?'; '+traits.join(', '):'')+'.';
 }
 const gearNotes={
@@ -53,7 +54,8 @@ const kindNotes={weapon:'A weapon you can fight with.',ammunition:'Ammunition fo
 // What an item is. note is what the Dungeon Master said of it when it was found.
 export function itemDescription(name,kind=null,note=null){
  const plain=String(name??'').trim(),weapon=plain.includes('(Quarterstaff)')?null:weapons[plain];
- if(weapon)return weaponNotes[plain]+' '+weaponSummary(plain);
+ // Its mastery property, which heroes trained in the weapon can use (Barbarians, Fighters, Paladins, Rangers, Rogues).
+ if(weapon)return weaponNotes[plain]+' '+weaponSummary(plain)+(weapon.mastery?' Mastery for those trained in it: '+masteryText[weapon.mastery]:'');
  if(gearNotes[plain])return gearNotes[plain];
  if(typeof note==='string'&&note.trim())return note.trim();
  return kindNotes[kind]??'Part of your kit.';
@@ -72,7 +74,13 @@ function throwText(hero,name){
 function attackText(hero,name){
  const w=attackOptions(hero).find(o=>o.name===name);if(!w)return 'Attack with it. Uses your action.';
  const swings=attacksPerAction(hero);
- return 'Roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage'+(w.heavyDisadvantage?' (disadvantage: this weapon is too heavy for you)':'')+(w.ranged?', and each shot spends an arrow':'')+'. Uses your action'+(swings>1?' ('+swings+' attacks)':'')+'.';
+ const mastery=masteryOf(hero,w);
+ return 'Roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage'+(w.heavyDisadvantage?' (disadvantage: this weapon is too heavy for you)':'')+(w.ranged?', and each shot spends an arrow':'')+'. Uses your action'+(swings>1?' ('+swings+' attacks)':'')+'.'+(mastery?' Your mastery: '+masteryText[mastery]:'');
+}
+// Grapple or Shove: an Unarmed Strike that seizes or knocks down instead of striking.
+function unarmedText(hero,kind){
+ const dc=unarmedDC(hero),swings=attacksPerAction(hero);
+ return (kind==='grapple'?'Grapple: seize it with a free hand. It resists with a Strength or Dexterity save against DC '+dc+'; if it fails, it cannot move, cannot get up if it lies prone, and has disadvantage on attacks at anyone but you. You let go to swing a two-handed weapon.':'Shove: knock it to the ground. It resists with a Strength or Dexterity save against DC '+dc+'; if it fails it falls prone: your blows at arm’s length have advantage against it, shots and throws disadvantage, and its own attacks have disadvantage until it gets up on its turn.')+' Works on a creature no more than one size larger than you. Takes one attack of your action'+(swings>1?' (your other attacks follow with your weapon)':'')+'.';
 }
 // What a one-tap action (a chip from quickActions) does, for the action guide and hover tips.
 export function actionDescription(action,hero,game){
@@ -85,6 +93,10 @@ export function actionDescription(action,hero,game){
  if(key==='attack-menu')return 'Choose a weapon to attack with: everything you carry for close fighting under Melee, bows and throwing weapons under Ranged, and who to attack when there is more than one.';
  if(key==='attack-back')return 'Back to your other actions.';
  if(key.startsWith('target:'))return 'Attack this one: the weapons below are aimed at them.';
+ if(/^(grapple|shove)$/.test(key))return unarmedText(hero,key);
+ if(/^ally-(grapple|shove):/.test(key))return 'The creature fighting beside your foe. '+unarmedText(hero,key.slice(5).split(':')[0]);
+ if(/^npc-(grapple|shove):/.test(key))return 'Someone you lay hands on will remember it. '+unarmedText(hero,key.slice(4).split(':')[0]);
+ if(key.startsWith('offhand:')){const w=attackOptions(hero).find(o=>o.name===key.slice(8)),nick=action.detail==='Nick',mastery=w?masteryOf(hero,w):null;return 'Two-weapon fighting: strike once with the '+key.slice(8).toLowerCase()+' in your other hand'+(w?' (d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+'; '+(w.flat?'1':w.count+'d'+w.die)+(w.bonus<0?' − '+Math.abs(w.bonus):'')+' '+w.type.toLowerCase()+' damage, without your ability bonus)':'')+'. '+(nick?'With Nick it is part of your Attack action, so your bonus action stays free.':'It costs your bonus action.')+(mastery&&mastery!=='Nick'?' Your mastery: '+masteryText[mastery]:'');}
  if(/^(throw|encounter-throw):/.test(key))return throwText(hero,key.split(':').pop());
  if(key.startsWith('ally-throw:'))return 'Throw at the creature fighting beside your foe. '+throwText(hero,key.split(':').pop());
  if(key.startsWith('npc-throw:'))return 'Throw at them. Someone you hurt will remember it. '+throwText(hero,key.split(':').pop());
@@ -116,6 +128,7 @@ export function actionCost(action,game){
  const key=String(action?.key??'');
  if(game.stage!=='combat'&&!game.npcCombat?.active)return null;
  if(['potion','class:wind','class:hands','class:strike'].includes(key))return 'Bonus action';
+ if(key.startsWith('offhand:'))return action.detail==='Nick'?null:'Bonus action';
  if(key.startsWith('spell:'))return action.detail?.includes('Bonus')?'Bonus action':'Action';
  if(key==='end-turn'||key==='cast'||key==='spells-back'||key==='death-save')return null;
  return 'Action';

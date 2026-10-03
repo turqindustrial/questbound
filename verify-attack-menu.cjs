@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // a choice (never a default for people), the hero's weapons under Melee and Ranged with to-hit, damage and what is
 // left to shoot or throw. Throwing is real: Dagger, Handaxe, Javelin and Spear are thrown as ranged attacks, each throw
 // uses one, and they are gathered up when the fight is over. Every chip resolves through the engine and the DM commit.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','playbackRules.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','descriptions.js','chronicleRules.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','playbackRules.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','descriptions.js','chronicleRules.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({quickActions,attackActions,attackTargets,dmChoices,dmCommand,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,commitDmTurn,equipmentFor,gearedHero,validAdventure,adventureSnapshot,actionDescription,describeEvent,readyHero,validPack,freshStoryGame})',{AsyncStorage:{}});
 const make=(cls,scores,extra={})=>{const hero={name:'Pick tester',class:cls,species:'Human',level:1,background:'Soldier',scores,spells:[],...extra};hero.equipment=r.equipmentFor(hero);return hero;};
@@ -18,8 +18,9 @@ assert.equal(row[0].key,'attack-back');assert.ok(row.some(a=>a.heading==='Melee'
 const melee=section(row,'Melee'),ranged=section(row,'Ranged');
 assert.ok(melee.some(a=>a.label==='Greatsword')&&melee.some(a=>a.label==='Unarmed'),'every melee weapon and bare hands: '+keys(melee));
 assert.ok(ranged.some(a=>a.key==='throw:Javelin'&&a.label==='Javelin'&&a.icon==='spear'),'javelins are thrown (under Ranged, by name): '+keys(ranged));
-const javelin=ranged.find(a=>a.key==='throw:Javelin');assert.match(javelin.detail,/^\+\d · 1d6\+\d · ×8$/,'to hit, damage and how many are left: '+javelin.detail);
-assert.match(melee.find(a=>a.label==='Greatsword').detail,/^\+5 · 2d6\+3$/);
+const javelin=ranged.find(a=>a.key==='throw:Javelin');assert.match(javelin.detail,/^\+\d · 1d6\+\d · ×8 · Slow$/,'to hit, damage, how many are left and the mastery: '+javelin.detail);
+assert.match(melee.find(a=>a.label==='Greatsword').detail,/^\+5 · 2d6\+3 · Graze$/);
+assert.ok(melee.some(a=>a.label==='Grapple'&&/^DC \d+$/.test(a.detail))&&melee.some(a=>a.label==='Shove'),'Grapple and Shove under Melee');
 assert.equal(javelin.question,'I throw my javelin at the '+r.attackTargets(fighter,bandit,health)[0].name.replace(/^the /i,'')+'.');
 for(const a of row.filter(a=>!a.heading))assert.ok(r.actionDescription(a,fighter,bandit).length>20,a.key+' is described');
 // Every weapon chip resolves through the engine and the DM commit.
@@ -47,7 +48,7 @@ assert.equal(r.dmCommand(fighter,bandit,'I throw a punch at the bandit',health).
 // ---- A bow under Ranged, with its arrows ----
 const archer=make('Fighter',{Strength:12,Dexterity:16,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},{fighterKit:'ranged'});
 const shot=section(r.attackActions(archer,r.hostileEncounterGame(archer,r.newAdventure(archer),pick('bandit')),health),'Ranged');
-assert.ok(shot.some(a=>a.label==='Longbow'&&/×20$/.test(a.detail)),'the longbow with twenty arrows: '+shot.map(a=>a.label+' '+a.detail));
+assert.ok(shot.some(a=>a.label==='Longbow'&&/×20 · Slow$/.test(a.detail)),'the longbow with twenty arrows: '+shot.map(a=>a.label+' '+a.detail));
 // ---- People: never a default target ----
 const kara=r.readyHero('fighter');
 const written={title:'The Test Road',premise:'A quiet inn.',opening:'You arrive.',objective:'Find the thief.',resolution:'Catch them.',secret:'The keeper knows.',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'The Lamp',description:'An inn.'},bridge:{name:'The Ford',description:'A ford.'},tower:{name:'The Mill',description:'A mill.'}},npcs:{keeper:{name:'Ivo Brask',species:'Human',role:'Innkeeper',motive:'Keep the peace.',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera Vane',species:'Elf',role:'Scribe',motive:'Learn the truth.',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',ties:{other:'friend',foe:'neutral',note:'n'}}}};
@@ -55,8 +56,8 @@ const inn=r.freshStoryGame(kara,{...written,id:'test-story',status:'active'},r.n
 assert.ok(r.attackTargets(kara,inn,null).length>=2,'the two residents can be attacked');
 const calm=r.attackActions(kara,inn,null);
 {assert.ok(calm.some(a=>a.heading==='Choose who to attack')&&!calm.some(a=>a.heading==='Melee'),'only people here: choose who first');
- const who=calm.find(a=>a.target);const aimed=r.attackActions(kara,inn,null,who.target);assert.ok(section(aimed,'Melee').every(a=>/^npc-attack:/.test(a.key)),'aimed at that person');
- for(const a of [...section(aimed,'Melee'),...section(aimed,'Ranged')]){assert.ok(/^npc-(attack|throw):/.test(a.key));const s=r.adventureStep(inn,null,kara,a.action,()=>.6);assert.ok(!s.error,a.key+': '+s.error);}
+ const who=calm.find(a=>a.target);const aimed=r.attackActions(kara,inn,null,who.target);assert.ok(section(aimed,'Melee').every(a=>/^npc-(attack|grapple|shove):/.test(a.key))&&section(aimed,'Melee').some(a=>a.label==='Grapple'),'aimed at that person (grappling and shoving too)');
+ for(const a of [...section(aimed,'Melee'),...section(aimed,'Ranged')]){assert.ok(/^npc-(attack|throw|grapple|shove):/.test(a.key));const s=r.adventureStep(inn,null,kara,a.action,()=>.6);assert.ok(!s.error,a.key+': '+s.error);}
  assert.ok(section(aimed,'Ranged').some(a=>/^npc-throw:/.test(a.key)),'a javelin can be thrown at them');
  const q=r.quickActions(kara,inn,null);assert.ok(q.some(a=>a.key==='attack-menu'&&!a.primary),'Attack… is there, not highlighted, away from a fight');}
 // The screen: headings are labels, skipped by the number keys and the guide; a weapon chip closes the picker.

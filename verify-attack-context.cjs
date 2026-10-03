@@ -21,6 +21,8 @@ result=r.adventureStep({...blurred,npcCombat:{...blurred.npcCombat,help:'enemy'}
 assert.ok(result.events.some(t=>t.includes('attacks you')&&t.includes('(normal, Help, Dodge, Blur)')),'One advantage cancels all disadvantage sources');
 result=r.adventureStep({...combat,concentration:blurred.concentration},hp,hero,'attack:Dagger',()=>0);
 assert.ok(result.events.some(t=>t.startsWith('You use Dagger')&&t.includes('(normal)')));
+// Two daggers: the turn waits for the other hand's attack (two-weapon fighting), so the wizard ends it.
+if(result.game.actionUsed){const ended=r.adventureStep(result.game,result.health,hero,'end-turn',()=>0);result={...ended,events:[...result.events,...ended.events]};}
 assert.ok(result.events.some(t=>t.startsWith('Lantern Wisp:')&&t.includes('(disadvantage)')));
 assert.equal(r.rollAttack({attackBonus:2,heavyDisadvantage:true},'normal',()=>0).mode,'disadvantage','Keep actual Heavy weapon requirement');
 assert.equal(r.rollAttack({attackBonus:2,heavyDisadvantage:true},'advantage',()=>0).mode,'normal');

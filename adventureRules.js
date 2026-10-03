@@ -17,6 +17,8 @@ import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
 import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero} from "./encounterRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
+import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
+import {proficiencyBonus} from "./characterRules";
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
 const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
@@ -250,6 +252,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       const victim = npcScene(game).find(n => n.id === action.target && n.present);
       const carried = attackOptions(hero).find(w => w.name === action.weapon);
       if (action.thrown && carried && !canThrow(carried)) return {game, health, error: `A ${carried.name} is not made for throwing. Daggers, handaxes, javelins and spears are.`};
+      // An Unarmed Strike may grapple or shove instead of striking.
+      const contest = ['grapple', 'shove'].includes(action.unarmed) ? action.unarmed : null;
+      if (action.unarmed !== undefined && (!contest || !carried?.unarmed)) return {game, health, error: 'An unarmed strike can grapple or shove.'};
       const weapon = carried && action.thrown ? thrownAttack(carried) : carried;
       if (!victim || game.npcFate?.[victim.id] === 'dead') return {
         game,
@@ -279,6 +284,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       };
       // Someone already lying senseless can be finished off where they lie.
       if (victim.hp <= 0) {
+        if (contest) return {game, health, error: `${victim.name} already lies senseless.`};
         if (game.subdue) return {
           game,
           health,
@@ -296,21 +302,49 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           health: hp
         };
       }
+      if (contest === 'grapple' && grappledBy(next, victim.id, hp)) return {game, health, error: `${victim.name} is already held.`};
+      // A two-handed weapon needs the hand that holds a grapple: it lets go first (free).
+      if (!contest && weapon.twoHands && holding(next)) { const freed = letGo(next, k => npcProfile(next, k)?.name ?? null); next = freed.game; entries.push(...freed.lines); }
+      // After a grapple or shove, the action's other attacks (Extra Attack) are made with a weapon that leaves a hand free.
+      const followUp = contest ? attackOptions(hero).find(w => !w.ranged && !(contest === 'grapple' && w.twoHands)) ?? weapon : weapon;
       let remaining = victim.hp, thrownNow = 0;
       for (let swing = 0; swing < attacksPerAction(hero) && remaining > 0; swing++) {
-        if (weapon.ranged) {
+        // The grapple or shove itself: no attack roll; they resist with Strength or Dexterity.
+        if (contest && swing === 0) {
+          const dc = unarmedDC(hero), save = unarmedSave({}, random), held = save.total < dc;
+          entries.push(`${contest === 'grapple' ? 'Grapple' : 'Shove'}: ${victim.name} resists with a ${save.ability} save d20 [${save.die}] + ${save.bonus} = ${save.total} vs DC ${dc}: ${held ? 'failure' : 'success'}. ${held ? (contest === 'grapple' ? 'You have them in your grip: they cannot move, and their blows at anyone but you have disadvantage.' : 'They go down prone.') : (contest === 'grapple' ? 'They wrench free.' : 'They keep their feet.')}`);
+          if (held) next = contest === 'grapple' ? withMark(next, victim.id, {grappled: heroIdOf(next)}) : withMark(next, victim.id, {prone: true});
+          continue;
+        }
+        const w = contest ? followUp : weapon;
+        if (w.ranged) {
           if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
           next = spendArrow(next, hero);
-        } else if (weapon.thrown) {
-          if (thrownNow >= inHand(hero, weapon.name)) { entries.push(`You have no ${weapon.name.toLowerCase()} left to throw.`); break; }
-          thrownNow++; next = spendThrown(next, hero, weapon.name);
+        } else if (w.thrown) {
+          if (thrownNow >= inHand(hero, w.name)) { entries.push(`You have no ${w.name.toLowerCase()} left to throw.`); break; }
+          thrownNow++; next = spendThrown(next, hero, w.name);
         }
-        const attack = rollAttack(weapon, rangedMode(weapon, {closeEnemy: distance <= 5, distance}), random),
+        const edge = heroEdge(next, victim.id, w), attack = rollAttack(w, edgeMode(rangedMode(w, {closeEnemy: distance <= 5, distance}), edge), random),
           hit = !attack.miss && (attack.critical || attack.total >= victim.ac);
-        const damageRoll = hit ? rollDamage(weapon, attack.critical, random) : null;
+        if (edge.adv.includes('Vex')) { next = {...next}; delete next.vex; }
+        const damageRoll = hit ? rollDamage(w, attack.critical, random) : null;
         const damage = damageRoll?.total??0;
         remaining = Math.max(0, remaining - damage);
-        entries.push(`${weapon.thrown ? 'You throw ' + weapon.name + ' at' : 'You use ' + weapon.name + ' against'} ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${weapon.type} damage${damageRoll?' ('+(weapon.flat?'1 + '+weapon.bonus:damageRoll.dice.length+'d'+weapon.die+' ['+damageRoll.dice.join(', ')+'] + '+weapon.bonus)+')':''}. ${remaining} HP remaining.`);
+        entries.push(`${w.thrown ? 'You throw ' + w.name + ' at' : 'You use ' + w.name + ' against'} ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus} proficiency = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${w.type} damage${damageRoll?' ('+(w.flat?'1 + '+w.bonus:damageRoll.dice.length+'d'+w.die+' ['+damageRoll.dice.join(', ')+'] + '+w.bonus)+')':''}. ${remaining} HP remaining.`);
+        // Weapon Mastery against a person (Cleave reaches only creatures in a fight with a foe).
+        const mastery = masteryOf(hero, w);
+        if (hit && remaining > 0) {
+          if (mastery === 'Sap') { next = withMark(next, victim.id, {sapped: true}); entries.push(`Sap: ${victim.name} has disadvantage on their next attack.`); }
+          if (mastery === 'Vex' && damage > 0) { next = {...next, vex: {target: victim.id, fresh: true}}; entries.push(`Vex: your next attack against ${victim.name} has advantage.`); }
+          if (mastery === 'Topple' && !markOf(next, victim.id).prone) {
+            const dc = 8 + w.bonus + proficiencyBonus(hero.level ?? 1), die = 1 + Math.floor(random() * 20), falls = die < dc;
+            if (falls) next = withMark(next, victim.id, {prone: true});
+            entries.push(`Topple: ${victim.name} makes a Constitution save d20 [${die}] + 0 = ${die} vs DC ${dc}: ${falls ? 'failure. They fall prone.' : 'success. They keep their footing.'}`);
+          }
+        } else if (!hit && mastery === 'Graze' && w.bonus > 0 && remaining > 0) {
+          remaining = Math.max(0, remaining - w.bonus);
+          entries.push(`Graze: the swing still deals ${w.bonus} ${w.type.toLowerCase()} damage. ${remaining} HP remaining.`);
+        }
       }
       next.npcHP = {
         ...game.npcHP,
@@ -668,7 +702,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       };
       let dodge = false,
         bonusAction = false,
-        usedBonus = false;
+        usedBonus = false,
+        nickNow = false;
       const ending = action === 'end-turn';
       if (turnOptions.enemyOnly) {
         // The opening attack is already committed; this phase only advances the foe.
@@ -741,56 +776,104 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         dodge = true;
         entries.push(game.wildFight ? `You dodge. The ${foe.name} attacks with disadvantage this turn.` : 'You dodge. The wisp attacks with disadvantage this turn.');
       } else {
-        const throwing = typeof action === 'string' && action.startsWith('throw:'), named = throwing ? attackOptions(hero).find(w => w.name === action.slice(6) && canThrow(w)) : null;
-        const weapon = throwing ? (named ? thrownAttack(named) : null) : attackOptions(hero).find(w => `attack:${w.name}` === action);
-        if (!weapon) return throwing ? {game, health, error: `You have no ${action.slice(6).toLowerCase()} to throw.`} : {
+        // An attack: with a weapon (attack:, throw:), with the other hand's Light weapon after a Light one (offhand:,
+        // two-weapon fighting), or an Unarmed Strike that grapples or shoves instead of striking (grapple, shove).
+        // Weapon Mastery, Vex and a prone or grappled creature shape the rolls (masteryRules.js).
+        const throwing = typeof action === 'string' && action.startsWith('throw:'), offhand = typeof action === 'string' && action.startsWith('offhand:'), contest = action === 'grapple' || action === 'shove' ? action : null;
+        const named = throwing ? attackOptions(hero).find(w => w.name === action.slice(6) && canThrow(w)) : null;
+        const weapon = contest ? attackOptions(hero).find(w => w.unarmed) : offhand ? offhandWeapons(hero, game.lightAttack?.weapon).find(w => w.name === action.slice(8)) ?? null : throwing ? (named ? thrownAttack(named) : null) : attackOptions(hero).find(w => `attack:${w.name}` === action);
+        if (offhand && !game.lightAttack) return {game, health, error: 'Attack with a light weapon first; then your other hand can strike.'};
+        // The Light property gives one extra attack a turn (Nick only changes what it costs).
+        if (offhand && game.nickUsed) return {game, health, error: 'Your other hand has already struck this turn.'};
+        if (!weapon) return throwing ? {game, health, error: `You have no ${action.slice(6).toLowerCase()} to throw.`} : offhand ? {game, health, error: 'Your other hand needs a second light weapon, and no shield, for that.'} : {
           game,
           health
         };
-        let thrownNow = 0;
+        const nick = offhand && masteryOf(hero, weapon) === 'Nick' && !game.nickUsed;
+        if (offhand && !nick && game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
+        const key = aim !== null ? 'ally:' + aim : 'foe', targetOf = k => k === 'foe' ? foe : allyStats(next, Number(k.slice(5)), hero.level ?? 1);
+        const called = k => 'the ' + targetOf(k).name.replace(/^the /i, ''), Called = k => 'T' + called(k).slice(1);
+        const standing = k => k === 'foe' ? next.enemyHP > 0 : (next.foeAllies?.[Number(k.slice(5))]?.hp ?? 0) > 0;
+        if (contest && !withinGrip(hero, creatureSize(next, key))) return {game, health, error: `${Called(key)} is too big for you to ${contest}.`};
+        if (contest === 'grapple' && grappledBy(next, key, hp)) return {game, health, error: `${Called(key)} is already held.`};
+        // A two-handed weapon, or a weapon in each hand, needs the hand that holds a grapple: it lets go first (free).
+        if (!contest && (weapon.twoHands || offhand) && holding(next)) { const freed = letGo(next, called); next = freed.game; entries.push(...freed.lines); }
+        // Damage to the foe (its shield may catch a blow) or to the creature at its side; returns what got through.
+        const harm = (k, amount, shield) => {
+          if (k === 'foe') { const blocked = shield ? shieldBlow(next, amount, random) : {game: next, damage: amount, line: null}; next = blocked.game; next.enemyHP = Math.max(0, next.enemyHP - blocked.damage); return {dealt: blocked.damage, line: blocked.line}; }
+          const struck = hurtAlly(next, Number(k.slice(5)), amount); next = struck.game; return {dealt: amount, hp: struck.hp, line: struck.line};
+        };
+        let thrownNow = 0, lightUsed = null;
         // A bow is fine before the foe closes in (the opening attack); once it is within 5 feet, shots have disadvantage.
         // Grit in the eyes, being knocked prone or caught in web also spoils your next attack.
-        const mode = game.heroCondition ? 'disadvantage' : rangedMode(weapon, {closeEnemy: !turnOptions.opening});
+        const baseMode = w => game.heroCondition ? 'disadvantage' : rangedMode(w, {closeEnemy: !turnOptions.opening});
         if (game.heroCondition) entries.push(heroConditions[game.heroCondition]);
-        if (aim !== null) {
-          for (let swing = 0; swing < attacksPerAction(hero) && next.foeAllies[aim].hp > 0; swing++) {
-            if (weapon.ranged) {
-              if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
-              next = spendArrow(next, hero);
-            } else if (weapon.thrown) {
-              if (thrownNow >= inHand(hero, weapon.name)) { entries.push(`You have no ${weapon.name.toLowerCase()} left to throw.`); break; }
-              thrownNow++; next = spendThrown(next, hero, weapon.name);
-            }
-            const target = allyStats(next, aim, hero.level ?? 1), attack = rollAttack(weapon, mode, random), hit = !attack.miss && (attack.critical || attack.total >= target.ac);
-            entries.push(`${weapon.thrown ? 'You throw ' + weapon.name + ' at' : 'You use ' + weapon.name + ' on'} the ${target.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
-            if (hit) {
-              const damage = rollDamage(weapon, attack.critical, random), struck = hurtAlly(next, aim, damage.total);
-              next = struck.game;
-              entries.push(`The ${target.name} takes ${damage.total} ${weapon.type.toLowerCase()} damage (${weapon.flat ? '1' : damage.dice.join(' + ')} ${weapon.bonus >= 0 ? '+' : ''}${weapon.bonus}); ${struck.hp} HP left.`);
-              if (struck.line) entries.push(struck.line);
-            }
+        // After a grapple or shove, the action's other attacks (Extra Attack) are made with the main weapon, or with one
+        // that leaves a hand free to hold on.
+        const followUp = contest ? attackOptions(hero).find(w => !w.ranged && !(contest === 'grapple' && w.twoHands)) ?? weapon : weapon;
+        for (let swing = 0; swing < (offhand ? 1 : attacksPerAction(hero)) && standing(key); swing++) {
+          // The grapple or shove itself: no attack roll; the creature resists with Strength or Dexterity.
+          if (contest && swing === 0) {
+            const dc = unarmedDC(hero), save = unarmedSave(targetOf(key).saves, random), held = save.total < dc;
+            entries.push(`${contest === 'grapple' ? 'Grapple' : 'Shove'}: ${called(key)} resists with a ${save.ability} save d20 [${save.die}] + ${save.bonus} = ${save.total} vs DC ${dc}: ${held ? 'failure' : 'success'}. ${held ? (contest === 'grapple' ? 'You have it in your grip: it cannot move, and its attacks on anyone but you have disadvantage.' : 'It goes down prone.') : (contest === 'grapple' ? 'It wrenches free.' : 'It keeps its feet.')}`);
+            if (held) next = contest === 'grapple' ? withMark(next, key, {grappled: heroIdOf(next)}) : withMark(next, key, {prone: true});
+            continue;
           }
-        } else
-        for (let swing = 0; swing < attacksPerAction(hero) && next.enemyHP > 0; swing++) {
+          const w = contest ? followUp : weapon;
           // Each bow shot uses an arrow, and each throw one of the weapons thrown; with none left, there is no shot.
-          if (weapon.ranged) {
+          if (w.ranged) {
             if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
             next = spendArrow(next, hero);
-          } else if (weapon.thrown) {
-            if (thrownNow >= inHand(hero, weapon.name)) { entries.push(`You have no ${weapon.name.toLowerCase()} left to throw.`); break; }
-            thrownNow++; next = spendThrown(next, hero, weapon.name);
+          } else if (w.thrown) {
+            if (thrownNow >= inHand(hero, w.name)) { entries.push(`You have no ${w.name.toLowerCase()} left to throw.`); break; }
+            thrownNow++; next = spendThrown(next, hero, w.name);
           }
-          const attack = rollAttack(weapon, mode, random);
-          const hit = !attack.miss && (attack.critical || attack.total >= foe.ac);
-          entries.push(`${weapon.thrown ? 'You throw' : 'You use'} ${weapon.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${weapon.bonus} ${weapon.ability} + ${weapon.attackBonus-weapon.bonus} proficiency = ${attack.total} vs AC ${foe.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          const target = targetOf(key), edge = heroEdge(next, key, w), attack = rollAttack(w, edgeMode(baseMode(w), edge), random), hit = !attack.miss && (attack.critical || attack.total >= target.ac);
+          if (edge.adv.includes('Vex')) { next = {...next}; delete next.vex; }
+          const used = offhand ? ' (other hand)' : '';
+          if (key === 'foe') entries.push(`${w.thrown ? 'You throw' : 'You use'} ${w.name}${used}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          else entries.push(`${w.thrown ? 'You throw ' + w.name + used + ' at' : 'You use ' + w.name + used + ' on'} the ${target.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          if (isLight(w) && !offhand) lightUsed = w.name;
+          const mastery = masteryOf(hero, w);
           if (hit) {
-            const damage = rollDamage(weapon, attack.critical, random);
-            const blocked = shieldBlow(next, damage.total, random);
-            next = blocked.game;
-            next.enemyHP = Math.max(0, next.enemyHP - blocked.damage);
-            entries.push(`${damage.total} ${weapon.type.toLowerCase()} damage (${weapon.flat ? '1' : damage.dice.join(' + ')} ${weapon.bonus >= 0 ? '+' : ''}${weapon.bonus}).`);
-            if (blocked.line) entries.push(blocked.line);
+            // The other hand's blow adds no ability bonus to its damage (unless that bonus is negative).
+            const dw = offhand && w.bonus > 0 ? {...w, bonus: 0} : w, damage = rollDamage(dw, attack.critical, random), done = harm(key, damage.total, true);
+            if (key === 'foe') entries.push(`${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}).`);
+            else entries.push(`The ${target.name} takes ${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}); ${done.hp} HP left.`);
+            if (done.line) entries.push(done.line);
+            // Weapon Mastery: what a hit does besides its damage.
+            if (mastery === 'Sap' && standing(key)) { next = withMark(next, key, {sapped: true}); entries.push(`Sap: ${called(key)} has disadvantage on its next attack.`); }
+            if (mastery === 'Vex' && done.dealt > 0 && standing(key)) { next = {...next, vex: {target: key, fresh: true}}; entries.push(`Vex: your next attack against ${called(key)} has advantage.`); }
+            if (mastery === 'Slow' && done.dealt > 0 && standing(key)) { next = {...next, enemyEffects: {...next.enemyEffects, 'Speed reduced by 10 feet': Math.max(1, next.enemyEffects?.['Speed reduced by 10 feet'] ?? 0)}}; entries.push(`Slow: ${called(key)} loses 10 feet of speed until your next turn.`); }
+            if (mastery === 'Topple' && standing(key) && !markOf(next, key).prone) {
+              const dc = 8 + w.bonus + proficiencyBonus(hero.level ?? 1), die = 1 + Math.floor(random() * 20), bonus = target.saves?.Constitution ?? 0, falls = die + bonus < dc;
+              if (falls) next = withMark(next, key, {prone: true});
+              entries.push(`Topple: ${called(key)} makes a Constitution save d20 [${die}] + ${bonus} = ${die + bonus} vs DC ${dc}: ${falls ? 'failure. It falls prone.' : 'success. It keeps its footing.'}`);
+            }
+            if (mastery === 'Cleave' && !w.ranged && !w.thrown && !next.cleaveUsed) {
+              // A second creature beside the first: the one at the foe's side, the foe itself, or another of its pack.
+              const beside = livingAllies(next)[0], other = key === 'foe' ? (beside ? 'ally:' + beside.index : foe.group && foeStanding(foe, next.enemyHP) >= 2 ? 'foe' : null) : next.enemyHP > 0 ? 'foe' : null;
+              if (other !== null) {
+                next = {...next, cleaveUsed: true};
+                const second = targetOf(other), edge2 = heroEdge(next, other, w), swing2 = rollAttack(w, edgeMode(baseMode(w), edge2), random), hit2 = !swing2.miss && (swing2.critical || swing2.total >= second.ac);
+                entries.push(`Cleave: you swing on into ${other === key ? 'another of the ' + foe.group.plural : called(other)}: d20 [${swing2.dice.join(', ')}] (${swing2.mode}) + ${w.attackBonus} = ${swing2.total} vs AC ${second.ac}. ${swing2.critical ? 'Critical hit!' : hit2 ? 'Hit.' : 'Miss.'}`);
+                if (hit2) { const cut = rollDamage({...w, bonus: Math.min(0, w.bonus)}, swing2.critical, random), landed = harm(other, cut.total, false); entries.push(`${cut.total} ${w.type.toLowerCase()} damage (${cut.dice.join(' + ')}${w.bonus < 0 ? ' − ' + Math.abs(w.bonus) : ''}).`); if (landed.line) entries.push(landed.line); }
+              }
+            }
+          } else if (mastery === 'Graze' && w.bonus > 0 && standing(key)) {
+            // Graze: even a miss deals the ability bonus.
+            const done = harm(key, w.bonus, false);
+            entries.push(`Graze: the swing still deals ${w.bonus} ${w.type.toLowerCase()} damage.`);
+            if (done.line) entries.push(done.line);
           }
+        }
+        if (lightUsed) next = {...next, lightAttack: {weapon: lightUsed, target: key}};
+        if (offhand) {
+          // Two-weapon fighting: a bonus action, or (Nick) part of the Attack action, once a turn.
+          if (nick) next.nickUsed = true; else next.bonusUsed = true;
+          usedBonus = true;
+          bonusAction = true;
+          nickNow = nick;
         }
         const fortitude = undeadFortitude(next, foe, random);
         next = fortitude.game;
@@ -828,6 +911,12 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         entries.push('You still have a bonus action: use it, or end your turn.');
       }
       if (usedBonus && game.actionUsed) bonusAction = false;
+      // The other hand's blow under Nick was part of the action: a bonus action may still follow it.
+      if (nickNow && next.stage === 'combat' && hp.current > 0 && bonusOptions(hero, next, hp, stats.hp).length > 0) {
+        bonusAction = true;
+        next.actionUsed = true;
+        entries.push('You still have a bonus action: use it, or end your turn.');
+      }
       if (paused) bonusAction = true;
       if (game.dodging && !paused) dodge = true;
       // Companions travelling with you strike the creature once, after your turn (in a party's fight, once a round,
@@ -857,8 +946,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         delete next.actionUsed;
         delete next.dodging;
         tickHeroSpells(next, hp);
+        endHeroTurn(next);
       } else if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy) {
         const defense = spellDefense(next, stats.ac, foe);
+        // A creature lying prone gets up as its turn begins (unless a grapple holds it down), and a hold whose hero has
+        // dropped is gone. Prone, a Sap, or a grapple (at anyone but the one holding it) spoil its attacks.
+        if (next.marks) for (const k of ['foe', ...livingAllies(next).map(a => 'ally:' + a.index)]) { const begun = creatureTurnStarts(next, k, k === 'foe' ? 'The ' + foe.name.replace(/^the /i, '') : 'The ' + allyStats(next, Number(k.slice(5)), hero.level ?? 1).name, hp); next = begun.game; entries.push(...begun.lines); }
+        const heldOff = (k, target) => foeEdge(next, k, target === null ? heroIdOf(next) : String(target).startsWith('party:') ? String(target).slice(6) : 'companion', hp);
         // In a party's foe turn, whoever is struck may have taken the Dodge on their own turn; Blur guards only the
         // hero it was cast on (the one this turn is played from).
         const dodgingNow = target => turnOptions.partyFoe ? (turnOptions.dodging ?? []).includes(target === null ? next.party?.lead : String(target).replace(/^party:/, '')) : dodge;
@@ -879,17 +973,19 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         for (let member = 1; member <= attackers && fightOn(); member++) {
         const who = attackers > 1 ? `${foe.name} ${member}` : foe.name;
         // Sometimes the creature goes for a companion beside you instead (or, in a party, another hero).
-        const target = foeTarget();
-        const mode = foeAttackMode({...next, heroCondition: target !== null && turnOptions.partyFoe ? undefined : lingering ?? next.heroCondition}, foe, attackers, {dodge: dodgingNow(target), blur: blurNow(target)});
+        const target = foeTarget(), why = member === 1 ? heldOff('foe', target) : [];
+        const mode = foeAttackMode({...next, heroCondition: target !== null && turnOptions.partyFoe ? undefined : lingering ?? next.heroCondition}, foe, attackers, {dodge: dodgingNow(target), blur: blurNow(target) || why.length > 0});
         if (target) {
           const struck = foeHitsCompanion(next, foe, who, target, mode, random);
           next = struck.game;
           entries.push(...struck.lines);
+          if (member === 1) next = sapSpent(next, 'foe');
           continue;
         }
         const attack = rollAttack(foe, mode, random);
+        if (member === 1) next = sapSpent(next, 'foe');
         const hit = !attack.miss && (attack.critical || attack.total >= defense.ac);
-        entries.push(`${who}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs your AC ${defense.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+        entries.push(`${who}: d20 [${attack.dice.join(', ')}] (${attack.mode}${why.length ? ', ' + why.join(', ') : ''}) +${foe.attackBonus} = ${attack.total} vs your AC ${defense.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
         if (hit) {
           const damage = rollDamage(foe, attack.critical, random);
           const extras = foeHitExtras(next, hero, foe, attackers, random);
@@ -915,10 +1011,11 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         let allyDowned = null;
         for (const ally of livingAllies(next)) {
           if (!fightOn()) break;
-          const target = foeTarget(), a = allyStats(next, ally.index, hero.level ?? 1), mode = dodgingNow(target) || blurNow(target) ? 'disadvantage' : 'normal';
-          if (target) { const struck = foeHitsCompanion(next, a, a.name, target, mode, random); next = struck.game; entries.push(...struck.lines); continue; }
+          const target = foeTarget(), a = allyStats(next, ally.index, hero.level ?? 1), why = heldOff('ally:' + ally.index, target), mode = dodgingNow(target) || blurNow(target) || why.length > 0 ? 'disadvantage' : 'normal';
+          if (target) { const struck = foeHitsCompanion(next, a, a.name, target, mode, random); next = sapSpent(struck.game, 'ally:' + ally.index); entries.push(...struck.lines); continue; }
           const attack = rollAttack(a, mode, random), hit = !attack.miss && (attack.critical || attack.total >= defense.ac);
-          entries.push(`${a.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${a.attackBonus} = ${attack.total} vs your AC ${defense.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          next = sapSpent(next, 'ally:' + ally.index);
+          entries.push(`${a.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${why.length ? ', ' + why.join(', ') : ''}) +${a.attackBonus} = ${attack.total} vs your AC ${defense.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
           if (!hit) continue;
           const damage = rollDamage(a, attack.critical, random), total = Math.max(1, damage.total), hurt = updateHealth(hp, stats.hp, 'damage', total);
           if (hurt.current === 0) { allyDowned = a.name; overflow = overflowOf(hurt.previous, total); }
@@ -941,6 +1038,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         delete next.dodging;
         // In a party each hero's spells count down at the end of their own turn instead.
         if (!turnOptions.partyFoe) tickHeroSpells(next, hp);
+        // A Sap lasts only until the next turn of the hero who landed it; their own turn is over.
+        next = sapsEnd(next);
+        if (!turnOptions.enemyOnly) endHeroTurn(next);
         if (next.enemyEffects) next.enemyEffects = Object.fromEntries(Object.entries(next.enemyEffects).filter(([, rounds]) => rounds > 1).map(([key, rounds]) => [key, rounds - 1]));
         if (hp.current === 0) delete next.concentration;
       }
@@ -989,16 +1089,18 @@ function creatureCombatStep(game,health,hero,action,random,opts={}){
   if(!['bridge','combat'].includes(game.stage)||game.enemyHP<=0)return {game,health,error:'That creature is not within reach here.'};
   if(!attackOptions(hero).some(w=>w.name===action.weapon))return {game,health,error:'Choose a weapon you carry, or attack unarmed.'};
   if(action.thrown&&!attackOptions(hero).some(w=>w.name===action.weapon&&canThrow(w)))return {game,health,error:'A '+action.weapon+' is not made for throwing. Daggers, handaxes, javelins and spears are.'};
+  if(action.unarmed!==undefined&&!['grapple','shove'].includes(action.unarmed))return {game,health,error:'An unarmed strike can grapple or shove.'};
   if(game.stage==='bridge')scene={...game,stage:'combat',openingAttackAvailable:true,encounterInitiative:undefined};
-  command=(action.thrown?'throw:':'attack:')+action.weapon;
+  command=action.unarmed??(action.thrown?'throw:':'attack:')+action.weapon;
   if(action.target!==undefined){if(aimedAlly(game,action.target)===null)return {game,health,error:'That creature is not in this fight.'};scene={...scene,aim:action.target};}
  }
  const spell=command?.type==='spell'?automaticEffects[command.request.id]:command?.type==='spell-ruling'?automaticEffects[scene.pendingSpell?.id]:null;
- const hostile=typeof command==='string'&&(command.startsWith('attack:')||command.startsWith('throw:'))||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
+ const hostile=typeof command==='string'&&(command.startsWith('attack:')||command.startsWith('throw:')||['grapple','shove'].includes(command))||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
  if(scene.stage==='combat'&&scene.openingAttackAvailable&&hostile){
   const opening=adventureStepCore(scene,health,hero,command,random,{suppressEnemy:true,opening:true});
   if(opening.error||opening.waiting||opening.game===scene)return opening.error?{...opening,game,health}:opening;
-  opening.game={...opening.game,openingAttackAvailable:false};
+  // The opening move is a turn of its own: what lasts a turn ends with it, and Vex reaches into the next.
+  opening.game=endHeroTurn({...opening.game,openingAttackAvailable:false});
   opening.events=['Opening attack.',...(opening.events??[])];
   if(opening.game.stage!=='combat'||opts.party)return strip(opening);
   const stats=combatBasics(hero),foe=encounterFoe(hero,scene),a=1+Math.floor(random()*20),b=stats.initiativeAdvantage?1+Math.floor(random()*20):a,enemyDie=1+Math.floor(random()*20),enemyBonus=foe.saves?.Dexterity??0;
@@ -1078,7 +1180,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  // A party's brawl: this hero's turn is over; the people fighting act at their own places in the turn order.
  if(opts.party){
   const own=result.events??stepLogEntries(next.log,result.game.log),g={...result.game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false},h={...(result.health??hp)};
-  tickHeroSpells(g,h);
+  tickHeroSpells(g,h);endHeroTurn(g);
   const left=g.npcCombat.order.filter(n=>n.side==='enemy'&&(g.npcHP?.[n.id]??npcProfile(g,n.id).maximumHP)>0);
   if(!left.length){own.push('The opponents are down. Combat ends.');g.npcCombat={...g.npcCombat,active:false};g.log=['The opponents are down. Combat ends.',...g.log].slice(0,40);}
   g.journal=appendJournal(g.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',[...events,...own].join('\n').slice(0,3000));
@@ -1095,6 +1197,8 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  }
  result.events=events;
  result.game={...result.game,...(result.game.npcCombat?{npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1}}:{}),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
+ // The hero's turn is over (Vex reaches into the next), and any Sap not yet spent has run out.
+ result.game=sapsEnd(endHeroTurn(result.game));
  if(result.game.concentration?.remaining!=null){result.game.concentration={...result.game.concentration,remaining:result.game.concentration.remaining-1};if(result.game.concentration.remaining<=0)delete result.game.concentration;}
  result.game={...result.game,journal:appendJournal(result.game.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',events.join('\n').slice(0,3000))};
  return result;
@@ -1113,22 +1217,25 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(who(actor.id).name+' distracts the opposition to help a defender.');continue;}
   const weapon={attackBonus:2,count:1,die:4,bonus:0};
   const helped=next.npcCombat.help===actor.side;
+  // Lying prone, they get up first (unless held down); prone, a Sap, or a grapple spoils their blow (masteryRules.js).
+  if(next.marks&&!allied){const begun=creatureTurnStarts(next,actor.id,who(actor.id).name,hp);next=begun.game;logs.push(...begun.lines);}
   // In a party any standing hero may be the one struck.
   if(party&&!allied){
    const pool=[...(hp.current>0?[null]:[]),...partyTargets(next)],pick=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))];
    if(pick!==null){
-    const dodging=(party.dodging??[]).includes(pick),mode=helped===dodging?'normal':helped?'advantage':'disadvantage';
+    const dodging=(party.dodging??[]).includes(pick)||foeEdge(next,actor.id,pick,hp).length>0,mode=helped===dodging?'normal':helped?'advantage':'disadvantage';
     if(helped)next.npcCombat.help=null;
     const struck=foeHitsPartyHero(next,{...weapon,type:'Bludgeoning',name:who(actor.id).name,cause:'Struck down by '+who(actor.id).name},who(actor.id).name,pick,mode,random);
-    next=struck.game;logs.push(...struck.lines);continue;
+    next=sapSpent(struck.game,actor.id);logs.push(...struck.lines);continue;
    }
   }
-  const defense=allied?{ac:who(victim.id).ac}:spellDefense(next,stats.ac);
-  const disadvantage=!allied&&(dodgeLead||defense.disadvantage);
+  const defense=allied?{ac:who(victim.id).ac}:spellDefense(next,stats.ac),why=allied?[]:foeEdge(next,actor.id,heroIdOf(next),hp);
+  const disadvantage=!allied&&(dodgeLead||defense.disadvantage||why.length>0);
   const attack=rollAttack(weapon,helped===disadvantage?'normal':helped?'advantage':'disadvantage',random);
+  if(!allied)next=sapSpent(next,actor.id);
   if(helped)next.npcCombat.help=null;
   const hit=!attack.miss&&(attack.critical||attack.total>=defense.ac),damageRoll=hit?rollDamage(weapon,attack.critical,random):null,damage=damageRoll?.total??0;
-  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}) + 2 = ${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
+  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}${why.length?', '+why.join(', '):''}) + 2 =${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
   else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
@@ -1309,8 +1416,9 @@ function heroStep(game,health,hero,action,random,opts={}){
  if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
  // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
  const result=livingStep(game,health,gearedHero(hero,game),action,random,opts);
- // Once no fight is on, weapons thrown in it are gathered up again.
- if(result.game&&!result.error&&result.game.stage!=='combat'&&!result.game.npcCombat?.active){const gathered=gatherThrown(result.game);if(gathered){result.game={...gathered.game,log:[gathered.line,...(gathered.game.log??[])].slice(0,40)};result.events=[...(result.events??[]),gathered.line];}}
+ // Once no fight is on, weapons thrown in it are gathered up again, and nothing of the fight (a grip, a creature lying
+ // prone, Vex) outlasts it.
+ if(result.game&&!result.error&&result.game.stage!=='combat'&&!result.game.npcCombat?.active){result.game=fightOver(result.game);const gathered=gatherThrown(result.game);if(gathered){result.game={...gathered.game,log:[gathered.line,...(gathered.game.log??[])].slice(0,40)};result.events=[...(result.events??[]),gathered.line];}}
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
  if(result.game&&result.game!==game&&(result.game.subdue!==undefined||result.game.aim!==undefined)){result.game={...result.game};delete result.game.subdue;delete result.game.aim;}
  return result;
@@ -1365,7 +1473,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  if(action==='story-advance')return advanceChapter(game,health,hero);
  if(action?.type==='lead-done')return finishLead(game,health,action.id);
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
- if(typeof action==='string'&&!allowed.includes(action)&&!action.startsWith('attack:')&&!action.startsWith('throw:'))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
+ if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};

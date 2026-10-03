@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // Killing and dying: death saving throws, outright death, a dead hero's save, NPCs killed or knocked out, the story
 // foe slain or beaten, and attacks in any wording (main weapon, named weapon, bare hands, a bow).
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','hostileEncounter.js','quickActions.js','characterStorage.js','pregens.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','hostileEncounter.js','quickActions.js','characterStorage.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({adventureStep,newAdventure,validAdventure,adventureSnapshot,equipmentFor,attackOptions,unarmedStrike,rangedMode,rollDamage,dmCommand,dmChoices,commitDmTurn,hostileEncounterGame,quickActions,storyText,withAttackIntent,npcScene,dmContext,readyHero})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const make=(cls,patch={})=>{const h={name:'Death tester',class:cls,species:'Human',level:1,scores:{Strength:16,Dexterity:14,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[],...patch};h.equipment=r.equipmentFor(h);return h;};
@@ -92,7 +92,11 @@ assert.ok(!r.quickActions(fighter,inFight).some(a=>a.weapon==='Unarmed Strike'))
 const bareChip=r.quickActions(bare,inFight)[0];assert.equal(bareChip.weapon,'Unarmed Strike');assert.equal(bareChip.label,'Unarmed');assert.equal(bareChip.primary,true);
 // Fists and bows resolve in the engine (the opening shot has no disadvantage; a later one does).
 const shot=r.adventureStep(fight,{current:10,temp:0},rogue,{type:'encounter-attack',weapon:'Shortbow'},()=>0.5);assert.equal(shot.error,undefined);assert.ok(shot.events.some(t=>t.startsWith('You use Shortbow: d20 [11] (normal)')));
-const close=r.adventureStep(shot.game,shot.health,rogue,'attack:Shortbow',()=>0.5);assert.ok(close.events.some(t=>t.startsWith('You use Shortbow: d20 [11, 11] (disadvantage)')));
+// The Rogue has mastered the shortbow (Vex): a hit that hurts gives the next shot advantage, which cancels the
+// disadvantage of shooting with the foe beside you. Without it, the close shot has disadvantage.
+if(shot.game.vex){const vexed=r.adventureStep(shot.game,shot.health,rogue,'attack:Shortbow',()=>0.5);assert.ok(vexed.events.some(t=>t.startsWith('You use Shortbow: d20 [11] (normal, Vex)')),vexed.events.join(' | '));}
+const plainShot={...shot.game};delete plainShot.vex;
+const close=r.adventureStep(plainShot,shot.health,rogue,'attack:Shortbow',()=>0.5);assert.ok(close.events.some(t=>t.startsWith('You use Shortbow: d20 [11, 11] (disadvantage)')));
 const punch=r.adventureStep(inFight,{current:12,temp:0},fighter,'attack:Unarmed Strike',()=>0.99);assert.ok(punch.events.includes('4 bludgeoning damage (1 +3).'));
 // Spells at a loosely named foe ("the bandit", "him") are rolled by the engine, not sent for a manual ruling.
 const wiz=r.readyHero('wizard'),wfight=r.hostileEncounterGame(wiz,r.newAdventure(wiz),()=>0);
@@ -101,5 +105,7 @@ for(const target of ['the bandit','him','the Bandit Cutthroat']){const cast=r.dm
 for(const [said,id] of [['I cast FB at the bandit','fire-bolt'],['I cast mm at him','missile'],['I cast missiles at the bandit','missile'],['I cast frost at it','ray-of-frost']])assert.equal(r.dmCommand(wiz,wfight,said,null).action?.request?.id,id,said);
 assert.match(r.dmCommand(wiz,wfight,'I cast a spell at the bandit',null).error,/Name one of your prepared spells/);
 // The DM sees what the hero carries.
-same({...r.dmContext(rogue,inFight,{current:10,temp:0}).attackOptions},{mainWeapon:'Shortsword',carried:['Shortsword','Dagger','Shortbow (ranged)'],unarmed:'Unarmed Strike'});
+{const told=r.dmContext(rogue,inFight,{current:10,temp:0}).attackOptions;same({mainWeapon:told.mainWeapon,carried:told.carried,unarmed:told.unarmed},{mainWeapon:'Shortsword',carried:['Shortsword','Dagger','Shortbow (ranged)'],unarmed:'Unarmed Strike'});
+ // A Rogue masters two kinds: the main weapon and the bow (Weapon Mastery); grappling and two weapons are explained.
+ same(told.masteries.map(m=>m.split(':')[0]),['Shortsword','Shortbow']);assert.match(told.grappleAndShove,/DC \d+/);assert.match(told.twoWeapons,/light weapon/);}
 console.log('Passed: falling and death saves (natural 1 and 20, stable, dead), outright death, protected dead saves, foes slain or beaten, NPCs killed, knocked out and finished off, and attacks by any wording with main weapon, named weapon, fists or bow.');

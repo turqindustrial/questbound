@@ -4,23 +4,24 @@ import {loadoutFor,classWeapons} from './equipmentRules';
 // How well a weapon suits this hero: the chance to hit an ordinary foe times the damage of a hit.
 const weaponScore=w=>Math.max(.05,Math.min(.95,(w.attackBonus+8)/20))*(w.heavyDisadvantage?.5:1)*Math.max(1,(w.count*(w.die+1))/2+w.bonus);
 
-// Only weapons available in the current starter kits are supported.
+// Only weapons available in the current starter kits are supported. `light` weapons can fight two at once, and
+// `mastery` is the weapon's mastery property (masteryRules.js), both as in the 2024 rules (SRD 5.2).
 export const weapons = {
-  Dagger:{die:4,type:'Piercing',finesse:true,range:'Thrown 20/60 ft.'},
-  Handaxe:{die:6,type:'Slashing',range:'Thrown 20/60 ft.'},
-  Javelin:{die:6,type:'Piercing',range:'Thrown 30/120 ft.'},
-  Mace:{die:6,type:'Bludgeoning'},
-  Quarterstaff:{die:6,type:'Bludgeoning',versatile:true},
-  Sickle:{die:4,type:'Slashing'},
-  Spear:{die:6,type:'Piercing',versatile:true,range:'Thrown 20/60 ft.'},
-  Greataxe:{die:12,type:'Slashing',martial:true,heavy:true,twoHands:true},
-  Greatsword:{count:2,die:6,type:'Slashing',martial:true,heavy:true,twoHands:true},
-  Flail:{die:8,type:'Bludgeoning',martial:true},
-  Longsword:{die:8,type:'Slashing',martial:true,versatile:true},
-  Scimitar:{die:6,type:'Slashing',martial:true,finesse:true},
-  Shortsword:{die:6,type:'Piercing',martial:true,finesse:true},
-  Shortbow:{die:6,type:'Piercing',ranged:true,twoHands:true,range:'Range 80/320 ft.'},
-  Longbow:{die:8,type:'Piercing',martial:true,ranged:true,heavy:true,twoHands:true,range:'Range 150/600 ft.'},
+  Dagger:{die:4,type:'Piercing',finesse:true,light:true,range:'Thrown 20/60 ft.',mastery:'Nick'},
+  Handaxe:{die:6,type:'Slashing',light:true,range:'Thrown 20/60 ft.',mastery:'Vex'},
+  Javelin:{die:6,type:'Piercing',range:'Thrown 30/120 ft.',mastery:'Slow'},
+  Mace:{die:6,type:'Bludgeoning',mastery:'Sap'},
+  Quarterstaff:{die:6,type:'Bludgeoning',versatile:true,mastery:'Topple'},
+  Sickle:{die:4,type:'Slashing',light:true,mastery:'Nick'},
+  Spear:{die:6,type:'Piercing',versatile:true,range:'Thrown 20/60 ft.',mastery:'Sap'},
+  Greataxe:{die:12,type:'Slashing',martial:true,heavy:true,twoHands:true,mastery:'Cleave'},
+  Greatsword:{count:2,die:6,type:'Slashing',martial:true,heavy:true,twoHands:true,mastery:'Graze'},
+  Flail:{die:8,type:'Bludgeoning',martial:true,mastery:'Sap'},
+  Longsword:{die:8,type:'Slashing',martial:true,versatile:true,mastery:'Sap'},
+  Scimitar:{die:6,type:'Slashing',martial:true,finesse:true,light:true,mastery:'Nick'},
+  Shortsword:{die:6,type:'Piercing',martial:true,finesse:true,light:true,mastery:'Vex'},
+  Shortbow:{die:6,type:'Piercing',ranged:true,twoHands:true,range:'Range 80/320 ft.',mastery:'Vex'},
+  Longbow:{die:8,type:'Piercing',martial:true,ranged:true,heavy:true,twoHands:true,range:'Range 150/600 ft.',mastery:'Slow'},
 };
 export function weaponAttacks(hero) {
   if (!combatBasics(hero).available || !hero.equipment?.items) return [];

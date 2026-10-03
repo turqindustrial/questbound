@@ -2,6 +2,7 @@ import {requestSpell,knownSpells,automaticEffects} from './spellRules';
 import {modifier,validLevel,martialDie,proficiencyBonus} from './characterRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {spellLibrary,slotChoices} from './spellOptions';
+import {offhandWeapons,masteryOf} from './masteryRules';
 
 export const castingAbilities={Artificer:'Intelligence',Bard:'Charisma',Cleric:'Wisdom',Druid:'Wisdom',Paladin:'Charisma',Ranger:'Wisdom',Sorcerer:'Charisma',Warlock:'Charisma',Wizard:'Intelligence'};
 export function classActions(hero,game) {
@@ -21,8 +22,13 @@ export const windLimit=hero=>hero.level>=10?4:hero.level>=4?3:2;
 // bonus-action spell that can still be cast this turn. Healing is only offered to someone who is hurt. The engine
 // pauses a turn for these after the action, so the player can use one or end the turn.
 export function bonusOptions(hero,game,health,maximum){
-  if(game.stage!=='combat'||game.bonusUsed||!validLevel(hero.level))return [];
-  const hurt=(health?.current??maximum)<maximum,used=game.resources??{},options=[];
+  if(game.stage!=='combat'||!validLevel(hero.level))return [];
+  // Two-weapon fighting: after an attack with a Light weapon, the other hand's Light weapon (a bonus action, or part
+  // of the Attack action with Nick).
+  const offhand=[];
+  if(game.lightAttack&&!game.nickUsed)for(const w of offhandWeapons(hero,game.lightAttack.weapon)){const nick=masteryOf(hero,w)==='Nick'&&!game.nickUsed;if(nick||!game.bonusUsed)offhand.push({id:'offhand:'+w.name,name:'Off-hand '+w.name,nick});}
+  if(game.bonusUsed)return offhand;
+  const hurt=(health?.current??maximum)<maximum,used=game.resources??{},options=[...offhand];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))options.push({id:'class:wind',name:'Second Wind'});
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)options.push({id:'class:hands',name:'Lay on Hands'});
   if(hero.class==='Monk')options.push({id:'class:strike',name:'Martial Arts strike'});

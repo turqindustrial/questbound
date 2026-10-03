@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','spellOptions.js','characterRules.js','weaponRules.js','spellRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','spellOptions.js','characterRules.js','weaponRules.js','masteryRules.js','spellRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({requestSpell,resolveSpellRuling,concentrationAfterDamage})');
 const hero={class:'Wizard',level:5,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:['acid-splash','missile']};
 const request={id:'acid-splash',slot:0,intent:'At the enemy',componentsConfirmed:true,forceDM:true};

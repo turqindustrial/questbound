@@ -7,9 +7,9 @@ import {combatBasics} from './combatRules';
 // (adventureRules.js), and the Dungeon Master is told about them but never speaks or acts for them (dmContext.js).
 // Turning the view is not a move: the table compares snapshots in their settled form (canonicalParty), which is the
 // same from every point of view, so only real changes are sent.
-export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','dying','death'];
+export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','dying','death'];
 // What belongs to one hero's turn and does not outlast it.
-const turnFields=['actionUsed','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn'];
+const turnFields=['actionUsed','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed'];
 export const maxPartySize=4;
 export const isPartyGame=game=>!!game?.party&&typeof game.party==='object'&&!!game.party.members&&typeof game.party.lead==='string';
 const pick=(o,keys)=>Object.fromEntries(keys.filter(k=>o?.[k]!==undefined).map(k=>[k,o[k]]));

@@ -1,5 +1,6 @@
 import {attackOptions,canThrow} from './weaponRules';
 import {gearedHero} from './inventoryRules';
+import {offhandWeapons} from './masteryRules';
 import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
@@ -48,6 +49,11 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   let text=message.trim();
   // A dying hero can only fight to hold on.
   if(game.stage==='dying')return /\b(?:death sav|saving throw|hold on|stay alive|survive|breathe|stay conscious|fight (?:to|for)|roll)\w*/i.test(text)?{action:'death-save'}:null;
+  // Two-weapon fighting: after a Light weapon's attack, the other hand ("I stab with my other dagger", "off-hand").
+  if(game.stage==='combat'&&game.lightAttack&&/\b(?:off-?hand|other hand|other (?:dagger|sickle|scimitar|shortsword|handaxe|blade|sword|axe|knife))\b/i.test(text)){
+    const options=offhandWeapons(hero,game.lightAttack.weapon),named=options.find(w=>text.toLowerCase().includes(w.name.toLowerCase()))??options[0];
+    return named?{action:'offhand:'+named.name}:{error:'Your other hand needs a second light weapon, and no shield, for that.'};
+  }
   // A short attack keeps the current conversation/combat target. Resolve it once
   // into an explicit command so preview and commit cannot choose different people.
   const short=text.match(new RegExp('^(?:I )?(?:'+VERBS+')(?: (?:them|him|her|it))?(?: out)?(?: (?:with|using) (?:my |the |a |an )?(.+?))?[.!]?$','i'));
@@ -64,6 +70,14 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     const normalizedCommand='I attack '+target+' with '+chosen.name;
     const resolved=dmCommand(hero,game,normalizedCommand,health);
     return resolved?{...resolved,normalizedCommand}:null;
+  }
+  // Grappling and shoving: an Unarmed Strike that seizes or knocks down ("I grapple the bandit", "I shove him to the
+  // ground", "I trip the wolf"), at whoever an attack would go for. Anything else ("I grab the key") is left alone.
+  const seize=text.match(/^(?:I )?(?:try to )?(grapple|grab|seize|wrestle|tackle|pin|shove|trip|knock down|knock over|push down|throw down)\s+(.+?)(?:\s+(?:down|over|to the ground|to the floor|prone|off (?:his|her|their|its) feet))?[.!]?$/i);
+  if(seize&&!/\b(?:with|using)\b/i.test(seize[2])){
+    const kind=/^(?:grapple|grab|seize|wrestle|tackle|pin)$/i.test(seize[1])?'grapple':'shove';
+    const resolved=dmCommand(hero,game,'I punch '+seize[2],health,currentTarget);
+    if(resolved?.action&&typeof resolved.action==='object'&&['encounter-attack','npc-attack'].includes(resolved.action.type))return {action:{...resolved.action,weapon:'Unarmed Strike',unarmed:kind}};
   }
   // A throw: "I throw my javelin at the bandit", "I hurl a dagger at him". It is an attack with that weapon, thrown
   // ("throw a punch" stays a punch). Without a target it goes at whoever an attack would.
