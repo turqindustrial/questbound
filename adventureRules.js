@@ -19,6 +19,13 @@ import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
 import {proficiencyBonus} from "./characterRules";
+// A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
+function thrownPickedUp(pack){
+  if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
+  const next={...pack},spent=Object.fromEntries(Object.entries(pack.spent).filter(([k])=>k==='Arrow'));
+  if(Object.keys(spent).length)next.spent=spent;else delete next.spent;
+  return next;
+}
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
 const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
@@ -98,8 +105,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     stage: 'inn',
     encounterLevel: hero?.level ?? 1,
     enemyHP: 10 + 8 * ((hero?.level ?? 1) - 1),
-    // What you carry comes with you; a fresh start always has at least one draught.
-    ...(previous?.pack ? {pack: previous.pack} : {}),
+    // What you carry comes with you (weapons thrown in an unfinished fight picked up again); a fresh start always has
+    // at least one draught.
+    ...(previous?.pack ? {pack: thrownPickedUp(previous.pack)} : {}),
     // A level earned on the road and not yet taken stays earned; deeds are the hero's for good.
     ...(previous?.levelsOwed ? {levelsOwed: previous.levelsOwed} : {}),
     ...(previous?.deeds?.length ? {deeds: previous.deeds} : {}),

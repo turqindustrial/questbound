@@ -39,7 +39,9 @@ assert.match(r.adventureStep(empty,health,fighter,'throw:Javelin',()=>.6).error?
 // The fight ends: the javelins are gathered up.
 let game=thrown.game,hp=thrown.health;for(let i=0;i<30&&game.stage==='combat';i++){const s=r.adventureStep(game,hp,fighter,game.actionUsed?'end-turn':'attack:Greatsword',()=>.95);game=s.game;hp=s.health;if(s.events?.some(e=>/gather up your thrown javelin/.test(e)))assert.ok(true);}
 assert.notEqual(game.stage,'combat');assert.equal(game.pack.spent.Javelin,undefined,'gathered up after the fight');assert.ok(game.log.some(l=>/You gather up your thrown javelin/.test(l)));assert.equal(held(fighter,game,'Javelin'),8);
-assert.ok(r.validPack({gold:1,items:[],spent:{Arrow:2,Dagger:1}}));assert.equal(r.validPack({gold:1,items:[],spent:{Longsword:1}}),false,'only thrown weapons and arrows are spent');
+assert.ok(r.validPack({gold:1,items:[],spent:{Arrow:2,Dagger:1}}));
+// A new adventure begun mid-fight: thrown weapons are picked up again; arrows shot stay spent.
+assert.equal(JSON.stringify(r.newAdventure(fighter,{pack:{gold:1,items:[],spent:{Javelin:2,Arrow:3}}}).pack.spent),JSON.stringify({Arrow:3}));assert.equal(r.validPack({gold:1,items:[],spent:{Longsword:1}}),false,'only thrown weapons and arrows are spent');
 // Typed: "I throw my javelin at the bandit" throws; "throw a punch" punches; a sword is not for throwing.
 const said=r.dmCommand(fighter,bandit,'I throw my javelin at the bandit.',health);assert.equal(JSON.stringify(said.action),JSON.stringify({type:'encounter-attack',weapon:'Javelin',thrown:true}));
 assert.equal(r.dmCommand(fighter,bandit,'I hurl a javelin.',health).action.thrown,true,'at whoever an attack would go for');
