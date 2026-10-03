@@ -45,13 +45,14 @@ assert.equal(r.validAdventure(r.adventureSnapshot(hero,{...game,playback:[{id:1,
 (async()=>{
  const {generateAdventure}=require('./adventure-generator.cjs'),intros=require('./adventureIntros.json');
  assert.equal(new Set(intros.map(i=>i.id)).size,intros.length);
- for(const intro of intros.filter(i=>!i.local)){let request;
+ // Your own tale (intro.idea) needs the player's idea: verify-tales-ahead.cjs covers it.
+ for(const intro of intros.filter(i=>!i.local&&!i.idea)){let request;
   await generateAdventure({input:'Begin',context:{mode:'adventure',choices:[],introId:intro.id}},{apiKey:'test-only',model:'test-model',fetchImpl:async(url,options)=>{request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({foeAppearance:'A spiny plant creature.',npcs:{keeper:{name:'Orin',appearance:'An old dwarf with copper spectacles.',personality:'Patient, gentle and precise.'},mara:{name:'Vessa',appearance:'A green dragonborn with silver horns.',personality:'Quick-witted and restless.'}}})}]}]})};}});
   const body=JSON.parse(request.input);assert.equal(body.selectedOpening?.id??'surprise',intro.id);if(intro.id!=='surprise')assert.ok(body.creativeDirection.includes(intro.conflict));
  }
  // An opening the list no longer has (a browser still on an earlier build) becomes a tale of the writer's choosing.
  {let request;await generateAdventure({input:'Begin',context:{mode:'adventure',choices:[],introId:'caravan'}},{apiKey:'test-only',model:'test-model',fetchImpl:async(url,options)=>{request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({foeAppearance:'A spiny plant creature.',npcs:{keeper:{name:'Orin',appearance:'An old dwarf with copper spectacles.',personality:'Patient, gentle and precise.'},mara:{name:'Vessa',appearance:'A green dragonborn with silver horns.',personality:'Quick-witted and restless.'}}})}]}]})};}});
   const body=JSON.parse(request.input);assert.equal(body.selectedOpening,null);assert.ok(body.creativeDirection.length>20);}
- assert.ok(intros.filter(i=>i.scale==='saga').length>=6,'A fresh set of long adventures');for(const i of intros.filter(i=>i.scale==='saga'))for(const key of ['title','setting','conflict','journey','stakes','arrival','tone'])assert.ok(typeof i[key]==='string'&&i[key].length>3,i.id+' has '+key);
+ assert.ok(intros.filter(i=>i.scale==='saga').length>=6,'A fresh set of long adventures');for(const i of intros.filter(i=>i.scale==='saga'&&!i.idea))for(const key of ['title','setting','conflict','journey','stakes','arrival','tone'])assert.ok(typeof i[key]==='string'&&i[key].length>3,i.id+' has '+key);
  console.log('Passed: chronological initiative/retaliation, opening attack precedences, repeated turns, modifiers and damage dice, residual effects/expiration, cantrip costs, bounded save/reload, conversation routing, and all opening prompts.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

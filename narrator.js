@@ -31,6 +31,9 @@ export function pickVoice(voices,preferred=null){
  return [...voices].sort((a,b)=>score(b)-score(a))[0];
 }
 let speaking=0,lastSynth=null;
+// How the chosen narrator sounds (storyPreferences.js narrators: rate and pitch), set by the app when it changes.
+let style={rate:.96,pitch:.92};
+export function setNarratorStyle(next){if(next&&Number.isFinite(next.rate)&&Number.isFinite(next.pitch))style={rate:Math.max(.5,Math.min(1.5,next.rate)),pitch:Math.max(.5,Math.min(1.5,next.pitch))};}
 export function stopNarrator(){const s=lastSynth??synth();if(s)try{s.cancel();}catch{}if(speaking){speaking=0;try{narrating(false);}catch{}}}
 // Speaking never throws into the game: a browser whose speech engine refuses is simply silent.
 export function speakLines(lines,{settings=audioSettings(),s=synth(),Utterance=globalThis.SpeechSynthesisUtterance,voices=null}={}){
@@ -41,7 +44,7 @@ export function speakLines(lines,{settings=audioSettings(),s=synth(),Utterance=g
   const chunks=lines.flatMap(line=>speechChunks(line));if(!chunks.length)return false;
   speaking=chunks.length;try{narrating(true);}catch{}
   for(const chunk of chunks){
-   const u=new Utterance(chunk);if(voice)u.voice=voice;u.lang=voice?.lang??'en-GB';u.rate=0.96;u.pitch=0.92;u.volume=Math.max(0,Math.min(1,settings.master??1));
+   const u=new Utterance(chunk);if(voice)u.voice=voice;u.lang=voice?.lang??'en-GB';u.rate=style.rate;u.pitch=style.pitch;u.volume=Math.max(0,Math.min(1,settings.master??1));
    const done=()=>{if(speaking>0&&--speaking===0)try{narrating(false);}catch{}};u.onend=done;u.onerror=done;
    s.speak(u);
   }
@@ -52,6 +55,9 @@ export function speakLines(lines,{settings=audioSettings(),s=synth(),Utterance=g
 export function speakTurn(turn,options={}){
  try{const settings=options.settings??audioSettings();if(!settings.narrator||settings.muted)return false;return speakLines(spokenLines(turn),{...options,settings});}catch{return false;}
 }
-export function sampleNarrator(){return speakLines(['Welcome, traveller. I will read the Dungeon Master\'s words to you as your tale unfolds.']);}
+// A sample line, when the narrator voice is turned on or another narrator is chosen (quiet: only if the voice is on).
+export function sampleNarrator(line='Welcome, traveller. I will read the Dungeon Master\'s words to you as your tale unfolds.',{quiet=false}={}){
+ try{if(quiet){const settings=audioSettings();if(!settings.narrator||settings.muted)return false;}return speakLines([line]);}catch{return false;}
+}
 // Turning the narrator off, or muting, silences a line already being spoken.
 if(typeof globalThis.window!=='undefined')subscribeAudio(settings=>{if(!settings.narrator||settings.muted)stopNarrator();});

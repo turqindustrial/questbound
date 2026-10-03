@@ -11,7 +11,7 @@ import TurnPlayback from './TurnPlayback';
 import {conversationPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
 import {adventureStep} from './adventureRules';
 import {dmCommand,withAttackIntent} from './dmCommands';
-import {storyPreferences} from './storyPreferences';
+import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
 import {skirmishHint} from './skirmishGuide';
 import {attitudeLabel} from './relationshipRules';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
@@ -43,6 +43,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const offline=()=>dmEndpoints()[0]==='/api'?'The host\'s Dungeon Master is not answering right now. Your words are kept here; try again in a moment.':'The Dungeon Master service is not running on this PC. Start it with Questbound.cmd, then try again; your words are kept here.';
   // Out of character: the next message goes to the Dungeon Master as a player, not into the story.
   const [direct,setDirect]=useState(false);
+ // The narrator's name heads the story (Settings → Story or the New Adventure screen choose who tells it).
+ const [teller,setTeller]=useState(()=>narratorOf(storyPreferences().narrator));
+ useEffect(()=>subscribeStoryPreferences(p=>setTeller(narratorOf(p.narrator))),[]);
   const transition=useSceneTransition();
   const openConversation=async id=>{try{await transition.prepare(conversationPeople(game).map(n=>npcArtSubject(game,n.id)));setConversationId(id);setError('');return true;}catch(e){setError(e.message);return false;}};
   const creature=creatureArtSubject(game),creatureKey=creature?artIdentity(creature):null;
@@ -270,8 +273,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
       <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
     </View>:!short&&!compact&&!snug&&<View style={s.fillHeader}>
-      <View style={s.dmMark}><Icon name="quill" size={compact?17:19} color={colors.goldBright}/></View>
-      <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>The Dungeon Master</Text></View>
+      <View style={s.dmMark}><Icon name={teller.icon} size={compact?17:19} color={colors.goldBright}/></View>
+      <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>{teller.name}</Text></View>
       {statusPill}
     </View>}
     {!connected&&checked&&<View accessibilityLiveRegion="polite" style={[s.notice,unpaired&&{borderColor:tint('rgba(224,74,92,.55)')}]}>

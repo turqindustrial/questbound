@@ -1,11 +1,113 @@
 [
-  {"id":"surprise","title":"Let fate decide","setting":"A country you have never seen, made for your hero alone.","conflict":"The Dungeon Master chooses the land, the trouble at its heart, the people caught in it and the moment that pulls you in.","journey":"Wherever the tale leads: a long errand told in chapters, with roads to follow and lands beyond the first map.","stakes":"Unknown until you are in it.","arrival":"A stranger at the right moment","tone":"Any tale","scale":"saga"},
-  {"id":"crown","title":"The Ashen Crown","setting":"A mountain kingdom in its last autumn: a walled capital under three high passes, beacon towers and the old royal roads.","conflict":"The old queen is dying and her heir never came back from the pilgrim road. A cousin with an army at his back offers to keep the throne warm, and someone inside the palace paid to make the heir disappear.","journey":"From the capital over the high passes to the pilgrim shrines, then down into the lowland duchy the pretender calls home.","stakes":"A crown, a civil war, and which of two people you come to trust.","arrival":"A royal seal is pressed into your hand at the gate","tone":"Intrigue · War","scale":"saga","openingDialogue":true},
-  {"id":"drowned","title":"The Drowned Road","setting":"A pilgrim causeway across a tidal sea of salt marsh, strung with chapel islands and ferry towns, with a lighthouse abbey at its far end.","conflict":"A plague ship has run aground with its bells still ringing. The reliquary that keeps the tide-fever from the pilgrims is gone from the abbey, and the people on the road are starting to sicken.","journey":"Down the causeway from island to island as the tides allow, then by boat to the smugglers' coast where the reliquary was sold.","stakes":"Thousands of pilgrims, a faith that may rest on a lie, and a thief who had good reason.","arrival":"The tide cuts the road behind you","tone":"Mystery · Voyage","scale":"saga"},
-  {"id":"sunforge","title":"Embers of the Sun-Forge","setting":"A caravan city on the shore of a sand sea, where three trading houses share one well and no trust.","conflict":"A storm has uncovered the gates of a forge-city buried for a thousand years. Its fires are lighting themselves, the houses are racing each other to reach it, and the first expedition has come back as one raving survivor.","journey":"Across the dunes by oasis and wind-carved ruin to the buried city, and down into its foundries.","stakes":"Whoever holds the forge arms the desert, and something inside it is waking with the fires.","arrival":"A dying scout names you with her last breath","tone":"Expedition · Survival","scale":"saga","openingDialogue":true},
-  {"id":"winter","title":"The Wolf Winter","setting":"A northern march of timber halls and frozen lakes, where the thaw is forty days late and the stores are running out.","conflict":"The wolves have stopped fearing fire and hunt in ranks. Children walk out into the snow at night, and the jarl's seer says a voice on the glacier is calling the winter down.","journey":"North along the ice roads, through burned steadings and the barrow hills, to the glacier where the voice is.","stakes":"A people's last winter, and a bargain struck generations ago that someone must now keep or break.","arrival":"You are dragged from a snowdrift, half dead","tone":"Horror · Survival","scale":"saga","openingDialogue":true},
-  {"id":"deep","title":"The Hollow Throne","setting":"A kingdom under the mountains: lamp-lit halls, fungus terraces and the deep roads that join them.","conflict":"The light-wells that feed the under-folk are going dark one by one. The regent blames the miners' guild, the guild blames the regent, and the wardens sent down the oldest road have not come back.","journey":"Down the deep roads from hall to hall, across the black lake, to the sealed vaults beneath the first throne.","stakes":"A city starving in the dark, a war underground, and what the first king buried.","arrival":"The great gates close behind you for the long dark","tone":"Underworld · Politics","scale":"saga"},
-  {"id":"names","title":"The Thief of Names","setting":"A great river port of bridges, guild halls and night markets, and the river road that runs from it down to the sea.","conflict":"People are waking with no name and no past, their debts and deeds signed over to strangers. This morning it was someone who knew you, and the clerk who noticed has been pulled from the river.","journey":"Through the quarters of the city, then downriver by barge past the lock towns and the marsh to the sea gate where the names are sold.","stakes":"Stolen lives, a guild that profits from forgetting, and your own name on the list.","arrival":"An old friend looks at you and does not know you","tone":"Intrigue · Pursuit","scale":"saga","openingDialogue":true},
-  {"id":"oath","title":"The Oathbreaker's March","setting":"A war-torn border of forest forts, burned villages and a river that two armies watch.","conflict":"A captured captain swears she can end the war with what she knows, if she lives to say it before the high court. Her own side wants her silenced, yours wants her hanged, and you have been handed her chain.","journey":"Ten days through the border forest, across the river under two armies' eyes, to the court in the hill city.","stakes":"The end of a war or the start of a worse one, and whether she is telling the truth.","arrival":"A chain is locked to your wrist at dawn","tone":"Pursuit · Hard choices","scale":"saga","openingDialogue":true},
-  {"id":"hostile","title":"Skirmish","setting":"A roadside ambush against a randomly chosen foe, ready at once with no story to write.","conflict":"You start in combat with the opening attack. Use it to try attacks, spells, dodging, potions, retreat and initiative.","arrival":"Steel out: it is already on you","tone":"Combat practice","local":true}
+  {
+    "id": "surprise",
+    "title": "Let fate decide",
+    "setting": "A country you have never seen, in a tale no one else will ever play.",
+    "conflict": "The Dungeon Master chooses the land, the trouble at its heart, the people caught in it and the moment that pulls you in.",
+    "journey": "Wherever the tale leads: a long errand told in chapters, with roads to follow and lands beyond the first map.",
+    "stakes": "Unknown until you are in it.",
+    "arrival": "A stranger at the right moment",
+    "tone": "Any tale",
+    "scale": "saga"
+  },
+  {
+    "id": "idea",
+    "title": "Your own tale",
+    "setting": "Tell the story writer what you would like to play, in a few words or a few lines, and it writes a long tale around your idea: its own country, people and secrets.",
+    "arrival": "Your idea, your country, your people.",
+    "tone": "Yours to choose",
+    "scale": "saga",
+    "idea": true
+  },
+  {
+    "id": "crown",
+    "title": "The Ashen Crown",
+    "setting": "A mountain kingdom in its last autumn: a walled capital under three high passes, beacon towers and the old royal roads.",
+    "conflict": "The old queen is dying and her heir never came back from the pilgrim road. A cousin with an army at his back offers to keep the throne warm, and someone inside the palace paid to make the heir disappear.",
+    "journey": "From the capital over the high passes to the pilgrim shrines, then down into the lowland duchy the pretender calls home.",
+    "stakes": "A crown, a civil war, and which of two people you come to trust.",
+    "arrival": "A royal seal is pressed into your hand at the gate",
+    "tone": "Intrigue · War",
+    "scale": "saga",
+    "openingDialogue": true
+  },
+  {
+    "id": "drowned",
+    "title": "The Drowned Road",
+    "setting": "A pilgrim causeway across a tidal sea of salt marsh, strung with chapel islands and ferry towns, with a lighthouse abbey at its far end.",
+    "conflict": "A plague ship has run aground with its bells still ringing. The reliquary that keeps the tide-fever from the pilgrims is gone from the abbey, and the people on the road are starting to sicken.",
+    "journey": "Down the causeway from island to island as the tides allow, then by boat to the smugglers' coast where the reliquary was sold.",
+    "stakes": "Thousands of pilgrims, a faith that may rest on a lie, and a thief who had good reason.",
+    "arrival": "The tide cuts the road behind you",
+    "tone": "Mystery · Voyage",
+    "scale": "saga"
+  },
+  {
+    "id": "sunforge",
+    "title": "Embers of the Sun-Forge",
+    "setting": "A caravan city on the shore of a sand sea, where three trading houses share one well and no trust.",
+    "conflict": "A storm has uncovered the gates of a forge-city buried for a thousand years. Its fires are lighting themselves, the houses are racing each other to reach it, and the first expedition has come back as one raving survivor.",
+    "journey": "Across the dunes by oasis and wind-carved ruin to the buried city, and down into its foundries.",
+    "stakes": "Whoever holds the forge arms the desert, and something inside it is waking with the fires.",
+    "arrival": "A dying scout names you with her last breath",
+    "tone": "Expedition · Survival",
+    "scale": "saga",
+    "openingDialogue": true
+  },
+  {
+    "id": "winter",
+    "title": "The Wolf Winter",
+    "setting": "A northern march of timber halls and frozen lakes, where the thaw is forty days late and the stores are running out.",
+    "conflict": "The wolves have stopped fearing fire and hunt in ranks. Children walk out into the snow at night, and the jarl's seer says a voice on the glacier is calling the winter down.",
+    "journey": "North along the ice roads, through burned steadings and the barrow hills, to the glacier where the voice is.",
+    "stakes": "A people's last winter, and a bargain struck generations ago that someone must now keep or break.",
+    "arrival": "You are dragged from a snowdrift, half dead",
+    "tone": "Horror · Survival",
+    "scale": "saga",
+    "openingDialogue": true
+  },
+  {
+    "id": "deep",
+    "title": "The Hollow Throne",
+    "setting": "A kingdom under the mountains: lamp-lit halls, fungus terraces and the deep roads that join them.",
+    "conflict": "The light-wells that feed the under-folk are going dark one by one. The regent blames the miners' guild, the guild blames the regent, and the wardens sent down the oldest road have not come back.",
+    "journey": "Down the deep roads from hall to hall, across the black lake, to the sealed vaults beneath the first throne.",
+    "stakes": "A city starving in the dark, a war underground, and what the first king buried.",
+    "arrival": "The great gates close behind you for the long dark",
+    "tone": "Underworld · Politics",
+    "scale": "saga"
+  },
+  {
+    "id": "names",
+    "title": "The Thief of Names",
+    "setting": "A great river port of bridges, guild halls and night markets, and the river road that runs from it down to the sea.",
+    "conflict": "People are waking with no name and no past, their debts and deeds signed over to strangers. This morning it was someone who knew you, and the clerk who noticed has been pulled from the river.",
+    "journey": "Through the quarters of the city, then downriver by barge past the lock towns and the marsh to the sea gate where the names are sold.",
+    "stakes": "Stolen lives, a guild that profits from forgetting, and your own name on the list.",
+    "arrival": "An old friend looks at you and does not know you",
+    "tone": "Intrigue · Pursuit",
+    "scale": "saga",
+    "openingDialogue": true
+  },
+  {
+    "id": "oath",
+    "title": "The Oathbreaker's March",
+    "setting": "A war-torn border of forest forts, burned villages and a river that two armies watch.",
+    "conflict": "A captured captain swears she can end the war with what she knows, if she lives to say it before the high court. Her own side wants her silenced, yours wants her hanged, and you have been handed her chain.",
+    "journey": "Ten days through the border forest, across the river under two armies' eyes, to the court in the hill city.",
+    "stakes": "The end of a war or the start of a worse one, and whether she is telling the truth.",
+    "arrival": "A chain is locked to your wrist at dawn",
+    "tone": "Pursuit · Hard choices",
+    "scale": "saga",
+    "openingDialogue": true
+  },
+  {
+    "id": "hostile",
+    "title": "Skirmish",
+    "setting": "A roadside ambush against a randomly chosen foe, ready at once with no story to write.",
+    "conflict": "You start in combat with the opening attack. Use it to try attacks, spells, dodging, potions, retreat and initiative.",
+    "arrival": "Steel out: it is already on you",
+    "tone": "Combat practice",
+    "local": true
+  }
 ]

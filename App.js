@@ -31,6 +31,8 @@ import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, useWin
 import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
 import {fonts,colors,type,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
+import {setNarratorStyle} from './narrator';
+import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
 import HomeScreen,{homeLayout,titleArt} from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
@@ -80,7 +82,7 @@ function QuestboundApp() {
   const transition=useSceneTransition();
   const [creatingStory,setCreatingStory]=useState(false),[newStoryRequested,setNewStoryRequested]=useState(false);
   const storyLock=useRef(false);
-  const [selectedIntro,setSelectedIntro]=useState('surprise'),[showReady,setShowReady]=useState(false);
+  const [selectedIntro,setSelectedIntro]=useState('surprise'),[showReady,setShowReady]=useState(false),[idea,setIdea]=useState('');
   const [screen, setScreenState] = useState('Home');
   const [form, setForm] = useState(blankBuild);
   const [hero, setHero] = useState(null);
@@ -99,6 +101,8 @@ function QuestboundApp() {
   const [legalTab,setLegalTab]=useState('privacy'),[legalFrom,setLegalFrom]=useState('Home');
   const openLegal=(tab,from)=>{setLegalTab(tab);setLegalFrom(from);setScreenState('Legal');scrollRef.current?.scrollTo({y:0,animated:false});};
   useEffect(()=>{accountState().then(setAccount).catch(()=>{});},[]);
+  // The read-aloud narrator sounds like the chosen narrator (storyPreferences.js narrators).
+  useEffect(()=>{const apply=p=>setNarratorStyle(narratorOf(p.narrator).voice);apply(storyPreferences());return subscribeStoryPreferences(apply);},[]);
   const [saveRetry,setSaveRetry] = useState(0);
   // Heroes set aside on this device and the fallen; a new story can carry on in the same region.
   const [roster,setRoster]=useState([]),[graves,setGraves]=useState([]),[editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
@@ -194,8 +198,11 @@ function QuestboundApp() {
       const base=newAdventure(hero,characterChosen?carriedBase(game):undefined);
       if(selectedIntro==='hostile'&&!continuing)next=hostileEncounterGame(hero,base);
       else{
+      // The player's own idea: the whole brief for Your own tale, an optional wish for the next tale in a region.
+      const wish=(continuing||selectedIntro==='idea')&&idea.trim()?idea.trim().slice(0,300):null;
+      if(!continuing&&selectedIntro==='idea'&&!wish)throw Error('Write your idea for the tale first.');
       const endpoint=await findDmEndpoint();
-      const {ok,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       if(!ok)throw Error(body.error||'The story could not be created.');
       next=freshStoryGame(hero,{...body.story,introId:continuing?'surprise':selectedIntro},base);
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
@@ -204,7 +211,7 @@ function QuestboundApp() {
       next.storyHistory=[...new Set([...(game.storyHistory??[]),game.story?.title,next.story.title].filter(Boolean))].slice(-100);
       await transition.prepare(sceneArtSubjects(next));
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
-      setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
+      setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);setIdea('');setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
     }catch(e){setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
     finally{storyLock.current=false;setCreatingStory(false);}
   }
@@ -410,7 +417,7 @@ function QuestboundApp() {
         {!!hero&&!heroFallen&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero sets {hero.name} aside with their adventure; switch back below any time.</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
         <HeroRoster roster={roster} graves={graves} onPlay={playFromRoster} onRetire={retireFromRoster} busy={saving||loading||creatingStory} compact={compact}/>
       </>}
-      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
+      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
       {screen === 'Level Up' && hero && <Advancement hero={hero} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
