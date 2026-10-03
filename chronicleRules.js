@@ -44,6 +44,8 @@ export function describeEvent(event){
  if(kind==='action'||kind==='initiative'&&/^Round \d+ begins/.test(text)){
   const round=text.match(/^Round (\d+) begins\.?$/);if(round)return {type:'round',round:Number(round[1])};
   if(/^Your turn\.?$/.test(text))return {type:'turn'};
+  // A party's fight in turns: "Kara’s turn."
+  const whose=text.match(/^(.{1,60}?)’s turn\.?$/);if(whose)return {type:'turn',name:whose[1]};
   if(/^Opening attack\.?$/.test(text))return {type:'opening'};
  }
  if(kind==='initiative'||kind==='roll'){
@@ -57,7 +59,7 @@ export function describeEvent(event){
   const d=dice(text);
   if(d){
    const head=text.match(/^(.+?):\s/)?.[1]??'',save=/ save d20/.test(text),initiative=/initiative$/i.test(head)||/initiative:/.test(text);
-   const target=text.match(/vs (your )?(AC|DC) (\d+)/),total=Number(text.match(/= (\d+)(?: vs|\.)/)?.[1]??NaN);
+   const target=text.match(/vs (your |[^:]{1,60}?’s )?(AC|DC) (\d+)/),total=Number(text.match(/= (\d+)(?: vs|\.)/)?.[1]??NaN);
    const foe=!!target?.[1]||/ attacks you:/.test(text);
    let title=head.replace(/^You use /,'').replace(/^You throw (.+?) at /,'Thrown $1 → ').replace(/^You throw /,'Thrown ').replace(/ against /,' → ');
    const extra=text.match(/[;:] (\d+) (\w+) damage/);

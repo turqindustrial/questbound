@@ -160,10 +160,10 @@ export function pickFoeTarget(game,random){
 export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  const member=game.party.members[pid],name=partyHeroName(member),ac=member.stats?.ac??10,most=member.stats?.hp??1;
  const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
- const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
+ const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs ${name}’s AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
  const damage=rollDamage(foe,attack.critical,random),total=Math.max(1,damage.total),was=member.health?.current??most,now=Math.max(0,was-total);
- const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=('The '+foe.name).slice(0,300);
+ const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300);
  let next={...member,health:{current:now,temp:0}},fell='';
  if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
  else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
@@ -171,6 +171,22 @@ export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }
 const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};
+// A party's fight in turns (adventureRules.js), for the screen and the Dungeon Master: each place in the order, whose
+// turn it is, and whether it is this device's own hero's.
+export function turnOrderView(game){
+ const t=game?.turnOrder,p=game?.party;if(!t||!p?.members||!Array.isArray(t.order))return null;
+ const foeName=game.wildFight?.name??game.story?.foe??(game.dungeon?.active?'Vault guardian':'Lantern Wisp');
+ const entries=t.order.map((e,i)=>{
+  const current=i===t.at;
+  if(e.id==='foe')return {id:e.id,kind:'foe',name:foeName,current};
+  if(e.id.startsWith('npc:')){const id=e.id.slice(4);return {id:e.id,kind:'person',name:npcLabel(game,id),current,down:(game.npcHP?.[id]??1)<=0};}
+  const m=p.members[e.id];if(!m)return null;
+  const mine=e.id===p.lead,status=mine?(game.stage==='dead'?'dead':game.stage==='dying'?'down':'up'):m.status;
+  return {id:e.id,kind:'hero',name:partyHeroName(m),player:m.name||null,mine,status,current};
+ }).filter(Boolean);
+ const current=entries.find(e=>e.current)??null;
+ return {round:t.round,entries,current,mine:!!current?.mine};
+}
 export const partyHeroName=member=>{try{return JSON.parse(member.character).name||'your companion';}catch{return 'your companion';}};
 export function foeHitsCompanion(game,foe,who,id,mode,random){
  if(typeof id==='string'&&id.startsWith('party:'))return foeHitsPartyHero(game,foe,who,id.slice(6),mode,random);

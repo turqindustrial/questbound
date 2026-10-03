@@ -35,6 +35,14 @@ export function validParty(g){
     &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&validPack(m.hero.pack)))
     &&(m.stats===undefined||(integerBetween(m.stats?.ac,0,40)&&integerBetween(m.stats?.hp,1,999)));});
 }
+// A party's fight in turns (adventureRules.js): each hero, the foe or each person fighting, in initiative order.
+export function validTurnOrder(g){
+  const t=g.turnOrder;if(t===undefined)return true;
+  if(!g.party||!t||typeof t!=='object'||!Array.isArray(t.order)||t.order.length<1||t.order.length>16)return false;
+  const ids=t.order.map(e=>e?.id);
+  return t.order.every(e=>e&&typeof e.id==='string'&&e.id.length>0&&e.id.length<=84&&integerBetween(e.init,-20,60))&&new Set(ids).size===ids.length
+    &&integerBetween(t.at,-1,t.order.length-1)&&integerBetween(t.round,1,100000)&&(t.dodging===undefined||(Array.isArray(t.dodging)&&t.dodging.length<=4&&t.dodging.every(id=>typeof id==='string'&&id.length<=80)));
+}
 export function validAdventure(value,hero) {
   const g=value?.game, h=value?.health, maximum=combatBasics(hero).hp;
   return value?.version===1 && typeof value.character==='string' && typeof value.chosen==='boolean'
@@ -43,7 +51,7 @@ export function validAdventure(value,hero) {
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
     && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>npcIdsOf(g).includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
     && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && (g.encounterLevel===hero.level || !!g.party)))
-    && validParty(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
+    && validParty(g) && validTurnOrder(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
     && validWildFight(g) && validCombatExtras(g) && integerBetween(g.potions,0,20) && validPack(g.pack) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
     && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||someone(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=10&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(someone)))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||someone(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))

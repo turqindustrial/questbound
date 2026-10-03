@@ -27,6 +27,7 @@ import {touchKeyboard} from './webLayout';
 import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
 import {greeting,shouldGreet} from './greetings';
+import {turnOrderView} from './encounterRules';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;
@@ -128,13 +129,23 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
   const waiting=table?.joined?table.otherActing:null; const tableSyncing=!!table?.joined&&!table.synchronized;
+  // A party's fight goes in turns (adventureRules.js): on someone else's turn this device waits; after a minute and a
+  // half (or at once when their player has left the table) it may pass that turn.
+  const turnsNow=turnOrderView(game),turnWait=turnsNow&&!turnsNow.mine?turnsNow.current:null,turnKey=turnWait?turnsNow.round+':'+turnWait.id:'';
+  const [patience,setPatience]=useState('');
+  useEffect(()=>{if(!turnKey)return;const timer=setTimeout(()=>setPatience(turnKey),90000);return()=>clearTimeout(timer);},[turnKey]);
+  const awayFromTable=turnWait?.kind==='hero'&&!!table?.joined&&!(table.players??[]).some(p=>p.id===turnWait.id);
+  const canPass=turnWait?.kind==='hero'&&(awayFromTable||patience===turnKey);
+  // The turn has come round to this player: a sound, once a turn.
+  const myTurnKey=turnsNow?.mine?turnsNow.round+':'+turnsNow.current?.id:'';
+  useEffect(()=>{if(myTurnKey&&turnsNow.entries.filter(e=>e.kind==='hero').length>1)playSound('select');},[myTurnKey]);
   // A quick action arrives as {question, action}: the sentence the DM hears and the engine action it resolves.
   async function ask(preset){
     // A preset with `parse` is a complete typed sentence (a spell from the Cast… picker) read by the normal parser.
     preset=preset?.question&&(preset.action||preset.parse)?preset:null;
     const question=preset?.question??input.trim();
     const toDm=!preset&&(direct||toDungeonMaster(question));
-    if(lock.current||playing||!question||waiting||tableSyncing||(game.stage==='dead'&&!toDm))return;const priorReply=reply,snapshot=fingerprint;if(compact||touchKeyboard()){inputRef.current?.blur?.();Keyboard.dismiss();}lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');
+    if(lock.current||playing||!question||waiting||tableSyncing||(game.stage==='dead'&&!toDm)||(turnWait&&!toDm&&preset?.action?.type!=='party-pass'))return;const priorReply=reply,snapshot=fingerprint;if(compact||touchKeyboard()){inputRef.current?.blur?.();Keyboard.dismiss();}lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');
     // Speaking to the Dungeon Master directly: an answer out of character, and the last turn taken back when the
     // DM agrees it went wrong. Nothing else about the game changes.
     if(toDm){
@@ -219,7 +230,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const previousNarration=(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').at(-1)?.text.split(/\n(?:AI DM|Dungeon Master): /).at(-1)?.split('\nResult:')[0];
   const standing=attitudeLabel(person),attitude={label:standing.label,color:{bad:colors.bloodBright,warn:'#e0a860',good:colors.heal,best:colors.goldBright,calm:colors.heal,dead:colors.muted}[standing.tone]};
   const dead=game.stage==='dead',dying=game.stage==='dying';
-  const sendDisabled=busy||playing||!input.trim()||!!waiting||tableSyncing||(dead&&!direct);
+  const sendDisabled=busy||playing||!input.trim()||!!waiting||tableSyncing||(dead&&!direct)||(!!turnWait&&!direct);
   const statusText=busy?(compact?'Resolving…':'Resolving your turn…'):playing?(compact?'Playing…':'Playing turn…'):connected?'Connected':checked?'Offline':'Connecting…';
   const statusColor=busy||playing||!checked?colors.gold:connected?colors.heal:tint('#7d1b2e');
   const hint=tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':null;
@@ -228,7 +239,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // Cast… swaps the row for the hero's spells; a spell casts in one tap (or starts the sentence when it needs a target).
   const spellRow=[{key:'spells-back',glyph:'‹',icon:'back',label:'Back',run:()=>setSpellsOpen(false)},...spellActions(hero,game)];
   const attackRow=attackOpen?attackActions(hero,game,health,attackTarget).map(a=>a.back?{...a,run:closeAttack}:a.target?{...a,run:()=>setAttackTarget(a.target)}:a):[];
-  const actions=person?[]:spellsOpen?spellRow:attackOpen?attackRow:quick,actionsDisabled=busy||playing||!!waiting||tableSyncing;
+  // Someone else's turn: who it is, and (when their player is away or slow) a way to pass it. Your own: said so.
+  const waitRow=turnWait?[{key:'heading:turn-wait',heading:turnWait.name+'’s turn'+(turnWait.status==='down'?' · down':''),strong:true},...(canPass?[{key:'party-pass',glyph:'»',icon:'forward',label:'Skip '+turnWait.name.split(' ')[0],detail:awayFromTable?'Away':'Slow',question:'I pass '+turnWait.name+'’s turn: their player is away.',action:{type:'party-pass'}}]:[])]:null;
+  const actions=person?[]:waitRow??(spellsOpen?spellRow:attackOpen?attackRow:turnsNow?.mine&&quick.length?[{key:'heading:your-turn',heading:'Your turn',strong:true},...quick]:quick),actionsDisabled=busy||playing||!!waiting||tableSyncing;
   const runAction=a=>{
     if(a.key==='cast'){closeAttack();setSpellsOpen(true);return;}
     if(a.key==='attack-menu'){setSpellsOpen(false);setAttackOpen(true);return;}
@@ -255,7 +268,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const pressable=actions.filter(a=>!a.heading);
   const actionChips=actions.map(a=>{
     // A heading in the Attack… picker (Melee, Ranged): a small label, not a button.
-    if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}} style={s.actionHeading}><PlainText style={[s.actionHeadingText,a.quiet&&{color:colors.faint}]}>{a.heading}</PlainText></View>;
+    if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}} style={s.actionHeading}><PlainText style={[s.actionHeadingText,a.quiet&&{color:colors.faint},a.strong&&s.actionHeadingStrong]}>{a.heading}</PlainText></View>;
     const i=pressable.indexOf(a),lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip',pulse:lead&&i===0&&game.stage==='combat'&&!actionsDisabled&&!spellsOpen&&!attackOpen?'on':'off'}} style={[s.action,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
     <Icon name={a.icon??'star'} size={16} color={lead?tint('#ffeef0'):colors.gold}/>
     <PlainText numberOfLines={1} style={[s.actionText,lead&&s.actionPrimaryText]}>{a.label}</PlainText>
@@ -273,10 +286,10 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
   const actionBar=short?row([...actionChips,...extraChips],false,actionScroll):<>{row(extraChips,false)}{row(actionChips,!swipe,actionScroll)}</>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
-  const composer=<TextInput ref={inputRef} dataSet={{qb:'input',composer:'true'}} onFocus={onFocus} onBlur={onBlur} accessibilityLabel={direct?'Message for the Dungeon Master, out of character':'Action for the Dungeon Master'} editable={!dead||direct} value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={direct?(compact?'Ask the Dungeon Master…':'Ask the Dungeon Master: a ruling, a mistake, or what you meant to do…'):dead?'Your hero has died.':dying?(compact?'Fight to hold on…':'You are dying. Fight to hold on…'):person?'Speak to '+person.name+'…':game.stage==='combat'||game.npcCombat?.active?(compact?(game.actionUsed?'Bonus action, or end turn…':'Your move…'):game.actionUsed?'A bonus action, or end your turn…':'Your move: attack, cast a spell, dodge, or try something bold…'):'Describe your next move…'} placeholderTextColor={tint('#938890')} style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9},direct&&s.inputDirect]}/>;
+  const composer=<TextInput ref={inputRef} dataSet={{qb:'input',composer:'true'}} onFocus={onFocus} onBlur={onBlur} accessibilityLabel={direct?'Message for the Dungeon Master, out of character':'Action for the Dungeon Master'} editable={!dead||direct} value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={direct?(compact?'Ask the Dungeon Master…':'Ask the Dungeon Master: a ruling, a mistake, or what you meant to do…'):turnWait?(compact?turnWait.name.split(' ')[0]+'’s turn…':'It is '+turnWait.name+'’s turn. Wait for it, or tap DM to ask the Dungeon Master something.'):dead?'Your hero has died.':dying?(compact?'Fight to hold on…':'You are dying. Fight to hold on…'):person?'Speak to '+person.name+'…':game.stage==='combat'||game.npcCombat?.active?(compact?(game.actionUsed?'Bonus action, or end turn…':'Your move…'):game.actionUsed?'A bonus action, or end your turn…':'Your move: attack, cast a spell, dodge, or try something bold…'):'Describe your next move…'} placeholderTextColor={tint('#938890')} style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9},direct&&s.inputDirect]}/>;
   // The DM switch: the next message is a word with the Dungeon Master, player to DM.
   const dmSwitch=<Pressable accessibilityRole="switch" accessibilityState={{checked:direct,disabled:busy||playing}} accessibilityLabel="Speak to the Dungeon Master out of character" disabled={busy||playing} onPress={()=>{playSound('click');setDirect(value=>!value);setTimeout(()=>inputRef.current?.focus(),30);}} dataSet={{qb:direct?'seg-on':'chip',keepfocus:'true'}} style={[s.dmSwitch,direct&&s.dmSwitchOn,fill&&short&&{minHeight:42},(busy||playing)&&{opacity:.45}]}><Icon name="speak" size={16} color={direct?colors.goldBright:colors.gold}/><PlainText style={[s.dmSwitchText,direct&&{color:colors.goldBright}]}>DM</PlainText></Pressable>;
-  const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting?'Waiting…':direct?'Ask':'Send';
+  const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting||turnWait&&!direct?'Waiting…':direct?'Ask':'Send';
   const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary',keepfocus:'true'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color={tint('#ffeef0')}/>:<Icon name="send" size={20} color={tint('#ffeef0')} strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color={tint('#ffeef0')} strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>
     {person?<View style={[s.fillHeader,typing&&short&&{display:'none'}]}>
@@ -365,7 +378,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(31,24,32,.92)'),maxWidth:260},
  tips:{padding:14,paddingBottom:10,marginTop:4,marginBottom:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),gap:2},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
  tipsText:{flex:1,fontFamily:fonts.ui,color:tint('#dfd9dd'),fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,marginTop:8,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
- actionPrimary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},actionHeading:{minHeight:40,justifyContent:'center',paddingLeft:6,paddingRight:2},actionHeadingText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
+ actionPrimary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},actionHeading:{minHeight:40,justifyContent:'center',paddingLeft:6,paddingRight:2},actionHeadingText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},actionHeadingStrong:{fontSize:12.5,color:colors.goldBright,letterSpacing:1.6},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
  actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:'#dfcdc5',textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:tint('#ffeef0')},
  fillInput:{flex:1,minHeight:48,maxHeight:130,paddingVertical:12,fontSize:17,lineHeight:24},
  fillSend:{minHeight:48,paddingHorizontal:18,justifyContent:'center',alignItems:'center'},

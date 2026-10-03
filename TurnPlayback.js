@@ -105,7 +105,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
    <View style={[s.delta,{borderColor:down?'rgba(240,106,79,.6)':'rgba(111,191,142,.6)'}]}><PlainText style={[s.deltaText,{color:down?colors.bloodBright:colors.heal}]}>{down?'−':'+'}{Math.abs(view.to-view.from)}</PlainText></View>
   </>,s.hpRow);}
   case 'round':return wrap(<><View dataSet={{qb:'rule-left'}} style={s.roundRule}/><Icon name="swords" size={15} color={colors.bloodBright}/><PlainText style={s.roundText}>Round {view.round}</PlainText><Icon name="swords" size={15} color={colors.bloodBright}/><View dataSet={{qb:'rule-right'}} style={s.roundRule}/></>,s.round);
-  case 'turn':return wrap(<View style={s.turnPill}><Icon name="star" size={11} color={colors.goldBright}/><PlainText style={s.turnText}>Your turn</PlainText></View>,s.turnRow);
+  case 'turn':return wrap(<View style={s.turnPill}><Icon name="star" size={11} color={colors.goldBright}/><PlainText style={s.turnText}>{view.name?view.name+'’s turn':'Your turn'}</PlainText></View>,s.turnRow);
   case 'opening':return wrap(<><Icon name="bolt" size={13} color={colors.gold}/><PlainText style={s.overText}>Opening attack</PlainText></>,s.overRow);
   case 'order':return wrap(<><PlainText style={s.overText}>Turn order</PlainText>{view.names.map((n,i)=><React.Fragment key={i}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n==='You'&&s.orderYou]}><Text style={[s.orderText,n==='You'&&{color:colors.goldBright}]}>{n}</Text></View></React.Fragment>)}</>,s.overRow);
   case 'note':return wrap(<><Icon name="spell" size={13} color={colors.arcane}/><Text style={s.noteText}>{view.text}</Text></>,s.noteRow);

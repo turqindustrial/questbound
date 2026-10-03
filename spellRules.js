@@ -81,6 +81,16 @@ export function spellDefense(game,baseAC,attacker={}) {
   const id=active?.automaticProtection===true && active.remaining>0?active.id:null;
   return {ac:baseAC===null?null:baseAC+(id==='shield-of-faith'?2:0),disadvantage:id==='blur' && !attacker.blindsight && !attacker.truesight};
 }
+// Healing another player's hero in the party: up to their maximum, and one who is down (dying) wakes. Null when they
+// are not in the party, are this device's own hero, or are dead.
+export function partyHeal(game,id,amount){
+  const member=game.party?.members?.[id];if(!member||id===game.party.lead||member.status==='dead')return null;
+  let name='your companion';try{name=JSON.parse(member.character).name||name;}catch{}
+  const most=member.stats?.hp??1,was=member.status==='down'?0:member.health?.current??most,now=Math.min(most,was+Math.max(0,amount));
+  if(now<=was)return {party:game.party,name,was,now:was};
+  const hero={...(member.hero??{})};delete hero.dying;
+  return {party:{...game.party,members:{...game.party.members,[id]:{...member,status:'up',health:{current:now,temp:member.status==='down'?0:member.health?.temp??0},hero}}},name,was,now};
+}
 export function requestSpell(hero,game,health,maximum,request,random=Math.random,target={ac:11,saves:{Dexterity:2,Wisdom:0},distance:5}) {
   if(health?.current===0)return {error:'You cannot cast at 0 HP.'};
   const error=castError(hero,game,request);if(error)return {error};
@@ -105,7 +115,12 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     const dice=subclassActive(hero,'Life Domain') && hero.level>=17?Array(count).fill(effect.die):roll(count,effect.die);
     const life=subclassActive(hero,'Life Domain')?2+level:0;
     const healed=Math.max(0,sum(dice)+mod+life);
-    if(request.npcTarget){
+    if(request.partyTarget){
+      // Another player's hero at the shared table (partyRules.js): their own hit points; one who is down wakes.
+      const id=request.partyTarget,woke=partyHeal(game,id,healed);if(!woke)return {error:'That hero is not here.'};
+      next.party=woke.party;
+      logs.push(`${spell.name} on ${woke.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${woke.now-woke.was} HP.${woke.was===0&&woke.now>0?' '+woke.name+' stirs and opens their eyes.':''}`);
+    } else if(request.npcTarget){
       // Healing someone else: an unconscious person comes round, which counts as saving their life.
       const id=request.npcTarget,most=npcProfile(game,id).maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,was+healed);
       next.npcHP={...next.npcHP,[id]:now};
@@ -114,6 +129,12 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     } else {
       hp.current=Math.min(maximum,hp.current+healed);
       logs.push(`${spell.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${hp.current-(health?.current??maximum)} HP.`);
+      // A mass healing spell reaches the rest of the party too (up to six creatures: four heroes at most).
+      if(spell.id.startsWith('mass-')&&game.party?.members){
+        const reached=[];
+        for(const id of Object.keys(game.party.members)){if(id===game.party.lead)continue;const woke=partyHeal({...game,party:next.party??game.party},id,healed);if(woke&&woke.now>woke.was){next.party=woke.party;reached.push(`${woke.name} ${woke.now-woke.was}${woke.was===0?' (wakes)':''}`);}}
+        if(reached.length)logs.push(`${spell.name} also heals ${reached.join(', ')} HP.`);
+      }
     }
   } else if(effect.temp){
     const dice=roll(2,4),amount=sum(dice)+4+5*(level-1);
@@ -174,9 +195,12 @@ export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.r
   }
   // A named person's damage and healing apply to them, never to the caster.
   if(request.npcTarget){const id=request.npcTarget;if(!npcIdsOf(game).includes(id)||!npcScene(game).some(n=>n.id===id&&n.present)||game.npcFate?.[id]==='dead')return {error:'That person is not here.'};const most=npcProfile(game,id).maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,Math.max(0,was-ruling.damage)+ruling.healing);next.npcHP={...game.npcHP,[id]:now};if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}}
+  // Another player's hero: the ruling's healing is theirs (one who is down wakes), and nothing here harms them.
+  if(request.partyTarget){const woke=partyHeal(game,request.partyTarget,ruling.healing);if(!woke)return {error:'That hero is not here.'};next.party=woke.party;}
+  const other=!!(request.npcTarget||request.partyTarget);
   if(!spell.concentration && next.concentration?.id===spell.id)delete next.concentration;
   const absorbed=Math.min(health?.temp??0,ruling.selfDamage??0);
-  const hp={current:Math.min(maximum,Math.max(0,(health?.current??maximum)-((ruling.selfDamage??0)-absorbed))+(request.npcTarget?0:ruling.healing)),temp:Math.max((health?.temp??0)-absorbed,request.npcTarget?(health?.temp??0)-absorbed:ruling.temporaryHP)};
+  const hp={current:Math.min(maximum,Math.max(0,(health?.current??maximum)-((ruling.selfDamage??0)-absorbed))+(other?0:ruling.healing)),temp:Math.max((health?.temp??0)-absorbed,other?(health?.temp??0)-absorbed:ruling.temporaryHP)};
   const knockedOut=(health?.current??maximum)-((ruling.selfDamage??0)-absorbed)<=0;
   if(knockedOut||hp.current===0)delete next.concentration;
   else {
@@ -184,7 +208,7 @@ export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.r
     next=concentration.game;calculatedLogs.push(...concentration.logs);
   }
   if(ruling.temporaryHP>=(health?.temp??0) && ruling.temporaryHP>0)delete next.temporarySpell;
-  return {game:next,health:hp,damage:request.npcTarget?0:ruling.damage,bonus:spell.castingTime==='Bonus Action',reaction:spell.castingTime==='Reaction',manualRounds:!['Action','Bonus Action','Reaction'].includes(spell.castingTime)?durationRounds(spell.castingTime):0,logs:[`${spell.name} — DM ruling: ${ruling.note.trim()}`,`Target / intent: ${request.intent}`,...calculatedLogs,`Applied: ${ruling.damage} ${request.npcTarget??'enemy'} damage, ${ruling.selfDamage??0} damage to you, ${hp.current-(health?.current??maximum)} healing, temporary HP ${hp.temp}. Casting cost: ${request.slot===0?'cantrip':request.slot==='ritual'?'ritual':request.slot==='arcanum'?'Mystic Arcanum':`level ${request.slot} slot`}. Other effects follow the recorded ruling.`]};
+  return {game:next,health:hp,damage:other?0:ruling.damage,bonus:spell.castingTime==='Bonus Action',reaction:spell.castingTime==='Reaction',manualRounds:!['Action','Bonus Action','Reaction'].includes(spell.castingTime)?durationRounds(spell.castingTime):0,logs:[`${spell.name} — DM ruling: ${ruling.note.trim()}`,`Target / intent: ${request.intent}`,...calculatedLogs,`Applied: ${ruling.damage} ${request.npcTarget??'enemy'} damage, ${ruling.selfDamage??0} damage to you, ${hp.current-(health?.current??maximum)} healing, temporary HP ${hp.temp}. Casting cost: ${request.slot===0?'cantrip':request.slot==='ritual'?'ritual':request.slot==='arcanum'?'Mystic Arcanum':`level ${request.slot} slot`}. Other effects follow the recorded ruling.`]};
 }
 export function concentrationAfterDamage(hero,game,damage,random=Math.random) {
   if(game.concentration&&game.castingConditions?.incapacitated){const next={...game};delete next.concentration;return {game:next,logs:['Concentration ended: incapacitated.']};}
@@ -219,7 +243,7 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
   const reasons=[];
   if(!effect)reasons.push('This spell’s effects need a DM ruling.');
   // Healing a person who is here resolves on its own, like healing yourself.
-  const healPerson=!!effect?.heal&&!!request.npcTarget;
+  const healPerson=!!effect?.heal&&(!!request.npcTarget||!!request.partyTarget);
   if(!(self?(onSelf||healPerson):onWisp))reasons.push('This target or area needs a DM ruling.');
   if(!['Action','Bonus Action'].includes(spell.castingTime)||(request.slot==='ritual'&&!effect?.detection))reasons.push('Casting time, reaction trigger, or ritual completion needs a DM ruling.');
   const material=spell.material??'',special=/\b(?:gp|sp|cp|pp|worth|consum\w*)\b/i.test(material+' '+spell.description);

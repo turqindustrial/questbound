@@ -7,6 +7,7 @@ import {attackOptions,thrownAttack} from './weaponRules';
 import {gearedHero,arrowsLeft} from './inventoryRules';
 import {foeLabel} from './encounterRules';
 import {npcLore} from './npcRules';
+import {partyMembers} from './partyRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
 // Spells need a target, so "Cast…" starts the sentence in the message box instead. `icon` names a line icon
@@ -30,6 +31,8 @@ export function quickActions(hero,game,health=null){
   if(id==='end-turn'){(game.actionUsed?primary:last).push({key:id,glyph:'⧗',icon:'forward',label:'End turn',question:'I end my turn.',action:c.action,primary:!!game.actionUsed});continue;}
   // Attacking townsfolk and declaring the story finished stay deliberate, typed decisions.
   if(/^(npc-attack|story-complete|story-advance|lead-done|restart-adventure)/.test(id))continue;
+  // Passing an absent player's turn is offered by the play screen's waiting row, after a wait.
+  if(id==='party-pass')continue;
   // A draught away from a fight is typed or asked for; a companion lying senseless gets a Revive chip.
   if(id==='potion'&&game.stage!=='combat')continue;
   // The creature beside the foe gets one chip, with the main weapon.
@@ -101,12 +104,15 @@ export function attackActions(hero,game,health=null,targetKey=null){
 // the sentence so the player says how and at whom. The words are parsed exactly like typed casting.
 export function spellActions(hero,game){
  const fighting=game.stage==='combat',foe=game.story||game.dungeon?.active?'the enemy':'the wisp';
- return knownSpells(hero).filter(spell=>!fighting||(game.actionUsed?spell.castingTime==='Bonus Action':['Action','Bonus Action'].includes(spell.castingTime))).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).map(spell=>{
+ // In a party, healing reaches the other heroes too: a chip for each one who is hurt or down.
+ const hurtFriends=partyMembers(game).filter(m=>!m.lead&&m.status!=='dead'&&(m.status==='down'||(m.hp!=null&&m.maxHp!=null&&m.hp<m.maxHp)));
+ return knownSpells(hero).filter(spell=>!fighting||(game.actionUsed?spell.castingTime==='Bonus Action':['Action','Bonus Action'].includes(spell.castingTime))).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).flatMap(spell=>{
   const effect=automaticEffects[spell.id],self=!!(effect&&(effect.heal||effect.temp||effect.protection||effect.detection));
   const base={key:'spell:'+spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp?'shield':effect?.detection?'eye':spellIcon(effect?.type),label:spell.name,detail:(spell.level?'Level '+spell.level:'Cantrip')+(fighting&&spell.castingTime==='Bonus Action'?' · Bonus':'')};
-  if(self)return {...base,question:'I cast '+spell.name+' on me.'};
-  if(effect&&fighting)return {...base,question:'I cast '+spell.name+' at '+foe+'.'};
-  return {...base,prefill:'I cast '+spell.name+' '+(spell.range==='Self'?'':'on ')};
+  const friends=effect?.heal&&!spell.id.startsWith('mass-')?hurtFriends.map(m=>({...base,key:base.key+':party:'+m.id,label:spell.name,detail:'on '+m.name.split(' ')[0]+(m.status==='down'?' · down':''),question:'I cast '+spell.name+' on '+m.name+'.'})):[];
+  if(self)return [{...base,question:'I cast '+spell.name+' on me.'},...friends];
+  if(effect&&fighting)return [{...base,question:'I cast '+spell.name+' at '+foe+'.'}];
+  return [{...base,prefill:'I cast '+spell.name+' '+(spell.range==='Self'?'':'on ')}];
  });
 }
 function spellIcon(type=''){return {fire:'flame',cold:'frost',lightning:'bolt',thunder:'bolt',radiant:'sun',necrotic:'skull',force:'spell',poison:'potion',acid:'potion',psychic:'eye'}[String(type).toLowerCase()]??'spell';}

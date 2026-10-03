@@ -15,7 +15,8 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
-import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter} from "./encounterRules";
+import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero} from "./encounterRules";
+import {isPartyGame,settleParty,partyView} from "./partyRules";
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
 const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
@@ -224,6 +225,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         temp: health?.temp ?? 0
       };
     const entries = [];
+    // In a party's fight the hero's turn can end without the foe answering (turnOptions.foeWaits): the turn order
+    // (adventureStep) is told that it is over, and whether the hero took the Dodge.
+    let turnOver = false, dodged = false;
     if (action?.type === 'cancel-spell') {
       delete next.pendingSpell;
       return {
@@ -826,8 +830,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       if (usedBonus && game.actionUsed) bonusAction = false;
       if (paused) bonusAction = true;
       if (game.dodging && !paused) dodge = true;
-      // Companions travelling with you strike the creature once, after your turn.
-      if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy && !turnOptions.enemyOnly) {
+      // Companions travelling with you strike the creature once, after your turn (in a party's fight, once a round,
+      // just before the foe acts).
+      if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy && (turnOptions.partyFoe || !turnOptions.enemyOnly && !turnOptions.foeWaits)) {
         const helped = companionsAttack(next, foe, random);
         next = helped.game;
         entries.push(...helped.lines);
@@ -842,8 +847,25 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           entries.push('The wisp settles into the lantern. You have restored the crossing!');
         }
       }
-      if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy) {
+      if (next.stage === 'combat' && !bonusAction && turnOptions.foeWaits) {
+        // A party's fight: this hero's turn is over. The foe acts at its own place in the turn order.
+        turnOver = true;
+        dodged = dodge;
+        next.bonusUsed = false;
+        next.slotSpentThisTurn = false;
+        next.reactionUsed = false;
+        delete next.actionUsed;
+        delete next.dodging;
+        tickHeroSpells(next, hp);
+      } else if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy) {
         const defense = spellDefense(next, stats.ac, foe);
+        // In a party's foe turn, whoever is struck may have taken the Dodge on their own turn; Blur guards only the
+        // hero it was cast on (the one this turn is played from).
+        const dodgingNow = target => turnOptions.partyFoe ? (turnOptions.dodging ?? []).includes(target === null ? next.party?.lead : String(target).replace(/^party:/, '')) : dodge;
+        const blurNow = target => turnOptions.partyFoe ? target === null && defense.disadvantage : defense.disadvantage;
+        // A party fights on while anyone stands: once this hero is down the foe turns to the others.
+        const fightOn = () => hp.current > 0 || turnOptions.partyFoe && partyTargets(next).length > 0;
+        const foeTarget = () => { const t = pickFoeTarget(next, random); if (t !== null || hp.current > 0 || !turnOptions.partyFoe) return t; const others = partyTargets(next); return 'party:' + others[Math.min(others.length - 1, Math.floor(random() * others.length))]; };
         // Each standing member of a group attacks in turn.
         const attackers = foeStanding(foe, next.enemyHP), fallen = foeStanding(foe, game.enemyHP) - attackers;
         if (foe.group && fallen > 0) entries.push(`${fallen === 1 ? 'One of the' : fallen} ${foe.group.plural} ${fallen === 1 ? 'falls' : 'fall'} ${game.subdue ? 'senseless' : 'dead'} — ${attackers} still standing.`);
@@ -854,11 +876,11 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next = moves.game;
         entries.push(...moves.lines);
         let downedBy = null, overflow = 0;
-        for (let member = 1; member <= attackers && hp.current > 0; member++) {
+        for (let member = 1; member <= attackers && fightOn(); member++) {
         const who = attackers > 1 ? `${foe.name} ${member}` : foe.name;
-        const mode = foeAttackMode({...next, heroCondition: lingering ?? next.heroCondition}, foe, attackers, {dodge, blur: defense.disadvantage});
-        // Sometimes the creature goes for a companion beside you instead.
-        const target = pickFoeTarget(next, random);
+        // Sometimes the creature goes for a companion beside you instead (or, in a party, another hero).
+        const target = foeTarget();
+        const mode = foeAttackMode({...next, heroCondition: target !== null && turnOptions.partyFoe ? undefined : lingering ?? next.heroCondition}, foe, attackers, {dodge: dodgingNow(target), blur: blurNow(target)});
         if (target) {
           const struck = foeHitsCompanion(next, foe, who, target, mode, random);
           next = struck.game;
@@ -892,8 +914,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         // The creature at its side attacks too.
         let allyDowned = null;
         for (const ally of livingAllies(next)) {
-          if (hp.current <= 0) break;
-          const a = allyStats(next, ally.index, hero.level ?? 1), mode = dodge || defense.disadvantage ? 'disadvantage' : 'normal', target = pickFoeTarget(next, random);
+          if (!fightOn()) break;
+          const target = foeTarget(), a = allyStats(next, ally.index, hero.level ?? 1), mode = dodgingNow(target) || blurNow(target) ? 'disadvantage' : 'normal';
           if (target) { const struck = foeHitsCompanion(next, a, a.name, target, mode, random); next = struck.game; entries.push(...struck.lines); continue; }
           const attack = rollAttack(a, mode, random), hit = !attack.miss && (attack.critical || attack.total >= defense.ac);
           entries.push(`${a.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${a.attackBonus} = ${attack.total} vs your AC ${defense.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
@@ -917,23 +939,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.reactionUsed = false;
         delete next.actionUsed;
         delete next.dodging;
-        if (next.concentration?.remaining !== null && next.concentration?.remaining !== undefined) {
-          next.concentration = {
-            ...next.concentration,
-            remaining: next.concentration.remaining - 1
-          };
-          if (next.concentration.remaining <= 0) delete next.concentration;
-        }
-        if (next.temporarySpell) {
-          next.temporarySpell = {
-            ...next.temporarySpell,
-            remaining: next.temporarySpell.remaining - 1
-          };
-          if (next.temporarySpell.remaining <= 0) {
-            hp.temp = 0;
-            delete next.temporarySpell;
-          }
-        }
+        // In a party each hero's spells count down at the end of their own turn instead.
+        if (!turnOptions.partyFoe) tickHeroSpells(next, hp);
         if (next.enemyEffects) next.enemyEffects = Object.fromEntries(Object.entries(next.enemyEffects).filter(([, rounds]) => rounds > 1).map(([key, rounds]) => [key, rounds - 1]));
         if (hp.current === 0) delete next.concentration;
       }
@@ -950,13 +957,31 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     return {
       game: next,
       events: entries,
-      health: hp
+      health: hp,
+      ...(turnOver ? {turnOver, dodged} : {})
     };
   }
+// A hero's own spells count down at the end of each of their turns: concentration, and temporary hit points from a
+// spell such as False Life.
+function tickHeroSpells(next, hp) {
+  if (next.concentration?.remaining !== null && next.concentration?.remaining !== undefined) {
+    next.concentration = {...next.concentration, remaining: next.concentration.remaining - 1};
+    if (next.concentration.remaining <= 0) delete next.concentration;
+  }
+  if (next.temporarySpell) {
+    next.temporarySpell = {...next.temporarySpell, remaining: next.temporarySpell.remaining - 1};
+    if (next.temporarySpell.remaining <= 0) {
+      hp.temp = 0;
+      delete next.temporarySpell;
+    }
+  }
+}
 
 // How many of a weapon the hero has in hand right now (the hero the rules see: thrown ones not yet gathered are gone).
 const inHand=(hero,name)=>(hero.equipment?.items??[]).filter(i=>i.name===name).reduce((n,i)=>n+(i.quantity??0),0);
-function creatureCombatStep(game,health,hero,action,random){
+// `opts.party`: a party's fight, whose turns adventureStep orders. The opening attack rolls no initiative here (every
+// hero rolls once it is made), and a hero's turn ends without the foe answering.
+function creatureCombatStep(game,health,hero,action,random,opts={}){
  let scene=game,command=action;
  // The aim at a second creature lasts for this one action.
  const strip=r=>{if(r?.game?.aim!==undefined){r.game={...r.game};delete r.game.aim;}return r;};
@@ -975,7 +1000,7 @@ function creatureCombatStep(game,health,hero,action,random){
   if(opening.error||opening.waiting||opening.game===scene)return opening.error?{...opening,game,health}:opening;
   opening.game={...opening.game,openingAttackAvailable:false};
   opening.events=['Opening attack.',...(opening.events??[])];
-  if(opening.game.stage!=='combat')return opening;
+  if(opening.game.stage!=='combat'||opts.party)return strip(opening);
   const stats=combatBasics(hero),foe=encounterFoe(hero,scene),a=1+Math.floor(random()*20),b=stats.initiativeAdvantage?1+Math.floor(random()*20):a,enemyDie=1+Math.floor(random()*20),enemyBonus=foe.saves?.Dexterity??0;
   const initiative={player:Math.max(a,b)+stats.initiative,foe:enemyDie+enemyBonus};
   opening.game.encounterInitiative=initiative;
@@ -989,19 +1014,19 @@ function creatureCombatStep(game,health,hero,action,random){
   result.game={...result.game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false,log:[...result.events,...game.log].slice(0,40)};
   return strip(result);
  }
- const result=adventureStepCore(scene,health,hero,command,random);
+ const result=adventureStepCore(scene,health,hero,command,random,opts.party?{foeWaits:true}:{});
  if(result.game.stage==='combat'&&scene.stage!=='combat')result.game={...result.game,openingAttackAvailable:true,encounterInitiative:undefined};
  // A bonus action (a draught, Second Wind) before the first blow leaves the opening attack for the action that follows.
  else if(scene.openingAttackAvailable&&!result.error&&!result.waiting&&result.game!==scene&&!(result.game.bonusUsed&&!scene.bonusUsed&&result.game.round===scene.round))result.game={...result.game,openingAttackAvailable:false};
  return strip(result);
 }
 
-function adventureStepEngine(game,health,hero,action,random=Math.random){
+function adventureStepEngine(game,health,hero,action,random=Math.random,opts={}){
  const stats=combatBasics(hero),pending=action?.type==='spell-ruling'?game.pendingSpell:null;
  const effect=pending?automaticEffects[pending.id]:null;
  const target=action?.type==='npc-attack'?action.target:pending?.npcTarget&&((effect&&(effect.attack||effect.save||effect.missile))||(action.ruling?.damage??0)>0)?pending.npcTarget:null;
  const active=game.npcCombat?.active;
- if(!active&&!target)return creatureCombatStep(game,health,hero,action,random);
+ if(!active&&!target)return creatureCombatStep(game,health,hero,action,random,opts);
  if(!stats.available||stats.ac===null)return {game,health,error:'Complete your combat statistics first.'};
  if((health?.current??stats.hp)<=0)return {game,health,error:'You are down and cannot act.'};
  if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)||action?.type==='travel'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
@@ -1028,6 +1053,12 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
   const standing=participants.filter(n=>(next.npcHP?.[n.id]??npcMaxHP(n.id,next))>0);
   if(!standing.length)return {...opening,game:next,health:hp,events:opening.events??[]};
   events.push('Opening attack.',...(opening.events??[]));
+  // A party's brawl: every hero rolls once the opening blow has landed (adventureStep); the people fighting roll here.
+  if(opts.party){
+   const order=[{id:'player',side:'player',role:'attack',initiative:0},...standing.map(n=>({...n,initiative:1+Math.floor(random()*20)}))];
+   next={...next,npcCombat:{active:true,round:1,order,help:null},log:['Combat begins.',...next.log].slice(0,40)};
+   return {game:{...next,journal:appendJournal(next.journal,'encounter','Combat begins',events.join('\n').slice(0,3000))},health:hp,events};
+  }
   const roll=1+Math.floor(random()*20),second=stats.initiativeAdvantage?1+Math.floor(random()*20):roll;
   const order=[{id:'player',side:'player',role:'attack',initiative:Math.max(roll,second)+stats.initiative},...standing.map(n=>({...n,initiative:1+Math.floor(random()*20)}))].sort((a,b)=>b.initiative-a.initiative||(a.id==='player'?-1:b.id==='player'?1:a.id.localeCompare(b.id)));
   events.push('Your initiative: d20 ['+[roll,...(stats.initiativeAdvantage?[second]:[])].join(', ')+'] + '+stats.initiative+' = '+(Math.max(roll,second)+stats.initiative)+'.');
@@ -1044,6 +1075,15 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
  let result=special?{game:{...next,log:[action==='npc-dodge'?'You take the Dodge action.':'You hold your ground.',...next.log].slice(0,40)},health:hp}:adventureStepCore(next,hp,hero,action,random);
  if(result.error)return {game:next,health:hp,events,error:active?result.error:undefined};
  if(result.waiting)return result;
+ // A party's brawl: this hero's turn is over; the people fighting act at their own places in the turn order.
+ if(opts.party){
+  const own=result.events??stepLogEntries(next.log,result.game.log),g={...result.game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false},h={...(result.health??hp)};
+  tickHeroSpells(g,h);
+  const left=g.npcCombat.order.filter(n=>n.side==='enemy'&&(g.npcHP?.[n.id]??npcProfile(g,n.id).maximumHP)>0);
+  if(!left.length){own.push('The opponents are down. Combat ends.');g.npcCombat={...g.npcCombat,active:false};g.log=['The opponents are down. Combat ends.',...g.log].slice(0,40);}
+  g.journal=appendJournal(g.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',[...events,...own].join('\n').slice(0,3000));
+  return {...result,game:g,health:h,events:[...events,...own],turnOver:true,dodged:action==='npc-dodge'};
+ }
  const order=result.game.npcCombat.order,index=order.findIndex(n=>n.id==='player');
  events.push('Your turn.',...(result.events??stepLogEntries(next.log,result.game.log)));
  result=runNpcTurns(result.game,result.health??hp,hero,order.slice(index+1),action==='npc-dodge',random);
@@ -1059,27 +1099,42 @@ function adventureStepEngine(game,health,hero,action,random=Math.random){
  result.game={...result.game,journal:appendJournal(result.game.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',events.join('\n').slice(0,3000))};
  return result;
 }
-function runNpcTurns(game,health,hero,turns,dodge,random){
+// `party`: a party's brawl, where each person fighting picks any standing hero, and a hero who took the Dodge on their
+// own turn (`dodging`) is harder to hit.
+function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
  let next={...game,npcCombat:{...game.npcCombat}},hp={...health},downed=null;const stats=combatBasics(hero),logs=[];
  const who=id=>npcProfile(next,id),alive=id=>(next.npcHP?.[id]??who(id).maximumHP)>0;
  const enemies=()=>next.npcCombat.order.filter(n=>n.side==='enemy'&&alive(n.id));
+ const dodgeLead=party?(party.dodging??[]).includes(next.party?.lead):dodge;
  for(const actor of turns){
-  if(hp.current<=0||!enemies().length)break;
+  if(!(hp.current>0||party&&partyTargets(next).length)||!enemies().length)break;
   if(!alive(actor.id))continue;
   const allied=actor.side==='ally',victim=allied?enemies()[0]:null;
   if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(who(actor.id).name+' distracts the opposition to help a defender.');continue;}
   const weapon={attackBonus:2,count:1,die:4,bonus:0};
+  const helped=next.npcCombat.help===actor.side;
+  // In a party any standing hero may be the one struck.
+  if(party&&!allied){
+   const pool=[...(hp.current>0?[null]:[]),...partyTargets(next)],pick=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))];
+   if(pick!==null){
+    const dodging=(party.dodging??[]).includes(pick),mode=helped===dodging?'normal':helped?'advantage':'disadvantage';
+    if(helped)next.npcCombat.help=null;
+    const struck=foeHitsPartyHero(next,{...weapon,type:'Bludgeoning',name:who(actor.id).name,cause:'Struck down by '+who(actor.id).name},who(actor.id).name,pick,mode,random);
+    next=struck.game;logs.push(...struck.lines);continue;
+   }
+  }
   const defense=allied?{ac:who(victim.id).ac}:spellDefense(next,stats.ac);
-  const helped=next.npcCombat.help===actor.side,disadvantage=!allied&&(dodge||defense.disadvantage);
+  const disadvantage=!allied&&(dodgeLead||defense.disadvantage);
   const attack=rollAttack(weapon,helped===disadvantage?'normal':helped?'advantage':'disadvantage',random);
   if(helped)next.npcCombat.help=null;
   const hit=!attack.miss&&(attack.critical||attack.total>=defense.ac),damageRoll=hit?rollDamage(weapon,attack.critical,random):null,damage=damageRoll?.total??0;
-  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodge?', Dodge':''}${defense.disadvantage?', Blur':''}) + 2 = ${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
+  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}) + 2 = ${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
   else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
- // Felled in a brawl, the hero is left dying where they lie and the defenders stand back.
- if(hp.current<=0){const fell=fall(next,'npc',downed?.overflow??0,stats.hp,downed?'Struck down by '+downed.by:null);next=fell.game;logs.push(...fell.entries);}
+ // Felled in a brawl, the hero is left dying where they lie and the defenders stand back (in a party, the others
+ // fight on).
+ if(hp.current<=0&&health.current>0||hp.current<=0&&!party){const brawl=next.npcCombat,fell=fall(next,'npc',downed?.overflow??0,stats.hp,downed?'Struck down by '+downed.by:null);next=fell.game;logs.push(...fell.entries);if(party&&brawl?.active&&partyTargets(next).length)next.npcCombat=brawl;}
  else if(!enemies().length){next={...next,npcCombat:{...next.npcCombat,active:false}};logs.push('The opponents are down. Combat ends.');}
  next.log=[...logs,...next.log].slice(0,40);return {game:next,health:hp,events:logs};
 }
@@ -1095,10 +1150,165 @@ function stepLogEntries(before=[],after=[]){
 }
 
 export function adventureStep(game,health,hero,action,random=Math.random){
+ // A party at the shared table takes its fights in turns.
+ if(isPartyGame(game))return partyStep(game,health,hero,action,random);
+ return heroStep(game,health,hero,action,random);
+}
+// ---------- A party's fight: turns in initiative order ----------
+// At the shared table (partyRules.js) each device plays its own hero. The first move of a fight (the opening attack)
+// is anyone's; then every standing hero and the foe (or each person in a brawl) roll initiative, and the order is kept
+// in the shared world (game.turnOrder: {order:[{id,init}], at, round, dodging}), so every device knows whose turn it
+// is. A hero acts only on their own turn. When a hero's turn ends, the same device plays the foe's turn if it comes
+// next: the foe strikes any standing hero, once a round. A hero who is down rolls their death save on their turn; a
+// hero whose player has gone can be passed ({type:'party-pass'}).
+export const partyFightOn=game=>!!game?.npcCombat?.active||game?.stage==='combat'||game?.party?.stage==='combat';
+const d20=random=>1+Math.floor(random()*20);
+const heroOf=character=>{try{return JSON.parse(character);}catch{return null;}};
+const snapshotOf=(game,health,hero)=>({version:1,character:JSON.stringify(hero),game,health,chosen:true});
+// up, down or dead; this device's own hero is read from its own game.
+function memberStatus(game,id){
+ if(id===game.party.lead)return game.stage==='dead'?'dead':game.stage==='dying'?'down':'up';
+ return game.party.members[id]?.status??null;
+}
+function memberName(game,id,hero){
+ if(id===game.party.lead)return hero?.name??'A hero';
+ return heroOf(game.party.members[id]?.character)?.name??'A hero';
+}
+const anyoneStanding=game=>Object.keys(game.party.members).some(id=>memberStatus(game,id)==='up');
+const fightFoeName=(hero,game)=>game.wildFight?.name??game.story?.foe??encounterFoe(hero,game).name;
+function withoutOrder(game){if(!game.turnOrder)return game;const next={...game};delete next.turnOrder;return next;}
+// "Wolf: d20 … vs your AC 14. Hit." told of another hero, when the foe's turn is played from their point of view.
+function toldOf(line,name){
+ return line.replace(/^(.+?): d20 (.*?) vs your AC (\d+)\./,`$1 attacks ${name}: d20 $2 vs ${name}’s AC $3.`).replace(/^(.+?) attacks you:/,`$1 attacks ${name}:`)
+  .replace(/^(.+? = \d+ \w+ damage)\. \d+ damage recorded: .*$/,`$1 to ${name}.`)
+  .replace(/^The blow is so savage that it kills you outright\. You die\.$/,`The blow kills ${name} outright.`).replace(/^You fall unconscious and are dying\..*$/,`${name} falls unconscious and is dying.`)
+  .replace(/\bat you\b/g,'at '+name).replace(/\byour eyes\b/g,name+'’s eyes').replace(/\bYour next attack\b/g,name+'’s next attack').replace(/\bYou are knocked prone\b/g,name+' is knocked prone').replace(/\bYou keep your feet\b/g,name+' keeps their feet').replace(/\bYou are restrained\b/g,name+' is restrained').replace(/\bYou tear free\b/g,name+' tears free');
+}
+function partyStep(game,health,hero,action,random){
+ const me=game.party.lead;
+ if(game.turnOrder&&!partyFightOn(game))game=withoutOrder(game);
+ const order=game.turnOrder;
+ // No fight under way, or its first move still to be made: anyone may act.
+ if(!order){
+  if(action?.type==='party-pass')return {game,health,error:'There is no turn to pass.'};
+  const result=heroStep(game,health,hero,action,random,{party:true});
+  if(result.error||result.waiting||result.game===game)return result;
+  if(!partyFightOn(result.game)||result.game.openingAttackAvailable||result.game.stage==='dying')return {...result,game:withoutOrder(result.game)};
+  const begun=beginPartyFight(result.game,result.health,hero,random);
+  return {...result,game:begun.game,health:begun.health,events:[...(result.events??[]),...begun.events]};
+ }
+ const current=order.order[order.at];
+ // The foe's turn left unplayed (it never should be): play it now.
+ if(!current||current.id==='foe'||current.id.startsWith('npc:')){const resumed=passTurns({...game,turnOrder:{...order,at:order.at-1}},health,hero,random);return {...resumed,error:resumed.game.turnOrder?.order?.[resumed.game.turnOrder.at]?.id===me?'The foe has acted. It is your turn now.':'The foe has acted.'};}
+ // Another hero's turn, passed because their player has gone (or holds back).
+ if(action?.type==='party-pass'){
+  if(current.id===me)return {game,health,error:'It is your own turn: act, or end your turn.'};
+  const name=memberName(game,current.id,hero),line=memberStatus(game,current.id)==='down'?name+' lies still: no death save this turn.':name+' holds their ground.';
+  const passed=passTurns({...game,log:[line,...game.log].slice(0,40)},health,hero,random);
+  return {game:passed.game,health:passed.health,events:[line,...passed.events]};
+ }
+ if(current.id!==me)return {game,health,error:'It is '+memberName(game,current.id,hero)+'’s turn. Wait for it.'};
+ let result;
+ if(game.stage==='dying'){
+  // A death save on this hero's turn; whatever comes of it, the party stays where it is.
+  result=dyingStep(game,health,hero,action,random);
+  if(result.error)return result;
+  result={...result,game:{...result.game,world:game.world,map:game.map,...(game.wildFight?{wildFight:game.wildFight}:{})}};
+  if(!['dying','dead'].includes(result.game.stage)){const party={...result.game.party};const stage=party.stage??result.game.stage;delete party.stage;result.game={...result.game,stage,party};}
+ } else {
+  result=heroStep(game,health,hero,action,random,{party:true});
+  if(result.error||result.waiting||result.game===game)return result;
+ }
+ if(!partyFightOn(result.game))return {...result,game:withoutOrder(result.game)};
+ // The turn goes on while a bonus action is still to be taken.
+ if(game.stage!=='dying'&&!result.turnOver&&result.game.stage!=='dying')return result;
+ let next=result.game;
+ if(result.dodged)next={...next,turnOrder:{...next.turnOrder,dodging:[...new Set([...(next.turnOrder.dodging??[]),me])]}};
+ const passed=passTurns(next,result.health,hero,random);
+ return {...result,game:passed.game,health:passed.health,events:[...(result.events??[]),...passed.events]};
+}
+// Every standing hero rolls initiative (on this device, for all of them), and the foe or each person fighting.
+function beginPartyFight(game,health,hero,random){
+ let next={...game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};delete next.actionUsed;delete next.dodging;
+ const settled=settleParty(snapshotOf(next,health,hero)),entries=[],lines=[];
+ for(const id of settled.order){
+  const member=settled.members[id],h=heroOf(member?.character);if(member?.status!=='up'||!h)continue;
+  const stats=combatBasics(h),a=d20(random),b=stats.initiativeAdvantage?d20(random):a,total=Math.max(a,b)+stats.initiative;
+  entries.push({id,init:total,dex:h.scores?.Dexterity??10,hero:true});
+  lines.push(`${h.name} initiative: d20 [${[a,...(stats.initiativeAdvantage?[b]:[])].join(', ')}] + ${stats.initiative} = ${total}.`);
+ }
+ if(next.npcCombat?.active){
+  for(const n of next.npcCombat.order.filter(n=>n.id!=='player')){entries.push({id:'npc:'+n.id,init:n.initiative,dex:10});lines.push(`${npcProfile(next,n.id).name} initiative: d20 ${n.initiative} + 0 = ${n.initiative}.`);}
+ } else {
+  const foe=encounterFoe(hero,next),die=d20(random),bonus=foe.saves?.Dexterity??0;
+  entries.push({id:'foe',init:die+bonus,dex:10+2*bonus});lines.push(`${fightFoeName(hero,next)} initiative: d20 ${die} + ${bonus} = ${die+bonus}.`);
+ }
+ // Ties go to the higher Dexterity, then to the heroes.
+ entries.sort((a,b)=>b.init-a.init||b.dex-a.dex||Number(!!b.hero)-Number(!!a.hero)||a.id.localeCompare(b.id));
+ const label=id=>id==='foe'?fightFoeName(hero,next):id.startsWith('npc:')?npcProfile(next,id.slice(4)).name:memberName(next,id,hero);
+ lines.push('Turn order: '+entries.map(e=>label(e.id)).join(' → ')+'.','Round 1 begins.');
+ next={...next,turnOrder:{order:entries.map(({id,init})=>({id,init})),at:-1,round:1,dodging:[]},log:[...lines,...next.log].slice(0,40)};
+ const passed=passTurns(next,health,hero,random);
+ return {game:passed.game,health:passed.health,events:[...lines,...passed.events]};
+}
+// Hands the turn on: past the dead, through the foe's turn (played here), to the next hero, standing or down.
+function passTurns(game,health,hero,random){
+ let next=game,hp=health;const lines=[],say=line=>{lines.push(line);next={...next,log:[line,...(next.log??[])].slice(0,40)};};
+ for(let step=0;step<24;step++){
+  if(!partyFightOn(next)||!anyoneStanding(next)){next=withoutOrder(next);break;}
+  const t=next.turnOrder,known=new Set(t.order.map(e=>e.id));
+  // A hero who joined during the fight takes the last place in the order.
+  const order=[...t.order.filter(e=>e.id==='foe'||e.id.startsWith('npc:')||next.party.members[e.id]),...Object.keys(next.party.members).filter(id=>!known.has(id)&&memberStatus(next,id)==='up').map(id=>({id,init:0}))];
+  let at=Math.min(t.at,order.length-1)+1,round=t.round;
+  if(at>=order.length){at=0;round++;}
+  const entry=order[at];
+  next={...next,turnOrder:{...t,order,at,round}};
+  if(round>t.round)say('Round '+round+' begins.');
+  if(entry.id==='foe'||entry.id.startsWith('npc:')){const phase=foeTurn(next,hp,hero,entry.id,random);next=phase.game;hp=phase.health;lines.push(...phase.events);continue;}
+  const status=memberStatus(next,entry.id);
+  if(status!=='up'&&status!=='down')continue;
+  next={...next,turnOrder:{...next.turnOrder,dodging:(next.turnOrder.dodging??[]).filter(id=>id!==entry.id)}};
+  say(memberName(next,entry.id,hero)+'’s turn.');
+  break;
+ }
+ return {game:next,health:hp,events:lines};
+}
+// The foe's turn (or one person's, in a brawl), played from a standing hero's point of view: this device's own hero
+// when they stand, else the first standing hero in the order. The result is read back from this device's point of view.
+function foeTurn(game,health,hero,id,random){
+ const me=game.party.lead,snapshot=snapshotOf(game,health,hero),settled=settleParty(snapshot);
+ const actor=[me,...game.turnOrder.order.map(e=>e.id)].find(m=>settled.members[m]?.status==='up');
+ if(!actor)return {game,health,events:[]};
+ const view=actor===me?snapshot:partyView(snapshot,actor),them=heroOf(view.character);
+ if(!them)return {game,health,events:[]};
+ const scene={...view.game};delete scene.pendingSpell;
+ // Conditions the foe put on the others last round wear off as it acts again.
+ scene.party={...scene.party,members:Object.fromEntries(Object.entries(scene.party.members).map(([m,v])=>[m,v.hero?.heroCondition?{...v,hero:(h=>{delete h.heroCondition;return h;})({...v.hero})}:v]))};
+ const dodging=game.turnOrder.dodging??[],geared=gearedHero(them,scene);
+ let result;
+ if(id==='foe'){
+  if(scene.stage!=='combat')return {game,health,events:[]};
+  result=adventureStepCore(scene,view.health,geared,'enemy-turn',random,{enemyOnly:true,partyFoe:true,dodging});
+ } else {
+  const fighter=scene.npcCombat?.active?scene.npcCombat.order.find(n=>n.id===id.slice(4)):null;
+  if(!fighter)return {game,health,events:[]};
+  result=runNpcTurns(scene,view.health??{current:combatBasics(geared).hp,temp:0},geared,[fighter],false,random,{dodging});
+ }
+ if(result.error||!result.game)return {game,health,events:[]};
+ result={...result,events:result.events??stepLogEntries(scene.log,result.game.log)};
+ if(scene.story)toldInStory(scene,result);
+ // Told of the hero it was played from, by name, unless that is this device's own hero.
+ if(actor!==me){const fresh=result.events.length;result.events=result.events.map(t=>toldOf(t,them.name));result.game={...result.game,log:result.game.log.map((t,i)=>i<fresh?toldOf(t,them.name):t)};}
+ const back=partyView({...view,game:result.game,health:result.health},me);
+ if(!back)return {game,health,events:[]};
+ // This device's own pending spell is its own business (none can be pending at a turn's end; kept for safety).
+ return {game:{...back.game,...(game.pendingSpell?{pendingSpell:game.pendingSpell}:{})},health:back.health,events:result.events};
+}
+function heroStep(game,health,hero,action,random,opts={}){
  if(game.stage==='dead')return {game,health,error:'Your hero has died. Their story is over; begin a new tale with another hero.'};
  if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
  // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
- const result=livingStep(game,health,gearedHero(hero,game),action,random);
+ const result=livingStep(game,health,gearedHero(hero,game),action,random,opts);
  // Once no fight is on, weapons thrown in it are gathered up again.
  if(result.game&&!result.error&&result.game.stage!=='combat'&&!result.game.npcCombat?.active){const gathered=gatherThrown(result.game);if(gathered){result.game={...gathered.game,log:[gathered.line,...(gathered.game.log??[])].slice(0,40)};result.events=[...(result.events??[]),gathered.line];}}
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
@@ -1145,8 +1355,8 @@ function finishLead(game,health,id){
  const line='Lead seen through: '+lead.title+'.';
  return {game:{...game,story:{...game.story,leads:game.story.leads.map(l=>l.id===id?{...l,done:true}:l)},journal:appendJournal(journalForGame(game),'quest',('Lead seen through: '+lead.title).slice(0,100),lead.hook),log:[line,...game.log].slice(0,40)},health,events:[line]};
 }
-function livingStep(game,health,hero,action,random){
- if(!game.story){const result=adventureStepEngine(game,health,hero,action,random);return {...result,events:result.events??stepLogEntries(game.log,result.game?.log)};}
+function livingStep(game,health,hero,action,random,opts={}){
+ if(!game.story){const result=adventureStepEngine(game,health,hero,action,random,opts);return {...result,events:result.events??stepLogEntries(game.log,result.game?.log)};}
  // A long tale ends only in its last chapter; before that the chapter under way gives place to the next.
  if(action==='story-complete'){
   if(!questState(game).last)return {game,health,error:'The tale has chapters still to come.'};
@@ -1157,14 +1367,18 @@ function livingStep(game,health,hero,action,random){
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  if(typeof action==='string'&&!allowed.includes(action)&&!action.startsWith('attack:')&&!action.startsWith('throw:'))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
- const result=adventureStepEngine(scene,health,hero,action,random);
+ const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};
  // Stories continue after a lost fight: the player is back at the starting location and the foe keeps its HP.
  if(['escaped','defeat'].includes(result.game.stage)){const woke=result.game.stage==='defeat'?['You wake at '+game.story.locations.inn.name+', carried back from the fight. Rest to recover.']:[],map=mapState(result.game);result.events=[...(result.events??stepLogEntries(game.log,result.game.log)),...woke];result.game={...result.game,stage:'inn',map:{...map,visited:[...new Set([...map.visited,'inn'])]},log:[...woke,...result.game.log].slice(0,40)};}
- // Lines are retold in the story's own names; the foe's end follows how it fell (slain, or beaten but alive).
+ toldInStory(game,result);
+ if(action==='long-rest')result.game.journal=game.journal;
+ return result;
+}
+// Lines are retold in the story's own names; the foe's end follows how it fell (slain, or beaten but alive).
+function toldInStory(game,result){
  const told={...game,foeFate:result.game.foeFate,world:result.game.world,wildFight:result.game.wildFight??game.wildFight};
  result.game={...result.game,story:game.story,storyHistory:game.storyHistory,log:result.game.log.map(t=>storyText(told,t)),journal:result.game.journal?{...result.game.journal,entries:result.game.journal.entries.map(e=>({...e,title:storyText(told,e.title),text:storyText(told,e.text)}))}:game.journal};
  result.events=(result.events??stepLogEntries(game.log,result.game.log)).map(t=>storyText(told,t));
- if(action==='long-rest')result.game.journal=game.journal;
  return result;
 }

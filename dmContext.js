@@ -17,7 +17,7 @@ import {fallAtZero,fallPlace} from './deathRules';
 import {withAttackIntent} from './dmCommands';
 import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway} from './relationshipRules';
 import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules';
-import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats} from './encounterRules';
+import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {loadoutFor} from './equipmentRules';
 import {combatBasics} from './combatRules';
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
@@ -53,6 +53,9 @@ function restWouldHelp(hero,game,health){
 const canShortRest=(hero,game,health=null)=>['inn','bridge','tower','wild','victory'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&shortRestsLeft(hero,game)>0&&restWouldHelp(hero,game,health);
 export function dmChoices(hero,game,health=null) {
   hero=gearedHero(hero,game);
+  // In a party's fight, nothing can be done on someone else's turn (adventureRules.js keeps the order).
+  // (Only passing the turn of a hero whose player has gone, which the screen offers after a wait.)
+  {const holder=game.turnOrder?.order?.[game.turnOrder.at]?.id;if(game.party&&holder&&holder!==game.party.lead)return game.party.members[holder]?[{id:'party-pass',label:'Pass the turn of a hero whose player is away',action:{type:'party-pass'}}]:[];}
   if(game.stage==='dead')return [];
   if(game.stage==='dying')return [{id:'death-save',label:'Roll a death saving throw',action:'death-save'}];
   if(game.pendingSpell)return [{id:'cancel-spell',label:'Cancel the pending spell',action:{type:'cancel-spell'}}];
@@ -145,6 +148,8 @@ export function dmContext(hero,game,health) {
   if(context.encounter){const kind=foeKind(game);context.encounter={...context.encounter,signatureMove:kind?signatureMoves[kind]:null,yourCondition:game.heroCondition?heroConditions[game.heroCondition]:null,companionsFighting:fightingCompanions(game).map(n=>npcLore(game,n.id)?.name??n.name),wildCreature:!!game.wildFight,appearance:game.wildFight?.appearance??game.story?.foeAppearance??null,
     alsoFighting:livingAllies(game).map(a=>{const s=allyStats(game,a.index,hero.level??1);return {name:a.name,kind:a.template,appearance:a.appearance,currentHP:a.hp,maximumHP:a.maximum,ac:s.ac,attack:'+'+s.attackBonus+' to hit, '+s.count+'d'+s.die+(s.bonus?'+'+s.bonus:'')+' '+s.type.toLowerCase()};})};}
   {const others=partyOthers(game);if(others.length)context.party=others.map(m=>({name:m.name,species:m.species,class:m.heroClass,level:m.level,appearance:m.description,condition:m.status==='dead'?'dead':m.status==='down'?'down and dying':m.hp>=m.maxHp?'unhurt':m.hp>m.maxHp/2?'wounded':'badly wounded'}));}
+  // A party's fight goes in turns: who acts in what order, and whose turn it is.
+  {const turns=turnOrderView(game);if(turns)context.turnOrder={round:turns.round,order:turns.entries.map(e=>e.name+(e.kind==='hero'&&e.status!=='up'?' ('+e.status+')':'')),current:turns.current?.name??null,yourTurn:turns.mine};}
   if(context.world){context.world.canAmbush=game.stage==='wild'&&!game.wildFight&&!game.pendingSpell&&(health?.current??1)>0;context.world.creatureTemplates=allFoeTemplates().map(f=>({template:f.key,example:f.group?f.group.count+' '+f.group.plural:f.foe,kind:f.species,pack:!!f.group,signatureMove:signatureMoves[f.key].name}));context.world.knownPlaces=context.world.knownPlaces.map(p=>{const w=worldPlace(game,p.id);return w?{...p,danger:w.danger??'safe',feature:w.feature??null,threat:w.threat?{name:w.threat.name,template:w.threat.template}:null,cleared:!!w.cleared}:p;});}
   // What the hero carries: gold, draughts, arrows and found things, with prices for trades.
   {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items,priceList};}
@@ -183,6 +188,8 @@ export function commitDmTurn(hero,game,health,action,conversation,random=Math.ra
 function resolveDmTurn(hero,game,health,action,conversation,random){
   if(!conversation||typeof conversation.question!=='string'||!conversation.question.trim()||conversation.question.length>1000||typeof conversation.narration!=='string'||!conversation.narration.trim()||conversation.narration.length>1800)return {game,health,error:'Invalid DM conversation.'};
   if(conversation.worldEvent!==undefined&&conversation.worldEvent!==null&&(typeof conversation.worldEvent!=='string'||!conversation.worldEvent.trim()||conversation.worldEvent.length>800))return {game,health,error:'Invalid world event.'};
+  // In a party's fight only the hero whose turn it is can act (talking is always free).
+  {const holder=game.turnOrder?.order?.[game.turnOrder.at]?.id;if(action!==null&&action?.type!=='party-pass'&&game.party&&holder&&holder!==game.party.lead)return {game,health,error:'It is not your turn in this fight. Wait for your turn.'};}
   const dialogue=conversation.dialogue??[],present=[...npcScene(game).map(n=>n.id),...(conversation.introduce?['new']:[])];
   if(!Array.isArray(dialogue)||dialogue.length>4||dialogue.some(line=>!line||!present.includes(line.speakerId)||typeof line.text!=='string'||!line.text.trim()||line.text.length>700))return {game,health,error:'The reply included a character who cannot join this conversation.'};
   if(dialogue.length)conversation={...conversation,narration:dialogue.map(line=>(line.speakerId==='new'?String(conversation.introduce.name):npcLore(game,line.speakerId)?.name??npcScene(game).find(n=>n.id===line.speakerId).name)+': '+line.text).join('\n').slice(0,1800)};

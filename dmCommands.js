@@ -156,6 +156,11 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(npcScene(game).some(n=>n.present&&n.id===target))request.npcTarget=target;
   else if(game.stage==='inn'){if(['bartender','the bartender','keeper','the keeper','innkeeper','the innkeeper'].includes(target))request.npcTarget='keeper';if(['mara','the traveler','traveler'].includes(target))request.npcTarget='mara';}
   if(request.npcTarget&&game.npcFate?.[request.npcTarget]==='dead')return {error:'They are dead. No spell you know can bring them back.'};
+  // Another player's hero in the party, by name ("on Bram", "on Bram Ironfist").
+  if(!request.npcTarget&&target&&game.party?.members){
+    const named=Object.keys(game.party.members).find(id=>{if(id===game.party.lead)return false;let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase();}catch{}const first=name.split(' ')[0];return !!name&&(target===name||target===first||target.startsWith(first+' '));});
+    if(named){if(game.party.members[named].status==='dead')return {error:'They are dead. No spell you know can bring them back.'};request.partyTarget=named;}
+  }
   const check=inspectSpellCast(hero,game,health,spell,request,target);if(check.error)return check;
   request.forceDM=check.manual||!!(game.story&&automaticEffects[spell.id]?.detection);
   return {action:{type:'spell',request},narration:check.summary};

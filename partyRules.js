@@ -26,10 +26,15 @@ function stageAfterFall(game){
  return placeOf(record);
 }
 // The settled table: the world as it stands and every hero's own state, the lead's taken from the snapshot.
+// Whose turn it is in a party's fight (adventureRules.js keeps the order in game.turnOrder).
+export const turnHolder=game=>game?.turnOrder?.order?.[game.turnOrder.at]?.id??null;
 export function settleParty(snapshot){
  const game=snapshot.game,party=game.party,lead=party.lead,status=game.stage==='dead'?'dead':game.stage==='dying'?'down':'up';
- const members={...party.members};
- members[lead]={...(members[lead]??{}),character:snapshot.character,health:snapshot.health,hero:omit(pick(game,heroFields),status==='up'?['dying','death']:[]),status,stats:statsOf(snapshot.character)};
+ // What is left of a turn (an action spent, a bonus action waiting) stays with the hero whose turn it is, so a
+ // change made meanwhile at another device cannot hand them a second action.
+ const holder=turnHolder(game),members=Object.fromEntries(Object.entries(party.members).map(([id,m])=>[id,id===holder?m:omit(m,['turn'])]));
+ const turn=holder===lead&&status==='up'?pick(game,turnFields):{};
+ members[lead]={...omit(members[lead]??{},['turn']),character:snapshot.character,health:snapshot.health,hero:omit(pick(game,heroFields),status==='up'?['dying','death']:[]),status,stats:statsOf(snapshot.character),...(Object.keys(turn).length?{turn}:{})};
  // The world's own place: where the party was when this hero, down already, took their turn (party.stage), or where
  // it stands now.
  let stage=party.stage??(status==='up'?game.stage:stageAfterFall(game));
@@ -43,7 +48,7 @@ export function partyView(snapshot,me){
  const settled=settleParty(snapshot),mine=settled.members[me];if(!mine)return null;
  const game={...settled.world,...(mine.hero??{}),party:{members:settled.members,lead:me,order:settled.order}};
  if(mine.status!=='up'){game.party.stage=settled.world.stage;game.stage=mine.status==='dead'?'dead':'dying';}
- if(mine.status==='up'){delete game.dying;delete game.death;}
+ if(mine.status==='up'){delete game.dying;delete game.death;if(mine.turn&&turnHolder(settled.world)===me)Object.assign(game,mine.turn);}
  game.potions=game.potions??0;
  return {version:1,chosen:settled.chosen,character:mine.character,health:mine.status==='up'?mine.health:{current:0,temp:0},game};
 }
@@ -75,7 +80,7 @@ export function joinParty(snapshot,me,{character,game,health,name}){
 // (a party's fight may have been set by another hero's level; the foe's hit points are kept within what that allows).
 export function soloFromParty(snapshot,level=null){
  if(!isPartyGame(snapshot?.game))return snapshot;
- const game=omit(snapshot.game,['party']);if(snapshot.game.party.stage&&!['dying','dead'].includes(game.stage))game.stage=snapshot.game.party.stage;
+ const game=omit(snapshot.game,['party','turnOrder']);if(snapshot.game.party.stage&&!['dying','dead'].includes(game.stage))game.stage=snapshot.game.party.stage;
  if(Number.isInteger(level)&&game.encounterLevel!==undefined&&game.encounterLevel!==level){
   game.encounterLevel=level;
   const most=Math.max(10+8*(level-1),game.dungeon?14+4*(level-1):0,game.story?.foeStats?.maximum??0,game.wildFight?.stats?.maximum??0);

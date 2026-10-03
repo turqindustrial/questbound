@@ -13,7 +13,7 @@ import Icon from './Icon';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
 import {npcScene,npcLore} from './npcRules';
-import {livingAllies,allyStats} from './encounterRules';
+import {livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
 import Inventory from './Inventory';
 import {withStoryLog} from './storyLog';
@@ -75,7 +75,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // One-tap actions for this moment; the map's Travel buttons send through the same Dungeon Master turn.
  const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game,health)];
  // Whose move it is: the player's action, or (once it is spent) a bonus action or the end of the turn.
- const turnLabel=game.actionUsed?'Bonus action or end turn':'Your turn';
+ // In a party's fight the turn may be someone else's (adventureRules.js keeps the order).
+  const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':'Your turn';
  const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
  const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
@@ -219,7 +220,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  </View>;}
  return <View>
  {game.stage==='combat'&&<View dataSet={{qb:'plate'}} style={[s.combat,{marginTop:4,marginBottom:4}]}>
-  <View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Round {game.round}  ·  Your turn  ⚔</Text></View>
+  <View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Round {game.round}  ·  {turnLabel}  ⚔</Text></View>
   <Text style={s.label}>{'Opponent'}</Text>
   <Text style={s.foeName}>{game.wildFight?foe.name:game.story?.foe??foe.name}</Text>
   {foe.group&&<Text style={s.group}>{'◆ '.repeat(foeStanding(foe,game.enemyHP))}{'◇ '.repeat(foe.group.size-foeStanding(foe,game.enemyHP))} {foeStanding(foe,game.enemyHP)} of {foe.group.size} {foe.group.plural} standing</Text>}
