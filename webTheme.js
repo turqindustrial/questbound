@@ -33,11 +33,12 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 /* The drifting backdrop is larger than the screen; clip (unlike hidden) can never be scrolled sideways by focus or full-screen changes. */
 [data-qb=root],[data-qb=stage]{overflow:clip !important;}
 /* Atmosphere: painted backdrop drifting slowly, light shafts, low fog, candle glow, vignette, rising embers and film grain. */
+/* The painting starts at its true size and drifts in only a little (the host asked for it zoomed out, 2026-10-02). */
 [data-qb=backdrop]{animation:qb-drift 70s ease-in-out infinite alternate;transform-origin:50% 40%;}
 /* The title painting. Wide: the lich's head and the heroes stay in view however short the window. On an upright phone
    it sits between the name and the menu (App.js sets the variables from titleArt): "tall" is the tall painting at a
    set height, its sides fading out when it is narrower than the screen; "band" is the wide painting across the width. */
-[data-qb=backdrop]>div{background-position:50% 26% !important;}
+[data-qb=backdrop]>div{background-position:50% 30% !important;}
 [data-qb=backdrop][data-frame=tall]{--qb-title-rise:34px;}
 [data-qb=backdrop][data-frame=band]{--qb-title-rise:12px;}
 [data-qb=backdrop][data-frame=tall],[data-qb=backdrop][data-frame=band]{animation:none;
@@ -48,7 +49,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
  -webkit-mask-image:linear-gradient(90deg,transparent var(--qb-title-edge,0px),#000 calc(var(--qb-title-edge,0px) + var(--qb-title-fade,0px)),#000 calc(100% - var(--qb-title-edge,0px) - var(--qb-title-fade,0px)),transparent calc(100% - var(--qb-title-edge,0px)));
  mask-image:linear-gradient(90deg,transparent var(--qb-title-edge,0px),#000 calc(var(--qb-title-edge,0px) + var(--qb-title-fade,0px)),#000 calc(100% - var(--qb-title-edge,0px) - var(--qb-title-fade,0px)),transparent calc(100% - var(--qb-title-edge,0px)));}
 [data-qb=backdrop][data-frame=band]>div{background-size:100% auto !important;}
-@keyframes qb-drift{from{transform:scale(1.06) translate3d(0,0,0);}to{transform:scale(1.16) translate3d(-2%,-3%,0);}}
+@keyframes qb-drift{from{transform:scale(1) translate3d(0,0,0);}to{transform:scale(1.05) translate3d(-1%,-1.5%,0);}}
 [data-qb=atmosphere]{background:
  radial-gradient(ellipse 80% 55% at 50% -8%,rgba(140,82,255,.20),transparent 60%),
  radial-gradient(ellipse 70% 50% at 50% 115%,rgba(72,35,115,.22),transparent 65%),
