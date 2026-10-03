@@ -11,7 +11,8 @@
 #   -SetupTunnel     remember a permanent link for -Share from your own free Cloudflare account (a named tunnel's token,
 #                    stored encrypted to your Windows account, and its public hostname)
 #   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
-param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel)
+#   -TrustNetwork    mark the Wi-Fi this PC is on as your home network, so phone access runs on it (it runs only at home)
+param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -80,6 +81,7 @@ if ($Models) {
   Say "  Saved: $summary. A running Dungeon Master uses them from its next reply; no restart is needed." 'Green'
   return
 }
+if ($TrustNetwork) { & node (Join-Path $root 'phone-server.cjs') --trust-network; return }
 if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }
 # A permanent link: in the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, give it a public
 # hostname that points to http://127.0.0.1:8087, and paste its token here. The token never touches disk in plain text.
@@ -140,7 +142,7 @@ if (-not $Dev) {
 if (Test-Up 'http://localhost:8084/health') { Say '  Dungeon Master    already running' 'DarkGray' }
 else {
   $secure = $null
-  if (Test-Path $keyFile) { try { $secure = Get-Content $keyFile -Raw | ConvertTo-SecureString } catch { Say '  The remembered key could not be unlocked on this Windows account.' 'Yellow' } }
+  if (Test-Path $keyFile) { try { $secure = (Get-Content $keyFile -Raw).Trim() | ConvertTo-SecureString } catch { Say '  The remembered key could not be unlocked on this Windows account.' 'Yellow' } }
   $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-6-luna' }
   $storyModel = if (Test-Path $storyModelFile) { (Get-Content $storyModelFile -Raw).Trim() } else { '' }
   $fresh = $false
@@ -196,7 +198,10 @@ else {
   Start-Hidden 'phone' 'node' 'phone-server.cjs' | Out-Null
   for ($i = 0; $i -lt 20 -and -not ((Test-Path $sessionFile) -and (Get-Item $sessionFile).LastWriteTime -gt $before); $i++) { Start-Sleep -Milliseconds 500 }
   if ((Test-Path $sessionFile) -and (Get-Item $sessionFile).LastWriteTime -gt $before) { $session = Get-Content $sessionFile -Raw | ConvertFrom-Json; Say '  Phone access      started' 'Green' }
-  else { $session = $null; Say '  Phone access did not start (is the PC on Wi-Fi?). See .questbound-logs\phone.err.log' 'Yellow' }
+  else {
+    $session = $null; $why = Get-Content (Join-Path $logs 'phone.err.log') -Tail 1 -ErrorAction SilentlyContinue
+    if ($why) { Say "  $why" 'Yellow' } else { Say '  Phone access did not start (is the PC on Wi-Fi?). See .questbound-logs\phone.err.log' 'Yellow' }
+  }
 }
 
 # 6. Sharing with playtesters over the internet (only with -Share): a Cloudflare tunnel to a loopback-only gateway
@@ -223,7 +228,7 @@ if ($Share) {
       if ($named) {
         # The token reaches cloudflared through its environment, never the command line.
         $tunnelSecure = $null
-        try { $tunnelSecure = Get-Content $tunnelTokenFile -Raw | ConvertTo-SecureString } catch { Say '  The saved tunnel token could not be unlocked on this Windows account. Run Questbound.cmd -SetupTunnel again.' 'Red' }
+        try { $tunnelSecure = (Get-Content $tunnelTokenFile -Raw).Trim() | ConvertTo-SecureString } catch { Say '  The saved tunnel token could not be unlocked on this Windows account. Run Questbound.cmd -SetupTunnel again.' 'Red' }
         if ($tunnelSecure) {
           $tb = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($tunnelSecure)
           try { $env:TUNNEL_TOKEN = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tb).Trim(); Start-Hidden 'tunnel' "`"$cf`"" 'tunnel --no-autoupdate run' | Out-Null }

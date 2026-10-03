@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),http=require('node:http'),fs=require(
 // cannot forge, the guest label the Dungeon Master sees, feedback that cannot forge headings, weak passwords refused,
 // and the guests' daily allowance. Nothing here calls the provider.
 const {pagePolicy,inlineScriptHashes}=require('./security-headers.cjs');
-const {createPhoneServer}=require('./phone-server.cjs'),{createDesktopServer}=require('./desktop-server.cjs'),{createSyncServer}=require('./sync-server.cjs');
+const {createPhoneServer,networkVerdict}=require('./phone-server.cjs'),{createDesktopServer}=require('./desktop-server.cjs'),{createSyncServer}=require('./sync-server.cjs');
 const {createServer}=require('./dm-server.cjs'),{createAccounts,weakPassword}=require('./accounts.cjs'),{createSpending,costOf}=require('./spending.cjs');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-security-')),root=path.join(tmp,'dist'),script='window.loaded=1;';
 fs.mkdirSync(root);
@@ -103,6 +103,12 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
   assert.equal((await call(mp,'/health',{headers:{Host:'rebind.evil.example:'+mp}})).status,403);
  }finally{await close(dm);}
 
+ // The Wi-Fi link (plain http) starts only at home: a network Windows calls Private, or one the host marked as home.
+ assert.equal(networkVerdict({name:'Cafe Free WiFi',category:'Public'},['TheHome']).ok,false,'not on public Wi-Fi');
+ assert.equal(networkVerdict({name:'TheHome',category:'Public'},['TheHome']).ok,true,'a network the host marked as home');
+ assert.equal(networkVerdict({name:'Office',category:'DomainAuthenticated'},[]).ok,true);assert.equal(networkVerdict({name:'Flat',category:'Private'},[]).ok,true);
+ assert.equal(networkVerdict(null,[]).unknown,true,'when Windows cannot say, the link starts with a warning');
+ const ps1=fs.readFileSync('launch.ps1','utf8');assert.ok(ps1.includes('[switch]$TrustNetwork')&&ps1.includes('--trust-network'),'the launcher can mark the home network');
  // Passwords guessers try first are refused.
  for(const p of ['password123','Password1','12345678','qwertyuiop','aaaaaaaa','abcdefghij','my-questbound','iloveyou'])assert.ok(weakPassword(p),p);
  assert.ok(weakPassword('ada.lovelace99','ada.lovelace@example.com'),'the name before the @');
@@ -126,5 +132,5 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
  fs.renameSync(log,log+'.old');line({mode:'turn',guest:'g1',input:100,output:10});assert.equal(spend.check('g1').ok,false,'a rotated log forgets nothing spent today');
  assert.ok(costOf({model:'mystery-model',input:1e6})>costOf({model:'gpt-6-luna',input:1e6}),'an unknown model is priced high on purpose');
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Security: page policies and safe headers on every page, loopback services that answer only to this PC, visitors told apart by headers they cannot forge, the gateway\'s guest label, plain feedback, weak passwords refused and the guests\' daily allowance.');
+ console.log('Security: page policies and safe headers on every page, loopback services that answer only to this PC, visitors told apart by headers they cannot forge, the Wi-Fi link only at home, the gateway\'s guest label, plain feedback, weak passwords refused and the guests\' daily allowance.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

@@ -17,6 +17,10 @@ const get=(port,route,host)=>new Promise((resolve,reject)=>{const req=http.reque
   assert.equal((await get(port,'/','127.0.0.1:'+port)).status,200);
   const ps1=fs.readFileSync('launch.ps1','utf8');assert.equal(/[^\x00-\x7F]/.test(ps1),false,'Launcher stays ASCII for Windows PowerShell 5.1');
   assert.ok(ps1.includes('ConvertFrom-SecureString')&&!/Set-Content[^\n]*OPENAI_API_KEY/.test(ps1),'The key is only stored DPAPI-encrypted');
+  // Set-Content writes the encrypted key with a line break after it, so it is trimmed before it is unlocked: without that,
+  // "remember this key" never worked and the launcher asked for the key every time (found 2026-10-03). The same for the tunnel token.
+  assert.ok(ps1.includes('(Get-Content $keyFile -Raw).Trim() | ConvertTo-SecureString')&&ps1.includes('(Get-Content $tunnelTokenFile -Raw).Trim() | ConvertTo-SecureString'),'saved secrets are trimmed before unlocking');
+  if(process.platform==='win32'){const r=require('node:child_process').spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"$f=Join-Path $env:TEMP ('qb-dpapi-'+[guid]::NewGuid()+'.txt'); ConvertTo-SecureString 'not-a-real-key' -AsPlainText -Force | ConvertFrom-SecureString | Set-Content $f -Encoding ASCII; try { $s=(Get-Content $f -Raw).Trim() | ConvertTo-SecureString; 'unlocked' } finally { [IO.File]::Delete($f) }"],{encoding:'utf8'});assert.match(r.stdout,/unlocked/,'a remembered value unlocks again: '+r.stderr);}
   const ignore=fs.readFileSync('.gitignore','utf8');for(const entry of ['.questbound-key.dpapi','.questbound-table/','.questbound-logs/','.questbound-diagnostics.jsonl*'])assert.ok(ignore.includes(entry),entry);
   console.log('Passed: desktop build server (index, assets, route fallback, traversal and host guards) and launcher safety (ASCII, DPAPI-only key storage, private files ignored).');
  }finally{await new Promise(r=>real.close(r));fs.rmSync(root,{recursive:true,force:true});}

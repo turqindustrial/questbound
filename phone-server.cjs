@@ -163,6 +163,23 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  server.requestTimeout=120000;server.headersTimeout=10000;
  return {server,info:{desktop:'http://localhost:8081/',phone:origin+'/',pairingCode:code,expiresAt:new Date(expires).toISOString(),limits:{turns:dmLimit,turnsInAll:dmTotal,art:artLimit,table:syncLimit,requests:requestLimit}}};
 }
+// Home Wi-Fi only: the Wi-Fi link is plain http, so it starts only on a network Windows calls Private (or a work
+// domain), or one the host has marked as home (`Questbound.cmd -TrustNetwork` writes its name to
+// .questbound-home-networks). On cafe or hotel Wi-Fi it stays off; the shared https link works anywhere. When Windows
+// cannot say which network this is (or on another system) the link starts, with a warning.
+const homeFile=path.join(__dirname,'.questbound-home-networks');
+const trustedNetworks=()=>{try{return fs.readFileSync(homeFile,'utf8').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);}catch{return [];}};
+function networkProfiles(){
+ if(process.platform!=='win32')return null;
+ try{const r=require('node:child_process').spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command','Get-NetConnectionProfile | ForEach-Object { $_.InterfaceAlias + [char]9 + $_.Name + [char]9 + $_.NetworkCategory }'],{encoding:'utf8',timeout:20000,windowsHide:true});
+  if(r.status!==0)return null;return r.stdout.split(/\r?\n/).filter(l=>l.includes('\t')).map(l=>{const [alias,name,category]=l.split('\t');return {alias:alias.trim(),name:name.trim(),category:category.trim()};});}catch{return null;}
+}
+const interfaceOf=address=>Object.entries(os.networkInterfaces()).find(([,list])=>list.some(n=>n.address===address))?.[0]??null;
+function networkVerdict(profile,trusted=[]){
+ if(!profile)return {ok:true,unknown:true};
+ if(/^(Private|DomainAuthenticated)$/i.test(profile.category)||trusted.includes(profile.name))return {ok:true,name:profile.name};
+ return {ok:false,name:profile.name};
+}
 if(require.main===module){
  const args=process.argv.slice(2),publicOrigin=args.includes('--public')?args[args.indexOf('--public')+1]:null;
  if(!fs.existsSync(path.join(__dirname,'dist-phone','index.html'))){console.error('Build the game first with npm run build:web.');process.exitCode=1;}
@@ -175,12 +192,19 @@ if(require.main===module){
   if(created){const {server,info}=created;server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Sharing is already running on port 8087.':e.message);process.exitCode=1;});server.listen(8087,'127.0.0.1',()=>{fs.writeFileSync(sessionFile,JSON.stringify({link:info.phone,inviteCode:info.pairingCode,expiresAt:info.expiresAt,pid:process.pid},null,2));console.log('Shared link: '+info.phone+'\nInvite code: '+info.pairingCode+'\nValid until '+info.expiresAt+'. Keep this PC, the tunnel and the Dungeon Master running.');});}
  }
  else{
-  const host=phoneAddress();if(!host){console.error('Connect the PC to Wi-Fi or a private local network first.');process.exitCode=1;}
+  const host=phoneAddress(),profile=host?(networkProfiles()??[]).find(p=>p.alias===interfaceOf(host))??null:null,verdict=networkVerdict(profile,trustedNetworks());
+  if(args.includes('--trust-network')){
+   if(!profile)console.log('Windows did not say which network this is, so there is nothing to mark.');
+   else{const list=trustedNetworks();if(!list.includes(profile.name))fs.writeFileSync(homeFile,[...list,profile.name].join('\n')+'\n');console.log('"'+profile.name+'" is marked as your home network. The Wi-Fi link will start on it. Undo by deleting .questbound-home-networks.');}
+  }
+  else if(!host){console.error('Connect the PC to Wi-Fi or a private local network first.');process.exitCode=1;}
+  else if(!verdict.ok){console.error('Phone access is off on "'+verdict.name+'": Windows calls it a public network and it is not marked as your home. The Wi-Fi link is not encrypted, so it only runs at home; use the shared link here. If this is your home network, run Questbound.cmd -TrustNetwork.');process.exitCode=1;}
   // Home Wi-Fi: pairing lasts a week, paired phones stay paired across restarts (hashes only, as for sharing), and a
    // restart on the same address keeps the code the phone already has until fewer than two hours are left.
-  else{const sessionFile=path.join(__dirname,'.questbound-phone-session.json');let previous=null;
+  else{if(verdict.unknown)console.error('Windows did not say which network this is; starting the Wi-Fi link anyway. Use it only at home.');
+   const sessionFile=path.join(__dirname,'.questbound-phone-session.json');let previous=null;
     try{const saved=JSON.parse(fs.readFileSync(sessionFile,'utf8'));if(saved.phone==='http://'+host+':8085/'&&/^\d{8}$/.test(saved.pairingCode)&&Date.parse(saved.expiresAt)>Date.now()+2*3600000)previous=saved;}catch{}
     const {server,info}=createPhoneServer({host,pairingHours:168,sessionHours:168,maxSessions:30,sessionStore:path.join(__dirname,'.questbound-phone-sessions.json'),feedbackFile:path.join(__dirname,'playtest-feedback.md'),...(previous?{code:previous.pairingCode,expiresAt:Date.now()+168*3600000}:{})});server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Phone access is already running on port 8085.':e.message);process.exitCode=1;});server.listen(8085,host,()=>{fs.writeFileSync(path.join(__dirname,'.questbound-phone-session.json'),JSON.stringify({...info,pid:process.pid},null,2));console.log('Desktop: '+info.desktop+'\nPhone: '+info.phone+'\nPairing code: '+info.pairingCode+'\nSame Wi-Fi required. Keep this process and the private DM service running. Pairing lasts a week.');});}
  }
 }
-module.exports={createPhoneServer,phoneAddress};
+module.exports={createPhoneServer,phoneAddress,networkVerdict,networkProfiles,interfaceOf};
