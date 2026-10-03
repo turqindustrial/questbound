@@ -36,6 +36,8 @@ spoken[0].onend();same(n.ducked(),[true]);spoken[1].onend();same(n.ducked(),[tru
 n.set({muted:true});assert.equal(n.speakTurn(turn,{s:synth,Utterance}),false,'muted means silent');assert.ok(cancelled>=1,'muting silences a line being spoken');
 n.set({muted:false});
 assert.equal(n.speakTurn({events:[{kind:'roll',text:'d20: 3'}]},{s:synth,Utterance}),false,'nothing to say');
+// A speech engine that throws leaves the game untouched.
+assert.equal(n.speakLines(['Hello.'],{s:{speak(){throw Error('no audio device');},cancel(){},getVoices:()=>voices},Utterance}),false,'a refusing engine is silent, not an error');
 // A new turn, or turning the narrator off, stops the speech.
 const before=cancelled;n.speakTurn(turn,{s:synth,Utterance});assert.ok(cancelled>before);
 n.set({narrator:false});assert.ok(cancelled>before+1);
@@ -43,7 +45,7 @@ assert.equal(n.narratorAvailable(),false,'no voices in this test world');
 // The screens: the setting under Sound, the turn read aloud from the play screen, silenced when a new turn is sent or the screen is left.
 const controls=fs.readFileSync('AudioControls.js','utf8'),play=fs.readFileSync('Adventure.js','utf8'),audio=fs.readFileSync('audio.js','utf8'),policy=fs.readFileSync('legalText.js','utf8');
 assert.ok(controls.includes('label="Narrator voice"')&&controls.includes('browser maker')&&controls.includes('sampleNarrator'));
-assert.ok(play.includes('speakTurn(result.turn)')&&play.includes('=>{stopNarrator();const from=')&&play.includes('useEffect(()=>()=>stopNarrator(),[])'));
+assert.ok(play.includes('try{speakTurn(result.turn);}catch{}')&&play.includes('=>{try{stopNarrator();}catch{}const from=')&&play.includes('useEffect(()=>()=>stopNarrator(),[])'));
 assert.ok(audio.includes('narrator:false,voice:null')&&audio.includes('export function narrating(on)'));
 assert.ok(policy.includes('narrator voice')&&policy.includes('browser maker'),'the privacy policy and the agreement say what the narrator does');
 console.log('Narrator: off by default, the turn\'s narration and spoken lines read a sentence or two at a time in a storyteller\'s voice, the score stepping back, silenced by a new turn, muting or the setting.');

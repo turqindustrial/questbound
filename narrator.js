@@ -32,24 +32,25 @@ export function pickVoice(voices,preferred=null){
 }
 let speaking=0,lastSynth=null;
 export function stopNarrator(){const s=lastSynth??synth();if(s)try{s.cancel();}catch{}if(speaking){speaking=0;try{narrating(false);}catch{}}}
+// Speaking never throws into the game: a browser whose speech engine refuses is simply silent.
 export function speakLines(lines,{settings=audioSettings(),s=synth(),Utterance=globalThis.SpeechSynthesisUtterance,voices=null}={}){
- if(!s||typeof Utterance!=='function'||!lines.length)return false;
- lastSynth=s;stopNarrator();
- const voice=pickVoice(englishVoices(voices??s.getVoices?.()??[]),settings.voice??null);
- const chunks=lines.flatMap(line=>speechChunks(line));if(!chunks.length)return false;
- speaking=chunks.length;try{narrating(true);}catch{}
- for(const chunk of chunks){
-  const u=new Utterance(chunk);if(voice)u.voice=voice;u.lang=voice?.lang??'en-GB';u.rate=0.96;u.pitch=0.92;u.volume=Math.max(0,Math.min(1,settings.master??1));
-  const done=()=>{if(speaking>0&&--speaking===0)try{narrating(false);}catch{}};u.onend=done;u.onerror=done;
-  s.speak(u);
- }
- return true;
+ try{
+  if(!s||typeof Utterance!=='function'||!lines.length)return false;
+  lastSynth=s;stopNarrator();
+  const voice=pickVoice(englishVoices(voices??s.getVoices?.()??[]),settings.voice??null);
+  const chunks=lines.flatMap(line=>speechChunks(line));if(!chunks.length)return false;
+  speaking=chunks.length;try{narrating(true);}catch{}
+  for(const chunk of chunks){
+   const u=new Utterance(chunk);if(voice)u.voice=voice;u.lang=voice?.lang??'en-GB';u.rate=0.96;u.pitch=0.92;u.volume=Math.max(0,Math.min(1,settings.master??1));
+   const done=()=>{if(speaking>0&&--speaking===0)try{narrating(false);}catch{}};u.onend=done;u.onerror=done;
+   s.speak(u);
+  }
+  return true;
+ }catch{speaking=0;try{narrating(false);}catch{}return false;}
 }
 // Reads a turn aloud when the narrator is on and sound is not muted.
 export function speakTurn(turn,options={}){
- const settings=options.settings??audioSettings();
- if(!settings.narrator||settings.muted)return false;
- return speakLines(spokenLines(turn),{...options,settings});
+ try{const settings=options.settings??audioSettings();if(!settings.narrator||settings.muted)return false;return speakLines(spokenLines(turn),{...options,settings});}catch{return false;}
 }
 export function sampleNarrator(){return speakLines(['Welcome, traveller. I will read the Dungeon Master\'s words to you as your tale unfolds.']);}
 // Turning the narrator off, or muting, silences a line already being spoken.
