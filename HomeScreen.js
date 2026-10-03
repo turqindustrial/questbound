@@ -76,7 +76,8 @@ export default function HomeScreen({hero,game,health,saved,unprotected=false,dis
   <View style={s.landLeft}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{footer}</View>
  </View>;
  if(wide)return <View dataSet={{qb:'enter-slow'}} style={s.wide}>
-  <View style={s.left}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{protect}</View>
+  {/* On a tall screen the name sits above the monk's leap rather than across it. */}
+  <View style={[s.left,height>=760&&{justifyContent:'flex-start',paddingTop:Math.round(height*.04)}]}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{protect}</View>
   <View style={s.right}>{slot}</View>
   <View style={s.footerWide}>{footer}</View>
  </View>;

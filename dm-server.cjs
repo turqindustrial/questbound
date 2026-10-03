@@ -316,11 +316,14 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   // A reply that cannot be used (broken, or outside what the game allows) is asked for once more with the reason,
   // instead of failing the turn. What the player has to hear (they cannot pay) is not asked again.
   const answered=async()=>{
-   try{return digest(await ask('',turnReasoning));}
-   catch(e){
-    if(!e||/enough gold/.test(e.message)||!/^(The AI (did not return a usable reply|proposed an invalid|reply was incomplete)|Invalid check plan|The DM (described|included|must return)|The recruitment decision|Out of character|Spell damage must|A denied or clarified|The action is already resolved)/.test(e.message))throw e;
-    recordSecondLook('unusable reply','asked again',body,fetchImpl===fetch);
-    return digest(await ask('\nLOOK AGAIN: Your last reply could not be used ('+e.message.slice(0,160)+'). Answer the player\'s message again, keeping exactly to the reply format, the choices on offer and the limits given.',turnReasoning,40000));
+   let note='';
+   for(let tries=0;;tries++){
+    try{return digest(await ask(note,turnReasoning,note?40000:90000));}
+    catch(e){
+     if(tries>=2||!e||/enough gold/.test(e.message)||!/^(The AI (did not return a usable reply|proposed an invalid|reply was incomplete)|Invalid check plan|The DM (described|included|must return)|The recruitment decision|Out of character|Spell damage must|A denied or clarified|The action is already resolved)/.test(e.message))throw e;
+     recordSecondLook('unusable reply','asked again',body,fetchImpl===fetch);
+     note='\nLOOK AGAIN: Your last reply could not be used ('+e.message.slice(0,160)+'). Answer the player\'s message again, keeping exactly to the reply format, the choices on offer and the limits given.';
+    }
    }
   };
   const first=await answered();

@@ -16,7 +16,9 @@ assert.ok(accounts.includes("crypto.scrypt(")&&text(privacyPolicy).includes('sal
 assert.ok(accounts.includes("createHash('sha256').update('questbound-account-v1:'+email)")&&text(privacyPolicy).includes('hash of your email address'));
 assert.ok(fs.readFileSync('Feedback.js','utf8').includes('device:deviceLabel()')&&text(privacyPolicy).includes('description of your device'));
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("recordUsage('turn'")&&text(privacyPolicy).includes('never the words themselves'));
-assert.ok(fs.readFileSync('webTheme.js','utf8').includes('fonts.googleapis.com')&&text(privacyPolicy).includes('Google Fonts'));
+// Typefaces come from the host, so no third party sees a page load; the policy no longer names Google Fonts.
+for(const file of ['webTheme.js','public/index.html','phone-server.cjs'])assert.ok(!fs.readFileSync(file,'utf8').includes('fonts.googleapis.com'),file+' loads no fonts from Google');
+assert.ok(!text(privacyPolicy).includes('Google Fonts')&&fs.existsSync('public/fonts/fonts.css')&&['cinzel','cinzel-decorative','eb-garamond','inter'].every(f=>fs.existsSync('public/fonts/OFL-'+f+'.txt')),'fonts and their licences are in public/fonts');
 assert.ok(fs.readFileSync('launch.ps1','utf8').includes('cloudflared')&&text(privacyPolicy).includes('Cloudflare'));
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes('api.openai.com')&&text(privacyPolicy).includes('OpenAI'));
 for(const doc of [privacyPolicy,termsOfUse])assert.ok(text(doc).includes('16'),doc.title+' names the age');
@@ -73,6 +75,7 @@ else for(const [file,content] of Object.entries(outputs))assert.equal(fs.existsS
   const get=p=>new Promise((resolve,reject)=>http.get({hostname:'127.0.0.1',port,path:p,headers:{Host:'127.0.0.1:0'}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>resolve({status:res.statusCode,text:t}));}).on('error',reject));
   const privacy=await get('/privacy.html');assert.equal(privacy.status,200);assert.ok(privacy.text.includes('Privacy policy')&&privacy.text.includes('OpenAI'));
   assert.equal((await get('/terms.html')).status,200);assert.equal((await get('/index.html')).status,401,'the game itself still waits for pairing');
+  fs.mkdirSync(path.join(tmp,'fonts'));fs.writeFileSync(path.join(tmp,'fonts','fonts.css'),'/* fonts */');assert.equal((await get('/fonts/fonts.css')).status,200,'the pairing page can use the fonts');assert.equal((await get('/fonts/../index.html')).status,401);
   const pairing=await get('/');assert.ok(pairing.text.includes('href="/privacy.html"'));
   await new Promise(r=>server.close(r));
  }finally{fs.rmSync(tmp,{recursive:true,force:true});}

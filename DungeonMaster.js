@@ -12,6 +12,7 @@ import {conversationPeople,conversationTarget,activeEffectLines,visibleTurn} fro
 import {adventureStep} from './adventureRules';
 import {dmCommand,withAttackIntent} from './dmCommands';
 import {storyPreferences} from './storyPreferences';
+import {skirmishHint} from './skirmishGuide';
 import {attitudeLabel} from './relationshipRules';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
@@ -110,6 +111,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const actionScroll=useRef(null),[spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false);
   // A one-time "How to play" card for new players; dismissed once per device.
   const [tips,setTips]=useState(()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}});
+  // A player who read the primer while their tale was written needs only a reminder; the Skirmish teaches as it goes.
+  const [primed]=useState(()=>{try{return !!globalThis.localStorage?.getItem('questbound.primer.v1');}catch{return false;}});
+  const lesson=tips?skirmishHint(game,health,combatBasics(hero).hp):null;
   const dismissTips=()=>{setTips(false);try{globalThis.localStorage?.setItem('questbound.tips.v1','seen');}catch{}};
   useEffect(()=>{if(tips&&lastTurnId>=3)dismissTips();},[lastTurnId]);
   useEffect(()=>{actionScroll.current?.scrollTo?.({x:0,animated:true});setSpellsOpen(false);},[lastTurnId]);
@@ -277,13 +281,15 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     </View>}
     <TurnPlayback fill names={names} avatarFor={avatarFor} sceneFor={sceneFor} openingScene={!person&&game.story?placeArtSubject(game,game.story.locations?.[game.story.introId==='hostile'?'bridge':'inn']?.name):null} intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
       <View style={s.tipsHead}><Icon name="star" size={14} color={colors.gold}/><PlainText style={s.tipsTitle}>How to play</PlainText></View>
+      {primed?<View style={s.tipRow}><Icon name="quill" size={15} color={colors.gold}/><PlainText style={s.tipsText}>As you read while you waited: type what you do, or tap an action below. If something goes wrong, tap DM and tell the Dungeon Master.</PlainText></View>:<>
       <View style={s.tipRow}><Icon name="swords" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an action below{compact?'':' (or press its number key)'}, or type anything you want to do or say.</PlainText></View>
       <View style={s.tipRow}><Icon name="d20" size={15} color={colors.gold}/><PlainText style={s.tipsText}>The Dungeon Master decides what happens; the dice decide how it goes.</PlainText></View>
       <View style={s.tipRow}><Icon name="speak" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Something went wrong, or you meant something else? Tap DM beside the message box and tell the Dungeon Master.</PlainText></View>
-      <View style={s.tipRow}><Icon name="menu" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an underlined name to learn more. The menu holds your character sheet, journal, settings and feedback.</PlainText></View>
+      <View style={s.tipRow}><Icon name="menu" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an underlined name to learn more. The menu holds your character sheet, journal, settings and feedback.</PlainText></View></>}
       <Pressable accessibilityRole="button" onPress={dismissTips} dataSet={{qb:'chip'}} style={s.tipsButton}><Icon name="check" size={14} color={colors.gold}/><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
     </View>:null} aside={(short||compact||snug)&&!person?statusPill:null} typing={typing} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
+    {tips&&lesson&&!person&&<View dataSet={{qb:'enter'}} style={s.lesson}><Icon name="info" size={14} color={colors.goldMid}/><PlainText style={s.lessonText}>{lesson}</PlainText></View>}
     {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {!typing&&actionBar}
     <ActionGuide visible={guide} onClose={()=>setGuide(false)} actions={actions} hero={hero} game={game} spells={spellsOpen} disabled={actionsDisabled} onRun={runAction}/>
@@ -325,6 +331,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  fillHeading:{fontSize:18},fillBack:{minWidth:36,minHeight:44,justifyContent:'center',alignItems:'center'},
  fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:'#c2b1ab',fontSize:14,marginBottom:3},
  effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12,flexShrink:1},
+ lesson:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:6,paddingHorizontal:4},lessonText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:tint('#c9bfc6')},
  tryChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:12,paddingVertical:6,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:tint('rgba(176,140,245,.5)'),backgroundColor:tint('rgba(20,15,21,.7)')},tryText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:tint('#e2dde1')},
  notice:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12,marginBottom:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},noticeText:{fontFamily:fonts.ui,fontSize:13,lineHeight:20,color:colors.muted},
  errorRow:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingVertical:8,paddingHorizontal:10,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.35)',backgroundColor:'rgba(60,18,14,.5)'},

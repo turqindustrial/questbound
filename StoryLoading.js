@@ -36,6 +36,8 @@ export default function StoryLoading({introId,hero=null,near=null}){
  const {width,height}=useWindowDimensions(),intro=intros.find(i=>i.id===introId),[tip,setTip]=useState(()=>Math.floor(Math.random()*tips.length)),[seconds,setSeconds]=useState(0);
  // The primer turns its own pages slowly until the player turns one themselves.
  const [teaching]=useState(()=>hero==null&&firstTime()),[page,setPage]=useState(0),[turned,setTurned]=useState(false),small=height<720,tiny=height<480;
+ // Once the primer has been shown, the in-game How to play card has less to say (DungeonMaster.js).
+ useEffect(()=>{if(teaching)try{globalThis.localStorage?.setItem('questbound.primer.v1','seen');}catch{}},[teaching]);
  useEffect(()=>{const a=setInterval(()=>setTip(t=>(t+1)%tips.length),5200),b=setInterval(()=>setSeconds(s=>s+1),1000);return()=>{clearInterval(a);clearInterval(b);};},[]);
  useEffect(()=>{if(!teaching||turned)return;const t=setInterval(()=>setPage(p=>Math.min(primer.length-1,p+1)),11000);return()=>clearInterval(t);},[teaching,turned]);
  const turn=by=>{setTurned(true);setPage(p=>Math.max(0,Math.min(primer.length-1,p+by)));};

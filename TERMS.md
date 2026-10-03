@@ -53,7 +53,7 @@ Questbound, copyright 2026 turqindustrial, all rights reserved. Built with React
 
 ### Typefaces
 
-Cinzel, Cinzel Decorative, EB Garamond and Inter, under the SIL Open Font License 1.1, served by Google Fonts.
+Cinzel, Cinzel Decorative, EB Garamond and Inter, under the SIL Open Font License 1.1, served from the host's own computer (the licence texts are at /fonts/ beside the font files).
 
 ### Pictures and sound
 

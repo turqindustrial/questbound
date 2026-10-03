@@ -71,7 +71,8 @@ The other: Multiplayer → another name → **Join the table** → Play at the t
 
 ## 4b. First time (3 min, in a browser that has never played)
 - [ ] Title → New Adventure → a ready-made hero → the adventure list says where to start → Begin. While the tale is written: a request for patience and a six-page "How to play" you can turn yourself.
-- [ ] When the tale opens: "Try: I look around." above the message box puts the words in the box without sending; the "How to play" card goes away after a few turns or with Got it.
+- [ ] When the tale opens: "Try: I look around." above the message box puts the words in the box without sending; the "How to play" card is a one-line reminder (you read the primer) and goes away after a few turns or with Got it.
+- [ ] Skirmish, in a fresh browser: a line under the actions says what the moment calls for (first move, bonus action, a draught when hurt, retreat when low). It is gone once you have dismissed How to play.
 
 ## 5. Move your hero (2 min)
 - [ ] Settings → **Move your hero** → Copy save code. Open the game in another browser or device, load the code there: the same hero and adventure appear.
