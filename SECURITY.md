@@ -18,7 +18,7 @@ Questbound runs on the host's own PC and is reached by players over home Wi-Fi o
 3. **Share codes privately.** If an invite code leaks, stop the game and share again (`Questbound.cmd -Stop`, then `Questbound-Share.cmd`): a quick tunnel gets a new link and a new code. For a new Wi-Fi pairing code, delete `.questbound-phone-session.json` before stopping and starting the game. To sign out every paired browser as well, also delete `.questbound-phone-sessions.json` or `.questbound-share-sessions.json`.
 4. **Use the Wi-Fi link only on a network you trust.** It is plain http: anyone on the same Wi-Fi could in principle read what is sent. The tester link is encrypted (https) from the player's browser to Cloudflare, whose tunnel carries it on to the PC. The account form says this to Wi-Fi players.
 5. **Keep Windows, Node.js and cloudflared up to date.** The game's servers use only Node's built-in modules.
-6. **Restart the Dungeon Master at a convenient time** (Ctrl+C in its window, then `Questbound.cmd`) so it also checks the address it is reached by. Until then it already refuses every page but the game's own.
+6. **Restart the Dungeon Master once, at a quiet moment,** so it also checks the address it is reached by (until then it already refuses every page but the game's own). End its process (its id is `dm` in `.questbound-logs\pids.json`: `taskkill /PID <id> /T /F`; if you started it with `start-dm.ps1`, press Ctrl+C in its window instead), then run `Questbound.cmd`. With your key remembered it starts the Dungeon Master again without asking and leaves everything else running, the tester link included.
 
 ## What remains true
 
