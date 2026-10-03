@@ -30,8 +30,10 @@ export async function readTurn(response,onNarration){
 // id, is told the tale is under way, and asks after it every few seconds until it is ready. No request waits long,
 // so a phone's gateway and the shared link never give up on it. A Dungeon Master from before this simply answers the
 // first request with the story. Returns {ok,body} like askDm; body.story is the tale.
-const newJobId=(random=Math.random)=>Array.from({length:24},()=>'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random()*36)]).join('');
-export async function writeStory(endpoint,payload,{fetchImpl=fetch,now=Date.now,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),every=3000,limit=480000,random=Math.random}={}){
+// The job id is drawn from the browser's secure random source, so nobody can guess another player's tale.
+const secureRandom=()=>{try{return globalThis.crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;}catch{return Math.random();}};
+const newJobId=(random=secureRandom)=>Array.from({length:24},()=>'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random()*36)]).join('');
+export async function writeStory(endpoint,payload,{fetchImpl=fetch,now=Date.now,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),every=3000,limit=480000,random=secureRandom}={}){
  const job=newJobId(random),started=now();
  const first=await askDm(endpoint,{...payload,context:{...payload.context,job}},{fetchImpl,now,pause});
  if(!first.ok||first.body?.story||first.body?.status===undefined)return first;

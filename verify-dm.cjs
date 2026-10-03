@@ -22,6 +22,18 @@ const success=reply=>async(url,options)=>{assert.equal(url,'https://api.openai.c
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Invalid unsolicited ruling.',actionId:null,ruling:valid})}),/invalid ruling/);
  await assert.rejects(generate(adjudication,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Invalid damage.',actionId:null,ruling:{...valid,damage:-2}})}),/invalid ruling/);
  await assert.rejects(generate(adjudication,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Ambiguous.',actionId:'travel-inn',ruling:valid})}),/invalid ruling/);
+ // Guests (requests the phone gateway labelled): OpenAI is told which guest asked and the host's requests carry no label;
+ // only the host may check the AI connection; a guest past the host's daily allowance is refused before any call.
+ const told=[],telling=reply=>async(url,options)=>{told.push(JSON.parse(options.body).safety_identifier??null);return success(reply)(url,options);};
+ const guestBody={...body,guest:'0123456789abcdef0123456789abcdef'};
+ await generate(guestBody,{apiKey:'test-only',model:'test-model',fetchImpl:telling({narration:'Back to the inn.',actionId:'travel-inn'}),spending:{check:()=>({ok:true})}});
+ await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:telling({narration:'Back to the inn.',actionId:'travel-inn'})});
+ assert.equal(JSON.stringify(told),JSON.stringify(['qb-guest-0123456789abcdef0123456789abcdef',null]));
+ await assert.rejects(generate({...guestBody,context:{mode:'diagnostics',choices:[]}},{apiKey:'test-only',model:'test-model',fetchImpl:async()=>{throw Error('never asked');}}),e=>e.httpStatus===403);
+ let asked=0;const usedUp='The host\'s daily allowance for the Dungeon Master is used up. Play resumes tomorrow; your adventure is unchanged.';
+ await assert.rejects(generate(guestBody,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>{asked++;throw Error('never asked');},spending:{check:()=>({ok:false,error:usedUp})}}),e=>e.httpStatus===503&&/allowance/.test(e.message));
+ assert.equal(asked,0,'nothing is sent to OpenAI once the allowance is used up');
+ assert.doesNotMatch(usedUp,/Please wait before asking|busy with other players/,'the game must not keep retrying a used-up allowance');
  const server=createServer({apiKey:'',model:''});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const url='http://127.0.0.1:'+server.address().port;
  try{
   assert.equal((await (await fetch(url+'/health')).json()).ready,false);

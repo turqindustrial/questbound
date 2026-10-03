@@ -62,7 +62,7 @@ const body=(input,extra={})=>({input,context:{choices:[],story,player:{species:'
  assert.equal(JSON.parse(request.input).context.player.species,'Tiefling','The writer is told the hero\'s species');
  // ---- The painter ----
  const prompt=artPrompt({campaignId:'c',kind:'portrait',id:'keeper-w',name:'Thora',description:'A woman. A dwarf smith.',setting:''});
- assert.match(prompt,/no beard, moustache or stubble of any kind, whatever her species \(a dwarf woman has no beard\)/);assert.equal(revision,4);
+ assert.match(prompt,/no beard, moustache or stubble of any kind, whatever her species \(a dwarf woman has no beard\)/);assert.equal(revision,5);
  assert.ok(!/no beard/.test(artPrompt({campaignId:'c',kind:'landscape',id:'inn',name:'Inn',description:'An inn.',setting:''})));
  console.log('Passed: the Dungeon Master is asked for new lands (and far journeys are allowed only into one), for each new person\'s gender and view of the hero\'s kind, and for a note on every found thing, with malformed extras tidied, never fatal; the story writer is asked for a land, a layout, landmarks and people with gender and regard under a strict schema; portraits of women are painted without beards.');
 })().catch(e=>{console.error(e);process.exit(1);});

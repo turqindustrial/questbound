@@ -33,7 +33,7 @@ docker run -d --name questbound -p 8080:8080 -v questbound-data:/data \
 docker logs questbound     # prints the invite code
 ```
 
-Put TLS in front (the platform's proxy, or Caddy with `reverse_proxy 127.0.0.1:8080`). The gateway must see the public hostname in the `Host` header and the visitor's address in `CF-Connecting-IP`, `Fly-Client-IP`, `True-Client-IP`, `X-Real-IP` or `X-Forwarded-For`; every platform above sends one of these. Per-visitor brakes (wrong codes, sign-ups) are only as honest as that header; per-browser limits do not depend on it.
+Put TLS in front (the platform's proxy, or Caddy with `reverse_proxy 127.0.0.1:8080`). The gateway must see the public hostname in the `Host` header and the visitor's address in a header the proxy sets and visitors cannot forge. By default it reads the last `X-Forwarded-For` entry (the one the nearest proxy added; anything a visitor wrote before it is ignored), or `Fly-Client-IP` on Fly.io. If your platform names the visitor in another header (`CF-Connecting-IP` behind Cloudflare, `True-Client-IP`, `X-Real-IP`), set `QUESTBOUND_CLIENT_IP_HEADER` to that header's name; never name one the platform passes through from visitors unchanged. Per-visitor brakes (wrong codes, sign-ups) are only as honest as that header; per-browser limits do not depend on it.
 
 ## Without Docker
 

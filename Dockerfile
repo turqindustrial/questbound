@@ -10,6 +10,9 @@ RUN npm ci
 COPY . .
 RUN npx expo export --platform web --output-dir dist-phone
 ENV NODE_ENV=production PORT=8080 QUESTBOUND_DATA=/data
+# The game runs as an ordinary user: it can write only to /data, never to its own code.
+RUN mkdir -p /data && chown node:node /data
+USER node
 VOLUME /data
 EXPOSE 8080
 CMD ["node","serve.cjs"]

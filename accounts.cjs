@@ -13,6 +13,13 @@ const fail=(status,message)=>Object.assign(Error(message),{status});
 const normalEmail=email=>typeof email==='string'?email.trim().toLowerCase():'';
 const validEmail=email=>email.length<=254&&/^[^\s@]{1,64}@[^\s@.]{1,63}(\.[^\s@.]{1,63})+$/.test(email);
 const validPassword=password=>typeof password==='string'&&password.length>=8&&password.length<=200;
+// Passwords that guessers try first are refused: the most common ones, one character repeated, a run of keys or
+// digits, the game's own name, and the player's email or the name before its @.
+const commonPasswords=new Set(['password','password1','password12','password123','password1234','passw0rd','p@ssw0rd','p@ssword','12345678','123456789','1234567890','0123456789','87654321','987654321','11111111','00000000','12341234','11223344','123123123','qwertyui','qwertyuiop','qwerty12','qwerty123','qwerty1234','1q2w3e4r','1q2w3e4r5t','1qaz2wsx','zaq12wsx','asdfghjk','asdfghjkl','zxcvbnm1','abc12345','abcd1234','abcdefgh','iloveyou','iloveyou1','sunshine','sunshine1','princess','princess1','football','football1','baseball','basketball','welcome1','welcome123','letmein1','letmein123','trustno1','superman','starwars','dragon12','dragon123','monkey12','master12','shadow12','michael1','jennifer','computer','whatever','internet','corvette','mustang1','charlie1','liverpool','chelsea1','pokemon1','minecraft','fortnite','changeme','default1','admin123','administrator','dungeons','dungeonsanddragons','dragons1']);
+function weakPassword(password,email=''){
+ const p=String(password).normalize('NFKC').toLowerCase(),local=String(email).split('@')[0];
+ return commonPasswords.has(p)||/^(.)\1+$/.test(p)||'01234567890123456789'.includes(p)||'98765432109876543210'.includes(p)||'abcdefghijklmnopqrstuvwxyz'.includes(p)||/questbound/.test(p)||(!!email&&p===email)||(local.length>=4&&p.includes(local));
+}
 const accountId=email=>crypto.createHash('sha256').update('questbound-account-v1:'+email).digest('hex');
 const digest=token=>crypto.createHash('sha256').update(String(token)).digest('hex');
 const hashPassword=(password,salt)=>new Promise((resolve,reject)=>crypto.scrypt(password.normalize('NFKC'),salt,64,{N:32768,r:8,p:1,maxmem:96*1024*1024},(error,key)=>error?reject(error):resolve(key)));
@@ -45,6 +52,7 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
    email=normalEmail(email);
    if(!validEmail(email))throw fail(400,'Enter a full email address, like name@example.com.');
    if(!validPassword(password))throw fail(400,'Choose a password of at least 8 characters.');
+   if(weakPassword(password,email))throw fail(400,'That password is one guessers try first. Choose one that is harder to guess.');
    const id=accountId(email),existing=read(id);
    if(blocked(id,client))throw fail(429,'Too many tries. Wait a few minutes and try again.');
    if(existing&&!existing.reset){missed(id,client);throw fail(409,'There is already an account with that email. Sign in instead.');}
@@ -82,6 +90,7 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
    if(blocked(id,client))throw fail(429,'Too many tries. Wait a few minutes and try again.');
    if(typeof current!=='string'||current.length>200||!await matches(record,current)){missed(id,client);throw fail(401,'Your current password is not right.');}
    if(!validPassword(next))throw fail(400,'Choose a new password of at least 8 characters.');
+   if(weakPassword(next))throw fail(400,'That password is one guessers try first. Choose one that is harder to guess.');
    const salt=crypto.randomBytes(16);for(const other of Object.keys(record.tokens))if(other!==key)owners.delete(other);
    write(id,{...record,salt:salt.toString('hex'),hash:(await hashPassword(next,salt)).toString('hex'),tokens:{[key]:record.tokens[key]}});
    return {changed:true};
@@ -113,4 +122,4 @@ if(require.main===module){
  else if(command==='remove'&&email)console.log(accounts.removeByEmail(email)?'Account and saved adventure removed.':'No account uses that email.');
  else console.log('Usage: node accounts.cjs count | reset-password <email> | remove <email>');
 }
-module.exports={createAccounts,normalEmail,validEmail,validPassword};
+module.exports={createAccounts,normalEmail,validEmail,validPassword,weakPassword};

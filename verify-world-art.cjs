@@ -50,6 +50,19 @@ assert.equal(guardian.name,'Stone Sentinel');assert.match(guardian.description,/
   assert.equal(denied.status,'failed');assert.match(denied.error,/access|verification/);assert.ok(!JSON.stringify(denied).includes('secret'));
   const invalid=createArtStore({directory,fetchImpl:async()=>({ok:true,json:async()=>({data:[{b64_json:'<script>'}]})})});
   const fourth={...sample,id:'invalid'};await invalid.request(fourth,{apiKey:'test'});await wait();assert.equal((await invalid.request(fourth)).status,'failed');
-  console.log('Passed: distinct character/campaign identities, one request per subject, background queue, persistent image reuse, subject validation and secret-safe failures. No paid calls.');
+  // A guest past the host's daily allowance gets no new painting (one already made is still shown); OpenAI is told
+  // which guest asked (by label), and what each painting cost is handed back to be counted.
+  let told=null;const counted=[];
+  const guarded=createArtStore({directory,fetchImpl:async(url,options)=>{told=JSON.parse(options.body).safety_identifier??null;return {ok:true,json:async()=>({status:'completed',usage:{input_tokens:50,output_tokens:10},output:[{type:'image_generation_call',status:'completed',result:Buffer.from([255,216,255,217]).toString('base64')}]})};}});
+  const refused=await guarded.request({...sample,id:'over-allowance'},{apiKey:'test-only',model:'test-model',mayPaint:()=>false});assert.equal(refused.status,'failed');assert.match(refused.error,/allowance/);
+  assert.equal((await guarded.request(sample,{apiKey:'test-only',model:'test-model',mayPaint:()=>false})).status,'ready','a painting already made is still shown');
+  await guarded.request({...sample,id:'guest-paint'},{apiKey:'test-only',model:'test-model',safety:{safety_identifier:'qb-guest-abc'},mayPaint:()=>true,onPainted:(usage,imageModel)=>counted.push({usage,imageModel})});
+  for(let i=0;i<100&&!counted.length;i++)await wait();
+  assert.equal(told,'qb-guest-abc');assert.equal(counted.length,1);assert.equal(counted[0].usage.input_tokens,50);assert.ok(counted[0].imageModel);
+  // Memory keeps only the most recent few hundred finished jobs (the paintings themselves are on disk).
+  const many=createArtStore({directory,fetchImpl:async()=>{throw Error('never painted');}});
+  for(let i=0;i<330;i++)await many.request({...sample,id:'m'+i,campaignId:'many'},{apiKey:'test-only',model:'test-model',mayPaint:()=>false});
+  assert.ok(many.size()<=300,'old jobs are let go: '+many.size());
+  console.log('Passed: distinct character/campaign identities, one request per subject, background queue, persistent image reuse, subject validation, secret-safe failures, the guests\' allowance, the guest label sent to OpenAI and bounded memory. No paid calls.');
  }finally{const resolved=path.resolve(directory),temp=path.resolve(os.tmpdir())+path.sep;if(!resolved.startsWith(temp)||!path.basename(resolved).startsWith('questbound-art-tests-'))throw Error('Unsafe temporary path');await fs.rm(resolved,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -128,4 +128,6 @@ Questbound is an independent production, compatible with fifth edition, and is n
 
 The [privacy policy](PRIVACY.md) and [terms of use](TERMS.md) are shown in the game under Settings → About and linked from the title screen and the pairing page. They are written in `legalText.js`; `node verify-legal.cjs --write` regenerates the documents and the web pages from it.
 
+[SECURITY.md](SECURITY.md) says what protects players and the host (locked-down pages, services that answer only to the PC, a daily allowance for guests' use of the AI), the few things only the host can do (an OpenAI spending limit, two-step sign-in, keeping codes private) and how to report a problem.
+
 Questbound's own code, text and artwork are © 2026 turqindustrial, all rights reserved; see [LICENSE](LICENSE). You're welcome to play and test it, but please don't copy or redistribute it.

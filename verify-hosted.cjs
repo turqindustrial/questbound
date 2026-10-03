@@ -19,8 +19,9 @@ const never=async()=>{throw Error('the provider is never called in this check');
   let r=await call(port,'/');assert.equal(r.status,200);assert.ok(r.text.includes('Invite code'));
   assert.equal((await call(port,'/',{host:'127.0.0.1:'+port})).status,403);
   assert.equal((await call(port,'/api/health')).status,401);
-  // Behind the platform's proxy each visitor is told apart by the proxy's header: one visitor's wrong guesses do not lock another out.
-  const join=(guess,ip)=>call(port,'/pair',{method:'POST',headers:{Origin:'https://play.example','Content-Type':'application/json','X-Forwarded-For':ip+', 10.0.0.1'},body:JSON.stringify({code:guess})});
+  // Behind the platform's proxy each visitor is told apart by the entry the proxy added (the last one; whatever the
+  // visitor wrote before it is ignored): one visitor's wrong guesses do not lock another out.
+  const join=(guess,ip)=>call(port,'/pair',{method:'POST',headers:{Origin:'https://play.example','Content-Type':'application/json','X-Forwarded-For':'10.0.0.'+Math.floor(Math.random()*250)+', '+ip},body:JSON.stringify({code:guess})});
   for(let i=0;i<5;i++)assert.equal((await join('00000000','198.51.100.1')).status,401);
   assert.equal((await join(code,'198.51.100.1')).status,429,'the guesser is held');
   r=await join(code,'203.0.113.9');assert.equal(r.status,200,'another visitor pairs');const cookie=r.headers['set-cookie'][0];assert.ok(cookie.includes('Secure'));

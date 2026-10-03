@@ -1,7 +1,7 @@
 // Shared table: one adventure that several browsers on this PC's network can play together.
 // Loopback only. Desktop browsers call it directly; phones reach it through the paired phone gateway.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
-const {createAccounts}=require('./accounts.cjs');
+const {createAccounts}=require('./accounts.cjs'),{loopbackHost}=require('./security-headers.cjs');
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 const PRESENCE_MS=15000,ACTING_MS=60000,MAX_BODY=2500000;
 const clean=(v,max)=>typeof v==='string'?v.replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,max):'';
@@ -27,6 +27,8 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
  const overLimit=(caller,route)=>{const [max,span]=quota[route]??quota.other,t=now(),key=caller+' '+route;let recent=hits.get(key);if(!recent){recent=[];hits.set(key,recent);}while(recent.length&&recent[0]<=t-span)recent.shift();if(hits.size>4000)for(const [k,v] of hits)if(!v.length)hits.delete(k);if(recent.length>=max)return Math.max(1,Math.ceil((recent[0]+span-t)/1000));recent.push(t);return 0;};
  const server=http.createServer(async(req,res)=>{
   const origin=req.headers.origin,send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store',...(allowedOrigins.has(origin)?{'Access-Control-Allow-Origin':origin,'Vary':'Origin'}:{})});res.end(JSON.stringify(data));};
+  // Only this PC's own loopback names are answered (a site pointed at this PC by DNS rebinding is turned away).
+  if(!loopbackHost(req))return send(403,{error:'Use the Questbound game on this PC.'});
   if(origin&&!allowedOrigins.has(origin))return send(403,{error:'Origin not allowed.'});
   if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':allowedOrigins.has(origin)?origin:'http://localhost:8081','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'});return res.end();}
   try{

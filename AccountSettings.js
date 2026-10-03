@@ -7,6 +7,8 @@ import {fonts,colors,tint} from './theme';
 // Signed out: create an account or sign in. Signed in: when it last saved, loading the saved adventure onto this
 // device, signing out, and (under Manage) a new password or deleting the account.
 const when=iso=>iso?new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
+// The home Wi-Fi link is plain http (the shared link and this PC's own page are not at risk): say so where a password is typed.
+export const unencryptedLink=(location=globalThis.location)=>!!location&&location.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(location.hostname);
 export function AccountSettings({onRestore,busy,onChange,onLegal}){
  const [account,setAccount]=useState(undefined),[mode,setMode]=useState('create'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[shown,setShown]=useState(false);
  const [message,setMessage]=useState(''),[working,setWorking]=useState(false),[manage,setManage]=useState(false),[current,setCurrent]=useState(''),[next,setNext]=useState(''),[confirm,setConfirm]=useState('');
@@ -35,6 +37,7 @@ export function AccountSettings({onRestore,busy,onChange,onLegal}){
     <TextInput value={password} onChangeText={setPassword} secureTextEntry={!shown} autoCapitalize="none" autoCorrect={false} autoComplete={mode==='create'?'new-password':'current-password'} maxLength={200} placeholder={mode==='create'?'At least 8 characters':'Your password'} placeholderTextColor={tint('#938890')} accessibilityLabel="Password" onSubmitEditing={enter} style={field}/>
     <Pressable accessibilityRole="button" accessibilityLabel={shown?'Hide password':'Show password'} onPress={()=>setShown(v=>!v)} dataSet={{qb:'chip'}} style={st.show}><Text style={st.showText}>{shown?'Hide':'Show'}</Text></Pressable>
    </View>
+   {unencryptedLink()&&<Text style={[st.note,{color:colors.muted,marginTop:0,marginBottom:8}]}>This home Wi-Fi link is not encrypted, so someone else on this Wi-Fi could in principle read what is sent. Use a password you use nowhere else.</Text>}
    <GameButton variant="primary" icon={mode==='create'?'quill':'key'} label={working?'One moment…':mode==='create'?'Create account':'Sign in'} disabled={busy||working} onPress={enter}/>
    {mode==='create'&&!!onLegal&&<Text style={st.note}>By creating an account you accept the <Text accessibilityRole="link" onPress={()=>onLegal('terms')} style={st.link}>terms of use</Text> and the <Text accessibilityRole="link" onPress={()=>onLegal('privacy')} style={st.link}>privacy policy</Text>.</Text>}
    <Text style={st.note}>{mode==='create'?'Your email is only a name to sign in with: nothing is sent to it, and the host\'s PC keeps a scrambled form of it and of your password, never either one itself. Use a password you do not use anywhere else. If you forget it, ask the host to reset it.':'Forgotten your password? Ask the host to reset it; your saved adventure is kept.'}</Text>
