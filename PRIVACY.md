@@ -26,6 +26,7 @@ On the phone and tester links the game also sets one cookie that marks your brow
 
 - OpenAI. The Dungeon Master is an AI model run by OpenAI. To write the next part of your story, the host's computer sends OpenAI what you type into the game, your hero (name, description, backstory, scores and gear), the story so far and the state of the game, and asks for story text. It also asks OpenAI to paint portraits of heroes and of the people you meet from their descriptions, and pictures of places. OpenAI processes this under its API terms; at the time of writing OpenAI says it does not use API data to train its models and keeps it for up to 30 days to watch for abuse. Check OpenAI's current policies. Do not type anything into the game that you would not want processed this way: it is a game, not a place for personal, financial or health information.
 - Cloudflare. The internet (tester) link runs through Cloudflare's tunnel service, so your traffic passes through Cloudflare, which sees your network address as any website host would. The home Wi-Fi link does not use Cloudflare.
+- Your browser's voices. If you turn on the narrator voice (Settings → Sound), your browser reads the Dungeon Master's words aloud. Some voices, marked online or natural, are spoken by the browser maker's servers (Microsoft for Edge, Google for Chrome, Apple for Safari), which then receive that text. The setting is off unless you turn it on.
 No one else. There are no advertisements, no analytics and no tracking scripts, and the host does not sell or share your data.
 
 ### Why

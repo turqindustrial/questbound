@@ -10,7 +10,7 @@ export const sequelBearings=Object.keys(bearings);
 export const oldPlaceLimit=20;
 // What a new story starts from: the hero's own things, nothing tied to the old region.
 export function carriedBase(previous){
- return {...(previous?.pack?{pack:previous.pack}:{}),potions:Math.max(1,previous?.potions??1),...(previous?.skillTraining?{skillTraining:previous.skillTraining}:{}),...(previous?.levelsOwed?{levelsOwed:previous.levelsOwed}:{})};
+ return {...(previous?.pack?{pack:previous.pack}:{}),potions:Math.max(1,previous?.potions??1),...(previous?.skillTraining?{skillTraining:previous.skillTraining}:{}),...(previous?.levelsOwed?{levelsOwed:previous.levelsOwed}:{}),...(previous?.deeds?.length?{deeds:previous.deeds}:{})};
 }
 // Can the hero carry on where they are? A written story, a living hero, and not in the middle of a fight.
 export function canContinueRegion(game){

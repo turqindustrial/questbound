@@ -1,0 +1,13 @@
+node_modules
+dist-*
+.expo
+.questbound-*
+.questbound-logs
+project-memory
+assets/art
+*.zip
+*.log
+PROGRESS-NOTE.md
+playtest-feedback.md
+.git
+.claude

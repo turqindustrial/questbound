@@ -10,6 +10,7 @@ import {validJournal,validStoryLog} from './journalRules';
 import {validDeathState} from './deathRules';
 import {validWildFight,validCombatExtras} from './encounterRules';
 import {validPack} from './inventoryRules';
+import {validEarnedDeeds} from './deedRules';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {combatBasics} from './combatRules';
 
@@ -38,6 +39,7 @@ export function validAdventure(value,hero) {
     && (g.shortRests===undefined || integerBetween(g.shortRests,0,3))
     && (g.levelsOwed===undefined || integerBetween(g.levelsOwed,0,5))
     && validStoryLog(g.storyLog)
+    && validEarnedDeeds(g.deeds)
     && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z ]{2,29}$/.test(g.wield)))
     && (g.openingAttackAvailable===undefined || typeof g.openingAttackAvailable==='boolean')
     && (g.encounterInitiative===undefined || (g.encounterInitiative&&integerBetween(g.encounterInitiative.player,-10,50)&&integerBetween(g.encounterInitiative.foe,-10,50)))

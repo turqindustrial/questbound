@@ -17,6 +17,9 @@ import {livingAllies,allyStats} from './encounterRules';
 import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
 import Inventory from './Inventory';
 import {withStoryLog} from './storyLog';
+import {withDeeds,deedById,deedList} from './deedRules';
+import {speakTurn,stopNarrator} from './narrator';
+import ShareTale from './ShareTale';
 import {damageIcon,damageKind} from './chronicleRules';
 import {useShownHp} from './cinematics';
 import {playSound} from './audio';
@@ -49,16 +52,22 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
  const [inConversation,setInConversation]=useState(false);
  const [sideTab,setSideTab]=useState('quest');
+ // The share sheet (the tale card), and a narrator silenced when the play screen is left.
+ const [sharing,setSharing]=useState(false);
+ useEffect(()=>()=>stopNarrator(),[]);
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
- const act=async(action,conversation,random=Math.random,options)=>{const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
+ const act=async(action,conversation,random=Math.random,options)=>{stopNarrator();const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});const marked=withDeeds(result.game,hero);result.game=marked.game;if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
+  // Deeds earned this turn are announced one after another, and the narrator reads the turn aloud when asked to.
+  marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),1400+i*4400));
+  if(conversation&&!conversation.direct&&result.turn)speakTurn(result.turn);
   // A new chapter of a long tale is announced across the screen.
   const opened=result.game.story?.chapters&&(result.game.story.chapter??0)>(from.game.story?.chapter??0)?result.game.story.chapters[result.game.story.chapter]:null;
   if(opened)setTimeout(()=>cue('area',{over:'Chapter '+(result.game.story.chapter+1),title:opened.title}),500);
   return result;};
  // A lead ticked (or reopened) by hand: the same record the Dungeon Master keeps, with its line in the story so far.
- const markLead=id=>{if(!game.story?.leads||table?.joined&&!table.synchronized)return;const next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}};setGame(withStoryLog(game,next,hero,{}));};
+ const markLead=id=>{if(!game.story?.leads||table?.joined&&!table.synchronized)return;const next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}};setGame(withDeeds(withStoryLog(game,next,hero,{}),hero).game);};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
@@ -131,6 +140,15 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
     </View>
    </View>;})}
  </View>;
+ // Deeds: lasting marks of what the hero has done (deedRules.js), with the next one to earn, and the way to share the tale.
+ const deeds=game.deeds??[],nextDeed=deedList.find(d=>!deeds.some(x=>x.id===d.id));
+ const deedsPanel=<View dataSet={{qb:'plate'}} style={s.people}>
+  <View style={s.labelRow}><Icon name="crown" size={14} color={colors.goldMid}/><PlainText style={s.label}>Deeds</PlainText><PlainText style={s.leadCount}>{deeds.length} of {deedList.length}</PlainText></View>
+  {deeds.length?<View style={s.deedWrap}>{[...deeds].reverse().map(d=>{const deed=deedById(d.id);return deed?<View key={d.id} style={s.deedChip} accessibilityLabel={deed.title+': '+deed.line}><Icon name={deed.icon} size={13} color={colors.gold}/><PlainText style={s.deedChipText}>{deed.title}</PlainText></View>:null;})}</View>
+   :<PlainText style={[s.caption,{marginVertical:0}]}>Nothing yet. Deeds mark what your hero has done and stay with them from tale to tale.</PlainText>}
+  {!!nextDeed&&<PlainText style={s.leadNote}>Next: {nextDeed.title} · {nextDeed.line}</PlainText>}
+  <Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'btn'}} style={s.shareButton}><Icon name="send" size={14} color={colors.gold}/><PlainText style={s.shareText}>Share your tale</PlainText></Pressable>
+ </View>;
  // What you wear, wield and carry; a carried weapon can be taken in hand from here.
  const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>setGame({...game,wield:name})}/>;
  const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
@@ -161,12 +179,13 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   </View>}
   {game.dungeon?.active&&<View dataSet={{qb:'plate'}} style={s.log}><Text style={s.label}>Lantern Vaults · Room {game.dungeon.room+1} of 8</Text><Text style={s.heading}>{dungeonRooms[game.dungeon.room].name}</Text><Text style={s.caption}>Explored: {game.dungeon.visited.map(n=>dungeonRooms[n].name).join(' → ')}</Text><Text style={s.caption}>Passages: {dungeonRooms[game.dungeon.room].exits.map(n=>dungeonRooms[n].name).join(' · ')}</Text><Text style={s.caption}>Describe exploring a passage, searching, disarming a trap, confronting a guardian, or leaving. Each passage takes one exploration minute. The sanctuary seal may block deeper travel.</Text></View>}
   {peoplePanel}
+  {deedsPanel}
   {['active','found'].includes(campaign.lensQuest)&&<Text style={s.scene}>{campaign.lensQuest==='found'?'The signal lens is in your inventory. Return it to the keeper.':'The keeper needs the signal lens from beneath the watchtower bell.'}</Text>}
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
  const tale=game.storyLog??[];
  const logPanel=<View dataSet={{qb:'plate'}} style={s.log}>
-  <View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>The story so far</PlainText></View>
+  <View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>The story so far</PlainText><Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'chip'}} style={s.shareChip}><Icon name="send" size={12} color={colors.gold}/><PlainText style={s.shareChipText}>Share</PlainText></Pressable></View>
   {!tale.length&&<PlainText style={[s.caption,{marginBottom:0}]}>Nothing of note yet. Every place you reach, everyone you meet, each fight and what came of it will be written here, briefly, as it happens.</PlainText>}
   {[...tale].reverse().map(e=>e.kind==='story'
    ?<View key={e.id} style={s.taleChapter}><View dataSet={{qb:'rule-left'}} style={s.taleRule}/><Icon name="scroll" size={13} color={colors.gold}/><PlainText style={s.taleChapterText}>{e.text}</PlainText><View dataSet={{qb:'rule-right'}} style={s.taleRule}/></View>
@@ -178,6 +197,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // With the keyboard up there is little height left: the side column, strips and tabs give it to the story.
  const cramped=typing&&(visibleHeight||windowHeight)<560;
  const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel}/>;
+ const share=<ShareTale visible={sharing} onClose={()=>setSharing(false)} hero={hero} game={game}/>;
  const toast=!!error&&<Pressable accessibilityRole="alert" accessibilityHint="Tap to dismiss" onPress={()=>setError('')} dataSet={{qb:'enter'}} style={s.toast}><Icon name="info" size={16} color="#ffb39e"/><Text style={s.toastText}>{error}</Text><Icon name="close" size={14} color="#ffd2c2"/></Pressable>;
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
@@ -190,6 +210,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!wide&&tab==='story'&&!cramped&&dyingPanel}
   {!wide&&tab==='story'&&!cramped&&deathPanel}
   {!wide&&toast}
+  {share}
   {/* The Dungeon Master stays mounted on every tab so a turn in progress is never interrupted. */}
   <View style={[s.main,!story&&{display:'none'}]}>{wide&&toast}{master}</View>
   {!story&&<ScrollView style={s.main} contentContainerStyle={s.tabContent}>{tab==='quest'&&<>{combatPlate}{questPanel}</>}{tab==='map'&&mapPanel}{tab==='pack'&&inventoryPanel}{tab==='log'&&logPanel}</ScrollView>}
@@ -232,6 +253,9 @@ const s=StyleSheet.create({
  sideTabItem:{flexGrow:1,flexShrink:1,flexBasis:'auto',minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
  sideTabText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:.8,color:colors.muted,textTransform:'uppercase',flexShrink:1},
  taleChapter:{flexDirection:'row',alignItems:'center',gap:8,marginTop:14,marginBottom:2},taleRule:{flex:1,height:1,minWidth:10},taleChapterText:{flexShrink:1,fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:.8,color:colors.gold,textAlign:'center'},
+ deedWrap:{flexDirection:'row',flexWrap:'wrap',gap:6},deedChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:9,paddingVertical:5,borderRadius:14,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),backgroundColor:tint('rgba(48,26,78,.5)')},deedChipText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:.8,color:colors.parchment,textTransform:'uppercase'},
+ shareButton:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,minHeight:40,borderRadius:4,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')},shareText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.4,color:colors.gold,textTransform:'uppercase'},
+ shareChip:{marginLeft:'auto',flexDirection:'row',alignItems:'center',gap:5,minHeight:28,paddingHorizontal:10,borderRadius:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)')},shareChipText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
  taleText:{flex:1,fontFamily:fonts.story,fontSize:16,lineHeight:23,color:'#e6dfcd',paddingTop:1},regard:{fontFamily:fonts.ui,fontSize:11.5,color:'#b0a39e',marginTop:2,letterSpacing:.2},
  main:{flex:1,minHeight:0,minWidth:0},narrow:{flex:1,minHeight:0},tabContent:{padding:10,paddingBottom:20},

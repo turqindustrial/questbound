@@ -97,8 +97,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     enemyHP: 10 + 8 * ((hero?.level ?? 1) - 1),
     // What you carry comes with you; a fresh start always has at least one draught.
     ...(previous?.pack ? {pack: previous.pack} : {}),
-    // A level earned on the road and not yet taken stays earned.
+    // A level earned on the road and not yet taken stays earned; deeds are the hero's for good.
     ...(previous?.levelsOwed ? {levelsOwed: previous.levelsOwed} : {}),
+    ...(previous?.deeds?.length ? {deeds: previous.deeds} : {}),
     potions: Math.max(1, previous?.potions ?? 1),
     round: 1,
     log: []

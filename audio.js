@@ -8,7 +8,7 @@
 // Browsers only allow sound after the player interacts, so the engine wakes on the first tap or key press.
 const web=typeof window!=='undefined'&&typeof window.AudioContext!=='undefined';
 const KEY='questbound.audio.v1';
-const defaults={master:0.85,music:0.6,ambience:0.6,effects:1,muted:false,night:false};
+const defaults={master:0.85,music:0.6,ambience:0.6,effects:1,muted:false,night:false,narrator:false,voice:null};
 let settings=load(),ctx=null,listeners=new Set();
 let out={};                         // master chain nodes
 let mood=null,scheduler=null,ambience=null,ambienceKind=null,danger=0,heartbeat=null;
@@ -99,6 +99,8 @@ function noise(t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;c
 // FM bell: a sine carrier modulated at an inharmonic ratio — celesta, chimes and magic.
 function bell(freq,t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const car=ctx.createOscillator(),mod=ctx.createOscillator(),depth=ctx.createGain();car.frequency.value=freq;mod.frequency.value=freq*(opts.ratio??3.5);depth.gain.setValueAtTime(freq*(opts.index??2.2),t);depth.gain.exponentialRampToValueAtTime(freq*.05,t+(opts.release??1.5));mod.connect(depth);depth.connect(car.frequency);const end=voice(car,t,opts);car.start(t);mod.start(t);car.stop(end);mod.stop(end);}
 // Sidechain-style ducking: important moments pull the score and ambience down briefly.
+// While the narrator speaks (narrator.js) the score and ambience step back, and return when it is done.
+export function narrating(on){if(!ctx)return;const t=ctx.currentTime;[out.musicDuck,out.ambDuck].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(on?.4:1,t,.35);});}
 function duck(depth=.5,hold=.25,release=.7){if(!ctx)return;const t=ctx.currentTime;[out.musicDuck,out.ambDuck].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(depth,t,.02);n.gain.setTargetAtTime(1,t+hold,release/3);});}
 
 // ---------- Instruments for the score ----------

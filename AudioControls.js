@@ -2,6 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {View,Text,Pressable,StyleSheet} from 'react-native';
 import {audioSettings,setAudio,subscribeAudio,playSound} from './audio';
 import {fonts,colors,type,tint} from './theme';
+import {narratorAvailable,sampleNarrator} from './narrator';
 import {IconButton,Section,Toggle} from './ui';
 import Icon from './Icon';
 function useAudioSettings(){const [value,setValue]=useState(audioSettings);useEffect(()=>subscribeAudio(setValue),[]);return value;}
@@ -23,6 +24,7 @@ export function AudioSettings(){
   {row('Ambience','ambience')}
   {row('Effects','effects','hit')}
   <Toggle value={a.night} onChange={night=>setAudio({night})} label="Night mode" description="Evens out loud hits and quiet moments for late-night play or small speakers."/>
+  <Toggle value={!!a.narrator} onChange={narrator=>{setAudio({narrator});if(narrator)setTimeout(sampleNarrator,80);}} label="Narrator voice" description={narratorAvailable()?'The Dungeon Master\'s words are read aloud after each turn by one of your browser\'s English voices. Some browser voices (marked online or natural) have the browser maker\'s servers do the speaking.':'This browser has no speech voices, so the narrator cannot speak here.'}/>
   <Toggle value={a.muted} onChange={muted=>setAudio({muted})} label="Mute all sound" description="Silences music, ambience and effects on this device."/>
  </View>;
 }

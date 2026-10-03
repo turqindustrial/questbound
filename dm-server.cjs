@@ -195,7 +195,7 @@ async function streamedText(response,onNarration,onUsage=null){
 // every live request, so a change takes effect at once: no restart, no key. The play model answers turns; the story
 // writer writes adventures and heroes and follows the play model unless it was set apart. Tests with a stand-in
 // provider never read the files.
-function chosenModel(file){try{const id=require('node:fs').readFileSync(require('node:path').join(__dirname,file),'utf8').replace(/^\uFEFF/,'').trim();return /^[A-Za-z0-9][A-Za-z0-9._:-]{1,79}$/.test(id)?id:null;}catch{return null;}}
+function chosenModel(file){try{const id=require('node:fs').readFileSync(require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,file),'utf8').replace(/^\uFEFF/,'').trim();return /^[A-Za-z0-9][A-Za-z0-9._:-]{1,79}$/.test(id)?id:null;}catch{return null;}}
 // How hard the story writer thinks about a new tale: the host's choice in .questbound-story-effort (none, minimal,
 // low, medium, high or xhigh; read on every live request, like the models), else what the service was started with.
 function storyEffort(fallback,read=chosenModel){const chosen=read('.questbound-story-effort');return ['none','minimal','low','medium','high','xhigh'].includes(chosen)?chosen:fallback;}
@@ -344,7 +344,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
 function recordUsage(mode,model,usage,live=true){
  if(!live||!usage||typeof usage!=='object')return;
  try{
-  const fs=require('node:fs'),file=require('node:path').join(__dirname,'.questbound-usage.jsonl');
+  const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-usage.jsonl');
   const entry={at:new Date().toISOString(),mode,model:String(model??''),input:usage.input_tokens??0,cached:usage.input_tokens_details?.cached_tokens??0,output:usage.output_tokens??0,reasoning:usage.output_tokens_details?.reasoning_tokens??0};
   if(fs.existsSync(file)&&fs.statSync(file).size>5e6)fs.renameSync(file,file+'.old');
   fs.appendFileSync(file,JSON.stringify(entry)+'\n');
@@ -355,7 +355,7 @@ function recordUsage(mode,model,usage,live=true){
 function recordRejection(error,result,body,live=true){
  if(!live)return;
  try{
-  const fs=require('node:fs'),file=require('node:path').join(__dirname,'.questbound-diagnostics.jsonl');
+  const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-diagnostics.jsonl');
   const r=result??{},entry={at:new Date().toISOString(),error:String(error).slice(0,300),context:{stage:body.context?.stage??null,pendingSpell:!!body.context?.pendingSpell,engineResolved:!!body.context?.engineResolved,sceneTrigger:!!body.context?.sceneTrigger,recruitmentTargets:body.context?.recruitmentTargets??[],participants:(body.context?.conversationParticipants??[]).map(p=>p.id)},
    reply:{actionId:r.actionId??null,castCommand:r.castCommand?String(r.castCommand).slice(0,120):null,ruling:r.ruling??null,check:r.check?{...r.check,reason:undefined,success:undefined,failure:undefined}:null,recruitment:(r.recruitment??[]).map(p=>({npcId:p?.npcId,decision:p?.decision,dc:p?.dc,reasonLength:p?.reason?.length??0,termsLength:p?.terms?.length??0})),dialogueSpeakers:(r.dialogue??[]).map(l=>l?.speakerId),narrationLength:typeof r.narration==='string'?r.narration.length:null,worldEventLength:typeof r.worldEvent==='string'?r.worldEvent.length:null}};
   if(fs.existsSync(file)&&fs.statSync(file).size>2e6)fs.renameSync(file,file+'.old');
@@ -366,7 +366,7 @@ function recordRejection(error,result,body,live=true){
 // Master had to be asked twice: node dm-report.cjs counts them.
 function recordSecondLook(kind,outcome,body,live=true){
  if(!live)return;
- try{const fs=require('node:fs'),file=require('node:path').join(__dirname,'.questbound-diagnostics.jsonl');fs.appendFileSync(file,JSON.stringify({at:new Date().toISOString(),secondLook:kind,outcome,stage:body.context?.stage??null})+'\n');}catch{}
+ try{const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-diagnostics.jsonl');fs.appendFileSync(file,JSON.stringify({at:new Date().toISOString(),secondLook:kind,outcome,stage:body.context?.stage??null})+'\n');}catch{}
 }
 // Several players can share one Dungeon Master: up to `concurrency` replies are written at once and the rest wait
 // briefly for a turn instead of being turned away. Illustration requests only queue or report progress, so they never wait.

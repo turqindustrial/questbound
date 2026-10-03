@@ -22,7 +22,7 @@ Notes you send from the game reach the host with your hero's name, where you are
 
 ### Sound and full screen
 
-The game plays music and sound effects once you tap to begin, and goes full screen only when you ask it to. Both can be turned off at any time from the buttons at the top of the screen.
+The game plays music and sound effects once you tap to begin, and goes full screen only when you ask it to. Both can be turned off at any time from the buttons at the top of the screen. If you turn on the narrator voice, your browser reads the story aloud; some browser voices send the text to the browser maker to be spoken.
 
 ### Age and conduct
 

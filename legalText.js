@@ -24,6 +24,7 @@ export const privacyPolicy={id:'privacy',title:'Privacy policy',sections:[
  {heading:'What goes to other companies',paragraphs:[
   '- OpenAI. The Dungeon Master is an AI model run by OpenAI. To write the next part of your story, the host\'s computer sends OpenAI what you type into the game, your hero (name, description, backstory, scores and gear), the story so far and the state of the game, and asks for story text. It also asks OpenAI to paint portraits of heroes and of the people you meet from their descriptions, and pictures of places. OpenAI processes this under its API terms; at the time of writing OpenAI says it does not use API data to train its models and keeps it for up to 30 days to watch for abuse. Check OpenAI\'s current policies. Do not type anything into the game that you would not want processed this way: it is a game, not a place for personal, financial or health information.',
   '- Cloudflare. The internet (tester) link runs through Cloudflare\'s tunnel service, so your traffic passes through Cloudflare, which sees your network address as any website host would. The home Wi-Fi link does not use Cloudflare.',
+  '- Your browser\'s voices. If you turn on the narrator voice (Settings → Sound), your browser reads the Dungeon Master\'s words aloud. Some voices, marked online or natural, are spoken by the browser maker\'s servers (Microsoft for Edge, Google for Chrome, Apple for Safari), which then receive that text. The setting is off unless you turn it on.',
   'No one else. There are no advertisements, no analytics and no tracking scripts, and the host does not sell or share your data.',
  ]},
  {heading:'Why',paragraphs:[
@@ -97,7 +98,7 @@ export const permissionsAgreement={id:'permissions',title:'Permissions agreement
   'Notes you send from the game reach the host with your hero\'s name, where you are in the game and a short description of your device. The services count requests, wrong codes and wrong passwords by browser and network address for up to an hour, in memory only, and record how many words the AI used (never the words themselves).',
  ]},
  {heading:'Sound and full screen',paragraphs:[
-  'The game plays music and sound effects once you tap to begin, and goes full screen only when you ask it to. Both can be turned off at any time from the buttons at the top of the screen.',
+  'The game plays music and sound effects once you tap to begin, and goes full screen only when you ask it to. Both can be turned off at any time from the buttons at the top of the screen. If you turn on the narrator voice, your browser reads the story aloud; some browser voices send the text to the browser maker to be spoken.',
  ]},
  {heading:'Age and conduct',paragraphs:[
   'You confirm that you are 16 or older. The Dungeon Master is an AI and the game is lethal: its stories can be violent, unexpected or upsetting. You accept the terms of use, including fair play: no flooding the services, no scripting play, no reaching for other players\' data.',

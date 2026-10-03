@@ -78,7 +78,13 @@ Then:
 Notes your testers send from inside the game collect in **playtest-feedback.md** in the Questbound folder (newest at the bottom).
 
 `Questbound.cmd -Stop` stops everything. `Questbound.cmd -ForgetKey` deletes the remembered key. `node dm-report.cjs` shows what the Dungeon Master cost today (requests, tokens and an estimate for the suggested models) and any replies it had to refuse; `node balance-check.cjs` simulates fights for every ready-made hero against every creature and flags any that look deadly or trivial.
-To play on your own devices only (home Wi-Fi, no internet link), double-click **Questbound.cmd** instead; see [MOBILE-ACCESS.md](MOBILE-ACCESS.md).
+To play on your own devices only (home Wi-Fi, no internet link), double-click **Questbound.cmd** instead; see [MOBILE-ACCESS.md](MOBILE-ACCESS.md). To run the game on a machine that is always on instead of your PC, see [DEPLOY.md](DEPLOY.md); [ROADMAP.md](ROADMAP.md) says what it would take to make it a business.
+
+**Deeds, sharing and the narrator**
+
+- Deeds mark what your hero has done (First Blood, Wanderer, Silver Tongue, Storyteller...) and stay with them from tale to tale; the Quest tab shows them and the next one to earn.
+- Share your tale (the Log tab, or the Deeds panel) paints a card of your hero, the last lines of their story, their deeds and their figures, to send from a phone or save and post.
+- Settings → Sound → Narrator voice has the Dungeon Master read aloud by your browser's own voice (off by default).
 
 **Safety and limits**
 
