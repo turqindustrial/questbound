@@ -1,6 +1,8 @@
 // One ordered request stream per device. A snapshot can follow acknowledgements
 // of our own saves, but can never be rebased onto another device's adventure.
-export function createSharedTableSync({pollTable,saveTable,leaveTable,applyRemote,onStatus=()=>{},onVersion=()=>{},onConflict=()=>{}}){
+// `canonical` turns a snapshot into the text compared to decide whether anything changed: in a party every device sees
+// the table from its own hero (partyRules.js), and that change of view is not a move.
+export function createSharedTableSync({pollTable,saveTable,leaveTable,applyRemote,onStatus=()=>{},onVersion=()=>{},onConflict=()=>{},canonical=snapshot=>JSON.stringify(snapshot)}){
  let active=false,session=0,branch=0,version=0,initialized=false,confirmed=null;
  let tail=Promise.resolve(),pending=null,writing=null,pollTicket=null,acting=false;
  const checkpoint=()=>({session,branch});
@@ -16,7 +18,7 @@ export function createSharedTableSync({pollTable,saveTable,leaveTable,applyRemot
  function failure(error,token){if(current(token))onStatus({online:false,error:error.message});}
  async function adopt(data,token,conflict=false){
   if(!current(token))return;
-  const raw=JSON.stringify(data.snapshot);
+  const raw=canonical(data.snapshot);
   const discarded=conflict||(pending&&pending.raw!==raw);
   // Invalidate writes and in-progress actions BEFORE applying the remote state.
   branch++;pending=null;initialized=false;onStatus({synchronized:false});
@@ -47,10 +49,11 @@ export function createSharedTableSync({pollTable,saveTable,leaveTable,applyRemot
  }
  function submit(snapshot,point=checkpoint()){
   if(!active||!initialized)return Promise.resolve();
-  const raw=JSON.stringify(snapshot);
+  const raw=canonical(snapshot);
   if(!isCurrent(point)){if(raw!==confirmed)onConflict();return Promise.resolve();}
   if(raw===confirmed&&!writing){pending=null;return Promise.resolve();}
-  const job={snapshot:JSON.parse(raw),raw,point};pending=job;
+  // The snapshot itself is sent (a copy); `raw` is only what it is compared by.
+  const job={snapshot:JSON.parse(JSON.stringify(snapshot)),raw,point};pending=job;
   return write(job);
  }
  function poll(){
@@ -86,7 +89,7 @@ export function createSharedTableSync({pollTable,saveTable,leaveTable,applyRemot
     // Empty-table joining is conditional; only explicit replacement uses force.
     const data=await saveTable(snapshot,first.version,host);if(!current(token))return false;
     if(data.conflict)await adopt(data,token,true);
-    else{confirmed=JSON.stringify(snapshot);remember(data.version);initialized=true;onStatus({online:true,synchronized:true,error:'',players:data.players??[]});}
+    else{confirmed=canonical(snapshot);remember(data.version);initialized=true;onStatus({online:true,synchronized:true,error:'',players:data.players??[]});}
    }else await adopt(first,token);
    return current(token);
   });}catch(error){failure(error,token);if(current(token))stop();throw error;}

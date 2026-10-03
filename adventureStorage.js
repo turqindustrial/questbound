@@ -21,6 +21,20 @@ const someone = id => /^(?:keeper|mara|n(?:[1-9]|1[0-2]))$/.test(String(id));
 export function adventureSnapshot(hero,game,health,chosen) {
   return {version:1,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
 }
+// A party at the shared table (partyRules.js): up to four heroes, each with their own name, sheet, hit points and
+// state; the one in the lead is this device's own (the snapshot's character).
+const partyStatuses=['up','down','dead'];
+export function validParty(g){
+  const p=g.party;if(p===undefined)return true;
+  if(!p||typeof p!=='object'||typeof p.lead!=='string'||p.lead.length>80||!p.members||typeof p.members!=='object'||Array.isArray(p.members))return false;
+  const ids=Object.keys(p.members);if(ids.length<1||ids.length>4||!ids.includes(p.lead))return false;
+  if(p.order!==undefined&&!(Array.isArray(p.order)&&p.order.every(id=>ids.includes(id))))return false;
+  if(p.stage!==undefined&&!['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild'].includes(p.stage))return false;
+  return ids.every(id=>{const m=p.members[id];return id.length<=80&&m&&typeof m==='object'&&typeof m.name==='string'&&m.name.length<=40&&typeof m.character==='string'&&m.character.length<200000&&partyStatuses.includes(m.status)
+    &&(m.health===null||m.health===undefined||(integerBetween(m.health?.current,0,9999)&&integerBetween(m.health?.temp,0,9999)))
+    &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&validPack(m.hero.pack)))
+    &&(m.stats===undefined||(integerBetween(m.stats?.ac,0,40)&&integerBetween(m.stats?.hp,1,999)));});
+}
 export function validAdventure(value,hero) {
   const g=value?.game, h=value?.health, maximum=combatBasics(hero).hp;
   return value?.version===1 && typeof value.character==='string' && typeof value.chosen==='boolean'
@@ -28,7 +42,8 @@ export function validAdventure(value,hero) {
     && validDeathState(g) && (!['dying','dead'].includes(g.stage) || h?.current===0)
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
     && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>npcIdsOf(g).includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
-    && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && g.encounterLevel===hero.level)) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
+    && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && (g.encounterLevel===hero.level || !!g.party)))
+    && validParty(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
     && validWildFight(g) && validCombatExtras(g) && integerBetween(g.potions,0,20) && validPack(g.pack) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
     && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||someone(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=10&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(someone)))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||someone(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))

@@ -136,13 +136,44 @@ export function companionsAttack(game,foe,random){
  }
  return {game:next,lines};
 }
-// Who the creature goes for: usually you, sometimes a companion beside you.
+// The other players' heroes in a party at the shared table who are still standing (partyRules.js keeps the party).
+export function partyTargets(game){
+ const party=game?.party;if(!party?.members||typeof party.lead!=='string')return [];
+ return Object.entries(party.members).filter(([id,m])=>id!==party.lead&&m?.status==='up').map(([id])=>id);
+}
+// Who the creature goes for: usually you, sometimes a companion beside you. In a party every standing hero is as
+// likely as you (companions draw a quarter of the blows when there are any).
 export function pickFoeTarget(game,random){
  const companions=fightingCompanions(game).filter(n=>(game.npcHP?.[n.id]??npcProfile(game,n.id).maximumHP)>0);
+ const heroes=partyTargets(game);
+ if(heroes.length){
+  const r=random();
+  if(companions.length&&r<0.25)return companions[Math.min(companions.length-1,Math.floor(r/0.25*companions.length))].id;
+  const share=companions.length?(r-0.25)/0.75:r,pool=[null,...heroes.map(id=>'party:'+id)];
+  return pool[Math.min(pool.length-1,Math.floor(share*pool.length))];
+ }
  if(!companions.length)return null;
  const r=random();return r<0.6?null:companions[Math.min(companions.length-1,Math.floor((r-0.6)/0.4*companions.length))].id;
 }
+// A blow aimed at another player's hero: their own armour and hit points; at 0 they fall and are dying (they roll
+// their death saves on their own turn), and damage past 0 of at least their maximum kills them outright.
+export function foeHitsPartyHero(game,foe,who,pid,mode,random){
+ const member=game.party.members[pid],name=partyHeroName(member),ac=member.stats?.ac??10,most=member.stats?.hp??1;
+ const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
+ const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
+ if(!hit)return {game,lines};
+ const damage=rollDamage(foe,attack.critical,random),total=Math.max(1,damage.total),was=member.health?.current??most,now=Math.max(0,was-total);
+ const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=('The '+foe.name).slice(0,300);
+ let next={...member,health:{current:now,temp:0}},fell='';
+ if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
+ else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${total} ${foe.type} damage to ${name}.`+fell);
+ return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
+}
+const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};
+export const partyHeroName=member=>{try{return JSON.parse(member.character).name||'your companion';}catch{return 'your companion';}};
 export function foeHitsCompanion(game,foe,who,id,mode,random){
+ if(typeof id==='string'&&id.startsWith('party:'))return foeHitsPartyHero(game,foe,who,id.slice(6),mode,random);
  const npc=npcProfile(game,id),ac=npc.ac,attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${npcLabel(game,id)}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};

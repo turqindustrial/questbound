@@ -15,7 +15,7 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,potionHealing} from "./inventoryRules";
-import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter} from "./encounterRules";
+import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter} from "./encounterRules";
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
 const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
@@ -423,6 +423,21 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     }
     // A healing draught for someone else: a companion lying senseless comes round (and owes you their life).
     const givePotion = () => {
+      // Another player's hero in the party: their own hit points; a fallen one wakes.
+      if (typeof action.target === 'string' && action.target.startsWith('party:')) {
+        const pid = action.target.slice(6), member = game.party?.members?.[pid];
+        if (!member || pid === game.party.lead || member.status === 'dead') return 'That hero is not here.';
+        if ((game.potions ?? 0) <= 0) return 'You have no healing draughts left.';
+        if (hp.current <= 0) return 'You cannot do that while down.';
+        const name = partyHeroName(member), most = member.stats?.hp ?? 1, was = member.status === 'down' ? 0 : member.health?.current ?? most;
+        if (was >= most) return name + ' is not hurt.';
+        const dose = potionHealing(random), now = Math.min(most, was + dose.total), hero = {...(member.hero ?? {})};
+        delete hero.dying;
+        next.party = {...game.party, members: {...game.party.members, [pid]: {...member, status: 'up', health: {current: now, temp: 0}, hero}}};
+        next.potions = game.potions - 1;
+        entries.push(`You give ${name} a healing draught: ${dose.a} + ${dose.b} + 2; restored ${now - was} HP.${was === 0 ? ' ' + name + ' stirs and opens their eyes.' : ''}`);
+        return '';
+      }
       const person = npcScene(game).find(n => n.id === action.target && n.present && n.fate !== 'dead');
       if (!person) return 'That person is not here.';
       if ((game.potions ?? 0) <= 0) return 'You have no healing draughts left.';

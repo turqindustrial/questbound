@@ -44,6 +44,6 @@ const step=r.adventureStep({...first.game,stage:'inn'},hp,kara,{type:'travel',de
 assert.equal(r.withDeeds(r.withStoryLog(first.game,step.game,kara,{action:{type:'travel'}}),kara).game.deeds,first.game.deeds);
 // The screens: written down after every turn and on a level taken, announced with the deed cue, shown in the Quest tab and the share card.
 const play=fs.readFileSync('Adventure.js','utf8'),app=fs.readFileSync('App.js','utf8'),layer=fs.readFileSync('CinematicLayer.js','utf8');
-assert.ok(play.includes('const marked=withDeeds(result.game,hero);result.game=marked.game;')&&play.includes("cue('deed',{deed:deedById(id)})")&&play.includes('{deedsPanel}')&&play.includes('withDeeds(withStoryLog(game,next,hero,{}),hero).game'));
+assert.ok(play.includes('const marked=withDeeds(result.game,hero);result.game=partyVictory(from.game,marked.game);')&&play.includes("cue('deed',{deed:deedById(id)})")&&play.includes('{deedsPanel}')&&play.includes('withDeeds(withStoryLog(game,next,hero,{}),hero).game'));
 assert.ok(app.includes('const marked=withDeeds(advanced,character);')&&layer.includes("event.kind==='deed'")&&layer.includes('Deed earned'));
 console.log('Deeds: '+r.deedList.length+' marks earned from the story and the game, written once with their line and tale, validated, carried into the next tale, announced and shown.');

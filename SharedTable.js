@@ -1,15 +1,15 @@
 import React,{useState} from 'react';
 import {View,Text,TextInput,StyleSheet} from 'react-native';
-import {GameButton,Ornament,ScreenTitle,Section} from './ui';
+import {GameButton,Ornament,ScreenTitle,Section,Segmented} from './ui';
 import Icon from './Icon';
 import {localBackup,restoreLocalBackup} from './tableClient';
 import {fonts,colors,type,tint} from './theme';
 export default function SharedTable({table,hero,characterChosen,onPlay}){
- const [name,setName]=useState(table.name||hero?.name||''),[busy,setBusy]=useState(false),[error,setError]=useState(''),backup=localBackup();
+ const [name,setName]=useState(table.name||hero?.name||''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[mode,setMode]=useState('party'),backup=localBackup();
  const run=async fn=>{setBusy(true);setError('');try{await fn();}catch(e){setError(e.message);}finally{setBusy(false);}};
  return <View>
   <ScreenTitle eyebrow="Multiplayer" icon="people" title="The shared table" sub="One adventure, played together from several phones and computers."/>
-  <Text style={s.copy}>Everyone at the table sees the same story as it happens and can send actions to the Dungeon Master; while one player is taking a turn, the others wait. The same table also lets you continue your own adventure on another device.</Text>
+  <Text style={s.copy}>Everyone at the table sees the same story as it happens and can send actions to the Dungeon Master; while one player is taking a turn, the others wait. In a party each player brings their own hero: up to four travel together, the foe can strike any of them, and a fallen friend can be revived with a draught. The same table also lets you continue your own adventure on another device.</Text>
   {table.joined?<>
    <View dataSet={{qb:'plate'}} style={s.status}>
     <View style={s.online}><View style={[s.dot,{backgroundColor:table.online?colors.heal:colors.gold}]}/><Text style={s.label}>{table.online?'Connected':'Reconnecting…'}</Text></View>
@@ -27,9 +27,11 @@ export default function SharedTable({table,hero,characterChosen,onPlay}){
    <Text style={s.label}>Your name at the table</Text>
    <TextInput dataSet={{qb:'input'}} accessibilityLabel="Your name at the table" value={name} onChangeText={setName} maxLength={40} placeholder="e.g. Sam" placeholderTextColor={tint('#938890')} style={s.input}/>
    <GameButton variant="primary" icon="people" label={busy?'Joining…':'Join the table'} disabled={busy||!name.trim()} onPress={()=>run(()=>table.join(name,false))}/>
-   <Text style={s.note}>Joining loads the table's adventure and character on this device. If the table is empty, your current adventure starts it. Your own save is backed up here first.</Text>
-   <GameButton icon="flag" label="Start the table with my adventure" disabled={busy||!name.trim()||!hero||!characterChosen} onPress={()=>run(()=>table.join(name,true))}/>
-   <Text style={s.note}>{hero&&characterChosen?'Replaces whatever the table was playing with '+hero.name+'’s adventure.':'Choose a character and begin an adventure first to host.'}</Text>
+   <Text style={s.note}>At a party table you bring your current hero{hero?' ('+hero.name+')':''}; at a table that shares one hero, you play theirs. If the table is empty, your current adventure starts it. Your own save is backed up here first.</Text>
+   <Section icon="party" title="Or host the table"/>
+   <Segmented options={[['party','Everyone brings a hero','party'],['shared','Everyone plays mine','people']]} value={mode} onChange={setMode}/>
+   <GameButton icon="flag" label={mode==='party'?'Start a party with my adventure':'Start the table with my adventure'} disabled={busy||!name.trim()||!hero||!characterChosen} onPress={()=>run(()=>table.join(name,true,{party:mode==='party'}))}/>
+   <Text style={s.note}>{hero&&characterChosen?(mode==='party'?'Replaces whatever the table was playing with '+hero.name+'’s adventure; each friend who joins brings their own hero into it.':'Replaces whatever the table was playing with '+hero.name+'’s adventure; everyone who joins plays '+hero.name+'.'):'Choose a character and begin an adventure first to host.'}</Text>
    {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
   </>}
   {!!backup&&!table.joined&&<><Ornament glyph="✦"/><Text style={s.note}>A copy of this device's own adventure from before you joined a table is kept here ({new Date(backup).toLocaleString()}).</Text><GameButton icon="transfer" label="Restore my own adventure" onPress={()=>{restoreLocalBackup();globalThis.location?.reload();}}/></>}

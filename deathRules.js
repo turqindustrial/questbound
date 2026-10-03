@@ -21,10 +21,11 @@ export function fallAtZero(game,{overflow=0,maximum,cause,placeName}){
  if(next.dungeon?.active)next.dungeon={...next.dungeon,active:false};
  if(overflow>=maximum){
   next.stage='dead';delete next.dying;
-  next.death={cause:String(cause).slice(0,300),place:String(placeName??'').slice(0,100),at:place,massive:true};
+  next.death={cause:String(cause).slice(0,300),place:String(placeName??'').slice(0,100),at:place,massive:true,...(game.stage==='combat'?{fight:true}:{})};
   return {game:next,entries:['The blow is so savage that it kills you outright. You die.']};
  }
- next.stage='dying';next.dying={successes:0,failures:0,place,cause:String(cause).slice(0,300),placeName:String(placeName??'').slice(0,100)};
+ // `fight`: the hero fell in a fight, which in a party goes on for the others (partyRules.js).
+ next.stage='dying';next.dying={successes:0,failures:0,place,cause:String(cause).slice(0,300),placeName:String(placeName??'').slice(0,100),...(game.stage==='combat'?{fight:true}:{})};
  return {game:next,entries:['You fall unconscious and are dying. Your attackers leave you where you fell. Each turn, roll to hold on: three successes and you stabilise, three failures and you die.']};
 }
 // One death saving throw. `wake` says where a stabilised hero comes to, and `rise` where a natural 20 leaves them.

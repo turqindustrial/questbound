@@ -13,7 +13,7 @@ const seq=values=>{let i=0;return ()=>values[i++]??0.5;};
 // No draught and no Second Wind left, so nothing holds the turn open after the action.
 const fight={...r.hostileEncounterGame(fighter,r.newAdventure(fighter),()=>0),potions:0,resources:{wind:2}},open={...fight,openingAttackAvailable:false};
 let down=r.adventureStep(open,{current:1,temp:0},fighter,'dodge',()=>0.9);
-assert.equal(down.game.stage,'dying');assert.equal(down.health.current,0);same({...down.game.dying},{successes:0,failures:0,place:'bridge',cause:'Slain by the Bandit Cutthroat',placeName:'Overgrown Roadside'});
+assert.equal(down.game.stage,'dying');assert.equal(down.health.current,0);same({...down.game.dying},{successes:0,failures:0,place:'bridge',cause:'Slain by the Bandit Cutthroat',placeName:'Overgrown Roadside',fight:true});
 assert.ok(valid(fighter,down.game,down.health));assert.equal(down.game.openingAttackAvailable,undefined);
 assert.equal(r.adventureStep(down.game,down.health,fighter,'attack:Greatsword').error,'You are unconscious and dying. Roll a death saving throw to hold on.');
 same(r.dmChoices(fighter,down.game).map(c=>c.id),['death-save']);

@@ -12,6 +12,7 @@ const success=reply=>async(url,options)=>{assert.equal(url,'https://api.openai.c
  const wrapped=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('Here is the reply: '+JSON.stringify({narration:'Back to the inn.',actionId:'travel-inn'})+' Enjoy.')});assert.equal(wrapped.actionId,'travel-inn');
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('The inn is that way.')}),/usable reply/);
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('',[{type:'message',content:[{type:'refusal',refusal:'no'}]}])}),/declined to answer/);
+ assert.equal(JSON.stringify(repairedJson('{"narration":"A {brace} in \\"quotes\\"","actionId":null}{"narration":"Again","actionId":null}')),JSON.stringify({narration:'A {brace} in "quotes"',actionId:null}),'a reply sent twice is read once');
  assert.equal(repairedJson('[1,2]'),null);assert.equal(repairedJson('nonsense'),null);assert.deepEqual(repairedJson(' ```json {"a":1} ``` '),{a:1});
  const shape=replyShape('The inn is that way.',{status:'completed',output:[{type:'reasoning'},{type:'message',content:[{type:'output_text'}]}]});assert.deepEqual(shape,{length:20,start:'text',end:'text',items:['reasoning','message:output_text'],status:'completed',incomplete:null,refusal:false});
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:false,status:429})}),/usage limit/);
