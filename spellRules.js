@@ -172,8 +172,6 @@ export function fightTimingError(spell,game,reaction=false){
 export function castError(hero,game,request) {
   const spell=knownSpells(hero).find(s=>s.id===request?.id);
   if(!spell)return 'That spell is not prepared or granted to this character.';
-  // Counterspell has no moment anywhere: no creature here casts a spell for it to interrupt.
-  if(spell.id==='counterspell')return reactionRefusals.counterspell;
   if(!castingStages.includes(game.stage))return game.stage==='dying'?'You are dying: only a death save now.':game.stage==='dead'?'The dead cast no spells.':'You cannot cast a spell right now.';
   if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
   const fighting=game.stage==='combat'||!!game.npcCombat?.active,timing=fightTimingError(spell,game,request.reaction);
@@ -364,7 +362,8 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     // Heat Metal: the metal a creature wields or wears glows red-hot: fire with no save, and a Constitution save or
     // its attacks have disadvantage until the start of the caster's next turn. Again as a bonus action (spellAgain).
     const nature=creatureNature(game,key);
-    if(!nature.humanoid&&!/construct|warden|sentinel|knight|armou?r/i.test(String(target.name??'')))return {error:`${upper(called)} carries no metal for ${spell.name} to heat.`};
+    // Whether a beast or a spirit wears or holds any metal is for the Dungeon Master to say.
+    if(!nature.humanoid&&!/construct|warden|sentinel|knight|armou?r/i.test(String(target.name??'')))return {game:{...game,pendingSpell:{...request,id:spell.id,forceDM:true}},health,waiting:true,logs:[`${spell.name}: waiting for a DM ruling on what metal ${called} carries. No resources spent yet.`]};
     const dice=roll(count,effect.die);damage=defended(target,'Fire',sum(dice));
     const save=saveAgainst('Constitution');
     logs.push(`${spell.name}: the metal of ${called} glows red-hot: ${damage} Fire damage (${count}d${effect.die} [${dice.join(', ')}]). ${save.text}: ${save.success?'it lets go of what it can.':'it keeps hold of the burning metal, and its attacks have disadvantage until your next turn.'}`);

@@ -84,7 +84,7 @@ export function unarmedSave(saves,random){
 }
 
 // ---------- Marks on the creatures in a fight ----------
-export const heroIdOf=game=>game.party?.lead??'hero';
+export const heroIdOf=game=>game?.party?.lead??'hero';
 export const markOf=(game,key)=>game.marks?.[key]??{};
 export function withMark(game,key,patch){
  const now={...markOf(game,key),...patch};

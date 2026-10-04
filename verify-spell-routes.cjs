@@ -53,6 +53,8 @@ function allowed(error,spell,where,hero){
  const fighting=['fight','wild','brawl'].includes(where);
  if(/not in the middle of a fight/.test(error))return fighting&&!['Action','Bonus Action','Reaction'].includes(spell.castingTime);
  if(/is cast as a reaction|Shield is a reaction/.test(error))return fighting&&spell.castingTime==='Reaction';
+ // Counterspell has no moment in a fight: the creatures met here cast no spells (spellRules.js reactionRefusals).
+ if(/Counterspell interrupts a creature/.test(error))return fighting&&spell.id==='counterspell';
  if(/Hellish Rebuke answers/.test(error))return fighting&&spell.id==='hellish-rebuke';
  if(/follows a hit/.test(error))return !!r.automaticEffects[spell.id]?.smite;
  if(/Which direction should the 15-foot cone/.test(error))return spell.id==='burning-hands';
@@ -178,11 +180,11 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  assert.equal(r.spellDamageMax(hero('Wizard',9,[]),r.spellLibrary.find(s=>s.id==='fireball'),5),60);
  assert.equal(r.spellDamageMax(hero('Wizard',5,[]),r.spellLibrary.find(s=>s.id==='fire-bolt'),0),20);
  assert.equal(r.spellDamageMax(hero('Cleric',9,[]),r.spellLibrary.find(s=>s.id==='flame-strike'),5),60);
- const druid=hero('Druid',3,['druidcraft','guidance','heat-metal']),f=scenes(druid).fight;
- const asked=r.dmCommand(druid,f,'I cast Heat Metal on Vessa the Dry Hand.',null);const waiting=r.adventureStep(f,null,druid,asked.action,()=>0.5);assert.equal(waiting.waiting,true);
- const ctx=r.dmContext(druid,waiting.game,waiting.health);assert.equal(ctx.pendingSpell.damageMost,16,'the Dungeon Master is told the most Heat Metal can deal');
- const ruled=r.commitDmTurn(druid,f,null,{type:'ai-spell',request:asked.action.request,ruling:{...ZERO,damage:99}},{question:'I cast Heat Metal on Vessa the Dry Hand.',narration:'x'},()=>0.5);
- assert.equal(ruled.error,undefined,ruled.error);assert.ok(ruled.events.some(l=>l.includes('Damage limited to what Heat Metal can deal: 16')));
+ const druid=hero('Druid',3,['druidcraft','guidance','spike-growth']),f=scenes(druid).fight;
+ const asked=r.dmCommand(druid,f,'I cast Spike Growth on Vessa the Dry Hand.',null);const waiting=r.adventureStep(f,null,druid,asked.action,()=>0.5);assert.equal(waiting.waiting,true);
+ const ctx=r.dmContext(druid,waiting.game,waiting.health);assert.equal(ctx.pendingSpell.damageMost,8,'the Dungeon Master is told the most Spike Growth can deal');
+ const ruled=r.commitDmTurn(druid,f,null,{type:'ai-spell',request:asked.action.request,ruling:{...ZERO,damage:99}},{question:'I cast Spike Growth on Vessa the Dry Hand.',narration:'x'},()=>0.5);
+ assert.equal(ruled.error,undefined,ruled.error);assert.ok(ruled.events.some(l=>l.includes('Damage limited to what Spike Growth can deal: 8')));
 }
 // Upcasting in plain words; rituals need no slot out of a fight; pact magic and Mystic Arcanum.
 {
