@@ -9,9 +9,9 @@ import {validMap} from './mapRules';
 import {validJournal,validStoryLog} from './journalRules';
 import {validDeathState} from './deathRules';
 import {validWildFight,validCombatExtras} from './encounterRules';
-import {validPack} from './inventoryRules';
+import {validPack,gearedHero} from './inventoryRules';
 import {validEarnedDeeds} from './deedRules';
-import {validMarks} from './masteryRules';
+import {validMarks,validBoons} from './masteryRules';
 import {validSpoils} from './lootRules';
 import {validExperience} from './experienceRules';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -47,14 +47,14 @@ export function validTurnOrder(g){
     &&integerBetween(t.at,-1,t.order.length-1)&&integerBetween(t.round,1,100000)&&(t.dodging===undefined||(Array.isArray(t.dodging)&&t.dodging.length<=4&&t.dodging.every(id=>typeof id==='string'&&id.length<=80)));
 }
 export function validAdventure(value,hero) {
-  const g=value?.game, h=value?.health, maximum=combatBasics(hero).hp;
+  const g=value?.game, h=value?.health, maximum=combatBasics(g?gearedHero(hero,g):hero).hp;
   return value?.version===1 && typeof value.character==='string' && typeof value.chosen==='boolean'
     && !!g && ['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild','dying','dead'].includes(g.stage)
     && validDeathState(g) && (!['dying','dead'].includes(g.stage) || h?.current===0)
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
     && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>npcIdsOf(g).includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
     && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && (g.encounterLevel===hero.level || !!g.party)))
-    && validParty(g) && validTurnOrder(g) && validMarks(g) && validSpoils(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
+    && validParty(g) && validTurnOrder(g) && validMarks(g) && validBoons(g) && validSpoils(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
     && validWildFight(g) && validCombatExtras(g) && integerBetween(g.potions,0,20) && validPack(g.pack) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
     && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||someone(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=10&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(someone)))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||someone(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))
@@ -123,12 +123,18 @@ function validSpellState(g) {
       // Hex or Hunter's Mark on a creature or person; Resistance's damage type and its once-a-turn use (spellRules.js).
       && (g.concentration.target===undefined || /^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(g.concentration.target)))
       && (g.concentration.damageType===undefined || ['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'].includes(g.concentration.damageType))
-      && (g.concentration.used===undefined || g.concentration.used===true)))
+      && (g.concentration.used===undefined || g.concentration.used===true)
+      // A spell held only for others (self:false); a lasting spell's slot level, save DC and whether it was cast this
+      // turn; Hex or Hunter's Mark whose creature dropped (lost) or whose fight ended (gone) (spellRules.js).
+      && (g.concentration.self===undefined || g.concentration.self===false)
+      && (g.concentration.level===undefined || integerBetween(g.concentration.level,0,9))
+      && (g.concentration.dc===undefined || integerBetween(g.concentration.dc,1,40))
+      && ['fresh','lost','gone'].every(k=>g.concentration[k]===undefined || g.concentration[k]===true)))
     // Spells that last on the hero without concentration (Mage Armor, Barkskin, Divine Favor, Shillelagh), and the free
     // castings their species gives (once a long rest each).
-    && (g.buffs===undefined || (!!g.buffs && typeof g.buffs==='object' && !Array.isArray(g.buffs) && Object.entries(g.buffs).every(([id,b])=>['mage-armor','barkskin','divine-favor','shillelagh'].includes(id) && b && typeof b==='object' && integerBetween(b.remaining,1,4800) && (b.ac===undefined||integerBetween(b.ac,10,20)) && (b.ability===undefined||['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(b.ability)))))
+    && (g.buffs===undefined || (!!g.buffs && typeof g.buffs==='object' && !Array.isArray(g.buffs) && Object.entries(g.buffs).every(([id,b])=>['mage-armor','barkskin','divine-favor','shillelagh','aid'].includes(id) && b && typeof b==='object' && integerBetween(b.remaining,1,4800) && (b.ac===undefined||integerBetween(b.ac,10,20)) && (b.amount===undefined||(id==='aid'&&integerBetween(b.amount,5,40))) && (b.ability===undefined||['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(b.ability)))))
     && (g.speciesUsed===undefined || (!!g.speciesUsed && typeof g.speciesUsed==='object' && !Array.isArray(g.speciesUsed) && Object.entries(g.speciesUsed).every(([id,n])=>text(id,100) && integerBetween(n,1,6))))
     && (g.temporarySpell===undefined || spellTime(g.temporarySpell))
     && (g.enemyEffects===undefined || (g.enemyEffects && typeof g.enemyEffects==='object' && !Array.isArray(g.enemyEffects) && Object.entries(g.enemyEffects).every(([name,n])=>['No opportunity attacks','Cannot regain HP','Speed reduced by 10 feet'].includes(name) && integerBetween(n,1,2))))
-    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget))&&(pending.aim===undefined||/^ally:[01]$/.test(pending.aim)) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum','species'].includes(pending.slot))));
+    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget))&&(pending.aim===undefined||/^ally:[01]$/.test(pending.aim)) && (pending.allies===undefined||(Array.isArray(pending.allies)&&pending.allies.length<=8&&pending.allies.every(a=>typeof a==='string'&&a.length<=90))) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum','species'].includes(pending.slot))));
 }

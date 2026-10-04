@@ -130,7 +130,7 @@ export function foeEdge(game,key,target,health){
  if(mark.prone)why.push('prone');
  if(mark.sapped)why.push('Sap');
  const by=grappledBy(game,key,health);if(by&&by!==target)why.push('grappled');
- for(const c of new Set((mark.spells??[]).map(m=>m.cond)))if(['restrained','blinded','frightened','poisoned'].includes(c))why.push(c);
+ for(const c of new Set((mark.spells??[]).map(m=>m.cond)))if(['restrained','blinded','frightened','poisoned','scorched'].includes(c))why.push(c==='scorched'?'red-hot metal':c);
  return why;
 }
 // At the start of its turn a prone creature gets up, unless a grapple holds it (its speed is 0); a hold whose hero has
@@ -158,8 +158,10 @@ export function fightOver(game){
  const next={...game};for(const k of lasting)delete next[k];return next;
 }
 // A spell's mark on a creature (spellRules.js withSpellMark).
-const spellMarkConds=['asleep','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned'];
-const validSpellMark=m=>!!m&&typeof m==='object'&&typeof m.id==='string'&&m.id.length>0&&m.id.length<=60&&spellMarkConds.includes(m.cond)&&typeof m.by==='string'&&m.by.length>0&&m.by.length<=80&&Number.isInteger(m.dc)&&m.dc>=1&&m.dc<=40&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(m.save)&&(m.rounds===undefined||(Number.isInteger(m.rounds)&&m.rounds>=1&&m.rounds<=100000))&&Object.keys(m).every(k=>['id','cond','by','dc','save','rounds'].includes(k));
+// acid: Acid Arrow's or Vitriolic Sphere's later burn; burning: Searing Smite; aflame: burning webs; scorched: held metal
+// glowing red-hot (Heat Metal). `level`: the slot the spell was cast with, for damage that comes later.
+const spellMarkConds=['asleep','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned','acid','burning','aflame','scorched'];
+const validSpellMark=m=>!!m&&typeof m==='object'&&typeof m.id==='string'&&m.id.length>0&&m.id.length<=60&&spellMarkConds.includes(m.cond)&&typeof m.by==='string'&&m.by.length>0&&m.by.length<=80&&Number.isInteger(m.dc)&&m.dc>=1&&m.dc<=40&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(m.save)&&(m.rounds===undefined||(Number.isInteger(m.rounds)&&m.rounds>=1&&m.rounds<=100000))&&(m.level===undefined||(Number.isInteger(m.level)&&m.level>=0&&m.level<=9))&&Object.keys(m).every(k=>['id','cond','by','dc','save','rounds','level'].includes(k));
 export function validMarks(g){
  const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/;
  return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)||(f==='spells'&&Array.isArray(v)&&v.length>=1&&v.length<=4&&v.every(validSpellMark))))))
@@ -171,4 +173,30 @@ export function validMarks(g){
   // After a melee hit (Divine Smite), after being hurt (Hellish Rebuke), and Shield raised until the hero's next turn.
   &&(g.lastHit===undefined||(!!g.lastHit&&keys.test(String(g.lastHit.target))&&(g.lastHit.critical===undefined||g.lastHit.critical===true)))
   &&(g.hurtBy===undefined||keys.test(String(g.hurtBy)))&&(g.shieldUp===undefined||g.shieldUp===true);
+}
+
+// ---------- Spells on friends ----------
+// What a hero's spell leaves on another hero at the shared table (key 'h:<their id>'), on a companion (their person
+// id) or, for wards and Longstrider, on the caster: game.boons[key] = [{id, by: the caster's hero id, amount?, type?,
+// used?}], kept in the shared world so every device sees it. A concentration spell's boons end with the caster's
+// concentration (spellRules.js endBoons); a long rest ends them all.
+export const boonOn=(game,key,id)=>(game?.boons?.[key]??[]).find(b=>b.id===id)??null;
+export const ownBoonKey=game=>'h:'+heroIdOf(game);
+// The boon key for whoever a creature strikes: this device's hero (null), another hero ('party:<id>') or a companion.
+export const boonKeyOf=(game,target)=>target===null||target===undefined?ownBoonKey(game):String(target).startsWith('party:')?'h:'+String(target).slice(6):String(target);
+// Bless on a companion or another hero: 1d4 on their attack roll.
+export function blessRoll(game,key,random=Math.random){return boonOn(game,key,'bless')?1+Math.floor(random()*4):0;}
+// Resistance on a companion or another hero: 1d4 off damage of the chosen type.
+export function boonResisted(game,key,type,amount,random=Math.random){
+ const b=boonOn(game,key,'resistance');if(!b||b.type!==type||amount<=0)return {amount,line:null};
+ const d=1+Math.floor(random()*4),now=Math.max(0,amount-d);return {amount:now,line:'Resistance takes '+(amount-now)+' off the '+type.toLowerCase()+' damage.'};
+}
+const boonSpells=['bless','heroism','guidance','resistance','shield-of-faith','protection-from-evil-and-good','longstrider'];
+const boonTypes=['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'];
+const personKey=/^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/;
+const validBoon=e=>!!e&&typeof e==='object'&&boonSpells.includes(e.id)&&typeof e.by==='string'&&e.by.length>0&&e.by.length<=80&&(e.amount===undefined||(Number.isInteger(e.amount)&&e.amount>=0&&e.amount<=40))&&(e.type===undefined||boonTypes.includes(e.type))&&(e.used===undefined||e.used===true)&&Object.keys(e).every(k=>['id','by','amount','type','used'].includes(k));
+// Boons, and Aid on companions (game.aided: how much it raised each one's hit point maximum).
+export function validBoons(g){
+ return (g.boons===undefined||(!!g.boons&&typeof g.boons==='object'&&!Array.isArray(g.boons)&&Object.entries(g.boons).every(([k,list])=>(/^h:.{1,80}$/.test(k)||personKey.test(k))&&Array.isArray(list)&&list.length>=1&&list.length<=8&&list.every(validBoon))))
+  &&(g.aided===undefined||(!!g.aided&&typeof g.aided==='object'&&!Array.isArray(g.aided)&&Object.entries(g.aided).every(([k,n])=>personKey.test(k)&&Number.isInteger(n)&&n>=5&&n<=40)));
 }

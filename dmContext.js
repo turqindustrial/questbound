@@ -5,7 +5,7 @@ import {npcScene,npcServiceError,npcLore,npcIdsOf,npcProfile,npcMaxHP,metPerson}
 import {modifier,proficiencyBonus} from './characterRules';
 import {concentrationAfterDamage} from './spellRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,spellAbility,guidanceBonus,spellDamageMax} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,spellAbility,guidanceBonus,spellDamageMax,sustainOptions} from './spellRules';
 import {dmCommand} from './dmCommands';
 import {adventureStep,encounterFoe} from './adventureRules';
 import {appendJournal,journalForGame} from './journalRules';
@@ -56,6 +56,8 @@ function bonusChoices(hero,game,health){
   if(hurt)for(const d of carriedDraughts(game))list.push(['drink:'+d.magic.id,'Drink a '+d.name+' (bonus action)']);
   // Giving a draught to someone hurt or fallen beside you is a bonus action too (2024 rules).
   for(const g of potionGifts(game))list.push([g.id,g.name+' (bonus action)',g.action]);
+  // A lasting spell's bonus action (Spiritual Weapon, Heat Metal, the Flaming Sphere), or moving Hex or Hunter's Mark.
+  for(const [id,label,action,kind] of sustainOptions(game))if(kind==='bonus')list.push([id,label,action]);
   // Action Surge, once the action is spent: one more action this turn (not a spell).
   if(game.actionUsed&&surgeReady(hero,game))list.push(['class:surge','Action Surge (free): take one more action this turn, though not to cast a spell']);
   return list;
@@ -70,8 +72,11 @@ function brawlBonusChoices(hero,game,health){
   if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
   if(hurt)for(const d of carriedDraughts(game))list.push(['drink:'+d.magic.id,'Drink a '+d.name+' (bonus action)']);
   for(const g of potionGifts(game))list.push([g.id,g.name+' (bonus action)',g.action]);
+  for(const [id,label,action,kind] of sustainOptions(game))if(kind==='bonus')list.push([id,label,action]);
   return list;
 }
+// A lasting spell used again as the action (Moonbeam moved, Call Lightning, Vampiric Touch).
+const sustainActions=game=>sustainOptions(game).filter(c=>c[3]==='action');
 // The subclass's own action that takes the action (a Tangle-Bolt, a Field Engine), while it has uses.
 function featChoices(hero,game){
   const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(game.resources?.feat??0):0;
@@ -136,8 +141,8 @@ export function dmChoices(hero,game,health=null) {
    for(const m of partyOthers(game))if(m.status!=='dead'&&(m.status==='down'||m.hp<m.maxHp))add('give-potion:party:'+m.id,'Give '+m.name+' a healing draught',{type:'give-potion',target:'party:'+m.id});}};
   if(game.story){
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
-    if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);return choices;}
-    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
+    if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of sustainActions(game))add(id,label,action);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);return choices;}
+    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const [id,label,action] of sustainActions(game))add(id,label,action);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
     else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
       // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
       if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
@@ -153,6 +158,7 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='inn')for(const npc of victims)for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+npc.name+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});
   if(game.npcCombat?.active){
     for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id[0].toUpperCase()+id.slice(1));
+    for(const [id,label,action] of sustainActions(game))add(id,label,action);
     for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);
     return choices;
   }
@@ -172,6 +178,7 @@ export function dmChoices(hero,game,health=null) {
     for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);
     addUnarmed();
     for(const [id,label] of featChoices(hero,game))add(id,label);
+    for(const [id,label,action] of sustainActions(game))add(id,label,action);
     add('dodge','Dodge');add('flee','Retreat');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);
     add('end-turn','End your turn without acting');
   }
