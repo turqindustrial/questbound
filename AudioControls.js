@@ -24,6 +24,7 @@ export function AudioSettings(){
   {row('Ambience','ambience')}
   {row('Effects','effects','hit')}
   <Toggle value={a.night} onChange={night=>setAudio({night})} label="Night mode" description="Evens out loud hits and quiet moments for late-night play or small speakers."/>
+  <Toggle value={!!a.background} onChange={background=>setAudio({background})} label="Keep playing in the background" description="Music and ambience go on when you switch to another window. Off: the game falls silent until you come back."/>
   <Toggle value={!!a.narrator} onChange={narrator=>{setAudio({narrator});if(narrator)setTimeout(sampleNarrator,80);}} label="Narrator voice" description={narratorAvailable()?'The Dungeon Master\'s words are read aloud after each turn by one of your browser\'s English voices. Some browser voices (marked online or natural) have the browser maker\'s servers do the speaking.':'This browser has no speech voices, so the narrator cannot speak here.'}/>
   <Toggle value={a.muted} onChange={muted=>setAudio({muted})} label="Mute all sound" description="Silences music, ambience and effects on this device."/>
  </View>;

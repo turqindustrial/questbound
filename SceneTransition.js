@@ -3,6 +3,7 @@ import {View,Text,Pressable,Modal,StyleSheet,ActivityIndicator,Image,ScrollView,
 import {ensureArt,artIdentity} from './artClient';
 import Icon from './Icon';
 import {fonts,colors,tint} from './theme';
+import {setCovered} from './perfWatch';
 const Context=createContext(null),decoded=new Set();
 export const useSceneTransition=()=>useContext(Context);
 // A scene waits briefly for its illustrations so it usually arrives fully painted, but never holds play hostage:
@@ -15,6 +16,7 @@ export default function SceneTransitionProvider({children}){
  const [state,setState]=useState(null),active=useRef(null),alive=useRef(true),last=useRef(null);
  if(state)last.current=state;const display=state??last.current;
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;active.current?.finish();active.current=null;};},[]);
+ useEffect(()=>{setCovered('scene',!!state);return()=>setCovered('scene',false);},[!!state]);
  function prepare(subjects){
   const unique=[...new Map(subjects.filter(Boolean).map(s=>[artIdentity(s),s])).values()].filter(s=>!decoded.has(artIdentity(s)));
   if(!unique.length)return Promise.resolve();

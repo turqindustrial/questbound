@@ -3,6 +3,7 @@ import {adventureSnapshot} from './adventureStorage';
 import {tableMembership,setTableMembership,pollTable,saveTable,leaveTable,deviceId} from './tableClient';
 import {createSharedTableSync} from './sharedTableSync';
 import {canonicalParty,startParty} from './partyRules';
+import {noteProblem} from './problemLog';
 
 export function useSharedTable({ready,hero,game,health,characterChosen,applyRemote}){
  const [membership,setMembership]=useState(tableMembership),[notice,setNotice]=useState('');
@@ -14,7 +15,7 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   applyRemote:(snapshot,isCurrent)=>apply.current(snapshot,isCurrent),
   onStatus:change=>setStatus(previous=>({...previous,...change})),
   onVersion:version=>setTableMembership({version}),
-  onConflict:()=>setNotice('Another player acted first. The table was updated and your last change was not kept.'),
+  onConflict:()=>{noteProblem({kind:'table',error:'Another player acted first; the last change was not kept.'});setNotice('Another player acted first. The table was updated and your last change was not kept.');},
   canonical:canonicalParty,
  });
  const sync=controller.current;

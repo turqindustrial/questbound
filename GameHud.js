@@ -7,7 +7,7 @@ import {GameButton,StatBar,IconButton,Crest,useCountTo,HpFloaters,useHitReaction
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
-import FeedbackSheet from './Feedback';
+import FeedbackSheet,{useFeedbackRequests} from './Feedback';
 import {displayState,subscribeDisplay,toggleFullscreen} from './fullscreen';
 import {audioSettings,subscribeAudio,setAudio,playSound} from './audio';
 import {useShownHp} from './cinematics';
@@ -15,7 +15,9 @@ import {shortcutsBlocked} from './keyboard';
 import {fonts,colors,type,tint} from './theme';
 // The in-game heads-up display: always on screen, never scrolls away. HP follows the story as a turn plays out.
 export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,feedback={}}){
- const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),shown=useShownHp();
+ const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),[request,setRequest]=useState(null),shown=useShownHp();
+ // A Report chip or the Dungeon Master's admitted fault opens this sheet with the problem attached.
+ useFeedbackRequests(next=>{setMenu(false);setRequest(next??{});setNotes(true);});
  const hp=shown.hero??health?.current??maxHp,temp=health?.temp??0,low=hp/Math.max(1,maxHp)<=.3,hpCount=useCountTo(hp),hit=useHitReaction(hp);
  // Labels and the wordmark appear only when there is room, so every control stays on screen at any width.
  const {width,height}=useWindowDimensions(),wordmark=wide&&width>=1100,short=height<520,roomy=wide&&width>=900;
@@ -53,8 +55,8 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
     <IconButton icon="menu" label="Game menu" tip="Menu · M" onPress={()=>{setMenu(true);playSound('open');}}/>
    </View>
    :<View style={s.actions}><CombatHealthButton hud activeOnly/><AudioToggle compact/><IconButton icon="menu" label="Game menu" onPress={()=>{setMenu(true);playSound('open');}}/></View>}
-  <GameMenu visible={menu} hero={hero} hp={hp} maxHp={maxHp} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setNotes(true);}}/>
-  <FeedbackSheet visible={notes} onClose={()=>setNotes(false)} context={feedback}/>
+  <GameMenu visible={menu} hero={hero} hp={hp} maxHp={maxHp} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setRequest(null);setNotes(true);}}/>
+  <FeedbackSheet visible={notes} onClose={()=>{setNotes(false);setRequest(null);}} context={feedback} problem={request?.problem??null} prefill={request?.prefill??''}/>
  </View>;
 }
 function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){

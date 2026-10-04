@@ -5,6 +5,7 @@ import {displayState} from './fullscreen';
 import {playSound} from './audio';
 import Icon from './Icon';
 import {fonts,colors,tint} from './theme';
+import {setCovered} from './perfWatch';
 // Screen-wide moments laid over the game: a red pulse when you are hit, a violet flare on a critical, a banner sweeping in
 // for each new round, and title cards for victory, defeat and a level gained. Flashes never take input; a title card
 // can be tapped away and leaves by itself after a few seconds.
@@ -13,6 +14,7 @@ export default function CinematicLayer({levelReady=false}){
  const [flash,setFlash]=useState(null),[banner,setBanner]=useState(null),[finale,setFinale]=useState(null),[area,setArea]=useState(null),[burst,setBurst]=useState(null),[deed,setDeed]=useState(null),timers=useRef([]),reduce=useRef(false),{width}=useWindowDimensions();
  useEffect(()=>{AccessibilityInfo.isReduceMotionEnabled().then(v=>{reduce.current=v;}).catch(()=>{});const t=timers.current;return()=>t.forEach(clearTimeout);},[]);
  const later=(fn,ms)=>{timers.current.push(setTimeout(fn,ms));};
+ useEffect(()=>{setCovered('finale',!!finale);return()=>setCovered('finale',false);},[!!finale]);
  const handler=useCallback(event=>{
   if(!web)return;
   if(['hurt','crit','heal'].includes(event.kind)){if(!displayState().screenEffects)return;setFlash({kind:event.kind,id:event.id});later(()=>setFlash(f=>f?.id===event.id?null:f),1000);if(event.kind==='crit'){setBurst({id:event.id});later(()=>setBurst(b=>b?.id===event.id?null:b),1000);}return;}

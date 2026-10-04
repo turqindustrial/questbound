@@ -28,6 +28,8 @@ import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
 import {greeting,shouldGreet,replyIdeas} from './greetings';
 import {turnOrderView} from './encounterRules';
+import {noteProblem} from './problemLog';
+import {openFeedback} from './Feedback';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;
@@ -64,8 +66,20 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const [endpoint,setEndpoint]=useState(lastReady??endpoints[0]);
   const [connected,setConnected]=useState(false),[protocol,setProtocol]=useState(0),[checked,setChecked]=useState(false),[unpaired,setUnpaired]=useState(false);
   const inputRef=useRef(null);
-  const [input,setInput]=useState(''),[reply,setReply]=useState(null),[busy,setBusy]=useState(false),[status,setStatus]=useState('Checking AI connection…'),[error,setError]=useState('');
-  const fingerprint=JSON.stringify({hero,game,health}),latest=useRef(fingerprint),lock=useRef(false),alive=useRef(true),triedCue=useRef(null);latest.current=fingerprint;
+  const [input,setInput]=useState(''),[reply,setReply]=useState(null),[busy,setBusy]=useState(false),[status,setStatus]=useState('Checking AI connection…'),[error,setError]=useState(''),[errorProblem,setErrorProblem]=useState(null);
+  // A failed turn is shown in the error row and kept in the problem log (problemLog.js), so a playtest note can say
+  // what was tried and what went wrong; the Report chip beside the error opens one. A scene that moved on, or an
+  // adventure that was closed, is not a problem.
+  const refusal=message=>Object.assign(Error(message),{refused:true});
+  const fail=(e,{said=null,action=null}={})=>{
+    if(!alive.current)return;
+    const message=e?.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,String(e?.message??e));
+    const benign=/scene changed|adventure was closed/i.test(message);
+    const entry=benign?null:noteProblem({kind:e?.refused?'refused':'dm',said,error:message,stage:game.stage,action:action?.type??null,spell:action?.spell??action?.request?.spell??null});
+    setErrorProblem(entry);setError(message);
+  };
+  // Worked out once per change of the game, not on every streamed line of narration.
+  const fingerprint=useMemo(()=>JSON.stringify({hero,game,health}),[hero,game,health]),latest=useRef(fingerprint),lock=useRef(false),alive=useRef(true),triedCue=useRef(null);latest.current=fingerprint;
   useEffect(()=>{
     alive.current=true;let checking=false,known=lastReady;
     // Once a ready service answers, only it is polled; the full list is scanned again if it stops answering.
@@ -96,7 +110,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       if(!alive.current||latest.current!==snapshot)return;
       const result=await act(null,{question:cue.scene,narration,dialogue,trigger:true,npcId:speaker?.id??null});
       if(!result.error){setAnimateId(result.turn?.id??null);const talking=!!speaker&&conversationPeople(result.game).some(n=>n.id===speaker.id);if(talking)setConversationId(speaker.id);keepIdeas(result.turn?.id,talking?speaker.id:conversationId,said);}
-    })().catch(e=>{if(alive.current)setError(e.message);}).finally(()=>{lock.current=false;if(alive.current)setBusy(false);});
+    })().catch(e=>fail(e)).finally(()=>{lock.current=false;if(alive.current)setBusy(false);});
   },[game.sceneCue?.id,busy,playing]);
   // Turning to someone (the Speak chip): the conversation opens and they speak first, in their own voice and true to
   // how they feel about the hero. The Dungeon Master writes the line; a stand-in is used when it cannot be reached.
@@ -114,7 +128,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       if(!alive.current||latest.current!==snapshot)return;
       const result=await act(null,{question:opening.scene,narration,dialogue,trigger:true,npcId:id});
       if(!result.error){setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,said);}
-    }catch(e){if(alive.current)setError(e.message);}
+    }catch(e){fail(e);}
     finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   };
   // Turns that arrive from other players at the table play out here too.
@@ -164,10 +178,12 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Ask again.');
         const rewound=body.rewind===true&&!!back;
         const result=await act(null,{question:('To the Dungeon Master: '+said).slice(0,1000),narration:body.narration.slice(0,1700)+(rewound?'\n\nYour last turn has been taken back. Say what you meant to do.':''),dialogue:[],direct:true,npcId:null},undefined,rewound?{from:back}:undefined);
-        if(result.error)throw Error(result.error);
+        if(result.error)throw refusal(result.error);
         if(rewound)forgetTurn();
-        setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setInput('');setDirect(false);
-      }catch(e){if(alive.current)setError(e.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,e.message));}
+        // The Dungeon Master agreed something went wrong: kept as a problem, with a chip to tell the host.
+        const fault=body.fault===true?noteProblem({kind:'reported',said,answer:body.narration,stage:game.stage}):null;
+        setReply({narration:body.narration,fault:fault?{problem:fault,said}:null});setAnimateId(result.turn?.id??null);setInput('');setDirect(false);
+      }catch(e){fail(e,{said:question});}
       finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
       return;
     }
@@ -176,15 +192,15 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
-      const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw Error(preview.error);
+      const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw refusal(preview.error);
       if(preview.waiting&&protocol>=3){
         const body=await request(preview.game,preview.health);if(!body.ruling)throw Error('The DM did not resolve this spell. Nothing was spent; try again with more detail.');
         const action={type:'ai-spell',request:command.action.request,ruling:body.ruling},dice=[];
         const resolved=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:normalized},()=>{const value=Math.random();dice.push(value);return value;});
-        if(resolved.error)throw Error(resolved.error);
+        if(resolved.error)throw refusal(resolved.error);
         if(body.ruling.decision==='cast'){
           const reaction=await request(resolved.game,resolved.health,{engineResolved:(resolved.events??[]).map(t=>storyText(resolved.game,t)).slice(0,40)});
           body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.loot=reaction.loot;body.introduce=reaction.introduce;body.suggestions=reaction.suggestions;
@@ -196,26 +212,27 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},normalized,()=>rolled[index++]??0.5);
       }
     };
+    let attempted=preset?.action??null;
     try{
-      const command=preset?.action?{action:preset.action}:dmCommand(hero,game,question,health,preset?null:conversationId);
+      const command=preset?.action?{action:preset.action}:dmCommand(hero,game,question,health,preset?null:conversationId);attempted=command?.action??attempted;
       if(command?.action){await cast(command,command.normalizedCommand??question);return;}
       if(/^confirm action[.!]?$/i.test(question)){if(!priorReply?.pending||priorReply.snapshot!==snapshot)throw Error('There is no current action to confirm.');await finish(priorReply.pending.action,{narration:'Your action is resolved below.'});return;}
       // A rule's refusal (no slot, not in a fight, already concentrating...) is shown as it is; only a cast the game could
       // not read goes to the Dungeon Master, who may work out what was meant (context.castingIssue).
-      if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw Error(command.error);
+      if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw refusal(command.error);
       const body=await request(game,health,command?.error?{castingIssue:command.error}:{});
       if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration);return;}
       if(protocol>=3&&body.recruitment?.length){
         const action={type:'recruitment',plans:body.recruitment},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
-        if(preview.error)throw Error(preview.error);
+        if(preview.error)throw refusal(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
         let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
         const action={type:'ai-check',check:body.check},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
-        if(preview.error)throw Error(preview.error);
+        if(preview.error)throw refusal(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
         let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
       }
@@ -228,9 +245,12 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration);return;}
       const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
       if(protocol<2&&choice)setReply({narration:body.narration,pending:choice,snapshot:JSON.stringify({hero,game:result.game,health:result.health})});
-    }catch(e){if(alive.current)setError(e.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,e.message));}
+    }catch(e){fail(e,{said:question,action:attempted});}
     finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   }
+  // After the Dungeon Master admits out of character that something went wrong: one tap tells the host, with the
+  // player's own words already in the note.
+  const faultChip=reply?.fault?<View style={s.faultRow}><PlainText style={s.faultText}>The Dungeon Master agrees this went wrong.</PlainText><Pressable accessibilityRole="button" accessibilityLabel="Tell the host about this" onPress={()=>{playSound('open');openFeedback({problem:reply.fault.problem,prefill:reply.fault.said});}} dataSet={{qb:'chip',keepfocus:'true'}} style={s.reportChip}><Icon name="feedback" size={13} color={colors.gold}/><PlainText style={s.reportText}>Tell the host about this</PlainText></Pressable></View>:null;
   const turns=(person?(game.playback??[]).filter(t=>t.npcId===person.id||(t.participants??[]).some(id=>people.some(n=>n.id===id))):(game.playback??[])).map(t=>visibleTurn(t,game));
   const effects=activeEffectLines(game,health);
   // Names the playback uses to move the HUD's HP bars in step with the story, and portraits for speakers.
@@ -347,7 +367,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     <ActionGuide visible={guide} onClose={()=>setGuide(false)} actions={pressable} hero={hero} game={game} spells={spellsOpen} disabled={actionsDisabled} onRun={runAction}/>
     {direct&&<View style={s.directNote}><Icon name="speak" size={13} color={colors.goldBright}/><PlainText style={s.directText}>{compact?'Out of character: the story waits.':'Out of character. Ask about a ruling, or say what went wrong or what you meant to do: the story waits, and the Dungeon Master can take your last turn back.'}</PlainText></View>}
     <View style={s.composer}>{dmSwitch}{composer}{sendButton}</View>
-    {!!error&&<View accessibilityRole="alert" style={s.errorRow}><Icon name="info" size={15} color={colors.danger}/><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text></View>}
+    {!!error&&<View accessibilityRole="alert" style={s.errorRow}><Icon name="info" size={15} color={colors.danger}/><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Report this problem to the host" onPress={()=>{playSound('open');openFeedback({problem:errorProblem?.error===error?errorProblem:{kind:'dm',error,stage:game.stage}});}} dataSet={{qb:'chip',keepfocus:'true'}} style={s.reportChip}><Icon name="feedback" size={13} color={colors.gold}/><PlainText style={s.reportText}>Report</PlainText></Pressable></View>}
+    {!!reply?.fault&&!error&&faultChip}
     {reply?.pending&&<Text style={s.caption}>Suggested action: {reply.pending.label}. Send “confirm action” to carry it out.</Text>}
   </View>;
   return <View dataSet={{qb:'plate'}} style={[s.panel,person&&s.conversation,compact&&{padding:14}]}>
@@ -361,7 +382,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     <View style={s.toolbar}><Text style={[s.hint,!!waiting&&{color:colors.gold}]}>{tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':compact?'Tap Send to DM':'Enter to send · Shift+Enter for a new line'}</Text><Pressable accessibilityRole="button" accessibilityState={{disabled:busy||playing||!input.trim()||!!waiting||tableSyncing}} disabled={busy||playing||!input.trim()||!!waiting||tableSyncing} onPress={()=>ask()}dataSet={{qb:'btn-primary'}} style={[s.button,(busy||playing||!input.trim()||!!waiting||tableSyncing)&&{opacity:0.45}]}><Text style={s.buttonText}>{tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing turn…':waiting?'Waiting…':'Send to DM  ➤'}</Text></Pressable></View>
     {effects.length>0&&<View style={s.effects}><Text style={[s.overline,{color:colors.arcane}]}>✧ ONGOING EFFECTS</Text>{effects.map(line=><Text key={line} style={s.effectText}>{line}</Text>)}</View>}
     {!person&&people.length>0&&<View style={s.people}><Text style={s.overline}>PEOPLE NEARBY</Text>{people.map(n=><Pressable key={n.id} accessibilityRole="button" disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={s.personButton}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.avatar} compact/><View style={{flexShrink:1}}><PlainText style={s.chipName}>{n.name}</PlainText><PlainText style={s.chipRole} numberOfLines={1}>{n.role}</PlainText></View><PlainText style={s.chipAction} numberOfLines={1}>Speak ›</PlainText></Pressable>)}</View>}
-    {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+    {!!error&&<View accessibilityRole="alert" style={[s.errorRow,{marginTop:12}]}><Text style={[s.error,{marginTop:0,flex:1}]}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Report this problem to the host" onPress={()=>{playSound('open');openFeedback({problem:errorProblem?.error===error?errorProblem:{kind:'dm',error,stage:game.stage}});}} dataSet={{qb:'chip',keepfocus:'true'}} style={s.reportChip}><Icon name="feedback" size={13} color={colors.gold}/><PlainText style={s.reportText}>Report</PlainText></Pressable></View>}
+    {!!reply?.fault&&!error&&faultChip}
     {reply?.pending&&<Text style={s.caption}>Suggested action: {reply.pending.label}. Send “confirm action” to carry it out.</Text>}
     {reply?.pending&&reply.snapshot!==fingerprint&&<Text style={s.caption}>The scene changed. Send a new message for a current suggestion.</Text>}
   </View>;
@@ -391,6 +413,8 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  tabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:colors.gold,textTransform:'uppercase'},tabTextOn:{color:colors.goldBright},tabCount:{minWidth:18,height:18,borderRadius:9,paddingHorizontal:5,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(176,140,245,.28)')},tabCountText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',color:tint('#e2dde1')},
  aloneSwitch:{flexDirection:'row',alignItems:'center',gap:5,minHeight:36,paddingHorizontal:10,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.92)'),flexShrink:0},aloneOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},aloneText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  notice:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12,marginBottom:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},noticeText:{fontFamily:fonts.ui,fontSize:13,lineHeight:20,color:colors.muted},
+ reportChip:{flexDirection:'row',alignItems:'center',gap:5,minHeight:30,paddingHorizontal:10,borderRadius:15,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(20,15,21,.8)'),alignSelf:'center'},reportText:{fontFamily:fonts.ui,color:colors.gold,fontSize:12.5,fontWeight:'700',letterSpacing:.4},
+ faultRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginTop:8},faultText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:18,flexShrink:1},
  errorRow:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingVertical:8,paddingHorizontal:10,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.35)',backgroundColor:'rgba(60,18,14,.5)'},
  sendRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},chipSpeak:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:4},
  dmMark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:tint('rgba(224,74,92,.6)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(48,26,78,.45)')},

@@ -65,7 +65,10 @@ input::placeholder,textarea::placeholder{font-style:italic;}
  radial-gradient(ellipse 90% 60% at 50% -10%,rgba(140,82,255,.12),transparent 60%),
  linear-gradient(180deg,rgba(10,7,11,.25) 0%,rgba(10,7,11,.55) 60%,rgba(10,7,11,.82) 100%) !important;}
 [data-qb=vignette]{box-shadow:inset 0 0 220px 70px rgba(0,0,0,.88);}
-[data-qb=rays]{mix-blend-mode:screen;background:
+/* Every looping animation moves only transform or opacity, which the graphics card does on its own: nothing on a
+   full-screen layer blends with what lies beneath it, and nothing that loops changes size, position, shadows or
+   backgrounds (those make the browser repaint every frame). verify-performance.cjs holds the styles to this. */
+[data-qb=rays]{background:
  linear-gradient(112deg,transparent 38%,rgba(206,150,255,.075) 44%,transparent 51%),
  linear-gradient(104deg,transparent 54%,rgba(206,150,255,.05) 59%,transparent 65%),
  linear-gradient(121deg,transparent 22%,rgba(206,150,255,.045) 27%,transparent 33%);
@@ -74,8 +77,9 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=fog]{background:radial-gradient(ellipse 55% 22% at 18% 92%,rgba(195,181,190,.11),transparent 70%),radial-gradient(ellipse 45% 20% at 72% 96%,rgba(195,181,190,.09),transparent 70%),radial-gradient(ellipse 40% 16% at 45% 84%,rgba(195,181,190,.06),transparent 70%);
  animation:qb-fog 46s ease-in-out infinite alternate;}
 @keyframes qb-fog{from{transform:translate3d(-6%,0,0) scale(1.05);}to{transform:translate3d(6%,-2%,0) scale(1.12);}}
-[data-qb=grain]{inset:-50% !important;width:200% !important;height:200% !important;background-image:${grain};background-size:220px 220px;opacity:.07;mix-blend-mode:overlay;animation:qb-grain 1.2s steps(6) infinite;}
-@keyframes qb-grain{0%{transform:translate3d(0,0,0);}20%{transform:translate3d(-3%,2%,0);}40%{transform:translate3d(2%,-3%,0);}60%{transform:translate3d(-2%,-1%,0);}80%{transform:translate3d(3%,3%,0);}100%{transform:translate3d(0,0,0);}}
+/* Film grain: a still layer of faint light specks, blended normally (an overlay blend over the whole screen made the
+   browser recompose everything beneath it each frame). */
+[data-qb=grain]{background-image:${grain};background-size:220px 220px;opacity:.045;}
 [data-qb=embers]{overflow:hidden;}
 [data-qb=embers]::before,[data-qb=embers]::after{content:"";position:absolute;left:0;right:0;top:0;height:200%;background-repeat:repeat;pointer-events:none;
  background-image:radial-gradient(2px 2px at 12% 18%,rgba(255,196,120,.95),transparent 60%),radial-gradient(1.6px 1.6px at 34% 72%,rgba(255,170,90,.85),transparent 60%),radial-gradient(2.4px 2.4px at 58% 40%,rgba(255,210,150,.9),transparent 60%),radial-gradient(1.4px 1.4px at 81% 83%,rgba(255,160,80,.8),transparent 60%),radial-gradient(1.8px 1.8px at 92% 12%,rgba(255,200,130,.85),transparent 60%),radial-gradient(1.2px 1.2px at 46% 94%,rgba(255,180,100,.75),transparent 60%);
@@ -95,9 +99,11 @@ input::placeholder,textarea::placeholder{font-style:italic;}
  filter:drop-shadow(0 2px 0 rgba(20,4,7,.95)) drop-shadow(0 0 26px rgba(230,48,82,.4)) drop-shadow(0 0 60px rgba(140,82,255,.22));}
 /* Decorative capitals join some letter pairs; words other than the logo keep their letters separate. */
 [data-lig=off]{font-variant-ligatures:none;font-feature-settings:"liga" 0,"dlig" 0,"clig" 0,"calt" 0,"hlig" 0,"salt" 0;}
-[data-qb=title][data-glow=on]{animation:qb-breathe 6s ease-in-out infinite;}
-@keyframes qb-breathe{0%,100%{filter:drop-shadow(0 2px 0 rgba(20,4,7,.9)) drop-shadow(0 0 22px rgba(230,48,82,.28));}50%{filter:drop-shadow(0 2px 0 rgba(20,4,7,.9)) drop-shadow(0 0 38px rgba(230,48,82,.5));}}
-[data-qb=title][data-sheen=on]{background:linear-gradient(100deg,#a3162c 0%,#ff5a72 30%,#ffe9ec 45%,#ff5a72 60%,#a3162c 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;animation:qb-sheen 7s ease-in-out infinite;}
+/* The glow is painted once; the lettering breathes by its opacity alone. */
+[data-qb=title][data-glow=on]{animation:qb-glow 6s ease-in-out infinite;}
+@keyframes qb-glow{0%,100%{opacity:.88;}50%{opacity:1;}}
+/* The finale's sheen crosses the word a few times and rests. */
+[data-qb=title][data-sheen=on]{background:linear-gradient(100deg,#a3162c 0%,#ff5a72 30%,#ffe9ec 45%,#ff5a72 60%,#a3162c 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;animation:qb-sheen 7s ease-in-out 3;}
 @keyframes qb-sheen{0%,60%{background-position:100% 0;}100%{background-position:0 0;}}
 
 /* Framed panels: layered bevel, double gold rule, filigree corners and a crowning lozenge. */
@@ -124,8 +130,8 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=btn]:hover{border-color:rgba(190,150,255,.85) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 0 0 1px rgba(190,150,255,.15),0 0 26px rgba(224,74,92,.2),0 10px 24px rgba(0,0,0,.5);transform:translateY(-1px);}
 [data-qb=btn-primary]{position:relative;overflow:hidden;background:linear-gradient(180deg,#c92f49 0%,#a51a33 40%,#7c1227 76%,#5e0d1e 100%) !important;
  box-shadow:inset 0 1px 0 rgba(255,190,200,.5),inset 0 -2px 0 rgba(40,4,12,.55),0 0 0 1px rgba(30,4,10,.9),0 10px 30px rgba(140,82,255,.26),0 0 50px rgba(200,40,70,.14);}
-[data-qb=btn-primary]::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,210,220,.3),transparent);transform:skewX(-18deg);animation:qb-shine 5.5s ease-in-out infinite;pointer-events:none;}
-@keyframes qb-shine{0%,70%{left:-60%;}100%{left:130%;}}
+[data-qb=btn-primary]::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(100deg,transparent,rgba(255,210,220,.3),transparent);transform:translateX(-150%) skewX(-18deg);animation:qb-shine 5.5s ease-in-out infinite;pointer-events:none;}
+@keyframes qb-shine{0%,70%{transform:translateX(-150%) skewX(-18deg);}100%{transform:translateX(330%) skewX(-18deg);}}
 [data-qb=btn-primary]:hover{filter:brightness(1.14) saturate(1.05);transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,200,210,.6),inset 0 -2px 0 rgba(40,4,12,.55),0 0 0 1px rgba(30,4,10,.9),0 14px 38px rgba(140,82,255,.42),0 0 70px rgba(200,40,70,.24);}
 [data-qb=btn-danger]{background:linear-gradient(180deg,#3a120c,#1e0806) !important;box-shadow:inset 0 0 0 1px rgba(255,110,70,.55),0 0 18px rgba(255,90,54,.25);}
 [data-qb=btn-danger]:hover{filter:brightness(1.12);transform:translateY(-1px);}
@@ -136,8 +142,10 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 /* Round HUD buttons with a tooltip on hover (desktop). */
 [data-qb=hud-btn]{position:relative;background:radial-gradient(circle at 50% 30%,rgba(68,54,70,.95),rgba(23,17,24,.95) 70%) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.45);}
 [data-qb=hud-btn]:hover{border-color:rgba(190,150,255,.9) !important;box-shadow:0 0 0 1px rgba(190,150,255,.15),0 0 20px rgba(224,74,92,.25),0 4px 12px rgba(0,0,0,.45);color:#eadaff;}
-[data-qb=hud-btn-hot]{position:relative;background:radial-gradient(circle at 50% 30%,rgba(120,40,30,.95),rgba(50,14,11,.95) 70%) !important;box-shadow:0 0 16px rgba(200,65,47,.35),0 4px 12px rgba(0,0,0,.45);animation:qb-hot 2.4s ease-in-out infinite;}
-@keyframes qb-hot{0%,100%{box-shadow:0 0 10px rgba(200,65,47,.3),0 4px 12px rgba(0,0,0,.45);}50%{box-shadow:0 0 22px rgba(240,106,79,.55),0 4px 12px rgba(0,0,0,.45);}}
+/* A pulsing glow is a still shadow on its own layer whose opacity rises and falls (qb-pulse-glow). */
+[data-qb=hud-btn-hot]{position:relative;background:radial-gradient(circle at 50% 30%,rgba(120,40,30,.95),rgba(50,14,11,.95) 70%) !important;box-shadow:0 0 10px rgba(200,65,47,.3),0 4px 12px rgba(0,0,0,.45);}
+[data-qb=hud-btn-hot]::before{content:"";position:absolute;inset:-1px;border-radius:inherit;box-shadow:0 0 22px rgba(240,106,79,.55);pointer-events:none;animation:qb-pulse-glow 2.4s ease-in-out infinite;}
+@keyframes qb-pulse-glow{0%,100%{opacity:0;}50%{opacity:1;}}
 @media (hover:hover) and (pointer:fine){
  [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;padding:5px 9px;border-radius:4px;border:1px solid rgba(178,34,58,.45);background:rgba(14,10,14,.96);color:#e8dbd5;font:600 11px/1.2 Inter,system-ui,sans-serif;letter-spacing:.4px;box-shadow:0 8px 20px rgba(0,0,0,.5);pointer-events:none;z-index:50;animation:qb-fade .15s ease both;}
 }
@@ -162,13 +170,14 @@ input::placeholder,textarea::placeholder{font-style:italic;}
  box-shadow:inset 0 1px 0 rgba(255,214,224,.07),inset 0 0 0 1px rgba(0,0,0,.4),0 24px 60px rgba(0,0,0,.55),0 0 60px rgba(140,82,255,.06);}
 [data-qb=slot]::before{content:"";position:absolute;inset:3px;pointer-events:none;opacity:.75;background:${corners.tl} top left/34px 34px no-repeat,${corners.tr} top right/34px 34px no-repeat,${corners.bl} bottom left/34px 34px no-repeat,${corners.br} bottom right/34px 34px no-repeat;}
 [data-qb=region-paper]{background:radial-gradient(ellipse 90% 70% at 50% 45%,rgba(64,82,70,.35),transparent 70%),repeating-linear-gradient(0deg,rgba(224,74,92,.035) 0 1px,transparent 1px 28px),repeating-linear-gradient(90deg,rgba(224,74,92,.035) 0 1px,transparent 1px 28px),linear-gradient(180deg,#1a2423,#111816) !important;}
-[data-qb=node-here]{box-shadow:0 0 0 4px rgba(158,27,50,.18),0 0 18px rgba(230,48,82,.55);animation:qb-breathe 2.6s ease-in-out infinite;}
+[data-qb=node-here]{box-shadow:0 0 0 4px rgba(158,27,50,.18),0 0 18px rgba(230,48,82,.55);animation:qb-beacon 2.6s ease-in-out infinite;}
+@keyframes qb-beacon{0%,100%{opacity:.78;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 /* The drawn region map: the sheet pans inside its frame when zoomed, with a quiet scrollbar; the marker where
    the hero stands breathes. */
 [data-qb=map-scroll]{overflow:hidden !important;scrollbar-width:thin;scrollbar-color:rgba(59,42,23,.55) rgba(59,42,23,.12);overscroll-behavior:contain;touch-action:pan-x pan-y;}
 [data-qb=map-scroll][data-zoomed=true]{overflow:auto !important;cursor:grab;}
 [data-qb=map-frame]{box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 1px rgba(240,110,128,.12);}
-[data-qb=map-here]{box-shadow:0 0 0 3px rgba(143,44,28,.22),0 0 16px rgba(143,44,28,.55);animation:qb-breathe 2.6s ease-in-out infinite;}
+[data-qb=map-here]{box-shadow:0 0 0 3px rgba(143,44,28,.22),0 0 16px rgba(143,44,28,.55);animation:qb-beacon 2.6s ease-in-out infinite;}
 [data-qb=map-tool]{background:rgba(237,222,182,.92) !important;box-shadow:0 2px 8px rgba(40,10,15,.35);}
 [data-qb=map-tool]:hover{background:#f6ebcb !important;}
 @media (prefers-reduced-motion: reduce){[data-qb=map-here]{animation:none;}}
@@ -197,8 +206,8 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=bar]{box-shadow:inset 0 2px 4px rgba(0,0,0,.6);}
 [data-qb=bar-hp]{background:linear-gradient(180deg,#9fe0b0,#4f9b6a 55%,#2f6b45) !important;box-shadow:0 0 12px rgba(111,191,142,.45);transition:width .6s var(--qb-ease);}
 [data-qb=bar-enemy]{background:linear-gradient(180deg,#ff9a7c,#d2442e 55%,#7d1f14) !important;box-shadow:0 0 14px rgba(240,106,79,.5);transition:width .6s var(--qb-ease);}
-[data-qb=bar-low]{background:linear-gradient(180deg,#ff8a70,#d2442e 55%,#7d1f14) !important;animation:qb-danger 1.1s ease-in-out infinite;transition:width .6s var(--qb-ease);}
-@keyframes qb-danger{0%,100%{box-shadow:0 0 6px rgba(240,106,79,.4);}50%{box-shadow:0 0 18px rgba(240,106,79,.9);}}
+[data-qb=bar-low]{background:linear-gradient(180deg,#ff8a70,#d2442e 55%,#7d1f14) !important;box-shadow:0 0 6px rgba(240,106,79,.4);transition:width .6s var(--qb-ease);}
+[data-qb=bar-low]::before{content:"";position:absolute;inset:0;background:rgba(255,150,120,.32);box-shadow:0 0 18px rgba(240,106,79,.9);pointer-events:none;animation:qb-pulse-glow 1.1s ease-in-out infinite;}
 [data-qb=bar-temp]{background:linear-gradient(180deg,#b6fff2,#48b4a6) !important;}
 [data-qb=bar-gold]{background:linear-gradient(180deg,#f44f65,#a12435) !important;box-shadow:0 0 12px rgba(230,48,82,.5);transition:width .5s var(--qb-ease);}
 /* The ghost of lost HP lingers briefly behind the bar, then drains. */
@@ -272,13 +281,16 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 @keyframes qb-hit-b{0%{transform:none;filter:none;}12%{transform:translate3d(-4px,0,0) scale(1.03);filter:brightness(1.5) sepia(.9) hue-rotate(-45deg) saturate(3.5);}30%{transform:translate3d(4px,0,0);}50%{transform:translate3d(-2px,0,0);filter:brightness(1.15) sepia(.4) hue-rotate(-45deg) saturate(2);}100%{transform:none;filter:none;}}
 [data-qb=floater]{animation:qb-float 1.35s cubic-bezier(.2,.8,.2,1) both;}
 @keyframes qb-float{0%{opacity:0;transform:translate3d(0,6px,0) scale(.7);}15%{opacity:1;transform:translate3d(0,0,0) scale(1.15);}30%{transform:scale(1);}100%{opacity:0;transform:translate3d(0,-30px,0);}}
-[data-qb=art-wait]{background:linear-gradient(100deg,#1a121b 30%,#2f2330 50%,#1a121b 70%) !important;background-size:220% 100% !important;animation:qb-shimmer 1.8s linear infinite;}
+/* Waiting for a painting: a soft light sweeps across the frame. */
+[data-qb=art-wait]{position:relative;overflow:hidden;background:#1a121b !important;}
+[data-qb=art-wait]::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,240,245,.07) 50%,transparent 70%);pointer-events:none;animation:qb-sweep 1.8s linear infinite;}
+@keyframes qb-sweep{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
 /* Low HP: a red ring pulses around the hero's portrait. */
-[data-qb=low-ring]{border-radius:50%;animation:qb-lowring 1.1s ease-in-out infinite;}
-@keyframes qb-lowring{0%,100%{box-shadow:0 0 0 2px rgba(240,106,79,.35),0 0 8px rgba(240,106,79,.3);}50%{box-shadow:0 0 0 3px rgba(240,106,79,.9),0 0 20px rgba(240,106,79,.7);}}
-/* Your move: the main action breathes gently while the game waits for you in a fight. */
-[data-qb=btn-primary][data-pulse=on]{animation:qb-yourmove 2.2s ease-in-out infinite;}
-@keyframes qb-yourmove{0%,100%{box-shadow:inset 0 1px 0 rgba(255,200,210,.5),0 0 0 1px rgba(30,4,10,.9),0 6px 18px rgba(140,82,255,.25);}50%{box-shadow:inset 0 1px 0 rgba(255,200,210,.5),0 0 0 1px rgba(30,4,10,.9),0 0 26px rgba(140,82,255,.7);}}
+[data-qb=low-ring]{border-radius:50%;box-shadow:0 0 0 2px rgba(240,106,79,.35),0 0 8px rgba(240,106,79,.3);}
+[data-qb=low-ring]::after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 3px rgba(240,106,79,.9),0 0 20px rgba(240,106,79,.7);pointer-events:none;animation:qb-pulse-glow 1.1s ease-in-out infinite;}
+/* Your move: the main action breathes gently while the game waits for you in a fight (a violet light inside it). */
+[data-qb=btn-primary][data-pulse=on]{box-shadow:inset 0 1px 0 rgba(255,200,210,.5),0 0 0 1px rgba(30,4,10,.9),0 4px 22px rgba(140,82,255,.45);}
+[data-qb=btn-primary][data-pulse=on]::before{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 16px rgba(190,140,255,.8);pointer-events:none;animation:qb-pulse-glow 2.2s ease-in-out infinite;}
 [data-qb=rays-spin]{background:repeating-conic-gradient(from 0deg,rgba(206,150,255,.12) 0deg 4deg,transparent 4deg 18deg) !important;-webkit-mask-image:radial-gradient(circle,#000 10%,transparent 65%);mask-image:radial-gradient(circle,#000 10%,transparent 65%);animation:qb-spin 40s linear infinite;}
 @keyframes qb-spin{to{transform:rotate(360deg);}}
 
@@ -289,10 +301,11 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=bezel]{background:${bezel} center/contain no-repeat;animation:qb-spin 90s linear infinite;opacity:.85;}
 [data-qb=bezel][data-dir=back]{animation-direction:reverse;animation-duration:140s;opacity:.4;transform:scale(1.12);}
 [data-qb=launch-prompt]{animation:qb-pulse 2.2s ease-in-out infinite;}
-@keyframes qb-pulse{0%,100%{opacity:.45;letter-spacing:4px;}50%{opacity:1;letter-spacing:5px;}}
-/* Game HUD and phone tab bar: frosted, always on top of the scene. */
-[data-qb=hud],[data-qb=tabbar]{-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);box-shadow:0 8px 30px rgba(0,0,0,.45);}
-[data-qb=hud]{background:linear-gradient(180deg,rgba(22,17,23,.94),rgba(14,10,14,.86)) !important;}
+@keyframes qb-pulse{0%,100%{opacity:.45;}50%{opacity:1;}}
+/* Game HUD and phone tab bar: dark glass, always on top of the scene. They are almost opaque, so they carry no blur
+   of the moving scene behind them (it was redrawn every frame for a difference no one could see). */
+[data-qb=hud],[data-qb=tabbar]{box-shadow:0 8px 30px rgba(0,0,0,.45);}
+[data-qb=hud]{background:linear-gradient(180deg,rgba(22,17,23,.96),rgba(14,10,14,.92)) !important;}
 [data-qb=hud]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(224,74,92,.75) 20%,rgba(224,74,92,.75) 80%,transparent);pointer-events:none;}
 [data-qb=tabbar]{background:linear-gradient(180deg,rgba(16,12,17,.9),rgba(10,7,11,.97)) !important;}
 [data-qb=tabbar]::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(224,74,92,.6) 20%,rgba(224,74,92,.6) 80%,transparent);pointer-events:none;}
@@ -306,16 +319,28 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=typing] [data-qb=dot]:nth-child(2){animation-delay:.15s;}
 [data-qb=typing] [data-qb=dot]:nth-child(3){animation-delay:.3s;}
 @keyframes qb-typing{0%,60%,100%{opacity:.25;transform:translateY(0);}30%{opacity:1;transform:translateY(-3px);}}
-[data-qb=shimmer]{background:linear-gradient(90deg,rgba(224,74,92,.15) 0%,rgba(255,214,224,.85) 50%,rgba(224,74,92,.15) 100%) !important;background-size:200% 100% !important;animation:qb-shimmer 1.6s linear infinite;}
-@keyframes qb-shimmer{from{background-position:100% 0;}to{background-position:-100% 0;}}
-/* Touch devices keep the grain and light shafts still: the look stays, the battery is spared. */
-@media (hover:none){[data-qb=grain],[data-qb=rays]{animation:none !important;}}
+[data-qb=shimmer]{position:relative;overflow:hidden;background:rgba(224,74,92,.3) !important;}
+[data-qb=shimmer]::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,214,224,.85) 50%,transparent 100%);pointer-events:none;animation:qb-sweep 1.6s linear infinite;}
+/* Touch devices keep the light shafts still: the look stays, the battery is spared. */
+@media (hover:none){[data-qb=rays]{animation:none !important;}}
+/* Light atmosphere (Settings, Display, or chosen automatically on a computer that struggled to keep up): the same
+   look, still. No grain or light shafts, the fog, embers and painting stay where they are, and the frosted panels
+   become plain dark glass (a blur of the moving scene behind them was redrawn every frame). */
+html[data-effects=light] [data-qb=grain],html[data-effects=light] [data-qb=rays]{display:none !important;}
+html[data-effects=light] [data-qb=fog],html[data-effects=light] [data-qb=embers]::before,html[data-effects=light] [data-qb=embers]::after,html[data-effects=light] [data-qb=backdrop],html[data-effects=light] [data-qb=btn-primary]::after,html[data-effects=light] [data-qb=launch-glow],html[data-effects=light] [data-qb=bezel]{animation:none !important;}
+html[data-effects=light] [data-qb=glass],html[data-effects=light] [data-qb=hud],html[data-effects=light] [data-qb=tabbar],html[data-effects=light] [data-qb=scrim],html[data-effects=light] [data-qb=slot],html[data-effects=light] [data-qb=area],html[data-effects=light] [data-qb=finale]{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+html[data-effects=light] [data-qb=glass]{background:linear-gradient(180deg,rgba(29,22,30,.95),rgba(16,11,17,.96)) !important;}
+html[data-effects=light] [data-qb=hud]{background:linear-gradient(180deg,rgba(22,17,23,.97),rgba(14,10,14,.95)) !important;}
+html[data-effects=light] [data-qb=slot]{background:linear-gradient(160deg,rgba(41,32,42,.95),rgba(16,12,17,.96)) !important;}
+/* While a full-screen card covers the game (a tale being written, a scene loading, the agreement, a victory), the
+   scene behind it holds still. */
+html[data-covered=on] [data-qb=stage] *,html[data-covered=on] [data-qb=stage] *::before,html[data-covered=on] [data-qb=stage] *::after{animation-play-state:paused !important;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;}}
 `);
 export function initializeWebTheme(){
  if(typeof document==='undefined'||document.getElementById('questbound-theme'))return;
  // The typefaces come from this host (public/fonts); the page template requests them, and this is the fallback when it did not.
- if(!document.getElementById('qb-fonts')){const fontsLink=document.createElement('link');fontsLink.id='qb-fonts';fontsLink.rel='stylesheet';fontsLink.href='/fonts/fonts.css';document.head.appendChild(fontsLink);}
+ if(!document.getElementById('qb-fonts')){const fontsLink=document.createElement('link');fontsLink.id='qb-fonts';fontsLink.rel='stylesheet';fontsLink.href='/fonts/fonts-v2.css';document.head.appendChild(fontsLink);}
  const style=document.createElement('style');style.id='questbound-theme';style.textContent=css;document.head.appendChild(style);
  document.querySelector('meta[name="theme-color"]')?.setAttribute('content','#0a070b');
  document.title='Questbound';

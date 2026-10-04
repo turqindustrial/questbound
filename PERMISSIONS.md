@@ -1,6 +1,6 @@
 # Questbound: Permissions agreement
 
-_Last updated 3 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 4 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Permissions agreement
 
@@ -18,7 +18,7 @@ When you use a recovery code, an account or the shared table, a copy of your adv
 
 ### Feedback and service records
 
-Notes you send from the game reach the host with your hero's name, where you are in the game and a short description of your device. The services count requests, wrong codes and wrong passwords by browser and network address for up to an hour, in memory only, and record how many words the AI used (never the words themselves).
+A note you send carries your hero and spells, where you are, your last two turns and any errors (you can leave those out) and how the game ran on your device. The services count requests and wrong codes or passwords for up to an hour, in memory only, and record how many words the AI used (never the words).
 
 ### Sound and full screen
 

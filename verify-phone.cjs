@@ -101,8 +101,18 @@ async function sharedLink(){
   const send=(body,cookie=cookieJar)=>via(first,'/api/feedback',{method:'POST',headers:{Cookie:cookie,Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify(body)});
   assert.equal((await send({text:'Loved the bandit fight!\nThe map was confusing.',rating:4,context:{player:'Sam',hero:'Brenna (Level 2 Fighter)',device:'Pixel 8 · Chrome',where:'Overgrown Roadside, in combat',screen:'Adventure'}})).status,200);
   const saved=fs.readFileSync(notes,'utf8');assert.match(saved,/Loved the bandit fight/);assert.match(saved,/★★★★☆/);assert.match(saved,/Sam · Brenna/);assert.match(saved,/> The map was confusing/);
+  // A note with its details: the readable file gets the build, stage and problem lines, the record the guest label
+  // (never the cookie), and a note too large for the limit is refused.
+  const details={build:'a1b2c3d4',game:{stage:'combat'},problems:[{kind:'refused',said:'I cast Detect Magic',error:'Not prepared'}],recent:[{said:'I look around',rulings:['Perception d20 [9] + 2 = 11'],narration:'Dust.'}],padding:Array.from({length:30},()=>'p'.repeat(550))};
+  assert.ok(JSON.stringify(details).length>16000&&JSON.stringify(details).length<30000);
+  assert.equal((await send({text:'Detect Magic would not cast',context:{player:'Sam'},details})).status,200,'a 20 KB note is taken');
+  assert.equal((await send({text:'too big',details:{padding:'q'.repeat(40000)}})).status,413);
+  const withDetails=fs.readFileSync(notes,'utf8');assert.match(withDetails,/\nBuild: a1b2c3d4 · Stage: combat/);assert.match(withDetails,/\nProblem \(refused\): I cast Detect Magic → Not prepared/);assert.match(withDetails,/\nLast turn: I look around → Perception/);
+  const records=fs.readFileSync(path.join(root,'feedback.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line));
+  assert.equal(records.length,2);assert.match(records[1].guest,/^[0-9a-f]{32}$/,'the record names the browser by its guest label');
+  const cookieToken=cookieJar.split('=')[1];assert.ok(!fs.readFileSync(path.join(root,'feedback.jsonl'),'utf8').includes(cookieToken),'never the cookie');
   assert.equal((await send({text:''})).status,400);assert.equal((await send({text:'hi'},'questbound_phone='+'0'.repeat(64))).status,401,'Unpaired browsers cannot send notes');
-  for(let i=0;i<9;i++)await send({text:'note '+i});assert.equal((await send({text:'one too many'})).status,429);
+  for(let i=0;i<8;i++)await send({text:'note '+i});assert.equal((await send({text:'one too many'})).status,429);
  }finally{await new Promise(resolve=>first.server.close(resolve));}
  const second=await open();
  try{assert.equal((await via(second,'/',{headers:{Cookie:cookieJar}})).raw.toString(),'<h1>Test game</h1>','Still paired after a restart');}finally{await new Promise(resolve=>second.server.close(resolve));}

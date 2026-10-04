@@ -2,27 +2,44 @@
 // The score is soft by design: string and choir pads, a bowed bass, felted keys and a flute or horn that sings
 // composed phrases. Nothing in it is plucked, struck with sticks or ticked out.
 // Signal flow:
-//   music voices -> music bus -> duck -> high-pass -> ┐        hall reverb returns into the music bus
-//   ambience     -> ambience bus -> duck ------------> ├-> glue compressor -> limiter -> master -> speakers
+//   music voices -> mood fader -> music bus -> duck -> narrator dip -> high-pass -> ┐   hall reverb returns into the music bus
+//   ambience     -> ambience bus -> duck -> narrator dip --------> ├-> glue compressor -> limiter -> master -> speakers
 //   effects      -> effects bus -------------------> ┘        room reverb returns into the effects bus
 // Browsers only allow sound after the player interacts, so the engine wakes on the first tap or key press.
+// The score is planned well ahead on the sound card's own clock (LOOKAHEAD), so a busy moment on the page (a scene
+// loading, a painting decoding) never reaches the speakers; beats the page missed altogether are skipped, never
+// played late in a clump. A change of scene crossfades one mood into the next with no silence between them.
 const web=typeof window!=='undefined'&&typeof window.AudioContext!=='undefined';
 const KEY='questbound.audio.v1';
+// On a computer the music goes on while another window is in front (Settings, Sound); a phone falls silent.
+const desktopLike=()=>{try{return !!window.matchMedia?.('(hover:hover) and (pointer:fine)').matches;}catch{return false;}};
 const defaults={master:0.85,music:0.6,ambience:0.6,effects:1,muted:false,night:false,narrator:false,voice:null};
 let settings=load(),ctx=null,listeners=new Set();
 let out={};                         // master chain nodes
-let mood=null,scheduler=null,ambience=null,ambienceKind=null,danger=0,heartbeat=null;
+let mood=null,scheduler=null,ambience=null,ambienceKind=null,danger=0,heartbeat=null,pendingMood=null;
+// Where the score's voices go while the scheduler plans them: each mood has its own fader (crossfades), and
+// effects that borrow an instrument (a victory chord) go straight to the buses.
+let score=null;
+const route=kind=>score?.[kind]??out[kind];
+const LOOKAHEAD=1.6,TICK_MS=250,WATCHDOG_MS=3000,HIDDEN_LIMIT=15*60000;
+// How the sound has been doing on this device, for feedback notes (audioHealth).
+const stats={skipped:0,late:0,moodChanges:0,rebuilds:0,states:0};
+let pausedByUs=false,hiddenTimer=null;
 // Voice budget: counts sounds that actually overlap in time. The score yields first so effects are never dropped.
 const live=[],MUSIC_VOICES=96,ALL_VOICES=220;
 function admit(t,end,bus,priority){
  const now=ctx.currentTime;for(let i=live.length-1;i>=0;i--)if(live[i].end<now)live.splice(i,1);
- const musical=bus===out.music||bus===out.pad||bus===out.amb;let all=0,music=0;
+ const musical=bus===out.music||bus===out.pad||bus===out.amb||bus?.musical===true;let all=0,music=0;
  for(const v of live)if(v.start<end&&v.end>t){all++;if(v.musical)music++;}
  if(!priority&&(all>=ALL_VOICES||(musical&&music>=MUSIC_VOICES)))return false;
  live.push({start:t,end,musical});return true;
 }
+// Nothing starts in the past: a note planned for a moment already gone starts now instead (and is counted).
+function startAt(t){const min=ctx.currentTime+.01;if(t<min){if(score)stats.late++;return min;}return t;}
+// When a sound has finished, its nodes are let go at once instead of waiting for the garbage collector.
+function freeWhenDone(sources,nodes){let left=sources.length;const done=()=>{if(--left>0)return;for(const n of [...sources,...nodes])try{n.disconnect();}catch{}};sources.forEach(s=>{s.onended=done;});}
 const cache={noise:null};
-function load(){try{const v=JSON.parse(window.localStorage.getItem(KEY));return {...defaults,...(v&&typeof v==='object'?v:{})};}catch{return {...defaults};}}
+function load(){try{const v=JSON.parse(window.localStorage.getItem(KEY));return {...defaults,background:desktopLike(),...(v&&typeof v==='object'?v:{})};}catch{return {...defaults,background:desktopLike()};}}
 function persist(){try{window.localStorage.setItem(KEY,JSON.stringify(settings));}catch{}}
 export const audioSettings=()=>({...settings});
 export function subscribeAudio(fn){listeners.add(fn);return()=>listeners.delete(fn);}
@@ -41,7 +58,12 @@ function applyMix(){
 function ensure(){
  if(!web)return false;
  if(!ctx){
-  ctx=new window.AudioContext({latencyHint:'interactive'});
+  // 'balanced' buffers ride out a busy computer far better than the smallest ('interactive') ones, at the cost of a
+  // few hundredths of a second before an effect is heard.
+  ctx=new window.AudioContext({latencyHint:'balanced'});
+  const c=ctx;stats.baseLatency=c.baseLatency??null;stats.outputLatency=c.outputLatency??null;
+  // A context the browser stopped by itself (a phone call, a headset unplugged) starts again as soon as it may.
+  c.onstatechange=()=>{if(c!==ctx)return;stats.states++;if(!['running','closed'].includes(c.state)&&!document.hidden&&!pausedByUs)c.resume().catch(()=>{});};
   const o=out,g=v=>{const n=ctx.createGain();n.gain.value=v;return n;};
   o.master=g(0);o.limiter=ctx.createDynamicsCompressor();o.glue=ctx.createDynamicsCompressor();
   o.limiter.threshold.value=-2.5;o.limiter.knee.value=0;o.limiter.ratio.value=20;o.limiter.attack.value=.002;o.limiter.release.value=.08;
@@ -52,11 +74,12 @@ function ensure(){
   for(let i=0;i<curve.length;i++){const x=i/1024-1,a=Math.abs(x);curve[i]=a<.8?x:Math.sign(x)*(.8+.2*Math.tanh((a-.8)/.2));}
   clip.curve=curve;clip.oversample='2x';
   o.glue.connect(makeup);makeup.connect(o.limiter);o.limiter.connect(clip);clip.connect(o.master);o.master.connect(ctx.destination);
-  // Buses with sidechain-style ducking stages.
-  o.music=g(0);o.musicDuck=g(1);o.amb=g(0);o.ambDuck=g(1);o.sfx=g(0);
+  // Buses with sidechain-style ducking stages: one for hits and moments (duck), one for the narrator's voice
+  // (narrating), so a blow landing while the narrator speaks does not end the narrator's dip early.
+  o.music=g(0);o.musicDuck=g(1);o.musicVoice=g(1);o.amb=g(0);o.ambDuck=g(1);o.ambVoice=g(1);o.sfx=g(0);
   const hp=ctx.createBiquadFilter();hp.type='highpass';hp.frequency.value=32;hp.Q.value=.7;
-  o.music.connect(o.musicDuck);o.musicDuck.connect(hp);hp.connect(o.glue);
-  o.amb.connect(o.ambDuck);o.ambDuck.connect(o.glue);o.sfx.connect(o.glue);
+  o.music.connect(o.musicDuck);o.musicDuck.connect(o.musicVoice);o.musicVoice.connect(hp);hp.connect(o.glue);
+  o.amb.connect(o.ambDuck);o.ambDuck.connect(o.ambVoice);o.ambVoice.connect(o.glue);o.sfx.connect(o.glue);
   // Two reverbs: a long stereo hall for the score and a tighter room for effects.
   o.hall=ctx.createConvolver();o.hall.buffer=impulse(3.4,2.4,.012);const hallReturn=g(.55);o.hall.connect(hallReturn);hallReturn.connect(o.music);
   o.room=ctx.createConvolver();o.room.buffer=impulse(1.3,3.2,.006);const roomReturn=g(.4);o.room.connect(roomReturn);roomReturn.connect(o.sfx);
@@ -67,8 +90,28 @@ function ensure(){
   const dry=g(.7);o.pad.connect(dry);dry.connect(o.music);const wide=g(.5);merger.connect(wide);wide.connect(o.music);const padSend=g(.45);o.pad.connect(padSend);padSend.connect(o.hall);
   applyMix();
  }
- if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+ if(ctx.state==='suspended'||ctx.state==='interrupted'){pausedByUs=false;ctx.resume().catch(()=>{});}
  return true;
+}
+// Start everything that should be sounding (after waking, or after the context was rebuilt).
+function restart(){
+ if(mood&&moods[mood]&&!scheduler){applyMix();startScheduler(mood);}
+ if(ambienceKind&&!ambience)ambience=startAmbience(ambienceKind);
+ if(danger)setDanger(danger);
+}
+// A context that says it is running but whose clock has stopped (an output device changed under it) is replaced.
+let watchedTime=null;
+function watchdog(){
+ if(!ctx||ctx.state!=='running'||document.hidden){watchedTime=null;return;}
+ const t=ctx.currentTime;if(watchedTime!==null&&t===watchedTime){watchedTime=null;rebuild();return;}watchedTime=t;
+}
+function rebuild(){
+ const old=ctx;stats.rebuilds++;
+ if(scheduler)clearInterval(scheduler.timer);scheduler=null;
+ ambience?.stop(true);ambience=null;if(heartbeat){clearInterval(heartbeat);heartbeat=null;}
+ ctx=null;out={};live.length=0;cache.noise=null;
+ try{old?.close?.().catch?.(()=>{});}catch{}
+ if(ensure())restart();
 }
 // Stereo impulse: sparse early reflections, then a decorrelated tail that darkens as it decays.
 function impulse(seconds,decay,predelay){
@@ -84,64 +127,85 @@ const hz=m=>440*Math.pow(2,(m-69)/12);
 const human=t=>t+(Math.random()-.5)*.012;
 const vary=(v,amount=.04)=>v*(1+(Math.random()*2-1)*amount);
 function noiseBuffer(){if(!cache.noise){const len=ctx.sampleRate*2,b=ctx.createBuffer(1,len,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;cache.noise=b;}return cache.noise;}
-function pan(node,value){if(!value)return node;const p=ctx.createStereoPanner();p.pan.value=Math.max(-1,Math.min(1,value));node.connect(p);return p;}
-// A voice: source -> optional filter -> envelope -> pan -> bus, with optional reverb send.
+function pan(node,value,nodes){if(!value)return node;const p=ctx.createStereoPanner();p.pan.value=Math.max(-1,Math.min(1,value));node.connect(p);nodes?.push(p);return p;}
+// A voice: source -> optional filter -> envelope -> pan -> bus, with optional reverb send. Returns when it ends and
+// the nodes it made (let go when the source ends).
 function voice(src,t,{bus,peak=.2,attack=.005,hold=0,release=.3,send=0,reverb=null,filter=null,panTo=0}){
- const env=ctx.createGain();let node=src;
- if(filter){const f=ctx.createBiquadFilter();f.type=filter.type??'lowpass';f.frequency.setValueAtTime(filter.freq,t);if(filter.to)f.frequency.exponentialRampToValueAtTime(filter.to,t+(filter.time??attack+hold+release));f.Q.value=filter.q??.7;node.connect(f);node=f;}
+ const env=ctx.createGain(),nodes=[env];let node=src;
+ if(filter){const f=ctx.createBiquadFilter();f.type=filter.type??'lowpass';f.frequency.setValueAtTime(filter.freq,t);if(filter.to)f.frequency.exponentialRampToValueAtTime(filter.to,t+(filter.time??attack+hold+release));f.Q.value=filter.q??.7;node.connect(f);node=f;nodes.push(f);}
  node.connect(env);env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(peak,t+attack);env.gain.setValueAtTime(peak,t+attack+hold);env.gain.exponentialRampToValueAtTime(.0001,t+attack+hold+release);
- const last=pan(env,panTo);last.connect(bus);if(send&&reverb){const s=ctx.createGain();s.gain.value=send;last.connect(s);s.connect(reverb);}
- return t+attack+hold+release+.05;
+ const last=pan(env,panTo,nodes);last.connect(bus);if(send&&reverb){const s=ctx.createGain();s.gain.value=send;last.connect(s);s.connect(reverb);nodes.push(s);}
+ return {end:t+attack+hold+release+.05,nodes};
 }
 const span=(t,o)=>t+(o.attack??.005)+(o.hold??0)+(o.release??.3)+.05;
-function osc(type,freq,t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const o=ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(freq,t);if(opts.glide)o.frequency.exponentialRampToValueAtTime(opts.glide,t+(opts.glideTime??opts.release??.3));if(opts.detune)o.detune.value=opts.detune;const end=voice(o,t,opts);o.start(t);o.stop(end);}
-function noise(t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const s=ctx.createBufferSource();s.buffer=noiseBuffer();s.loop=true;const end=voice(s,t,opts);s.start(t,Math.random()*1.5);s.stop(end);}
+function osc(type,freq,t,opts){t=startAt(t);if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const o=ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(freq,t);if(opts.glide)o.frequency.exponentialRampToValueAtTime(opts.glide,t+(opts.glideTime??opts.release??.3));if(opts.detune)o.detune.value=opts.detune;const {end,nodes}=voice(o,t,opts);freeWhenDone([o],nodes);o.start(t);o.stop(end);}
+function noise(t,opts){t=startAt(t);if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const s=ctx.createBufferSource();s.buffer=noiseBuffer();s.loop=true;const {end,nodes}=voice(s,t,opts);freeWhenDone([s],nodes);s.start(t,Math.random()*1.5);s.stop(end);}
 // FM bell: a sine carrier modulated at an inharmonic ratio — celesta, chimes and magic.
-function bell(freq,t,opts){if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const car=ctx.createOscillator(),mod=ctx.createOscillator(),depth=ctx.createGain();car.frequency.value=freq;mod.frequency.value=freq*(opts.ratio??3.5);depth.gain.setValueAtTime(freq*(opts.index??2.2),t);depth.gain.exponentialRampToValueAtTime(freq*.05,t+(opts.release??1.5));mod.connect(depth);depth.connect(car.frequency);const end=voice(car,t,opts);car.start(t);mod.start(t);car.stop(end);mod.stop(end);}
+function bell(freq,t,opts){t=startAt(t);if(!admit(t,span(t,opts),opts.bus,opts.priority))return;const car=ctx.createOscillator(),mod=ctx.createOscillator(),depth=ctx.createGain();car.frequency.value=freq;mod.frequency.value=freq*(opts.ratio??3.5);depth.gain.setValueAtTime(freq*(opts.index??2.2),t);depth.gain.exponentialRampToValueAtTime(freq*.05,t+(opts.release??1.5));mod.connect(depth);depth.connect(car.frequency);const {end,nodes}=voice(car,t,opts);freeWhenDone([car,mod],[depth,...nodes]);car.start(t);mod.start(t);car.stop(end);mod.stop(end);}
 // Sidechain-style ducking: important moments pull the score and ambience down briefly.
-// While the narrator speaks (narrator.js) the score and ambience step back, and return when it is done.
-export function narrating(on){if(!ctx)return;const t=ctx.currentTime;[out.musicDuck,out.ambDuck].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(on?.4:1,t,.35);});}
+// While the narrator speaks (narrator.js) the score and ambience step back, and return when it is done. The two
+// work on separate gain stages, so neither cuts the other short.
+export function narrating(on){if(!ctx)return;const t=ctx.currentTime;[out.musicVoice,out.ambVoice].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(on?.4:1,t,.35);});}
 function duck(depth=.5,hold=.25,release=.7){if(!ctx)return;const t=ctx.currentTime;[out.musicDuck,out.ambDuck].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(depth,t,.02);n.gain.setTargetAtTime(1,t+hold,release/3);});}
 
 // ---------- Instruments for the score ----------
 // Every voice has a soft attack (a hundredth of a second or more), so nothing clicks: the score is pads, bowed and
 // blown lines and felted keys, never plucks or sticks.
-function strings(notes,t,dur,level){notes.forEach((m,i)=>[-7,0,7].forEach(cents=>osc('sawtooth',hz(m),t,{bus:out.pad,peak:level/notes.length/2.2,attack:dur*.3,hold:dur*.45,release:1.8,detune:cents+(Math.random()-.5)*4,filter:{freq:420,to:1150,time:dur*.5,q:.5},panTo:(i/(notes.length-1||1)-.5)*.8})));}
+// A string section: each note is three detuned saws sharing one filter, one envelope and one place in the stereo
+// field (a quarter of the nodes three separate voices would need). `attack` lets a chord re-enter part-way through.
+function strings(notes,t,dur,level,attack=dur*.3){
+ t=startAt(t);const bus=route('pad'),hold=Math.max(0,dur*.75-attack),end=t+attack+hold+1.85;
+ notes.forEach((m,i)=>{
+  if(!admit(t,end,bus,false))return;
+  const f=ctx.createBiquadFilter(),env=ctx.createGain(),nodes=[f,env];f.type='lowpass';f.frequency.setValueAtTime(420,t);f.frequency.exponentialRampToValueAtTime(1150,t+dur*.5);f.Q.value=.5;
+  const peak=level/notes.length/2.2;env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(peak,t+attack);env.gain.setValueAtTime(peak,t+attack+hold);env.gain.exponentialRampToValueAtTime(.0001,t+attack+hold+1.8);
+  f.connect(env);pan(env,(i/(notes.length-1||1)-.5)*.8,nodes).connect(bus);
+  const saws=[-7,0,7].map(cents=>{const o=ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(hz(m),t);o.detune.value=cents+(Math.random()-.5)*4;o.connect(f);return o;});
+  freeWhenDone(saws,nodes);saws.forEach(o=>{o.start(t);o.stop(end);});
+ });
+}
 // Formant choir: sawtooth voices through vowel resonances ("ah") — the big cinematic pad.
 function choir(notes,t,dur,level){
- notes.forEach((m,i)=>{if(!admit(t,t+dur+2,out.pad,false))return;const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=hz(m);o.detune.value=(Math.random()-.5)*10;const vib=ctx.createOscillator(),vd=ctx.createGain();vib.frequency.value=4.6+Math.random()*.6;vd.gain.value=hz(m)*.004;vib.connect(vd);vd.connect(o.frequency);
-  const sum=ctx.createGain();[[750,6,1],[1150,7,.6],[2600,9,.25]].forEach(([f,q,g])=>{const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;const gg=ctx.createGain();gg.gain.value=g;o.connect(bp);bp.connect(gg);gg.connect(sum);});
-  const env=ctx.createGain();env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(level/notes.length*2.2,t+dur*.35);env.gain.linearRampToValueAtTime(level/notes.length*1.6,t+dur*.85);env.gain.linearRampToValueAtTime(0,t+dur+1.8);
-  sum.connect(env);pan(env,(i/(notes.length-1||1)-.5)*.6).connect(out.pad);o.start(t);vib.start(t);o.stop(t+dur+2);vib.stop(t+dur+2);});
+ t=startAt(t);const bus=route('pad');
+ notes.forEach((m,i)=>{if(!admit(t,t+dur+2,bus,false))return;const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=hz(m);o.detune.value=(Math.random()-.5)*10;const vib=ctx.createOscillator(),vd=ctx.createGain(),nodes=[vd];vib.frequency.value=4.6+Math.random()*.6;vd.gain.value=hz(m)*.004;vib.connect(vd);vd.connect(o.frequency);
+  const sum=ctx.createGain();nodes.push(sum);[[750,6,1],[1150,7,.6],[2600,9,.25]].forEach(([f,q,g])=>{const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;const gg=ctx.createGain();gg.gain.value=g;o.connect(bp);bp.connect(gg);gg.connect(sum);nodes.push(bp,gg);});
+  const env=ctx.createGain();nodes.push(env);env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(level/notes.length*2.2,t+dur*.35);env.gain.linearRampToValueAtTime(level/notes.length*1.6,t+dur*.85);env.gain.linearRampToValueAtTime(0,t+dur+1.8);
+  sum.connect(env);pan(env,(i/(notes.length-1||1)-.5)*.6,nodes).connect(bus);freeWhenDone([o,vib],nodes);o.start(t);vib.start(t);o.stop(t+dur+2);vib.stop(t+dur+2);});
 }
 // Felted keys: a sine with two quiet upper partials, eased in and left to ring. The broken chords and inner lines.
+// The partials share one place in the stereo field.
 function keys(m,t,level,panTo=0,ring=2.6){
- const f=hz(m);
- osc('sine',f,t,{bus:out.music,peak:level,attack:.022,hold:.03,release:ring,panTo,send:.5,reverb:out.hall});
- osc('triangle',f*2,t,{bus:out.music,peak:level*.16,attack:.024,release:ring*.45,panTo,filter:{freq:1800,to:700,time:ring*.4},send:.4,reverb:out.hall});
- osc('sine',f*3.005,t,{bus:out.music,peak:level*.035,attack:.022,release:ring*.22,panTo});
+ t=startAt(t);const f=hz(m),bus=route('music'),hall=route('hall');
+ let place=bus,shared=[];if(panTo){const p=ctx.createStereoPanner();p.pan.value=Math.max(-1,Math.min(1,panTo));p.connect(bus);place=p;shared=[p];}
+ let sounding=0;const partialDone=()=>{if(--sounding<=0)shared.forEach(n=>{try{n.disconnect();}catch{}});};
+ const partial=(type,freq,opts)=>{if(!admit(t,span(t,opts),bus,false))return;const o=ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(freq,t);const v=voice(o,t,{...opts,bus:place,panTo:0});sounding++;o.onended=()=>{for(const n of [o,...v.nodes])try{n.disconnect();}catch{}partialDone();};o.start(t);o.stop(v.end);};
+ partial('sine',f,{peak:level,attack:.022,hold:.03,release:ring,send:.5,reverb:hall});
+ partial('triangle',f*2,{peak:level*.16,attack:.024,release:ring*.45,filter:{freq:1800,to:700,time:ring*.4},send:.4,reverb:hall});
+ partial('sine',f*3.005,{peak:level*.035,attack:.022,release:ring*.22});
+ if(!sounding){sounding=1;partialDone();}
 }
 // A held, singing line: a blown tone (flute) or a bowed or brass one (cello, horn), with a breath of vibrato that
 // arrives after the note has started. shape: [wave, lowpass, attack, release, breath].
 const lines={flute:['sine',2600,.08,.4,.025],cello:['sawtooth',520,.13,.7,0],horn:['sawtooth',880,.07,.5,0]};
 function line(kind,m,t,dur,level,panTo=0){
- const [wave,cutoff,attack,release,breath]=lines[kind],end=t+dur+release+.05;
- if(!admit(t,end,out.music,false))return;
+ t=startAt(t);const [wave,cutoff,attack,release,breath]=lines[kind],end=t+dur+release+.05,bus=route('music'),hall=route('hall');
+ if(!admit(t,end,bus,false))return;
  const f=hz(m),a=ctx.createOscillator(),b=ctx.createOscillator(),lp=ctx.createBiquadFilter(),env=ctx.createGain(),vib=ctx.createOscillator(),depth=ctx.createGain();
  a.type=wave;b.type=kind==='flute'?'triangle':wave;a.frequency.value=f;b.frequency.value=f;b.detune.value=kind==='flute'?0:6;a.detune.value=kind==='flute'?0:-6;
  vib.frequency.value=4.8+Math.random()*.7;depth.gain.setValueAtTime(0,t);depth.gain.linearRampToValueAtTime(f*(kind==='flute'?.006:.004),t+Math.min(.6,dur*.7));vib.connect(depth);depth.connect(a.frequency);depth.connect(b.frequency);
  lp.type='lowpass';lp.Q.value=.6;lp.frequency.setValueAtTime(cutoff*.55,t);lp.frequency.linearRampToValueAtTime(cutoff,t+attack*2);
  const mix=ctx.createGain();mix.gain.value=kind==='flute'?.3:.5;a.connect(lp);b.connect(mix);mix.connect(lp);lp.connect(env);
  env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(level,t+attack);env.gain.linearRampToValueAtTime(level*.82,t+Math.max(attack+.01,dur));env.gain.linearRampToValueAtTime(0,t+dur+release);
- const last=pan(env,panTo);last.connect(out.music);const send=ctx.createGain();send.gain.value=.5;last.connect(send);send.connect(out.hall);
- a.start(t);b.start(t);vib.start(t);a.stop(end);b.stop(end);vib.stop(end);
- if(breath)noise(t,{bus:out.music,peak:level*breath,attack:attack,hold:Math.max(0,dur-attack),release:release,filter:{type:'bandpass',freq:Math.min(2800,f*1.5),q:1.4},panTo});
+ const nodes=[depth,lp,mix,env],last=pan(env,panTo,nodes);last.connect(bus);const send=ctx.createGain();send.gain.value=.5;last.connect(send);send.connect(hall);nodes.push(send);
+ freeWhenDone([a,b,vib],nodes);a.start(t);b.start(t);vib.start(t);a.stop(end);b.stop(end);vib.stop(end);
+ if(breath)noise(t,{bus,peak:level*breath,attack:attack,hold:Math.max(0,dur-attack),release:release,filter:{type:'bandpass',freq:Math.min(2800,f*1.5),q:1.4},panTo});
 }
 // A short bowed note for the battle pulse: eased in over a fiftieth of a second, gone in a fifth.
-function bow(m,t,level,panTo=0){[-5,5].forEach(c=>osc('sawtooth',hz(m),t,{bus:out.music,peak:level/2,attack:.02,hold:.03,release:.2,detune:c,filter:{freq:900,to:380,time:.2,q:.7},panTo}));}
-function taiko(t,strength=1,panTo=0){const p=vary(1,.03);osc('sine',82*p,t,{bus:out.music,peak:.5*strength,attack:.004,release:.6,glide:44*p,glideTime:.4,send:.25,reverb:out.hall,panTo,priority:true});noise(t,{bus:out.music,peak:.1*strength,attack:.006,release:.2,filter:{freq:520,to:160,time:.2},send:.2,reverb:out.hall,panTo});}
-function brassStab(notes,t,level=.12,len=.5){notes.forEach((m,i)=>[-6,6].forEach(c=>osc('sawtooth',hz(m),t,{bus:out.music,peak:level/notes.length,attack:.03,hold:len*.4,release:len,detune:c,filter:{freq:500,to:2600,time:.08,q:1},send:.35,reverb:out.hall,panTo:(i-notes.length/2)*.15})));}
-function swell(t,dur,level=.12){noise(t,{bus:out.music,peak:level,attack:dur,release:.25,filter:{type:'highpass',freq:3000,to:9000,time:dur},send:.4,reverb:out.hall});}
+function bow(m,t,level,panTo=0){[-5,5].forEach(c=>osc('sawtooth',hz(m),t,{bus:route('music'),peak:level/2,attack:.02,hold:.03,release:.2,detune:c,filter:{freq:900,to:380,time:.2,q:.7},panTo}));}
+// A deep drum, felt more than struck: its skin is eased in over a hundredth of a second.
+function taiko(t,strength=1,panTo=0){const p=vary(1,.03);osc('sine',82*p,t,{bus:route('music'),peak:.5*strength,attack:.012,release:.6,glide:44*p,glideTime:.4,send:.25,reverb:route('hall'),panTo,priority:true});noise(t,{bus:route('music'),peak:.1*strength,attack:.012,release:.2,filter:{freq:520,to:160,time:.2},send:.2,reverb:route('hall'),panTo});}
+function brassStab(notes,t,level=.12,len=.5){notes.forEach((m,i)=>[-6,6].forEach(c=>osc('sawtooth',hz(m),t,{bus:route('music'),peak:level/notes.length,attack:.03,hold:len*.4,release:len,detune:c,filter:{freq:500,to:2600,time:.08,q:1},send:.35,reverb:route('hall'),panTo:(i-notes.length/2)*.15})));}
+function swell(t,dur,level=.12){noise(t,{bus:route('music'),peak:level,attack:dur,release:.25,filter:{type:'highpass',freq:3000,to:9000,time:dur},send:.4,reverb:route('hall')});}
 
 // ---------- Adaptive score ----------
 // Each mood is a slow chord progression (voicings chosen for smooth voice leading), a key, and layers on a shared
@@ -177,20 +241,35 @@ function composePhrase(){
  for(let i=0;i<rhythm.length;i++){const r=Math.random();steps.push(i===0?0:(r<.5?lean:r<.72?-lean:r<.86?2*lean:r<.94?0:-2*lean));if(Math.random()<.3)lean=-lean;}
  return {rhythm,steps,start:.35+Math.random()*.3};
 }
-function startScheduler(name,startAt){
- const m=moods[name];let beat=0,next=startAt??ctx.currentTime+.1;const spb=60/m.bpm,L=m.layers,bpc=m.beatsPerChord,phraseBeats=16;
+// The scheduler plans LOOKAHEAD seconds of music ahead on the sound card's clock, every TICK_MS. When the page was
+// too busy to plan in time (a long stall), the beats already gone are skipped silently (the tune keeps its place)
+// and the string bed and bass come back in under the next beat, so the music never stops or bunches up.
+// Each mood has its own faders (moodIn, padIn, hallIn) so one mood fades out while the next fades in.
+function startScheduler(name,from,{intro=false}={}){
+ const m=moods[name],begin=from??ctx.currentTime+.15;let beat=0,next=begin,reenter=false;const spb=60/m.bpm,L=m.layers,bpc=m.beatsPerChord,phraseBeats=16;
+ const fader=to=>{const g=ctx.createGain();g.musical=true;g.gain.value=0;g.gain.setValueAtTime(0,begin);g.gain.linearRampToValueAtTime(1,begin+1.2);g.connect(to);return g;};
+ const handle={name,timer:null,moodIn:fader(out.music),padIn:fader(out.pad),hallIn:fader(out.hall)};
  // The tune: A A B A, with a new B (and now and then a new A) each time round.
  const tune={A:composePhrase(),B:composePhrase(),count:0,height:0,notes:[]};
- const tick=()=>{if(!ctx||scheduler?.name!==name)return;while(next<ctx.currentTime+.6){
+ // One beat at `time`. audible=false only moves the tune along (a beat the page missed).
+ const step=(time,audible)=>{
   const i=Math.floor(beat/bpc)%m.chords.length,chord=m.chords[i],inChord=beat%bpc,dur=spb*bpc;
-  if(inChord===0){
-   if(L.strings)strings(chord,next,dur,L.strings);
-   if(L.choir&&i%2===0)choir(chord.slice(1),next,dur*2,L.choir);
-   if(L.bass){let low=chord[0];while(low>=45)low-=12;if(low<33)low+=12;line('cello',low,next,dur*.9,L.bass);}
+  if(audible&&inChord===0){
+   if(L.strings)strings(chord,time,dur,L.strings);
+   if(L.choir&&i%2===0)choir(chord.slice(1),time,dur*2,L.choir);
+   if(L.bass){let low=chord[0];while(low>=45)low-=12;if(low<33)low+=12;line('cello',low,time,dur*.9,L.bass);}
   }
+  else if(audible&&reenter){
+   // Back after a skip, part-way through a chord: the bed and the bass take up the rest of it.
+   const left=(bpc-inChord)*spb;
+   if(L.strings&&left>.8)strings(chord,time,left,L.strings,.4);
+   if(L.choir){const choirLeft=(i%2===0?bpc:0)*spb+left;if(choirLeft>2)choir(chord.slice(1),time,choirLeft,L.choir*.8);}
+   if(L.bass&&left>.8){let low=chord[0];while(low>=45)low-=12;if(low<33)low+=12;line('cello',low,time,left*.9,L.bass);}
+  }
+  if(audible)reenter=false;
   // Felted keys break the chord in one steady figure.
-  if(L.arp){const tones=[chord[1],chord[2],chord[3],chord[1]+12,chord[2]+12],per=Math.round(1/L.arp.step);
-   for(let k=0;k<per;k++){const at=Math.round(beat/L.arp.step)+k,tone=tones[L.arp.figure[at%L.arp.figure.length]]+L.arp.octave,accent=at%L.arp.figure.length===0?1:at%2?.62:.8;keys(tone,human(next+k*L.arp.step*spb),L.arp.level*accent,((at%5)-2)*.16);}}
+  if(audible&&L.arp){const tones=[chord[1],chord[2],chord[3],chord[1]+12,chord[2]+12],per=Math.round(1/L.arp.step);
+   for(let k=0;k<per;k++){const at=Math.round(beat/L.arp.step)+k,tone=tones[L.arp.figure[at%L.arp.figure.length]]+L.arp.octave,accent=at%L.arp.figure.length===0?1:at%2?.62:.8;keys(tone,human(time+k*L.arp.step*spb),L.arp.level*accent,((at%5)-2)*.16);}}
   // The lead sings its phrase, then rests a phrase when the mood asks for room.
   if(L.lead){
    const inPhrase=beat%phraseBeats;
@@ -214,24 +293,55 @@ function startScheduler(name,startAt){
      });
     }
    }
-   for(const note of tune.notes)if(note.start>=inPhrase&&note.start<inPhrase+1)line(L.lead.voice,note.pitch,human(next+(note.start-inPhrase)*spb),note.length*spb*.92,L.lead.level,L.lead.voice==='horn'?-.15:.18);
+   if(audible)for(const note of tune.notes)if(note.start>=inPhrase&&note.start<inPhrase+1)line(L.lead.voice,note.pitch,human(time+(note.start-inPhrase)*spb),note.length*spb*.92,L.lead.level,L.lead.voice==='horn'?-.15:.18);
   }
-  if(L.bells&&beat%32===16)bell(hz(chord[2]+24),human(next),{bus:out.music,peak:.02,attack:.05,release:3.2,send:.7,reverb:out.hall,ratio:3.5,index:1.1,panTo:.3});
+  if(!audible)return;
+  // Into a fight: the first beat lands with a deep drum and a brass call (inside this mood's fader).
+  if(intro&&beat===0){taiko(time,1.2);brassStab([50,57,62],time,.12,.8);}
+  if(L.bells&&beat%32===16)bell(hz(chord[2]+24),human(time),{bus:route('music'),peak:.02,attack:.05,release:3.2,send:.7,reverb:route('hall'),ratio:3.5,index:1.1,panTo:.3});
   // Battle: low drums on the strong beats and a bowed pulse in quavers underneath (root, root, fifth, root…).
-  if(L.taiko){const b=beat%8;if(b===0)taiko(next,1,-.1);if(b===4)taiko(next,.75,.1);if(b===3||b===7)taiko(next+spb/2,.5,.15);if(beat%32===31)for(let k=0;k<3;k++)taiko(next+k*spb/3,.45+k*.15,(k%2?.2:-.2));if(beat%32===28)swell(next,spb*4,.06);}
-  if(L.pulse){const root=chord[0]+12;[[0,1],[7,.55]].forEach(([interval,accent],k)=>bow(root+(beat%4===3&&k?5:interval),human(next+k*spb/2),L.pulse*(beat%4===0&&!k?1.25:accent),k?.12:-.12));}
-  beat++;next+=spb;}};
- const handle={name,timer:null};scheduler=handle;tick();handle.timer=setInterval(tick,90);return handle;
+  if(L.taiko){const b=beat%8;if(b===0)taiko(time,1,-.1);if(b===4)taiko(time,.75,.1);if(b===3||b===7)taiko(time+spb/2,.5,.15);if(beat%32===31)for(let k=0;k<3;k++)taiko(time+k*spb/3,.45+k*.15,(k%2?.2:-.2));if(beat%32===28)swell(time,spb*4,.06);}
+  if(L.pulse){const root=chord[0]+12;[[0,1],[7,.55]].forEach(([interval,accent],k)=>bow(root+(beat%4===3&&k?5:interval),human(time+k*spb/2),L.pulse*(beat%4===0&&!k?1.25:accent),k?.12:-.12));}
+ };
+ const tick=()=>{
+  if(!ctx||scheduler!==handle)return;
+  const now=ctx.currentTime;
+  score={music:handle.moodIn,pad:handle.padIn,hall:handle.hallIn};
+  try{
+   if(next<now+.05){const missed=Math.ceil((now+.05-next)/spb);for(let k=0;k<missed;k++){step(next,false);beat++;next+=spb;}stats.skipped+=missed;reenter=true;}
+   while(next<now+LOOKAHEAD){step(next,true);beat++;next+=spb;}
+  }finally{score=null;}
+ };
+ handle.tick=tick;scheduler=handle;tick();handle.timer=setInterval(tick,TICK_MS);return handle;
 }
+// Hold a fading parameter where it is now, then let it go: the next ramp starts from what is sounding.
+function hold(param,t){if(param.cancelAndHoldAtTime)param.cancelAndHoldAtTime(t);else{const v=param.value;param.cancelScheduledValues(t);param.setValueAtTime(v,t);}}
+// An old mood fades out over a few seconds under the new one; its faders are let go once it is silent.
+function retire(handle,t){
+ clearInterval(handle.timer);
+ const faders=[handle.moodIn,handle.padIn,handle.hallIn];
+ faders.forEach(g=>{hold(g.gain,t);g.gain.setTargetAtTime(0,t,.6);});
+ setTimeout(()=>faders.forEach(g=>{try{g.disconnect();}catch{}}),25000);
+}
+// A new mood: the old one fades while the new one starts at once (a fight after a rising swell, on its first drum).
+// The music bus itself is left alone (only the volume setting moves it). Wandering between the road and a shelter
+// waits a moment first, so a quick step out and back does not change the music at all.
 export function setMood(name){
- if(name===mood)return;const from=mood;mood=name;
+ if(pendingMood){clearTimeout(pendingMood.timer);pendingMood=null;}
+ if(name===mood)return;
+ const calm=m=>m==='explore'||m==='haven';
+ if(ctx&&scheduler&&calm(name)&&calm(mood)){pendingMood={name,timer:setTimeout(()=>{pendingMood=null;changeMood(name);},2500)};return;}
+ changeMood(name);
+}
+function changeMood(name){
+ if(name===mood)return;const from=mood;mood=name;stats.moodChanges++;
  if(!ctx)return;
- const t=ctx.currentTime,bus=out.music;
- if(scheduler)clearInterval(scheduler.timer);scheduler=null;
- bus.gain.cancelScheduledValues(t);bus.gain.setTargetAtTime(0,t,.35);
- // Into combat: a rising swell and a downbeat hit; the new score enters under it.
- if(name==='combat'&&from){swell(t,1.1,.12);setTimeout(()=>{if(mood==='combat'&&ctx){taiko(ctx.currentTime,1.2);brassStab([50,57,62],ctx.currentTime,.12,.8);}},1100);}
- setTimeout(()=>{if(mood!==name||!ctx)return;applyMix();if(moods[name])startScheduler(name);},name==='combat'?1100:1400);
+ const t=ctx.currentTime,old=scheduler;scheduler=null;
+ if(old)retire(old,t);
+ if(!moods[name])return;
+ // Into combat: a rising swell, then the new score enters on a downbeat hit.
+ if(name==='combat'&&from){swell(t,1.1,.12);startScheduler(name,t+1.1,{intro:true});}
+ else startScheduler(name,t+.15);
 }
 
 // ---------- Ambience ----------
@@ -242,8 +352,8 @@ const beds={
 function startAmbience(kind){
  const spec=beds[kind];if(!spec)return null;const nodes=[],timers=[],t=ctx.currentTime;
  const bed=(level,filter,lfoRate,panTo)=>{const s=ctx.createBufferSource();s.buffer=noiseBuffer();s.loop=true;const f=ctx.createBiquadFilter();f.type=filter.type;f.frequency.value=filter.freq;f.Q.value=filter.q??.7;const g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(level,t+3);
-  if(lfoRate){const l=ctx.createOscillator(),d=ctx.createGain();l.frequency.value=lfoRate;d.gain.value=filter.freq*.45;l.connect(d);d.connect(f.frequency);l.start();nodes.push(l);}
-  s.connect(f);f.connect(g);pan(g,panTo).connect(out.amb);s.start(t,Math.random());nodes.push(s);return g;};
+  const sources=[s],parts=[f,g];if(lfoRate){const l=ctx.createOscillator(),d=ctx.createGain();l.frequency.value=lfoRate;d.gain.value=filter.freq*.45;l.connect(d);d.connect(f.frequency);l.start();nodes.push(l);sources.push(l);parts.push(d);}
+  s.connect(f);f.connect(g);pan(g,panTo,parts).connect(out.amb);freeWhenDone(sources,parts);s.start(t,Math.random());nodes.push(s);return g;};
  const gains=[];
  if(spec.wind){gains.push(bed(spec.wind,{type:'bandpass',freq:420,q:.6},.07,-.4));gains.push(bed(spec.wind*.7,{type:'bandpass',freq:700,q:.8},.05,.4));}
  if(spec.hearth){gains.push(bed(spec.hearth*.6,{type:'lowpass',freq:300},.11,0));gains.push(bed(spec.hearth*.2,{type:'bandpass',freq:520,q:.8},.07,.2));
@@ -253,7 +363,8 @@ function startAmbience(kind){
  if(spec.cave){gains.push(bed(spec.cave,{type:'lowpass',freq:140},.03,0));}
  if(spec.drips)timers.push(setInterval(()=>{if(!ctx||Math.random()<.4)return;const f=vary(1800,.35);osc('sine',f,ctx.currentTime,{bus:out.amb,peak:.05,attack:.001,release:.12,glide:f*.55,send:.8,reverb:out.cave,panTo:(Math.random()-.5)*1.4});},1100));
  if(spec.birds)timers.push(setInterval(()=>{if(!ctx||Math.random()<.65)return;const at=ctx.currentTime,base=vary(3200,.2),p=(Math.random()-.5)*1.4;for(let k=0,n=2+Math.floor(Math.random()*4);k<n;k++)osc('sine',base,at+k*.11,{bus:out.amb,peak:.018,attack:.01,release:.07,glide:base*vary(1.35,.1),glideTime:.06,panTo:p});},2600));
- return {kind,stop(){const now=ctx.currentTime;gains.forEach(g=>{g.gain.cancelScheduledValues(now);g.gain.setTargetAtTime(0,now,.8);});timers.forEach(clearInterval);setTimeout(()=>nodes.forEach(n=>{try{n.stop();}catch{}}),4000);}};
+ // stop(true): the context is being replaced, so only the timers need stopping.
+ return {kind,stop(atOnce=false){timers.forEach(clearInterval);if(atOnce||!ctx)return;const now=ctx.currentTime;gains.forEach(g=>{g.gain.cancelScheduledValues(now);g.gain.setTargetAtTime(0,now,.8);});setTimeout(()=>nodes.forEach(n=>{try{n.stop();}catch{}}),4000);}};
 }
 export function setAmbience(kind){if(kind===ambienceKind)return;ambienceKind=kind;if(!ctx)return;ambience?.stop();ambience=startAmbience(kind);}
 // Danger (0..1): at low HP a heartbeat rises under everything.
@@ -332,9 +443,24 @@ export function initializeAudio(){
  const wake=()=>{const fresh=!ctx;if(!ensure())return;if(fresh){
   // iOS unlock: a silent buffer inside the first gesture.
   const s=ctx.createBufferSource();s.buffer=ctx.createBuffer(1,1,22050);s.connect(ctx.destination);s.start(0);
-  if(mood&&moods[mood]&&!scheduler){applyMix();startScheduler(mood);}if(ambienceKind)ambience=startAmbience(ambienceKind);if(danger)setDanger(danger);}};
+  restart();}};
  document.addEventListener('pointerdown',event=>{wake();if(event.target?.closest?.('[role=button],[role=tab],[role=radio],[role=switch]'))playSound('click');},true);
  document.addEventListener('keydown',wake,true);
- document.addEventListener('visibilitychange',()=>{if(!ctx)return;if(document.hidden)ctx.suspend().catch(()=>{});else ctx.resume().catch(()=>{});});
+ // A hidden page (another tab, a minimised window, or on Windows a window wholly covered by another): with
+ // "Keep playing in the background" the music goes on (for up to a quarter of an hour), otherwise it fades and
+ // the sound pauses until the player comes back.
+ const pause=()=>{if(!ctx||!document.hidden)return;pausedByUs=true;out.master.gain.cancelScheduledValues(ctx.currentTime);out.master.gain.setTargetAtTime(0,ctx.currentTime,.06);setTimeout(()=>{if(pausedByUs&&ctx&&document.hidden)ctx.suspend().catch(()=>{});},250);};
+ document.addEventListener('visibilitychange',()=>{
+  if(!ctx)return;clearTimeout(hiddenTimer);
+  if(document.hidden){if(settings.background)hiddenTimer=setTimeout(pause,HIDDEN_LIMIT);else pause();return;}
+  if(pausedByUs||ctx.state!=='running'){pausedByUs=false;ctx.resume().catch(()=>{});}
+  applyMix();
+ });
+ setInterval(watchdog,WATCHDOG_MS);
 }
 export const audioReady=()=>!!ctx&&ctx.state==='running';
+// How the sound is doing on this device, sent with a feedback note so the host can see why music stopped.
+export function audioHealth(){
+ return {state:ctx?ctx.state:'not started',baseLatency:stats.baseLatency??null,outputLatency:stats.outputLatency??null,skipped:stats.skipped,late:stats.late,moodChanges:stats.moodChanges,rebuilds:stats.rebuilds,states:stats.states,
+  background:!!settings.background,muted:!!settings.muted,music:settings.music,narrator:!!settings.narrator,mood,voicesLive:live.length};
+}
