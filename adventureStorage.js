@@ -17,8 +17,8 @@ import {combatBasics} from './combatRules';
 
 const ADVENTURE_KEY = 'questbound.adventure.v1';
 const integerBetween = (n,min,max) => Number.isInteger(n) && n>=min && n<=max;
-// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n12).
-const someone = id => /^(?:keeper|mara|n(?:[1-9]|1[0-2]))$/.test(String(id));
+// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n24).
+const someone = id => /^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(id));
 export function adventureSnapshot(hero,game,health,chosen) {
   return {version:1,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
 }

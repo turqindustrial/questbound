@@ -51,6 +51,9 @@ function situation(context){
   else if(c.foeFate==='subdued')lines.push(foe+' is beaten and no longer a threat.');
   else if(!inFight&&place&&c.stage!=='bridge')lines.push(foe+' is not at '+place+' and is not attacking the player.');
  }
+ // Who is here to be spoken to, by name (the foe in a fight is not one of them).
+ const here=(Array.isArray(c.nearbyNPCs)?c.nearbyNPCs:[]).filter(n=>n&&typeof n.id==='string'&&typeof n.name==='string').map(n=>n.name.slice(0,60)).slice(0,8);
+ if(here.length)lines.push('Named people here: '+here.join(', ')+'.');
  const offered=journeys(c);
  if(offered.length&&!inFight)lines.push('The player may set out at once for any of: '+offered.map(j=>j.name+' ('+j.actionId+')').join(', ')+'. Nothing has to happen first.');
  return lines;

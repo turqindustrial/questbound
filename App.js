@@ -84,7 +84,7 @@ function QuestboundApp() {
   const transition=useSceneTransition();
   const [creatingStory,setCreatingStory]=useState(false),[newStoryRequested,setNewStoryRequested]=useState(false);
   const storyLock=useRef(false);
-  const [selectedIntro,setSelectedIntro]=useState('surprise'),[showReady,setShowReady]=useState(false),[idea,setIdea]=useState('');
+  const [selectedIntro,setSelectedIntro]=useState('easy'),[showReady,setShowReady]=useState(false),[idea,setIdea]=useState('');
   const [screen, setScreenState] = useState('Home');
   const [form, setForm] = useState(blankBuild);
   const [hero, setHero] = useState(null);

@@ -12,7 +12,7 @@ import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensio
 import Icon from './Icon';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
-import {npcScene,npcLore} from './npcRules';
+import {npcScene,npcLore,metPerson} from './npcRules';
 import {livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
 import Inventory from './Inventory';
@@ -129,7 +129,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const voiced=t=>String(t).replace(/^The player\b/,'You').replace(/\bthe player\b/g,'you');
  const peoplePanel=<View dataSet={{qb:'plate'}} style={s.people}>
   <View style={s.labelRow}><Icon name="people" size={14} color={colors.goldMid}/><PlainText style={s.label}>People</PlainText></View>
-  {[...npcScene(game)].sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],view=n.fate==='dead'||n.grudge||n.bond?null:speciesRegard(game,n.id,hero),sour=['hostile','unfriendly'].includes(n.attitude),warm=['friendly','devoted'].includes(n.attitude),kind=!view||(sour&&['kin','warm','curious'].includes(view.stance))||(warm&&['wary','scornful'].includes(view.stance))?null:regardLabel(view),said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
+  {/* A tale's residents appear once the hero has met them (reached where they live). */}
+  {npcScene(game).filter(n=>metPerson(game,n.id)).sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],view=n.fate==='dead'||n.grudge||n.bond?null:speciesRegard(game,n.id,hero),sour=['hostile','unfriendly'].includes(n.attitude),warm=['friendly','devoted'].includes(n.attitude),kind=!view||(sour&&['kin','warm','curious'].includes(view.stance))||(warm&&['wary','scornful'].includes(view.stance))?null:regardLabel(view),said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
    // Where they are now: beside you, or wherever they live (or were left waiting).
    const follow=game.followers?.[n.id],where=n.fate==='dead'?null:follow?.status==='following'?'With you':n.present?'Here':game.story?'At '+placeName(game,follow?follow.location:game.people?.[n.id]?.home??'inn'):null;
    return <View key={n.id} style={s.personRow}>

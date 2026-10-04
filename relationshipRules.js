@@ -1,4 +1,4 @@
-import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders} from './npcRules';
+import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders,maxResidents,residentsPerPlace} from './npcRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {seededRandom} from './mapRules';
 // How each named character feels about the player, and why. Attitudes run from hostile to devoted; deeds move them.
@@ -124,11 +124,12 @@ export function regardSway(game,id,hero){
 export function regardLabel(r){
  return r?{kin:'Kin: one of their own',warm:'Fond of '+r.kind,curious:'Curious about '+r.kind,wary:'Wary of '+r.kind,scornful:'Scornful of '+r.kind}[r.stance]??null:null;
 }
-// A new story's two residents meet the hero with their view of the hero's kind already formed.
+// A new story's people (its two residents and everyone who lives in its country) meet the hero with their view of the
+// hero's kind already formed.
 export function firstImpressions(game,hero){
  let memory={...game.npcMemory};
- for(const id of coreNpcIds){
-  if(memory[id]||!game.story?.npcs?.[id])continue;
+ for(const id of npcIdsOf(game)){
+  if(memory[id]||!(game.story?.npcs?.[id]||game.people?.[id]))continue;
   const r=speciesRegard(game,id,hero),attitude=regardAttitude(r.stance);
   if(attitude!=='indifferent')memory[id]={attitude,response:responses[attitude],memories:[regardMemory(r)]};
  }
@@ -207,5 +208,51 @@ export function validPeople(game){
  if(!p||typeof p!=='object'||Array.isArray(p)||!game.story)return false;
  const ids=Object.keys(p),known=npcIdsOf(game);
  return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,2})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)))&&(x.gender===undefined||genders.includes(x.gender))&&validRegard(x.regard);})
+  // A tale's residents carry `resident` (met once the hero reaches their home) and may carry what they want.
+  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].motive===undefined||personText(p[id].motive,0,400)))
   &&new Set(ids.map(id=>p[id].name.toLowerCase())).size===ids.length;
+}
+// ---------- The people who live in a tale's country ----------
+// Besides its two residents, a written tale names a few people who live in its country (the story writer's
+// `residents`): two at the starting place, so the opening is never two people alone, others at the place to
+// investigate and at landmarks. They are seated in game.people (n1…, `resident:true`) where they live, before the
+// hero has met them; the hero meets them on first reaching that place (metPerson). Anything malformed is left out.
+// `places` are the landmarks marked on the map (p1…); a resident's `at` may name one of them, a starting place by its
+// id (inn, bridge, tower) or by its name. Returns the game and which written resident became whom
+// ({resident1:'n1',…}), so the opening dialogue can be given to the right voices.
+export function seatResidents(game,residents,places=[]){
+ const story=game.story,ids={};
+ if(!story||!Array.isArray(residents)||!residents.length)return {game,ids};
+ const clean=(v,max)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max).trim():'',key=v=>clean(v,80).toLowerCase();
+ // Lookups by written name (never the object's own properties, whatever the writer called someone).
+ const where=Object.create(null),core=Object.create(null),byName=Object.create(null);
+ for(const id of ['inn','bridge','tower']){where[id]=id;const n=key(story.locations?.[id]?.name);if(n)where[n]=id;}
+ for(const p of Array.isArray(places)?places:[])if(p&&/^p\d{1,2}$/.test(p.id)&&typeof p.name==='string'){where[p.id]=p.id;where[key(p.name)]=p.id;}
+ for(const id of coreNpcIds){core[id]=id;const n=key(story.npcs?.[id]?.name);if(n)core[n]=id;}
+ const people={...game.people},memory={...game.npcMemory},count={},written={};
+ const taken=new Set([...Object.keys(core).filter(k=>!coreNpcIds.includes(k)),key(story.foe),...Object.values(people).map(p=>key(p.name))].filter(Boolean));
+ for(const p of Object.values(people))count[p.home]=(count[p.home]??0)+1;
+ residents.forEach((r,i)=>{
+  if(Object.keys(ids).length>=maxResidents||Object.keys(people).length>=maxPeople||!r||typeof r!=='object')return;
+  const name=clean(r.name,60),role=clean(r.role,200),appearance=clean(r.appearance,400);
+  if(name.length<2||role.length<3||appearance.length<10||taken.has(name.toLowerCase()))return;
+  // Where they live: a place the tale knows, else the starting place when it has room; never more than two to a place.
+  const home=where[key(r.at)]??'inn';
+  if((count[home]??0)>=residentsPerPlace)return;
+  const id='n'+(Math.max(0,...Object.keys(people).map(k=>Number(k.slice(1)))) +1);
+  const regard=r.regard&&validRegard(r.regard)&&r.regard.stance!=='indifferent'?{stance:r.regard.stance,reason:r.regard.reason.trim().slice(0,200)}:null,motive=clean(r.motive,300),personality=clean(r.personality,200);
+  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),resident:true};
+  // How they take to a stranger, when the writer says so; otherwise their view of the hero's kind decides it.
+  if(['unfriendly','friendly'].includes(r.attitude))memory[id]={attitude:r.attitude,response:responses[r.attitude],memories:[]};
+  taken.add(name.toLowerCase());count[home]=(count[home]??0)+1;ids['resident'+(i+1)]=id;written[id]=r.tie;
+ });
+ // Ties, once everyone is seated: to keeper, mara or another resident, by id or by name; anything else is dropped.
+ for(const [id,p] of Object.entries(people))byName[p.name.toLowerCase()]=id;
+ for(const [id,t] of Object.entries(written)){
+  if(!t||typeof t!=='object'||!tieKinds.includes(t.kind))continue;
+  const k=key(t.to),to=core[k]??byName[k]??(Object.hasOwn(ids,k)?ids[k]:null)??(isPersonId(k)&&Object.hasOwn(people,k)?k:null);
+  if(to&&to!==id)people[id]={...people[id],tie:{to,kind:t.kind}};
+ }
+ if(!Object.keys(ids).length)return {game,ids};
+ return {game:{...game,people,...(Object.keys(memory).length?{npcMemory:memory}:{})},ids};
 }

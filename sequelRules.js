@@ -55,9 +55,11 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  const homeOf=id=>coreNpcIds.includes(id)||!isPersonId(id)?'inn':previous.people[id].home;
  const priority=id=>following(id)?0:fate[id]==='dead'?3:previous.npcMemory?.[id]?.grudge||previous.npcMemory?.[id]?.bond?1:2;
  const candidates=ids.filter(id=>(old.npcs[id]||previous.people?.[id])&&(following(id)||(sameRegion&&placeMap[homeOf(id)])));
- const kept=[...candidates].sort((a,b)=>priority(a)-priority(b)||ids.indexOf(a)-ids.indexOf(b)).slice(0,maxPeople).sort((a,b)=>ids.indexOf(a)-ids.indexOf(b));
- const idMap=Object.fromEntries(kept.map((id,i)=>[id,'n'+(i+1)]));
- const newNames=new Set(Object.values(next.story.npcs).map(n=>n.name.trim().toLowerCase()));
+ // The new tale's own people (its residents) keep their ids; the earlier people are numbered after them.
+ const first=Math.max(0,...Object.keys(next.people??{}).map(k=>Number(k.slice(1))));
+ const kept=[...candidates].sort((a,b)=>priority(a)-priority(b)||ids.indexOf(a)-ids.indexOf(b)).slice(0,Math.max(0,maxPeople-first)).sort((a,b)=>ids.indexOf(a)-ids.indexOf(b));
+ const idMap=Object.fromEntries(kept.map((id,i)=>[id,'n'+(first+i+1)]));
+ const newNames=new Set([...Object.values(next.story.npcs),...Object.values(next.people??{})].map(n=>n.name.trim().toLowerCase()));
  const people={},memory={},hp={},fates={},followers={};
  for(const id of kept){
   const nid=idMap[id],lore=npcLore(previous,id),src=previous.people?.[id];
@@ -78,7 +80,7 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  const joined={...next};
  // Places the new story marked from the start come first on its own map; the earlier country follows.
  if(places.length)joined.world={places:[...own,...places],at:null,...(ownRegions.length+regions.length?{regions:[...ownRegions,...regions]}:{})};
- if(kept.length){joined.people=people;joined.npcMemory={...next.npcMemory,...memory};if(Object.keys(hp).length)joined.npcHP=hp;if(Object.keys(fates).length)joined.npcFate=fates;if(Object.keys(followers).length)joined.followers=followers;}
+ if(kept.length){joined.people={...next.people,...people};joined.npcMemory={...next.npcMemory,...memory};if(Object.keys(hp).length)joined.npcHP={...next.npcHP,...hp};if(Object.keys(fates).length)joined.npcFate={...next.npcFate,...fates};if(Object.keys(followers).length)joined.followers={...next.followers,...followers};}
  const visited=(previous.map?.visited??[]).map(id=>placeMap[id]).filter(Boolean);
  joined.map={...next.map,visited:[...new Set([...(next.map?.visited??['inn']),...visited])]};
  const ending=previous.foeFate==='slain'?'The '+old.foe+' was slain.':previous.foeFate==='subdued'?'The '+old.foe+' was beaten and spared.':'The '+old.foe+' is still out there.';

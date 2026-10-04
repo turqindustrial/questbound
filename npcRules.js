@@ -4,12 +4,13 @@ export const npcProfiles={
  keeper:{name:'The keeper',maximumHP:12,ac:10,knows:['mara'],response:'Defends the inn, refuses hospitality, and calls for help.'},
  mara:{name:'Mara',maximumHP:9,ac:10,knows:['keeper'],response:'Defends the keeper, helping distract an attacker; fights back when personally attacked.'},
 };
-// Every story has its two residents; the Dungeon Master can bring more named people into the region as the player
-// meets them (game.people: n1…n12, each living at the place where they were met).
+// Every story has its two residents; a written tale seats a few more people who live in its country (residents:
+// `resident:true`, met when the player first reaches where they live), and the Dungeon Master can bring more named
+// people into the region as the player meets them (game.people: n1…n24, each living at the place where they were met).
 export const coreNpcIds=['keeper','mara'];
-export const maxPeople=12,maxPeopleHere=3;
+export const maxPeople=24,maxPeopleHere=4,maxResidents=8,residentsPerPlace=2;
 export const personToughness={frail:{maximumHP:4,ac:10},common:{maximumHP:9,ac:10},tough:{maximumHP:16,ac:13}};
-export const isPersonId=id=>/^n(?:[1-9]|1[0-2])$/.test(String(id));
+export const isPersonId=id=>/^n(?:[1-9]|1\d|2[0-4])$/.test(String(id));
 export const npcIdsOf=game=>[...coreNpcIds,...Object.keys(game?.people??{}).filter(isPersonId)];
 export function npcProfile(game,id){
  const people=game?.people??{};
@@ -40,6 +41,12 @@ export function mentionsName(text,name,atStart=false){
 }
 // Where the scene is, for people: a place id, or a vault room.
 export const sceneLocation=game=>game.dungeon?.active?'dungeon:'+game.dungeon.room:['wild','dying','dead'].includes(game.stage)?mapLocation(game):['combat','victory'].includes(game.stage)?(game.wildFight?game.wildFight.place:'bridge'):['defeat','escaped'].includes(game.stage)?'inn':game.stage;
+// Whether the hero has met someone: everyone the Dungeon Master introduced has been met; a tale's residents are met
+// once the hero has been where they live (or they are here, or travel with the hero).
+export function metPerson(game,id){
+ const p=game?.people?.[id];
+ return !p?.resident||(game.map?.visited??[]).includes(p.home)||!!game.followers?.[id]||sceneLocation(game)===p.home;
+}
 export function npcScene(game){
  const location=sceneLocation(game);
  return npcIdsOf(game).map(id=>{
