@@ -36,7 +36,7 @@ export function errandPlaces(written,places,hero){
  if(!e||!places.length||!line(e.title,80)||!line(e.task,240)||!errandStrong.includes(template)||!line(threat.name,60)||!line(threat.appearance,400))return {places,errand:null};
  const named=line(e.place,60).toLowerCase(),at=places.find(p=>p.name.trim().toLowerCase()===named)??places.find(p=>p.danger==='risky')??places[0];
  // A second creature at its side only for a hero past their first level, and never one of the same kind or a pack.
- const a=threat.ally&&typeof threat.ally==='object'?threat.ally:null,ally=a&&(hero?.level??1)>=2&&[...errandKinds,...(strong?['orc']:[])].includes(a.template)&&a.template!==template&&line(a.name,60)&&line(a.appearance,400)?{template:a.template,name:line(a.name,60),appearance:line(a.appearance,400)}:null;
+ const a=threat.ally&&typeof threat.ally==='object'?threat.ally:null,ally=a&&(hero?.level??1)>=2&&[...errandKinds,...(strong?['orc']:[])].includes(a.template)&&a.template!==(errandSingles[template]??template)&&line(a.name,60)&&line(a.appearance,400)?{template:a.template,name:line(a.name,60),appearance:line(a.appearance,400)}:null;
  const held={...at,danger:'lair',threat:{template,name:line(threat.name,60),appearance:line(threat.appearance,400),...(ally?{ally}:{})}};
  return {places:places.map(p=>p.id===at.id?held:p),errand:{title:line(e.title,80),task:line(e.task,240),place:at.id,reward:line(e.reward,160)}};
 }
