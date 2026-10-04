@@ -12,7 +12,8 @@ import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensio
 import Icon from './Icon';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
-import {npcScene,npcLore,metPerson} from './npcRules';
+import {npcScene,npcLore,metPerson,npcClassOf} from './npcRules';
+import {withCompanionClasses,followerPlace} from './followerRules';
 import {livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
 import Inventory from './Inventory';
@@ -59,6 +60,9 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // The share sheet (the tale card), and a narrator silenced when the play screen is left.
  const [sharing,setSharing]=useState(false);
  useEffect(()=>()=>stopNarrator(),[]);
+ // Saves from before companions had classes: anyone travelling with the hero gains one (from their role) before the
+ // next turn, out of a fight, so every preview and every turn sees the same companions.
+ useEffect(()=>{if(game.stage==='combat'||game.npcCombat?.active||game.pendingSpell)return;const classed=withCompanionClasses(game,hero);if(classed!==game)setGame(classed);},[game,hero]);
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
@@ -137,11 +141,12 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {/* A tale's residents appear once the hero has met them (reached where they live). */}
   {npcScene(game).filter(n=>metPerson(game,n.id)).sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],view=n.fate==='dead'||n.grudge||n.bond?null:speciesRegard(game,n.id,hero),sour=['hostile','unfriendly'].includes(n.attitude),warm=['friendly','devoted'].includes(n.attitude),kind=!view||(sour&&['kin','warm','curious'].includes(view.stance))||(warm&&['wary','scornful'].includes(view.stance))?null:regardLabel(view),said=n.grudge??n.forgave?.memory??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
    // Where they are now: beside you, or wherever they live (or were left waiting).
-   const follow=game.followers?.[n.id],where=n.fate==='dead'?null:follow?.status==='following'?'With you':n.present?'Here':game.story?'At '+placeName(game,follow?follow.location:game.people?.[n.id]?.home??'inn'):null;
+   const follow=game.followers?.[n.id],elsewhere=game.story?followerPlace(game,follow&&follow.status!=='following'?follow.location:game.people?.[n.id]?.home??'inn'):null,ally=game.npcMemory?.[n.id]?.allegiance==='player',where=n.fate==='dead'?null:follow?.status==='following'?'Companion · with you':follow?.status==='waiting'?'Companion · waiting'+(n.present?' here':elsewhere?' at '+elsewhere:''):ally?'Ally · '+(n.present?'here':elsewhere?'at '+elsewhere:'nearby'):n.present?'Here':elsewhere?'At '+elsewhere:null,trained=npcClassOf(game,n.id);
    return <View key={n.id} style={s.personRow}>
     <DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.personAvatar,n.fate==='dead'&&{opacity:.4}]} compact/>
     <View style={{flex:1,minWidth:0}}>
      <PlainText numberOfLines={1} style={s.personName}>{name}</PlainText>
+     {!!trained&&<PlainText numberOfLines={1} style={s.where}>Level {trained.level} {trained.class}</PlainText>}
      <View style={s.standing}><View style={[s.standingDot,{backgroundColor:tone}]}/><PlainText style={[s.standingText,{color:tone}]}>{standing.label}</PlainText>{!!where&&<PlainText numberOfLines={1} style={s.where}>· {where}</PlainText>}</View>
      {!!kind&&<PlainText numberOfLines={1} style={s.regard}>{kind}</PlainText>}
      {!!said&&n.fate!=='dead'&&<PlainText numberOfLines={3} style={s.memory}>“{voiced(said)}”</PlainText>}

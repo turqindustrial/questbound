@@ -1,4 +1,4 @@
-import {npcIdsOf,npcLore,isPersonId,maxPeople,personToughness,coreNpcIds} from './npcRules';
+import {npcIdsOf,npcLore,isPersonId,maxPeople,personToughness,coreNpcIds,npcClassOf,classedStats} from './npcRules';
 import {coreIds,bearings,worldPlaces,worldLinks,placeCoordinates,placeKinds,maxWorldPlaces,maxRegions,mapRegions,homeRegion} from './mapRules';
 import {appendJournal,appendStoryLog} from './journalRules';
 // A hero's next story. Continuing in the same region, everything the hero knows comes along: the earlier story's
@@ -60,7 +60,7 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  const kept=[...candidates].sort((a,b)=>priority(a)-priority(b)||ids.indexOf(a)-ids.indexOf(b)).slice(0,Math.max(0,maxPeople-first)).sort((a,b)=>ids.indexOf(a)-ids.indexOf(b));
  const idMap=Object.fromEntries(kept.map((id,i)=>[id,'n'+(first+i+1)]));
  const newNames=new Set([...Object.values(next.story.npcs),...Object.values(next.people??{})].map(n=>n.name.trim().toLowerCase()));
- const people={},memory={},hp={},fates={},followers={};
+ const people={},memory={},hp={},fates={},followers={},classes={};
  for(const id of kept){
   const nid=idMap[id],lore=npcLore(previous,id),src=previous.people?.[id];
   const core=!src,tie=core?{to:ids.find(x=>x!==id&&coreNpcIds.includes(x))??null,kind:old.npcs[id]?.ties?.other??'acquaintance'}:src.tie;
@@ -70,7 +70,9 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
    ...(lore.motive?{motive:String(lore.motive).slice(0,400)}:{}),toughness:core?(id==='keeper'?'tough':'common'):src.toughness,home,foe:'neutral',...(tie?.to&&idMap[tie.to]?{tie:{to:idMap[tie.to],kind:tie.kind}}:{}),
     ...(['woman','man','other'].includes(lore.gender)?{gender:lore.gender}:{}),...((src??old.npcs[id])?.regard?{regard:(src??old.npcs[id]).regard}:{})};
   if(previous.npcMemory?.[id]){const m={...previous.npcMemory[id]};if(!following(id))delete m.allegiance;memory[nid]=m;}
-  const max=personToughness[people[nid].toughness].maximumHP;
+  // A trained person (every companion is one) keeps their class and level under their new id.
+  const trained=npcClassOf(previous,id);if(trained){classes[nid]={class:trained.class,level:trained.level};people[nid].class=trained.class;}
+  const max=trained?classedStats(trained.class,trained.level).maximumHP:personToughness[people[nid].toughness].maximumHP;
   if(previous.npcHP?.[id]!==undefined)hp[nid]=Math.min(max,previous.npcHP[id]);
   if(fate[id]){fates[nid]=fate[id];hp[nid]=0;}
   if(following(id))followers[nid]={...follow[id],status:'following',location:'inn'};
@@ -80,7 +82,9 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  const joined={...next};
  // Places the new story marked from the start come first on its own map; the earlier country follows.
  if(places.length)joined.world={places:[...own,...places],at:null,...(ownRegions.length+regions.length?{regions:[...ownRegions,...regions]}:{})};
- if(kept.length){joined.people={...next.people,...people};joined.npcMemory={...next.npcMemory,...memory};if(Object.keys(hp).length)joined.npcHP={...next.npcHP,...hp};if(Object.keys(fates).length)joined.npcFate={...next.npcFate,...fates};if(Object.keys(followers).length)joined.followers={...next.followers,...followers};}
+ if(kept.length){joined.people={...next.people,...people};joined.npcMemory={...next.npcMemory,...memory};if(Object.keys(hp).length)joined.npcHP={...next.npcHP,...hp};if(Object.keys(fates).length)joined.npcFate={...next.npcFate,...fates};if(Object.keys(followers).length)joined.followers={...next.followers,...followers};if(Object.keys(classes).length)joined.npcClasses={...next.npcClasses,...classes};}
+ // Offers to come along were made in the earlier country; they do not carry over.
+ delete joined.joinOffers;
  const visited=(previous.map?.visited??[]).map(id=>placeMap[id]).filter(Boolean);
  joined.map={...next.map,visited:[...new Set([...(next.map?.visited??['inn']),...visited])]};
  const ending=previous.foeFate==='slain'?'The '+old.foe+' was slain.':previous.foeFate==='subdued'?'The '+old.foe+' was beaten and spared.':'The '+old.foe+' is still out there.';

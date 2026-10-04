@@ -1,5 +1,5 @@
 import {storyText,questState} from './storyRules';
-import {recruitmentTargets,resolveRecruitment} from './followerRules';
+import {recruitmentTargets,resolveRecruitment,standingOffers,followerPlace,maxFollowing} from './followerRules';
 import {skillAbilities,skillCheckBonus,trainedSkills} from './skillRules';
 import {npcScene,npcServiceError,npcLore,npcIdsOf,npcProfile,npcMaxHP,metPerson} from './npcRules';
 import {modifier,proficiencyBonus} from './characterRules';
@@ -90,6 +90,18 @@ function restWouldHelp(hero,game,health){
   return npcScene(game).some(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.fate!=='dead'&&n.hp>0&&n.hp<npcMaxHP(n.id,game));
 }
 const canShortRest=(hero,game,health=null)=>['inn','bridge','tower','wild','victory'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&shortRestsLeft(hero,game)>0&&restWouldHelp(hero,game,health);
+// Companions out of a fight: taking up someone's offer to come along (a chip), and orders the Dungeon Master may
+// carry out when the player gives them in their own words (wait here, come along again, send word to one elsewhere).
+function companionChoices(game){
+  const list=[],scene=npcScene(game),name=id=>npcLore(game,id)?.name??scene.find(n=>n.id===id)?.name??id,travelling=Object.values(game.followers??{}).filter(f=>f?.status==='following').length;
+  for(const id of standingOffers(game))if(travelling<maxFollowing)list.push({id:'join:'+id,label:'Take '+name(id)+' along: they offered to come with you',action:{type:'accept-offer',id}});
+  for(const [id,f] of Object.entries(game.followers??{})){
+    const n=scene.find(x=>x.id===id);if(!n||n.fate==='dead')continue;
+    if(f.status==='following'&&n.present&&n.hp>0)list.push({id:'follower-wait:'+id,label:name(id)+' waits here: ONLY when the player has told them to stay',action:{type:'follower',id,order:'wait'}});
+    if(f.status==='waiting'&&n.hp>0&&n.attitude!=='hostile'&&travelling<maxFollowing)list.push(n.present?{id:'follower-resume:'+id,label:name(id)+' comes along again: ONLY when the player has asked them to',action:{type:'follower',id,order:'resume'}}:{id:'follower-call:'+id,label:'Send word to '+name(id)+' at '+followerPlace(game,f.location)+' to catch up: ONLY when the player has asked for them',action:{type:'follower',id,order:'call'}});
+  }
+  return list;
+}
 export function dmChoices(hero,game,health=null) {
   hero=gearedHero(hero,game);
   // In a party's fight, nothing can be done on someone else's turn (adventureRules.js keeps the order).
@@ -129,6 +141,7 @@ export function dmChoices(hero,game,health=null) {
     else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
       // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
       if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
+      for(const c of companionChoices(game))add(c.id,c.label,c.action);
       if(!health||health.current<combatBasics(hero).hp)for(const d of carriedDraughts(game))add('drink:'+d.magic.id,'Drink a '+d.name);
       // The tale: the chapter under way gives place to the next (or, in the last one, the story ends), and each open lead can be closed.
       if(game.story.status==='active'){const q=questState(game);
@@ -148,6 +161,7 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='inn'&&!map.accepted)add('study','Study the lantern, accept the quest, and depart for the bridge');
   for(const [id,stage,label] of [['persuade-keeper','inn','Persuade the keeper for a watchtower lead: Charisma DC 10'],['investigate-signal','tower','Decipher the tower signal: Intelligence DC 10']])if(game.stage===stage&&!(game.dmChecks??[]).includes(id)&&!(id==='investigate-signal'&&map.clue))add('check:'+id,label);
   for(const option of interactionOptions(game))add(option.id,option.label);
+  if(game.stage!=='combat'&&!game.dungeon?.active)for(const c of companionChoices(game))add(c.id,c.label,c.action);
   if(['inn','bridge','tower'].includes(game.stage)&&(map.accepted||Object.keys(game.npcMemory??{}).length>0))for(const id of ['inn','bridge','tower'])if(id!==game.stage)add('travel-'+id,'Travel to '+id,{type:'travel',destination:id});
   if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');
   if(game.stage==='inn'){add('long-rest','Take a long rest');if(!map.accepted)add('listen','Accept the keeper’s quest');}
@@ -231,7 +245,9 @@ export function dmContext(hero,game,health) {
   context.encounterInitiative=game.encounterInitiative??null;
   // How each person nearby takes to the hero's kind (kin, warm, curious, wary, scornful), with their reason.
   const kindView=id=>{const r=speciesRegard(game,id,hero);return r.stance==='indifferent'?null:{stance:r.stance,reason:r.reason};};
-  context.nearbyNPCs=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({id:n.id,...(lore=>({name:lore?.name??n.name,role:lore?.role??null,voice:lore?.personality??n.response,motive:lore?.motive??null,appearance:lore?.appearance??null,species:lore?.species??null}))(npcLore(game,n.id)),attitude:n.attitude,grudge:n.grudge,bond:n.bond,memories:n.memories.slice(-6),follower:game.followers?.[n.id]??null,regardsYourKind:kindView(n.id)}));
+  context.nearbyNPCs=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({id:n.id,...(lore=>({name:lore?.name??n.name,role:lore?.role??null,voice:lore?.personality??n.response,motive:lore?.motive??null,appearance:lore?.appearance??null,species:lore?.species??null}))(npcLore(game,n.id)),attitude:n.attitude,grudge:n.grudge,bond:n.bond,memories:n.memories.slice(-6),follower:game.followers?.[n.id]??null,trainedAs:n.trainedAs?n.trainedAs.class+' '+n.trainedAs.level:null,standing:n.standing,regardsYourKind:kindView(n.id)}));
+  // Offers to come along that still stand (the player has not yet answered).
+  {const offers=standingOffers(game);if(offers.length)context.joinOffers=Object.fromEntries(offers.map(id=>[id,game.joinOffers[id]]));}
   context.followers=game.followers??{};
   return context;
 }

@@ -67,6 +67,7 @@ import {AccountSettings} from './AccountSettings';
 import {accountState} from './accountRules';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
+import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
 import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
 import {noteProblem,recentProblems} from './problemLog';
@@ -294,6 +295,8 @@ function QuestboundApp() {
     try{
       let advanced=advancedInPlace(game,hero,character);
       advanced=foeForLevel(advanced,character.level);
+      // Companions come along a step behind: one level below the hero.
+      advanced=levelCompanions(advanced,character.level);
       advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);
       await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));
     }catch{setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
@@ -458,7 +461,7 @@ function QuestboundApp() {
       {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      {screen === 'Followers' && hero && <Followers game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}
+      {screen === 'Followers' && hero && <Followers hero={hero} game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}
       {screen === 'Dice Roller' && <DiceRoller/>}
       {screen === 'Adventure' && <>
         {characterChosen && heroStats?.available && <View dataSet={{qb:'plate'}} style={s.hud}>

@@ -1,7 +1,7 @@
 import {spellLibrary,automaticSpells,speciesSpells,speciesUseLimit,slotChoices,slotUsed} from './spellOptions';
 import {modifier,proficiencyBonus,subclassActive} from './characterRules';
 import {rollAttack,rollDamage,attackOptions} from './weaponRules';
-import {npcProfile,npcScene,npcIdsOf} from './npcRules';
+import {npcProfile,npcScene,npcIdsOf,classSaves} from './npcRules';
 import {heroIdOf,markOf,withMark,edgeMode} from './masteryRules';
 import {subclassSpellBonus} from './subclassRules';
 
@@ -123,7 +123,9 @@ export function spellDamageMax(hero,spell,slot){
 // A person's defences against a spell: their own armour class, and saves by how tough they are.
 export function personDefenses(game,id){
   const profile=npcProfile(game,id),toughness=game.people?.[id]?.toughness,save=toughness==='tough'?2:toughness==='frail'?-1:0;
-  return {ac:profile?.ac??10,saves:{Strength:save,Dexterity:save,Constitution:save,Intelligence:save,Wisdom:save,Charisma:save},distance:10,name:profile?.name??'They',save};
+  // A trained person (npcRules.js npcClasses) adds their proficiency to their class's two saving throws.
+  const t=profile?.trainedAs,prof=t?2+Math.floor((t.level-1)/4):0,saves=Object.fromEntries(['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].map(a=>[a,t?Math.max(save,1)+((classSaves[t.class]??[]).includes(a)?prof:0):save]));
+  return {ac:profile?.ac??10,saves,distance:10,name:profile?.name??'They',save};
 }
 export const cantripDice = level => level>=17?4:level>=11?3:level>=5?2:1;
 export function knownSpells(hero) {

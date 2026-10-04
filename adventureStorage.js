@@ -1,5 +1,5 @@
 import {validStory} from './storyRules';
-import {validFollowers} from './followerRules';
+import {validFollowers,validJoinOffers} from './followerRules';
 import {validSkillTraining} from './skillRules';
 import {validNpcState,npcIdsOf,npcMaxHP} from './npcRules';
 import {validPeople} from './relationshipRules';
@@ -81,6 +81,7 @@ export function validAdventure(value,hero) {
     && validPeople(g)
     && validNpcState(g)
     && validFollowers(g.followers,g)
+    && validJoinOffers(g.joinOffers,g)
     && validDungeon(g.dungeon)
     && (g.stage!=='dungeon'||g.dungeon?.active===true)
     && (!g.dungeon?.active||['dungeon','combat'].includes(g.stage))

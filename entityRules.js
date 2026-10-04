@@ -1,19 +1,25 @@
-import {npcScene,npcLore} from './npcRules';
+import {npcScene,npcLore,classScores} from './npcRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe} from './adventureRules';
 import {spellDefense} from './spellRules';
 import {dungeonRooms} from './dungeonRules';
 import {npcArtSubject,creatureArtSubject} from './worldArtRules';
 const scoreNames=['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
+// Only trained people have a class and level; everyone else is shown by who they are (their role).
+function entityNote(game,n){
+ const f=game.followers?.[n.id]?.status,standing=f==='following'?'travels with you':f==='waiting'?'waits for your return':game.npcMemory?.[n.id]?.allegiance==='player'?'stands with you where they live':'';
+ if(n.trainedAs)return `Level ${n.trainedAs.level} ${n.trainedAs.class}${standing?', '+standing:''}.`;
+ return standing?standing[0].toUpperCase()+standing.slice(1)+'.':'';
+}
 export function encounterEntities(hero,game,health){
  if(!hero)return [];
  const stats=combatBasics(hero),npcs=npcScene(game).map(n=>{
   const lore=game.story?.npcs?.[n.id]??(game.people?.[n.id]?npcLore(game,n.id):null);
-  return {id:n.id,name:lore?.name??n.name,aliases:!game.story&&n.id==='keeper'?['keeper','the keeper','innkeeper','bartender']:[],species:lore?.species??(game.story?'Not recorded':'Human'),className:'Commoner',level:1,ac:n.ac,hp:n.hp,maximum:n.maximumHP,temp:0,scores:Object.fromEntries(scoreNames.map(a=>[a,10])),description:[lore?.role,lore?.appearance,lore?.personality].filter(Boolean).join('\n'),art:npcArtSubject(game,n.id),note:'Uses the current commoner combat profile. No adventuring class levels.'};
+  return {id:n.id,name:lore?.name??n.name,aliases:!game.story&&n.id==='keeper'?['keeper','the keeper','innkeeper','bartender']:[],species:lore?.species??(game.story?'Not recorded':'Human'),className:n.trainedAs?.class??null,level:n.trainedAs?.level??null,role:lore?.role??null,ac:n.ac,hp:n.hp,maximum:n.maximumHP,temp:0,scores:n.trainedAs?classScores(n.trainedAs.class):null,description:[lore?.role,lore?.appearance,lore?.personality].filter(Boolean).join('\n'),art:npcArtSubject(game,n.id),note:entityNote(game,n)};
  });
  const creature=(scene,id)=>{
   const foe=encounterFoe(hero,scene),room=scene.dungeon?.active?dungeonRooms[scene.dungeon.room]:null;
-  return {id,name:room?.foe??game.story?.foe??foe.name,aliases:!room&&!game.story?['wisp','the wisp']:[],species:room?'Construct':game.story?.foeSpecies??(game.story?'Not recorded':'Spirit'),className:'Creature',level:game.encounterLevel??hero.level,ac:foe.ac,hp:game.enemyHP,maximum:foe.maximum,temp:0,scores:Object.fromEntries(scoreNames.map(a=>[a,10+2*(foe.saves?.[a]??0)])),description:room?.text??game.story?.foeAppearance??'A floating light from the old lantern network.',art:creatureArtSubject({...scene,stage:'combat'}),note:'Custom encounter profile. Level is encounter scaling, not an adventuring class. Ability scores reflect the engine’s saving modifiers.'};
+  return {id,name:room?.foe??game.story?.foe??foe.name,aliases:!room&&!game.story?['wisp','the wisp']:[],species:room?'Construct':game.story?.foeSpecies??(game.story?'Not recorded':'Spirit'),className:null,level:null,kind:'Creature',ac:foe.ac,hp:game.enemyHP,maximum:foe.maximum,temp:0,scores:Object.fromEntries(scoreNames.map(a=>[a,10+2*(foe.saves?.[a]??0)])),description:room?.text??game.story?.foeAppearance??'A floating light from the old lantern network.',art:creatureArtSubject({...scene,stage:'combat'}),note:'A creature, not a trained adventurer. Ability scores reflect its saving throws.'};
  };
  const main=creature({...game,dungeon:undefined},'foe');
  if(game.dungeon?.active){main.hp=null;for(const room of [2,6])if(game.dungeon.visited.includes(room)){const guardian=creature({...game,stage:'combat',dungeon:{...game.dungeon,room}},'guardian-'+room);guardian.hp=game.dungeon.cleared.includes(room)?0:game.stage==='combat'&&game.dungeon.room===room?game.enemyHP:null;npcs.push(guardian);}}

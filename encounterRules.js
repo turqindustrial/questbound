@@ -1,5 +1,6 @@
 import {hostileFoes,foeStatsFor} from './hostileEncounter';
-import {npcProfile,npcLore,npcScene} from './npcRules';
+import {npcProfile,npcLore,npcScene,isAlly,npcWhereabouts} from './npcRules';
+import {withMark} from './masteryRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {worldPlace,worldPlaces,placeName} from './mapRules';
 import {modifier} from './characterRules';
@@ -122,19 +123,71 @@ export function undeadFortitude(game,foe,random){
  return {game:{...game,foeTricks:{...game.foeTricks,fortitude:true},...(stands?{enemyHP:1}:{})},line:`Undead Fortitude: Constitution save d20 [${die}] + ${bonus} = ${total} vs DC 10. ${stands?'Success. It lurches back up with 1 HP.':'Failure. It stays down.'}`};
 }
 // ---------- Companions in a fight ----------
+// A companion fights as their class (game.npcClasses, npcRules.js), at their level: weapons for the martial classes,
+// a cantrip for the casters. Saves from before classes (and anyone without one) keep the old plain blow.
 const companionWeapon={keeper:{die:6,type:'bludgeoning'},mara:{die:4,type:'piercing'}};
-export function fightingCompanions(game){return npcScene(game).filter(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.hp>0&&n.fate!=='dead');}
+export function companionAttack(cls,level){
+ const l=Math.max(1,Math.min(20,Math.floor(level)||1)),prof=2+Math.floor((l-1)/4),mod=l>=8?5:l>=4?4:3,n=l>=17?4:l>=11?3:l>=5?2:1,extra=l>=5?2:1,hit=prof+mod;
+ const weapon=(label,count,die,bonus,type,attacks=1)=>({kind:'attack',label,attacks,weapon:{attackBonus:hit,count,die,bonus,type}});
+ switch(cls){
+  case 'Fighter':return weapon('Greatsword',2,6,mod,'slashing',l>=20?4:l>=11?3:extra);
+  case 'Barbarian':return weapon('Greataxe',1,12,mod+(l>=16?4:l>=9?3:2),'slashing',extra);
+  case 'Paladin':return weapon('Longsword',1,8,mod,'slashing',extra);
+  case 'Ranger':return weapon('Longbow',1,8,mod,'piercing',extra);
+  case 'Monk':return weapon('Unarmed strike',1,l>=17?12:l>=11?10:l>=5?8:6,mod,'bludgeoning',extra+1);
+  case 'Rogue':return {...weapon('Shortsword',1,6,mod,'piercing'),sneak:Math.ceil(l/2)};
+  case 'Artificer':return weapon('Light Crossbow',1,8,mod,'piercing');
+  case 'Wizard':case 'Sorcerer':return weapon('Fire Bolt',n,10,0,'fire');
+  case 'Druid':return weapon('Produce Flame',n,8,0,'fire');
+  case 'Warlock':return weapon('Eldritch Blast',1,10,l>=2?mod:0,'force',n);
+  case 'Cleric':return {kind:'save',label:'Sacred Flame',ability:'Dexterity',dc:8+prof+mod,weapon:{attackBonus:hit,count:n,die:8,bonus:0,type:'radiant'},verb:'calls down radiant flame on',melee:{attackBonus:hit,count:1,die:6,bonus:mod,type:'bludgeoning',label:'Mace'}};
+  case 'Bard':return {kind:'save',label:'Vicious Mockery',ability:'Wisdom',dc:8+prof+mod,weapon:{attackBonus:hit,count:n,die:6,bonus:0,type:'psychic'},verb:'hurls a cutting insult at',sap:true,melee:{attackBonus:hit,count:1,die:8,bonus:mod,type:'piercing',label:'Rapier'}};
+  default:return null;
+ }
+}
+// What a classed companion swings in a brawl with people: their weapon (a Cleric's mace, a Bard's rapier).
+export function companionBrawlWeapon(game,id){
+ const t=game?.npcClasses?.[id],a=t?companionAttack(t.class,t.level):null;
+ if(!a)return {attackBonus:2,count:1,die:4,bonus:0,type:'bludgeoning'};
+ return a.kind==='save'?a.melee:a.weapon;
+}
+// Everyone fighting beside the hero: companions who travel with them, and allies who live where the fight is.
+export function fightingCompanions(game){
+ const where=game.wildFight?.place??(game.stage==='combat'?(game.story?'bridge':null):null);
+ return npcScene(game).filter(n=>n.hp>0&&n.fate!=='dead'&&(game.followers?.[n.id]?.status==='following'&&n.present||where&&isAlly(game,n.id)&&npcWhereabouts(game,n.id)===where));
+}
 const npcLabel=(game,id)=>npcLore(game,id)?.name??id;
-// Each companion strikes the creature once after your turn.
-// `bonus`: what the hero adds to their attack rolls (a Marshal's Captain's Call).
+// Each companion acts once after your turn: a weapon's attacks, a cantrip's attack or its save.
+// `bonus`: what the hero adds to their companions' attack rolls (a Marshal's Captain's Call).
 export function companionsAttack(game,foe,random,bonus=0){
  let next=game;const lines=[];
  for(const n of fightingCompanions(game)){
   if(next.enemyHP<=0)break;
-  const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},attack=rollAttack({attackBonus:2+bonus},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
-  const damage=hit?rollDamage({count:1,die:w.die,bonus:0},attack.critical,random).total:0;
-  next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
-  lines.push(`${npcLabel(game,n.id)} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${2+bonus} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
+  const name=npcLabel(game,n.id),t=game.npcClasses?.[n.id],plan=t?companionAttack(t.class,t.level):null;
+  if(!plan){
+   const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},attack=rollAttack({attackBonus:2+bonus},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+   const damage=hit?rollDamage({count:1,die:w.die,bonus:0},attack.critical,random).total:0;
+   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
+   lines.push(`${name} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${2+bonus} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
+   continue;
+  }
+  if(plan.kind==='save'){
+   const bonus=foe.saves?.[plan.ability]??0,die=1+Math.floor(random()*20),total=die+bonus,saved=total>=plan.dc;
+   const damage=saved?0:rollDamage(plan.weapon,false,random).total;
+   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
+   if(!saved&&plan.sap&&next.enemyHP>0&&typeof withMark==='function')next=withMark(next,'foe',{sapped:true});
+   lines.push(`${name} ${plan.verb} the ${foe.name} (${plan.label}): ${plan.ability} save d20 [${die}] + ${bonus} = ${total} vs DC ${plan.dc}. ${saved?'Success; no damage.':`Failure; ${damage} ${plan.weapon.type} damage.`+(plan.sap&&next.enemyHP>0?' Its next attack has disadvantage.':'')}`);
+   continue;
+  }
+  let sneak=plan.sneak??0;
+  for(let i=0;i<plan.attacks&&next.enemyHP>0;i++){
+   const aimed={...plan.weapon,attackBonus:plan.weapon.attackBonus+bonus},attack=rollAttack(aimed,'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+   let damage=hit?rollDamage(plan.weapon,attack.critical,random).total:0,note='';
+   // A Rogue's first hit each turn finds a gap while the hero keeps the creature busy.
+   if(hit&&sneak){const extra=rollDamage({count:sneak*(attack.critical?2:1),die:6,bonus:0},false,random).total;damage+=extra;note=', Sneak Attack';sneak=0;}
+   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
+   lines.push(`${name} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${aimed.attackBonus} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${plan.weapon.type} damage (${plan.label}${note}).`);
+  }
  }
  return {game:next,lines};
 }
@@ -199,9 +252,13 @@ export function foeHitsCompanion(game,foe,who,id,mode,random){
  lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${damage.total} ${foe.type} damage to ${npcLabel(game,id)}.`+(now===0?` ${npcLabel(game,id)} falls unconscious.`:''));
  return {game:{...game,npcHP:{...game.npcHP,[id]:now}},lines};
 }
-// A companion beside a dying hero tries to stop the bleeding first (Medicine, DC 10).
+// A companion beside a dying hero tries to stop the bleeding first (Medicine, DC 10); a healer among them (a Cleric,
+// Druid, Bard or Paladin) speaks a word of healing instead, and never fails.
+const healerClasses=['Cleric','Druid','Bard','Paladin'];
 export function companionAid(game,random){
- const helper=fightingCompanions(game)[0];if(!helper)return null;
+ const helpers=fightingCompanions(game).filter(n=>game.followers?.[n.id]?.status==='following');
+ const healer=helpers.find(n=>healerClasses.includes(game.npcClasses?.[n.id]?.class)),helper=healer??helpers[0];if(!helper)return null;
+ if(healer)return {id:healer.id,success:true,line:`${npcLabel(game,healer.id)} kneels beside you and speaks a word of healing over you (${game.npcClasses[healer.id].class}). Success.`};
  const die=1+Math.floor(random()*20),total=die+2,success=total>=10;
  return {id:helper.id,success,line:`${npcLabel(game,helper.id)} kneels beside you and presses on your wounds: Medicine d20 [${die}] + 2 = ${total} vs DC 10. ${success?'Success.':'Failure.'}`};
 }

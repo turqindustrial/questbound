@@ -84,6 +84,21 @@ function settledLead(text,context){
 // Is this reply what the player's words asked for? Returns null when it is (or when there is nothing to hold it to),
 // else {kind, note, sure, actionId, say}: what is wrong, what to tell the model, and (sure) whether the request is so
 // plain that the game may start actionId itself, with `say` as the telling.
+// A telling that has someone present join the hero (narration, or their own words) while recruitment records nothing:
+// they would never reach the Companions list and would be left behind at the next place.
+const joinsTold=/\b(?:joins? (?:you|your)|comes? (?:along )?with you|will (?:travel|come|ride|walk|go) with you|falls? in (?:beside|behind|alongside|with) you|(?:shoulders|takes up|hefts) (?:a|his|her|their) pack|sets? out with you|travels? with you now)\b/i;
+const joinsSaid=/\b(?:I'?ll|I will|I shall|I'?m going to) (?:come|go|travel|ride|walk) (?:along )?with you\b|\bI'?m coming with you\b|\bcount me in\b|\bI'?ll join you\b/i;
+function unrecordedJoin(context,reply){
+ if((reply?.recruitment??[]).length||started(reply))return null;
+ const people=(Array.isArray(context?.nearbyNPCs)?context.nearbyNPCs:[]).filter(n=>n&&typeof n.id==='string'&&typeof n.name==='string'&&n.standing!=='companion');
+ const sentences=String(reply?.narration??'').split(/(?<=[.!?])\s+/);
+ for(const n of people){
+  const words=wordsOf(n.name).filter(w=>w.length>=3);
+  const named=t=>words.some(w=>hasWord(t.toLowerCase(),w))||/\b(?:she|he|they)\b/i.test(t)&&people.length===1;
+  if(sentences.some(t=>named(t)&&joinsTold.test(t))||(reply?.dialogue??[]).some(l=>l?.speakerId===n.id&&joinsSaid.test(String(l.text??''))))return n;
+ }
+ return null;
+}
 function secondLook(body,reply,{canDiscover=false}={}){
  const context=body?.context??{},text=tidyInput(body?.input);
  if(!text||text.length>400||fighting(context)||context.engineResolved||context.sceneTrigger||context.outOfCharacter||context.pendingSpell)return null;
@@ -105,6 +120,10 @@ function secondLook(body,reply,{canDiscover=false}={}){
  if(none&&phantomFight(reply?.narration))return {kind:'phantom fight',sure:false,
   note:'Your last reply spoke of a fight or encounter as still going on. context.now is the truth: no fight is in progress and nothing is attacking the player. Answer the player\'s message again on that footing; if they asked for something a choice covers, select that actionId, and if they set out for somewhere new, use discovery.'};
  // A lead the player's words seem to settle: the model is asked whether this is the moment (the game never decides that itself).
+ // Someone told as joining the hero that the game did not record (never settled by the game).
+ const joiner=unrecordedJoin(context,reply);
+ if(joiner)return {kind:'unrecorded join',sure:false,
+  note:'Your narration has '+joiner.name+' coming along, but recruitment is empty: record it with recruitment ('+((context.recruitmentTargets??[]).includes(joiner.id)?'join or check':'decision offer, so the player can choose')+', with their class), or tell the scene so that they do not come. A reply that records a join starts no other action; any journey can follow on the next turn.'};
  const lead=none&&!asking?settledLead(text,context):null;
  if(lead)return {kind:'lead',sure:false,
   note:'Your last reply closed nothing. The player\'s message may settle the lead "'+String(lead.title).slice(0,80)+'", and lead-done:'+lead.id+' is on offer. If this message completes it (the thing is handed over, the truth is told to the one who asked, the matter is settled for good or ill), select actionId lead-done:'+lead.id+' in this reply; the telling of the moment follows. If it only moves the errand along, answer as you did.'};

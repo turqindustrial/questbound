@@ -15,12 +15,13 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
-import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions} from "./encounterRules";
+import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,companionBrawlWeapon,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions} from "./encounterRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
 import {proficiencyBonus} from "./characterRules";
 import {withSpoils,takeSpoils,magicItems,packMagic,rechargeWands} from "./lootRules";
 import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassWardRoll,subclassVictoryTemp,subclassPassive,subclassShortRecharge,subclassSpender} from "./subclassRules";
+import {manageFollower,orderFollowers,acceptOffer} from "./followerRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -89,6 +90,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     npcMemory: previous?.npcMemory,
     actionEvents: previous?.actionEvents,
     npcHP: previous?.npcHP,
+    npcClasses: previous?.npcClasses,
     worldFacts: previous?.worldFacts,
     dungeon: previous?.dungeon ? {
       ...previous.dungeon,
@@ -652,10 +654,12 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       if (now > hp.current) lines.push(`You bind your wounds and catch your breath: restored ${now - hp.current} HP.`);
       for (const n of npcScene(game)) {
         if (game.followers?.[n.id]?.status !== 'following' || !n.present || n.fate === 'dead') continue;
-        const most = npcMaxHP(n.id, game), was = game.npcHP?.[n.id] ?? most, better = Math.min(most, was + Math.floor(most / 2));
-        if (was <= 0 || better <= was) continue;
+        const most = npcMaxHP(n.id, game), was = game.npcHP?.[n.id] ?? most, better = was <= 0 ? Math.max(1, Math.floor(most / 2)) : Math.min(most, was + Math.floor(most / 2));
+        if (better <= was) continue;
         next.npcHP = {...next.npcHP, [n.id]: better};
-        lines.push(`${npcLore(game, n.id)?.name ?? n.name} rests too: restored ${better - was} HP.`);
+        // A companion knocked senseless comes round with the rest.
+        if (was <= 0) { if (next.npcFate?.[n.id] === 'unconscious') { next.npcFate = {...next.npcFate}; delete next.npcFate[n.id]; } lines.push(`${npcLore(game, n.id)?.name ?? n.name} comes round and binds their wounds: ${better} HP.`); }
+        else lines.push(`${npcLore(game, n.id)?.name ?? n.name} rests too: restored ${better - was} HP.`);
       }
       if (hero.class === 'Fighter' && (game.resources?.wind ?? 0) > 0) {
         next.resources = {...game.resources, wind: 0};
@@ -686,11 +690,11 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       const rested = {...game, round: 1, potions: Math.max(1, game.potions ?? 1), map: mapState(game), campaign: campaignState(game)};
       for (const key of ['resources', 'spellSlotsUsed', 'arcanumUsed', 'speciesUsed', 'buffs', 'shieldUp', 'hurtBy', 'lastHit', 'shortRests', 'concentration', 'temporarySpell', 'enemyEffects', 'bonusUsed', 'slotSpentThisTurn', 'reactionUsed', 'actionUsed', 'surged', 'dodging', 'castingConditions', 'heroCondition', 'foeTricks', 'pendingSpell']) delete rested[key];
       const lines = ['You finish a long rest. HP and casting resources are restored.'];
-      // Companions who are with you (and still on their feet) sleep it off too.
+      // Companions who are with you sleep it off too (one knocked senseless wakes whole).
       for (const n of npcScene(game)) {
         if (game.followers?.[n.id]?.status !== 'following' || n.fate === 'dead') continue;
         const most = npcMaxHP(n.id, game), was = game.npcHP?.[n.id] ?? most;
-        if (was > 0 && was < most) { rested.npcHP = {...rested.npcHP, [n.id]: most}; lines.push(`${npcLore(game, n.id)?.name ?? n.name} is rested and whole again.`); }
+        if (was < most) { rested.npcHP = {...rested.npcHP, [n.id]: most}; if (rested.npcFate?.[n.id] === 'unconscious') { rested.npcFate = {...rested.npcFate}; delete rested.npcFate[n.id]; } lines.push(`${npcLore(game, n.id)?.name ?? n.name} ${was <= 0 ? 'wakes, tended through the night, and is' : 'is'} rested and whole again.`); }
       }
       // A Wand of Magic Missiles regains 1d6 + 1 charges overnight.
       const wands = rechargeWands(rested, random);
@@ -1415,7 +1419,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(!alive(actor.id))continue;
   const allied=actor.side==='ally',victim=allied?enemies()[0]:null;
   if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(who(actor.id).name+' distracts the opposition to help a defender.');continue;}
-  const weapon={attackBonus:2,count:1,die:4,bonus:0};
+  const weapon=allied?companionBrawlWeapon(next,actor.id):{attackBonus:2,count:1,die:4,bonus:0};
   const helped=next.npcCombat.help===actor.side;
   // Lying prone, they get up first (unless held down); prone, a Sap, or a grapple spoils their blow (masteryRules.js).
   if(next.marks&&!allied){const begun=creatureTurnStarts(next,actor.id,who(actor.id).name,hp);next=begun.game;logs.push(...begun.lines);}
@@ -1444,7 +1448,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(shield)logs.push(shield.line);
   // A subclass's Reaction may blunt the blow (subclassRules.js).
   const ward=damage&&!allied?subclassWardRoll(hero,next,damage,random):null;
-  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}${why.length?', '+why.join(', '):''}) + 2 =${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
+  logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}${why.length?', '+why.join(', '):''}) + ${weapon.attackBonus} =${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${weapon.type?weapon.type[0].toUpperCase()+weapon.type.slice(1):'Bludgeoning'} damage${damageRoll?' ('+damageRoll.dice.length+'d'+weapon.die+' ['+damageRoll.dice.join(', ')+'] + '+weapon.bonus+')':''}.`);
   if(ward){next=ward.game;damage=ward.total;logs.push(ward.line);}
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
   else if(damage){if(!party)next.hurtBy=actor.id;const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
@@ -1654,6 +1658,16 @@ function heroStep(game,health,hero,action,random,opts={}){
  if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
  // Searching the fallen: what they carried is rolled once, and goes into the looter's own pack (lootRules.js).
  if(action?.type==='loot')return takeSpoils(game,health,gearedHero(hero,game),random);
+ // Orders to companions ("Mara, wait here", "Everyone follow me", sending word to one left behind) and taking up
+ // someone's offer to come along (followerRules.js). Neither can be done mid-fight.
+ if(action?.type==='follower'){
+  const ids=Array.isArray(action.ids)?action.ids:[action.id];
+  if(!['wait','resume','call','dismiss'].includes(action.order)||!ids.length||ids.some(id=>typeof id!=='string'))return {game,health,error:'That companion order is not available.'};
+  const done=ids.length>1?orderFollowers(game,ids,action.order):manageFollower(game,ids[0],action.order);
+  if(done.error)return {game,health,error:done.error};
+  return {game:done.game,health,events:done.events};
+ }
+ if(action?.type==='accept-offer'){const done=acceptOffer(hero,game,action.id);return done.error?{game,health,error:done.error}:{game:done.game,health,events:done.events};}
  // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
  const result=livingStep(game,health,gearedHero(hero,game),action,random,opts);
  // Once no fight is on, weapons thrown in it are gathered up again, and nothing of the fight (a grip, a creature lying
