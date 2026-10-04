@@ -6,7 +6,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // of the others but never speaks or acts for them.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','partyRules.js','sharedTableSync.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,partyVictory,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty,createSharedTableSync})',{AsyncStorage:{}});
+const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,withExperience,advancedInPlace,heroXp,xpForLevel,levelUpReady,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty,createSharedTableSync})',{AsyncStorage:{}});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const kara=r.readyHero('fighter'),ilyra=r.readyHero('wizard'),maxA=r.combatBasics(kara).hp,maxB=r.combatBasics(ilyra).hp;
 const valid=(view,hero)=>r.validAdventure(plain(view),hero);
@@ -70,9 +70,22 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  // Nobody standing: the foe leaves them where they fell.
  assert.equal(r.settleParty(leadFalls).world.stage,'bridge','the foe leaves when every hero is down');
 
- // ---- A victory earns every living hero a level ----
- const won=r.partyVictory({stage:'combat'},{...viewB.game,stage:'victory'});assert.equal(won.party.members.A.hero.levelsOwed,1);assert.equal(won.party.members.B.hero?.levelsOwed??0,0,'the hero in the lead levels as before');
- const deadWon=r.partyVictory({stage:'combat'},{...killed.game,stage:'victory'});assert.equal(deadWon.party.members.A.hero?.levelsOwed??0,0,'not the dead');
+ // ---- A victory earns every living hero their own experience (each the full award, from their own level) ----
+ const fightOn={...viewB.game,stage:'combat',enemyHP:5},wonFight={...viewB.game,stage:'victory',enemyHP:0};
+ const won=r.withExperience(fightOn,wonFight,ilyra,{});assert.ok(won.gained>0,'the hero in the lead gains');assert.ok(won.game.xp>r.xpForLevel(1));
+ assert.ok(won.game.party.members.A.hero.xp>r.xpForLevel(1),'Kara gains too');assert.equal(won.game.party.members.A.hero.levelsOwed,undefined,'no owed levels any more');
+ assert.match(won.lines[0],/^Experience: \+\d+ \(.+\)\. Every hero in the party gains experience too\.$/);
+ const leveledA={...viewB.game,story:{...viewB.game.story,introId:'quest',id:'tale-x'},party:{...viewB.game.party,members:{...viewB.game.party.members,A:{...viewB.game.party.members.A,character:JSON.stringify({...kara,level:4})}}}};
+ const wonHigh=r.withExperience({...leveledA,stage:'combat',enemyHP:5},{...leveledA,stage:'victory',enemyHP:0},ilyra,{});
+ assert.ok(wonHigh.game.party.members.A.hero.xp>r.xpForLevel(4)&&wonHigh.game.party.members.A.hero.xp<r.xpForLevel(5),'a member is paid from their own level');
+ const lyingA={...viewB.game,party:{...viewB.game.party,members:{...viewB.game.party.members,A:{...viewB.game.party.members.A,status:'down'}}}};
+ assert.ok(r.withExperience({...lyingA,stage:'combat',enemyHP:5},{...lyingA,stage:'victory',enemyHP:0},ilyra,{}).game.party.members.A.hero.xp>0,'a hero down in the fight still gains');
+ const deadWon=r.withExperience({...killed.game,stage:'combat',enemyHP:5},{...killed.game,stage:'victory',enemyHP:0},ilyra,{});assert.equal(deadWon.game.party.members.A.hero?.xp,undefined,'not the dead');
+ // The victory alone is not a level any more (bug: the others leveled twice), and a level taken keeps the party.
+ assert.equal(r.levelUpReady({...wonFight,xp:r.xpForLevel(1)},ilyra),false);
+ const taken=r.advancedInPlace(won.game,ilyra,{...ilyra,level:2});assert.ok(r.isPartyGame(taken),'a level taken keeps the party at the table');assert.equal(taken.encounterLevel,won.game.encounterLevel,'the world level is not changed for one hero');assert.equal(taken.xp,won.game.xp);
+ assert.equal(r.validParty({party:{...viewB.game.party,members:{...viewB.game.party.members,A:{...viewB.game.party.members.A,hero:{...viewB.game.party.members.A.hero,xp:-5}}}}}),false,'bad experience is refused');
+ assert.equal(r.validParty({party:{...won.game.party}}),true);
 
  // ---- Saves and leaving ----
  assert.equal(r.validParty({party:{lead:'X',members:{A:viewB.game.party.members.A}}}),false,'the lead must be in the party');

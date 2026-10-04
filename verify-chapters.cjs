@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // Master moves it on one chapter at a time, levels are earned along the way, and old stories play as they did.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','sequelRules.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,validStory,questState,currentGoal,levelUpReady,foeForLevel,storyFoeStats,dmChoices,offeredChoices,dmContext,commitDmTurn,adventureStep,quickActions,mapRegions,regionOfPlace,worldPlaces,travelRoute,withStoryLog,joinRegion,carriedBase,maxLandmarks,maxWorldPlaces})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,validStory,questState,currentGoal,levelUpReady,foeForLevel,storyFoeStats,dmChoices,offeredChoices,dmContext,commitDmTurn,adventureStep,quickActions,mapRegions,regionOfPlace,worldPlaces,travelRoute,withStoryLog,joinRegion,carriedBase,maxLandmarks,maxWorldPlaces,withExperience,heroXp,xpForLevel})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('fighter'),hp=null;
 const person=(name,gender)=>({name,species:'Human',gender,role:'A resident of the refuge.',motive:'Wants the road safe.',appearance:'A weathered face under a wool hood, with a scar across one brow.',personality:'Plain-spoken and watchful.',regard:{stance:'curious',reason:'I have never met one of your kind.'},ties:{other:'friend',foe:'enemy',note:'They share the refuge.'}});
 const written={id:'saga-1',status:'active',title:'The Seal Beneath the Snow',premise:'An heir is missing and a pretender marches.',opening:'A seal is pressed into your hand at the gate.',objective:'Find the heir and settle the succession.',resolution:'The truth of the succession is known and the war averted or faced.',secret:'The heir chose to vanish.',foe:'Kestrel of the Notch',foeSpecies:'Human',foeAppearance:'A lean swordsman in a grey cloak with a hawk mask.',foeDamageType:'Slashing',region:'Veyr',terrain:'mountains',
@@ -46,7 +46,7 @@ assert.ok(choices.every(c=>c.label.length<=150));
 const context=r.dmContext(hero,g,hp);
 assert.equal(context.story.chapters,undefined,'Later chapters are not handed to the Dungeon Master');assert.equal(context.story.leads,undefined);assert.equal(context.story.title,written.title);
 assert.equal(context.quest.chapter,1);assert.equal(context.quest.of,5);assert.equal(context.quest.goal,written.chapters[0].goal);assert.equal(context.quest.revealedWhenAchieved,written.chapters[0].turn);assert.equal(context.quest.next.title,'The Pass That Remembers');assert.equal(context.quest.finalChapter,false);
-assert.equal(context.quest.openLeads.length,2);assert.equal(context.quest.levelEarned,false);assert.ok(context.choices.length<=30);
+assert.equal(context.quest.openLeads.length,2);assert.equal(context.quest.levelEarned,undefined);assert.equal(context.levelReady,undefined,'No level waiting');assert.ok(context.choices.length<=30);
 assert.equal(r.dmContext(hero,plain,hp).quest,undefined);
 // The chips never offer to move the tale on: that is the Dungeon Master's call.
 assert.ok(!r.quickActions(hero,g,hp).some(a=>/story-advance|lead-done|story-complete/.test(a.key)));
@@ -59,15 +59,18 @@ const say={question:'I lay the receipt on the table.',narration:'Tamsin goes pal
 assert.match(r.commitDmTurn(hero,g,hp,'story-complete',say,()=>.5).error,/chapters still to come|no longer available/);
 let turn=r.commitDmTurn(hero,g,hp,'story-advance',say,()=>.5);assert.ok(!turn.error,turn.error);
 assert.equal(turn.game.story.chapter,1);assert.match(turn.events[0],/^Chapter 1 complete: A Seal at the Gate\. A receipt shows/);assert.match(turn.events[1],/^Chapter 2 begins: The Pass That Remembers\. Reach the Shrine/);
-assert.equal(turn.game.levelsOwed,undefined,'The first chapter earns no level');assert.ok(turn.game.journal.entries.some(e=>e.title==='Chapter 2: The Pass That Remembers'));assert.ok(turn.game.worldFacts.some(t=>t.includes('is finished')));
-let logged=r.withStoryLog(g,turn.game,hero,{action:'story-advance'});assert.deepEqual(JSON.parse(JSON.stringify(logged.storyLog.slice(-2).map(e=>[e.kind,e.text]))),[['quest','Finished chapter 1: A Seal at the Gate.'],['story','Chapter 2: The Pass That Remembers']]);
+assert.equal(turn.game.levelsOwed,undefined,'Chapters no longer owe levels');assert.ok(turn.game.journal.entries.some(e=>e.title==='Chapter 2: The Pass That Remembers'));assert.ok(turn.game.worldFacts.some(t=>t.includes('is finished')));
+// Experience is worked out after the turn (Adventure.act): a chapter finished is worth a share of the level.
+const gain=(a,b)=>r.withExperience(a,b,hero,{}).game;
+let logged=r.withStoryLog(g,gain(g,turn.game),hero,{action:'story-advance'});assert.deepEqual(JSON.parse(JSON.stringify(logged.storyLog.slice(-3).map(e=>[e.kind,e.text]))),[['quest','Finished chapter 1: A Seal at the Gate.'],['story','Chapter 2: The Pass That Remembers'],['level','Ready for level 2.']]);
+assert.ok(logged.xp>r.xpForLevel(1)&&logged.xp>=r.xpForLevel(2),'The first chapter is worth level 2 to a new hero');
 assert.ok(valid(logged));assert.equal(r.currentGoal(logged),written.chapters[1].goal);
 g=logged;const before=g;
-turn=r.commitDmTurn(hero,g,hp,'story-advance',say,()=>.5);assert.equal(turn.game.story.chapter,2);assert.equal(turn.game.levelsOwed,1,'Every second chapter earns a level');assert.match(turn.events[2],/earned a level/);
-g=r.withStoryLog(before,turn.game,hero,{action:'story-advance'});assert.ok(g.storyLog.some(e=>e.kind==='level'));assert.ok(valid(g));
-assert.equal(r.dmContext(hero,g,hp).quest.levelEarned,true);
+turn=r.commitDmTurn(hero,g,hp,'story-advance',say,()=>.5);assert.equal(turn.game.story.chapter,2);assert.equal(turn.game.levelsOwed,undefined);assert.ok(!turn.events.some(t=>/earned a level/.test(t)),'The engine no longer hands out levels');
+g=r.withStoryLog(before,gain(before,turn.game),hero,{action:'story-advance'});assert.ok(g.storyLog.some(e=>e.kind==='level'));assert.ok(valid(g));assert.ok(g.xp>before.xp&&g.xp<r.xpForLevel(3),'More experience, but never two levels waiting');
+assert.equal(r.dmContext(hero,g,hp).levelReady,true);assert.equal(r.dmContext(hero,g,hp).quest.levelEarned,undefined);
 // ---- A level earned on the road ----
-assert.equal(r.levelUpReady(g,hero),true);assert.equal(r.levelUpReady({...g,stage:'combat'},hero),false,'Not in a fight');assert.equal(r.levelUpReady({...g,levelsOwed:0},hero),false);assert.equal(r.levelUpReady({...plain,stage:'victory',enemyHP:0},hero),true,'After the main foe falls, as ever');assert.equal(r.levelUpReady(g,{...hero,level:20}),false);
+assert.equal(r.levelUpReady(g,hero),true);assert.equal(r.levelUpReady({...g,stage:'combat'},hero),false,'Not in a fight');assert.equal(r.levelUpReady({...g,xp:undefined},hero),false);assert.equal(r.levelUpReady({...plain,stage:'victory',enemyHP:0,xp:0},hero),false,'A win alone no longer grants a level');assert.equal(r.levelUpReady({...plain,stage:'victory',enemyHP:0},hero),true,'An old save at victory keeps its level');assert.equal(r.levelUpReady({...plain,levelsOwed:1},hero),true,'An old owed level still counts');assert.ok(valid({...plain,levelsOwed:2}));assert.equal(r.levelUpReady(g,{...hero,level:20}),false);
 const grown=r.foeForLevel(g,3);assert.equal(grown.story.foeStats.maximum,r.storyFoeStats(3,'Slashing').maximum);assert.equal(grown.enemyHP,grown.story.foeStats.maximum,'A foe not yet fought grows with the hero');
 assert.equal(r.foeForLevel({...g,enemyHP:g.enemyHP-3},3).story.foeStats.maximum,g.story.foeStats.maximum,'Once the fight is joined the foe stays as it is');
 assert.equal(r.foeForLevel({...g,foeFate:'slain',enemyHP:0},3).enemyHP,0);
@@ -78,7 +81,7 @@ assert.ok(r.commitDmTurn(hero,led,hp,{type:'lead-done',id:'l1'},say,()=>.5).erro
 assert.deepEqual(JSON.parse(JSON.stringify(r.dmContext(hero,led,hp).quest.leadsSeenThrough)),['The Copyist\'s Debt']);assert.equal(r.dmChoices(hero,led).filter(c=>c.id.startsWith('lead-done:')).length,1);
 // ---- The last chapter ends the tale ----
 g=led;for(let i=0;i<2;i++){const next=r.commitDmTurn(hero,g,hp,'story-advance',say,()=>.5);assert.ok(!next.error,next.error);g=r.withStoryLog(g,next.game,hero,{});}
-assert.equal(g.story.chapter,4);assert.equal(g.levelsOwed,2);assert.equal(r.questState(g).last,true);
+assert.equal(g.story.chapter,4);assert.equal(g.levelsOwed,undefined);assert.equal(r.questState(g).last,true);
 choices=r.dmChoices(hero,g);assert.ok(choices.some(c=>c.id==='story-complete'));assert.ok(!choices.some(c=>c.id==='story-advance'));
 assert.ok(r.adventureStep(g,hp,hero,'story-advance',()=>.5).error);
 turn=r.commitDmTurn(hero,g,hp,'story-complete',say,()=>.5);assert.equal(turn.game.story.status,'complete');assert.ok(valid(turn.game));
@@ -89,5 +92,6 @@ const ids=joined.world.regions.map(x=>x.id);assert.equal(new Set(ids).size,ids.l
 assert.ok(joined.world.places.length<=r.maxWorldPlaces);assert.ok(r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(joined)),null,true),hero),'The joined tale saves');
 assert.equal(joined.story.chapter,0);
 // A level earned and not yet taken stays earned when the next tale begins.
-const carried=r.freshStoryGame(hero,{...JSON.parse(JSON.stringify(written)),id:'saga-3',title:'A Third Tale'},r.newAdventure(hero,r.carriedBase(turn.game)));assert.equal(carried.levelsOwed,2);assert.ok(valid(carried));
-console.log('Passed: a long tale starts with its chapters, leads, six landmarks and far lands (days away, each its own map); the Dungeon Master is told only the chapter under way and is offered moving on, never an early ending; chapters advance one at a time with what they reveal, a level is earned every second chapter and can be taken on the road, a foe not yet fought grows with the hero, leads close once, the last chapter ends the tale, the next tale keeps both stories\' lands apart, and stories without chapters play as before.');
+const carried=r.freshStoryGame(hero,{...JSON.parse(JSON.stringify(written)),id:'saga-3',title:'A Third Tale'},r.newAdventure(hero,r.carriedBase(turn.game)));assert.ok(Number.isInteger(turn.game.xp));assert.equal(carried.xp,turn.game.xp,'Experience carries into the next tale');assert.ok(valid(carried));
+const oldCarried=r.newAdventure(hero,r.carriedBase({...turn.game,xp:undefined,levelsOwed:2}));assert.equal(oldCarried.levelsOwed,2,'An old save keeps its owed levels');assert.equal(r.heroXp(oldCarried,hero),r.xpForLevel(3));
+console.log('Passed: a long tale starts with its chapters, leads, six landmarks and far lands (days away, each its own map); the Dungeon Master is told only the chapter under way and is offered moving on, never an early ending; chapters advance one at a time with what they reveal, each chapter is worth experience and a level can be taken on the road, a foe not yet fought grows with the hero, leads close once, the last chapter ends the tale, the next tale keeps both stories\' lands apart, and stories without chapters play as before.');
