@@ -270,6 +270,11 @@ if ($shared) {
   else { Say '  The link changes if sharing restarts (for example after a reboot). For a permanent link see Questbound.cmd -SetupTunnel' 'DarkGray' }
   try { Set-Clipboard -Value ("Questbound playtest: $($shared.link)  Invite code: $($shared.inviteCode)"); Say '  (Link and code copied to your clipboard.)' 'DarkGray' } catch {}
 }
+# Playtest notes not yet read (feedback-report.cjs keeps the marker; only its --mark moves it).
+try {
+  $unread = [int]((& node (Join-Path $root 'feedback-report.cjs') --count 2>$null | Select-Object -Last 1))
+  if ($unread -gt 0) { Say ''; Say "  $unread new playtest note(s): node feedback-report.cjs" 'Yellow' }
+} catch {}
 Say ''
 Say '  Everything keeps running in the background after you close this window.' 'DarkGray'
 Say '  Stop it all with: Questbound.cmd -Stop' 'DarkGray'

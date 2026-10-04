@@ -66,7 +66,14 @@ import {AccountSettings} from './AccountSettings';
 import {accountState} from './accountRules';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
-import FeedbackSheet from './Feedback';
+import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
+import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
+import {noteProblem,recentProblems} from './problemLog';
+import {audioHealth} from './audio';
+import {perfHealth,startPerfWatch,setCovered} from './perfWatch';
+import {currentTheme} from './theme';
+import {questState} from './storyRules';
+import {turnOrderView} from './encounterRules';
 import {useVisualViewport} from './webLayout';
 // The title paintings: four heroes against a lich, wide for a computer or a phone on its side (dark on the left,
 // where the menu sits) and tall for an upright phone (see assets/title/ART-NOTES.md).
@@ -129,7 +136,7 @@ function QuestboundApp() {
     const snapshot=adventureSnapshot(hero,game,health,characterChosen);
     saveAdventure(snapshot,hero)
       .then(()=>{scheduleCloudSave(snapshot);if(current)setSaveStatus('Adventure saved on this device.');})
-      .catch(()=>{if(current)setSaveStatus('Adventure not saved. Your progress is still open; retry before closing the app.');});
+      .catch(error=>{noteProblem({kind:'save',error:'Adventure not saved'+(error?.message?': '+error.message:''),stage:game?.stage});if(current)setSaveStatus('Adventure not saved. Your progress is still open; retry before closing the app.');});
     return ()=>{current=false;};
   },[loading,hero,game,health,characterChosen,storageError,adventureBlocked,saveRetry]);
   const [error, setError] = useState('');
@@ -346,15 +353,30 @@ function QuestboundApp() {
   },[areaName,launched]);
   const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;
   useEffect(()=>{setDanger(launched&&inGame&&!dead&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio,dead]);
-  // What a playtest note carries along automatically (the device is added by the feedback form itself).
-  const [feedbackOpen,setFeedbackOpen]=useState(false);
-  const feedbackContext={hero:hero?hero.name+' (Level '+hero.level+' '+(hero.species??hero.race)+' '+hero.class+')':'',story:game.story?.title??'',screen,
-    where:[game.story?placeName(game,mapLocation(game)):null,{combat:'in combat',victory:'after a victory',defeat:'after a defeat',escaped:'after retreating',dying:'while dying',dead:'after dying'}[game.stage]].filter(Boolean).join(', ')};
+  // What a playtest note carries: the one-line summary as before, and the details (feedbackRules.js) worked out when
+  // the note is sent, so they describe the game at that moment. The device line is added by the feedback form itself.
+  const [feedbackOpen,setFeedbackOpen]=useState(false),[feedbackRequest,setFeedbackRequest]=useState(null);
+  const feedbackState=useRef(null);feedbackState.current={hero,game,health,screen,table};
+  const feedbackContext=useCallback(()=>{
+    const {hero,game,health,screen,table}=feedbackState.current,place=game?.story?placeName(game,mapLocation(game)):null;
+    const order=turnOrderView(game),turn=order?.current?(order.current.mine?'your turn':order.current.name+'’s turn')+' (round '+order.round+')':null;
+    const win=typeof window!=='undefined'?window:{},nav=typeof navigator!=='undefined'?navigator:{},display=displayState();
+    let reducedMotion=false;try{reducedMotion=!!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches;}catch{}
+    return {summary:feedbackSummary({hero,game,screen,place}),details:feedbackDetails({hero,game,health,screen,theme:currentTheme(),place,chapter:questState(game)?.current?.title??null,turn,table,
+      device:{label:deviceLabel(),dpr:win.devicePixelRatio,cores:nav.hardwareConcurrency,memory:nav.deviceMemory,reducedMotion,effects:display.effectsActive,fullscreen:display.fullscreen},
+      audio:audioHealth(),perf:perfHealth(),problems:recentProblems(5),build:pageBuild()})};
+  },[]);
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=!!saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
   // The title screen's shape decides which painting is shown and how it is framed (see titleArt).
   const homeShape=homeLayout(windowWidth,windowHeight),art=titleArt(windowWidth,windowHeight,{protect:saved&&!account});
   const home=screen==='Home'&&!inGame,wideHome=home&&homeShape.wide;
+  // On Home the title screen's own sheet answers requests to open feedback (in play, GameHud's does).
+  useFeedbackRequests(request=>{setFeedbackRequest(request??{});setFeedbackOpen(true);},home);
+  // Full-screen covers: while a tale is written or the agreement is asked, the scenery underneath holds still.
+  const storyCover=creatingStory&&(selectedIntro!=='hostile'||continuingNow),agreementShown=launched&&!agreed&&screen!=='Legal';
+  useEffect(()=>{setCovered('story',storyCover);return()=>setCovered('story',false);},[storyCover]);
+  useEffect(()=>{setCovered('agreement',agreementShown);return()=>setCovered('agreement',false);},[agreementShown]);
   useEffect(()=>{if(typeof document==='undefined')return;const set=(name,value)=>document.documentElement.style.setProperty('--qb-title-'+name,value+'px');set('top',art.top);set('size',art.size);set('edge',art.edge);set('fade',art.fade);},[art.top,art.size,art.edge,art.fade]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
@@ -390,8 +412,8 @@ function QuestboundApp() {
   {home?<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={{flexGrow:1}} keyboardShouldPersistTaps="handled">
     <HomeScreen hero={hero} game={game} health={health} saved={saved} unprotected={saved&&!account} onLegal={tab=>openLegal(tab,'Home')} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
       onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
-      onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackOpen(true);}}/>
-    <FeedbackSheet visible={feedbackOpen} onClose={()=>setFeedbackOpen(false)} context={feedbackContext}/>
+      onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackRequest(null);setFeedbackOpen(true);}}/>
+    <FeedbackSheet visible={feedbackOpen} onClose={()=>{setFeedbackOpen(false);setFeedbackRequest(null);}} context={feedbackContext} problem={feedbackRequest?.problem??null} prefill={feedbackRequest?.prefill??''}/>
   </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
     <View key={screen} dataSet={{qb:'enter'}}>
     <Panel variant={inGame?'glass':'panel'} style={[s.card,compact&&{padding:14}]}>{loading && <Text style={s.note}>Loading saved character…</Text>}{!!storageError && <Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
@@ -481,9 +503,9 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
-  {creatingStory&&(selectedIntro!=='hostile'||continuingNow)&&<StoryLoading introId={continuingNow?'surprise':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
-  <Agreement visible={launched&&!agreed&&screen!=='Legal'} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
-  {!launched&&<LaunchScreen ready={!loading} onBegin={()=>setLaunched(true)}/>}
+  {storyCover&&<StoryLoading introId={continuingNow?'surprise':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
+  <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
+  {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
   </View>;
 }
 const s = StyleSheet.create({

@@ -58,3 +58,14 @@ export function perfHealth(){
  const display=displayState();
  return {domReadyMs:perf.domReadyMs,loadMs:perf.loadMs,longTasks:perf.longTasks,worstLongTaskMs:perf.worstLongTaskMs,slowFramePct:perf.slowFramePct,frames:perf.frames,autoLight:!!display.autoLight,effects:display.effectsActive};
 }
+
+// While something covers the whole screen (a tale being written, a scene change, the agreement, the finale), the
+// scenery underneath stops moving: <html data-covered="on"> pauses the stage's animations (webTheme.js). Each cover
+// registers under its own name, so one closing does not uncover another.
+const covers=new Set();
+export function setCovered(name,on,doc=globalThis.document){
+ if(on)covers.add(name);else covers.delete(name);
+ const root=doc?.documentElement;if(!root?.dataset)return covers.size>0;
+ if(covers.size)root.dataset.covered='on';else delete root.dataset.covered;
+ return covers.size>0;
+}
