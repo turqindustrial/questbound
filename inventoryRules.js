@@ -12,7 +12,9 @@ const startingArrows=hero=>(hero?.equipment?.startingItems??hero?.equipment?.ite
 export function arrowsLeft(game,hero){const p=packOf(game,hero),bought=p.items.filter(i=>i.name==='Arrow').reduce((a,i)=>a+i.qty,0);return Math.max(0,startingArrows(hero)+bought-(p.spent?.Arrow??0));}
 // The hero as the rules see them right now: starting kit plus weapons and arrows from the pack, minus arrows spent.
 // The weapon the player chose to fight with (game.wield, set from the inventory) leads when they carry it.
-export function gearedHero(hero,game){
+export function gearedHero(base,game){
+ // Shillelagh on the hero's club or quarterstaff (spellRules.js) changes how it strikes while it lasts.
+ const hero=game?.buffs?.shillelagh&&base&&!base.shillelagh?{...base,shillelagh:game.buffs.shillelagh.ability}:base;
  if((!game?.pack&&!game?.wield)||!hero?.equipment||hero.equipment.startingItems)return hero;
  const items=(hero.equipment.items??[]).filter(i=>i.name!=='Arrow').map(i=>({...i}));
  for(const it of game.pack?.items??[])if(it.kind==='weapon'&&weapons[it.name]){const have=items.find(i=>i.name===it.name);if(have)have.quantity+=it.qty;else items.push({name:it.name,quantity:it.qty});}

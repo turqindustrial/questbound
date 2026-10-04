@@ -1,9 +1,21 @@
 // Selection summaries are original, brief guidance; full features are a later milestone.
+// The lineages a species chooses between (characterRules.js speciesLineages) and the spells each grants
+// (spellOptions.js lineageSpells), in Questbound's own words. Spells of level 1 or more can each be cast once a long
+// rest without a slot, and with slots by a hero who has them.
+export const lineageDetails = {
+  'High Elf': {description: 'Elves of old courts and libraries, with magic close at hand. You know Prestidigitation; at level 3 Detect Magic and at level 5 Misty Step.'},
+  'Wood Elf': {description: 'Elves of the deep forests, quick and quiet. You know Druidcraft; at level 3 Longstrider and at level 5 Pass without Trace.'},
+  'Forest Gnome': {description: 'Gnomes of the woods, friends to small beasts. You know Minor Illusion, and can cast Speak with Animals without a slot a few times each long rest.'},
+  'Rock Gnome': {description: 'Gnomes of workshops and clever devices. You know Mending and Prestidigitation.'},
+  Abyssal: {description: 'A legacy of the churning depths below the worlds. You know Poison Spray; at level 3 Ray of Sickness and at level 5 Hold Person.'},
+  Chthonic: {description: 'A legacy of the grey realms of the dead. You know Chill Touch; at level 3 False Life and at level 5 Ray of Enfeeblement.'},
+  Infernal: {description: 'A legacy of the ordered realms of fire and law. You know Fire Bolt; at level 3 Hellish Rebuke and at level 5 Darkness.'},
+};
 export const speciesDetails = {
   Dragonborn: {description: 'A draconic hero with scales and a powerful ancestral connection. Imagine the color and presence you bring to the party.'},
   Dwarf: {description: 'A sturdy, long-lived adventurer. Your story might begin among mountain halls, busy cities, or somewhere entirely unexpected.'},
   Elf: {description: 'A long-lived person with fey ancestry. Keen senses and a trance in place of sleep; the forests, courts or wandering roads you came from are yours to decide.'},
-  'Dark Elf': {description: 'A Drow elf, of a lineage at home in the deep places under the earth. Your upbringing, loyalties, and personality are yours to define.', note: 'Dark Elf is the Drow lineage of the Elf. It appears separately here for easy selection.', baseSpecies: 'Elf', lineage: 'Drow'},
+  'Dark Elf': {description: 'A Drow elf, of a lineage at home in the deep places under the earth. Your upbringing, loyalties, and personality are yours to define.', note: 'Dark Elf is the Drow lineage of the Elf. It appears separately here for easy selection. You know Dancing Lights; at level 3 Faerie Fire and at level 5 Darkness, each castable once a long rest without a slot.', baseSpecies: 'Elf', lineage: 'Drow'},
   Gnome: {description: 'A small adventurer with a spark of magic. Picture a curious explorer, thoughtful scholar, or a hero who surprises everyone.'},
   // Beyond the System Reference Document, in Questbound's own words (no text from any other book).
   Goblin: {description: 'A small goblinoid with a talent for slipping out of danger. A goblin can pursue any calling, including a healer or inventor.', note: 'A Questbound option beyond the System Reference Document. Ability bonuses come only from your background.'},

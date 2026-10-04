@@ -87,7 +87,7 @@ export function storyText(game,text){
  return retell(s,text).replace(/\u0001(\d+)\u0002/g,(m,i)=>held[Number(i)]);
 }
 function retell(s,text){
- return text.replace(/You retreat to the inn\. The bridge remains dark, but you live to try again\./g,`You retreat to ${s.locations.inn.name}. The ${s.foe} is still out there, but you live to try again.`).replace(/\bThe keeper\b|\bthe keeper\b|\bkeeper\b/g,s.npcs.keeper.name).replace(/\bMara\b/g,s.npcs.mara.name).replace(/\bLantern Wisp\b|\bthe wisp\b|\bwisp\b/gi,s.foe).replace(/Crossroads Inn|crossroads inn/gi,s.locations.inn.name).replace(/\bOld Stone Bridge\b|\bthe bridge\b|\bbridge\b/gi,s.locations.bridge.name).replace(/\bAbandoned Watchtower\b|\bthe watchtower\b|\bwatchtower\b/gi,s.locations.tower.name)
+ return text.replace(/You retreat to the inn\. The bridge remains dark, but you live to try again\./g,`You retreat to ${s.locations.inn.name}. The ${s.foe} is still out there, but you live to try again.`).replace(/\bThe keeper\b|\bthe keeper\b|\bkeeper\b/g,s.npcs.keeper.name).replace(/\bMara\b/g,s.npcs.mara.name).replace(/\bLantern Wisp\b|\bthe wisp\b|(?<!Starry )\bwisp\b/gi,s.foe).replace(/Crossroads Inn|crossroads inn/gi,s.locations.inn.name).replace(/\bOld Stone Bridge\b|\bthe bridge\b|\bbridge\b/gi,s.locations.bridge.name).replace(/\bAbandoned Watchtower\b|\bthe watchtower\b|\bwatchtower\b/gi,s.locations.tower.name)
  .replace(/You collapse\. .*?This demo ends here\./g,'You fall unconscious. This encounter ends.').replace(/.*(?:restored the crossing|wisp settles|missing bridge light).*\n?/gi,'');
 }
 export function freshStoryGame(hero,written,base){

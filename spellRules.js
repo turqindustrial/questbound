@@ -185,10 +185,18 @@ export function durationRounds(duration) {
   return match ? Number(match[1])*({round:1,minute:10,hour:600,day:14400}[match[2].toLowerCase()]) : null;
 }
 // Only explicitly automated self-casts change defenses; DM rulings may target others.
+// Mage Armor and Barkskin set a floor under the hero's AC; Shield of Faith adds 2 and Shield (until their next turn) 5.
 export function spellDefense(game,baseAC,attacker={}) {
   const active=game?.concentration;
   const id=active?.automaticProtection===true && active.remaining>0?active.id:null;
-  return {ac:baseAC===null?null:baseAC+(id==='shield-of-faith'?2:0),disadvantage:id==='blur' && !attacker.blindsight && !attacker.truesight};
+  let ac=baseAC;
+  if(ac!==null){
+    if(game?.buffs?.['mage-armor']?.ac)ac=Math.max(ac,game.buffs['mage-armor'].ac);
+    if(game?.buffs?.barkskin)ac=Math.max(ac,17);
+    if(id==='shield-of-faith')ac+=2;
+    if(game?.shieldUp)ac+=5;
+  }
+  return {ac,disadvantage:id==='blur' && !attacker.blindsight && !attacker.truesight};
 }
 // Healing another player's hero in the party: up to their maximum, and one who is down (dying) wakes. Null when they
 // are not in the party, are this device's own hero, or are dead.
@@ -377,7 +385,9 @@ export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.r
   let marks=null;
   if(request.npcTarget&&effect&&(effect.attack||effect.save||effect.missile||effect.inflict)){
     const defenses=personDefenses(clean,request.npcTarget),{name,save}=defenses;
-    const calculated=requestSpell(hero,{...clean,stage:'combat'},health,maximum,{...request,forceDM:false},random,defenses);
+    // A reaction (Hellish Rebuke) the Dungeon Master allowed answers this person.
+    const reacting=spell.castingTime==='Reaction'?{hurtBy:request.npcTarget}:{};
+    const calculated=requestSpell(hero,{...clean,stage:'combat',...reacting},health,maximum,{...request,forceDM:false,...(spell.castingTime==='Reaction'?{reaction:true}:{})},random,defenses);
     if(calculated.error)return calculated;
     ruling={...ruling,damage:calculated.damage};calculatedLogs.push(`${name}: AC ${defenses.ac}, saving throws ${save>=0?'+':''}${save}.`,...calculated.logs.filter(l=>l!==replaced));
     if(effect.inflict)marks=calculated.game.marks;

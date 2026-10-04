@@ -151,9 +151,11 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   }
   const cast=text.match(/^(?:I )?cast\s+(.+)$/i);if(!cast)return null;
   const known=knownSpells(hero).sort((a,b)=>b.name.length-a.name.length);
-  let spell=known.find(s=>cast[1].toLowerCase()===s.name.toLowerCase()||cast[1].toLowerCase().startsWith(s.name.toLowerCase()+' ')),detail=spell?cast[1].slice(spell.name.length).trim():'';
+  // A full stop or an exclamation at the end is not part of the spell's name ("I cast Fly.").
+  const words=cast[1].replace(/\s*[.!]+$/,'').trim();
+  let spell=known.find(s=>words.toLowerCase()===s.name.toLowerCase()||words.toLowerCase().startsWith(s.name.toLowerCase()+' ')||words.toLowerCase().startsWith(s.name.toLowerCase()+',')),detail=spell?words.slice(spell.name.length).trim():'';
   // Obvious shortenings that fit exactly one known spell: initials ("FB") or a word of its name ("missiles", "cure").
-  if(!spell){const nick=spellNickname(known,cast[1]);if(nick){spell=nick.spell;detail=nick.rest;}}
+  if(!spell){const nick=spellNickname(known,words);if(nick){spell=nick.spell;detail=nick.rest;}}
   // Wording problems are soft: the Dungeon Master may read what the player meant (context.castingIssue). Every other
   // refusal is a rule and is shown as it is.
   if(!spell)return {error:'Name one of your prepared spells, for example: I cast Cure Wounds on myself.',soft:true};

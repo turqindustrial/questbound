@@ -193,7 +193,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       const command=preset?.action?{action:preset.action}:dmCommand(hero,game,question,health,preset?null:conversationId);
       if(command?.action){await cast(command,command.normalizedCommand??question);return;}
       if(/^confirm action[.!]?$/i.test(question)){if(!priorReply?.pending||priorReply.snapshot!==snapshot)throw Error('There is no current action to confirm.');await finish(priorReply.pending.action,{narration:'Your action is resolved below.'});return;}
-      if(command?.error&&protocol<3)throw Error(command.error);
+      // A rule's refusal (no slot, not in a fight, already concentrating...) is shown as it is; only a cast the game could
+      // not read goes to the Dungeon Master, who may work out what was meant (context.castingIssue).
+      if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw Error(command.error);
       const body=await request(game,health,command?.error?{castingIssue:command.error}:{});
       if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration);return;}
       if(protocol>=3&&body.recruitment?.length){
