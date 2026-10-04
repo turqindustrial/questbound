@@ -7,6 +7,8 @@ import {fonts,colors,type,tint} from './theme';
 import {IconButton,StatBar} from './ui';
 import Icon from './Icon';
 const EncounterContext=createContext(null);
+// A role's first clause, short enough for the card's overline ("Ferryman at the ford", not the whole story).
+const shortRole=role=>{const r=String(role??'').split(/[.;,(]/)[0].trim();return r.length>40?r.slice(0,39).trim()+'…':r||null;};
 export function EntityText({children,...props}){
  const context=useContext(EncounterContext);
  const render=(child,key)=>typeof child==='string'?entityMentions(child,context?.entities??[]).map((part,i)=>part.id?<Text key={key+'-'+i} accessibilityRole="link" accessibilityLabel={'Open '+context.entities.find(e=>e.id===part.id).name+' character sheet'} onPress={event=>{event.stopPropagation?.();context.open(part.id);}} style={s.nameLink}>{part.text}</Text>:part.text):Array.isArray(child)?child.map((item,i)=>render(item,key+'-'+i)):child;
@@ -27,7 +29,7 @@ export default function EncounterProvider({hero,game,health,children}){
  return <EncounterContext.Provider value={{entities,roster,open,active}}>{children}
  <Modal visible={!!selected} transparent animationType="fade" onRequestClose={()=>setSelected(null)}>
  <Pressable accessibilityLabel="Close" onPress={()=>setSelected(null)} dataSet={{qb:'scrim'}} style={s.scrim}><Pressable onPress={()=>{}} accessibilityViewIsModal dataSet={{qb:'sheet'}} style={[s.modal,width<600&&{padding:16}]}>
- <View style={s.header}><View style={{flex:1,minWidth:0}}><Text style={s.overline}>{combat?(active?'Round '+(game.npcCombat?.round??game.round)+' · Remaining HP':'Encounter ended · current HP'):[entity?.species,entity?.className].filter(Boolean).join(' · ')||'Character'}</Text><Text accessibilityRole="header" numberOfLines={2} style={s.title}>{combat?'Combat encounter':entity?.name??'Character'}</Text></View><IconButton icon="close" label="Close" size={38} onPress={()=>setSelected(null)}/></View>
+ <View style={s.header}><View style={{flex:1,minWidth:0}}><Text style={s.overline}>{combat?(active?'Round '+(game.npcCombat?.round??game.round)+' · Remaining HP':'Encounter ended · current HP'):[entity?.species,entity?.className??entity?.kind??shortRole(entity?.role)].filter(Boolean).join(' · ')||'Character'}</Text><Text accessibilityRole="header" numberOfLines={2} style={s.title}>{combat?'Combat encounter':entity?.name??'Character'}</Text></View><IconButton icon="close" label="Close" size={38} onPress={()=>setSelected(null)}/></View>
  <ScrollView style={{maxHeight:Math.max(120,Math.min(560,height*.9-110)),flexShrink:1}}>
  {combat?<>{roster.map(e=>{const enemy=e.side==='enemy',low=!enemy&&(e.hp??0)/Math.max(1,e.maximum)<=.3;return <View key={e.id} style={[s.member,enemy&&{borderColor:'rgba(220,90,70,.4)'}]}>
   <View style={s.memberTop}>
@@ -39,7 +41,7 @@ export default function EncounterProvider({hero,game,health,children}){
   {!!e.temp&&<Text style={s.memberMeta}>+{e.temp} temporary HP</Text>}
  </View>;})}<Text style={s.note}>HP reflects the latest committed outcome, including while the turn plays back.</Text></>:entity&&<>
  {entity.art&&<DynamicArt dataSet={{qb:'portrait'}} subject={entity.art} resizeMode="contain" style={s.portrait}/>}
- <View style={s.facts}>{[['Race / species',entity.species],['Class',entity.className],['Level',entity.level],['Armor Class',entity.ac],['Hit Points',entity.hp==null?'Not in this encounter':entity.hp+' / '+entity.maximum],['Temporary HP',entity.temp]].filter(([,value])=>value!=null&&value!=='').map(([label,value])=><View key={label} dataSet={{qb:'plate'}} style={s.fact}><Text style={s.label}>{label}</Text><Text style={s.value}>{value}</Text></View>)}</View>
+ <View style={s.facts}>{[['Race / species',entity.species],['Role',entity.role],['Class',entity.className],['Level',entity.level],['Armor Class',entity.ac],['Hit Points',entity.hp==null?'Not in this encounter':entity.hp+' / '+entity.maximum],['Temporary HP',entity.temp]].filter(([,value])=>value!=null&&value!=='').map(([label,value])=><View key={label} dataSet={{qb:'plate'}} style={s.fact}><Text style={s.label}>{label}</Text><Text style={s.value}>{value}</Text></View>)}</View>
  {!!entity.scores&&<><Text style={s.section}>Ability scores</Text><View style={s.facts}>{Object.entries(entity.scores??{}).map(([ability,score])=><View key={ability} dataSet={{qb:'plate'}} style={[s.fact,s.ability]}><Text style={s.label}>{ability.slice(0,3)}</Text><Text style={s.value}>{score}</Text><Text style={s.mod}>{Math.floor((score-10)/2)>=0?'+':''}{Math.floor((score-10)/2)}</Text></View>)}</View></>}
  {!!entity.description&&<Text style={s.description}>{entity.description}</Text>}{!!entity.note&&<Text style={s.note}>{entity.note}</Text>}
  {roster.length>0&&<Pressable accessibilityRole="button" dataSet={{qb:'chip-hot'}} style={s.trigger} onPress={()=>setSelected('combat')}><View style={s.triggerRow}><Icon name="swords" size={15} color="#ffd2c2"/><Text style={s.triggerText}>View combat HP</Text></View></Pressable>}

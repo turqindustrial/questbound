@@ -36,6 +36,9 @@ export function quickActions(hero,game,health=null){
   if(/^(npc-attack|story-complete|story-advance|lead-done|restart-adventure)/.test(id))continue;
   // Passing an absent player's turn is offered by the play screen's waiting row, after a wait.
   if(id==='party-pass')continue;
+  // Orders to companions are given in words or on the Companions screen; an offer to come along gets a chip.
+  if(id.startsWith('follower-'))continue;
+  if(id.startsWith('join:')){const name=npcLore(game,c.action.id)?.name??'them',short=name.split(' ').filter(w=>!/^(?:captain|lady|lord|sir|dame|master|mistress|old|elder|brother|sister|father|mother|the)$/i.test(w))[0]??name;primary.push({key:id,glyph:'✚',icon:'party',label:'Take '+short+' along',question:'Yes, '+short+', come with me.',action:c.action,primary:true});continue;}
   // A draught away from a fight is typed or asked for; a companion lying senseless gets a Revive chip.
   if(id==='potion'&&game.stage!=='combat')continue;
   // The creature beside the foe gets one chip, with the main weapon.

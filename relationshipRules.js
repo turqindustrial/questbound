@@ -1,4 +1,4 @@
-import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders,maxResidents,residentsPerPlace,grudgeWeight,amendsNeeded,forgivenessOf} from './npcRules';
+import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders,maxResidents,residentsPerPlace,grudgeWeight,amendsNeeded,forgivenessOf,npcClassList,companionLevelFor} from './npcRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {seededRandom} from './mapRules';
 // How each named character feels about the player, and why. Attitudes run from hostile to devoted; deeds move them.
@@ -11,7 +11,7 @@ import {seededRandom} from './mapRules';
 export const attitudeLevels=['hostile','unfriendly','indifferent','friendly','devoted'];
 export const tieKinds=['family','beloved','close friend','friend','ally','acquaintance','rival','enemy'];
 export const foeTieKinds=['kin','beloved','ally','neutral','enemy'];
-export const deedChanges={pleased:1,grateful:2,offended:-1,angered:-2,bond:'bond',grudge:'grudge',amends:'amends',forgave:'forgave'};
+export const deedChanges={pleased:1,grateful:2,offended:-1,angered:-2,bond:'bond',grudge:'grudge',amends:'amends',forgave:'forgave',ally:'ally',parts:'parts'};
 const mattersDeeply=tie=>['family','beloved','close friend','friend'].includes(tie);
 // The killing of family or a beloved makes a blood grudge, the hardest to forgive.
 const bloodTie=tie=>['family','beloved'].includes(tie);
@@ -72,6 +72,17 @@ export function recordDeed(game,id,change,text,{weight}={}){
    else lines.push(name+' is grateful, but has not forgiven you.');
   }
   else{if(!entry.bond)lines.push(name+' owes you a debt they will never forget.');entry.bond=String(text).slice(0,200);level=4;}
+ }
+ // An ally: on the hero's side, without leaving home (never while a grudge stands); parting: they withdraw it.
+ else if(change==='ally'){
+  if(entry.grudge)return {game,lines:[]};
+  if(entry.allegiance!=='player')lines.push(name+' will stand with you.');
+  entry.allegiance='player';level=Math.max(level,3);
+ }
+ else if(change==='parts'){
+  if(['following','waiting'].includes(game.followers?.[id]?.status))return {game,lines:[]};
+  if(entry.allegiance==='player')lines.push(name+' no longer stands with you.');
+  delete entry.allegiance;
  }
  else if(Number.isInteger(change))level=Math.max(0,Math.min(entry.bond?4:3,level+change));
  // The deeper marks: a grudge keeps them hostile while it lasts; a bond keeps them at least friendly.
@@ -193,6 +204,9 @@ export function attitudeLabel(n){
 export function deedAllowed(game,d){
  const m=game.npcMemory?.[d.npcId],cold=['hostile','unfriendly'].includes(m?.attitude);
  if(d.change==='amends')return !!m?.grudge||cold;
+ // An ally only without a grudge (and not someone already travelling along); parting only from an ally.
+ if(d.change==='ally')return !m?.grudge&&m?.attitude!=='hostile'&&!['following','waiting'].includes(game.followers?.[d.npcId]?.status);
+ if(d.change==='parts')return m?.allegiance==='player'&&!['following','waiting'].includes(game.followers?.[d.npcId]?.status);
  if(d.change==='forgave'){if(!m?.grudge)return cold;const f=forgivenessOf(game,d.npcId);return !!f&&(f.canForgive||(f.amendsToGo<=1&&f.daysToGo===0));}
  return true;
 }
@@ -237,8 +251,10 @@ export function introducePerson(game,sketch,hero=null){
  const id='n'+(Math.max(0,...Object.keys(game.people??{}).map(k=>Number(k.slice(1))))+1);
  // Whether they are a woman or a man (for their portrait), and how they take to the hero's kind, when given.
  const regard=s.regard&&validRegard(s.regard)&&s.regard.stance!=='indifferent'?{stance:s.regard.stance,reason:s.regard.reason.trim().slice(0,200)}:null;
- const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{}),...(genders.includes(s.gender)?{gender:s.gender}:{}),...(regard?{regard}:{})};
+ const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{}),...(genders.includes(s.gender)?{gender:s.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(s.class)?{class:s.class}:{})};
  let next={...game,people:{...game.people,[id]:person}};
+ // Someone truly trained (a veteran sellsword, a temple priest) fights as their class, a step behind the hero.
+ if(person.class)next.npcClasses={...next.npcClasses,[id]:{class:person.class,level:companionLevelFor(hero)}};
  if(s.attitude!=='indifferent')next.npcMemory={...next.npcMemory,[id]:{attitude:s.attitude,response:responses[s.attitude],memories:[]}};
  // Met with no feelings either way, their view of the hero's kind makes the first impression.
  else if(hero){const r=speciesRegard(next,id,hero),first=regardAttitude(r.stance);if(first!=='indifferent')next.npcMemory={...next.npcMemory,[id]:{attitude:first,response:responses[first],memories:[regardMemory(r)]}};}
@@ -256,7 +272,7 @@ export function validPeople(game){
  const ids=Object.keys(p),known=npcIdsOf(game);
  return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,2})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)))&&(x.gender===undefined||genders.includes(x.gender))&&validRegard(x.regard);})
   // A tale's residents carry `resident` (met once the hero reaches their home) and may carry what they want.
-  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].motive===undefined||personText(p[id].motive,0,400)))
+  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].class===undefined||npcClassList.includes(p[id].class))&&(p[id].motive===undefined||personText(p[id].motive,0,400)))
   &&new Set(ids.map(id=>p[id].name.toLowerCase())).size===ids.length;
 }
 // ---------- The people who live in a tale's country ----------
@@ -288,7 +304,7 @@ export function seatResidents(game,residents,places=[]){
   if((count[home]??0)>=residentsPerPlace)return;
   const id='n'+(Math.max(0,...Object.keys(people).map(k=>Number(k.slice(1)))) +1);
   const regard=r.regard&&validRegard(r.regard)&&r.regard.stance!=='indifferent'?{stance:r.regard.stance,reason:r.regard.reason.trim().slice(0,200)}:null,motive=clean(r.motive,300),personality=clean(r.personality,200);
-  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),resident:true};
+  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(r.class)?{class:r.class}:{}),resident:true};
   // How they take to a stranger, when the writer says so; otherwise their view of the hero's kind decides it.
   if(['unfriendly','friendly'].includes(r.attitude))memory[id]={attitude:r.attitude,response:responses[r.attitude],memories:[]};
   taken.add(name.toLowerCase());count[home]=(count[home]??0)+1;ids['resident'+(i+1)]=id;written[id]=r.tie;

@@ -2,7 +2,8 @@ import {attackOptions,canThrow} from './weaponRules';
 import {gearedHero} from './inventoryRules';
 import {spoilsHere,lootError,packMagic,carriedDraughts} from './lootRules';
 import {offhandWeapons} from './masteryRules';
-import {npcScene,npcIdsOf,npcLore} from './npcRules';
+import {npcScene,npcIdsOf,npcLore,mentionsName} from './npcRules';
+import {standingOffers} from './followerRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
 import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError} from './spellRules';
@@ -46,6 +47,40 @@ export function spellNickname(known,phrase){
 // Setting out to knock someone out rather than kill them: a finishing melee blow then leaves them alive.
 export const subdueIntent=text=>/\bknock (?:\w+ )?(?:out|unconscious|senseless|cold)\b|\bsubdue|\bnon-?lethal|\bspare (?:him|her|them|it)\b|\bwithout killing\b|\b(?:take|capture) (?:him|her|them|it) alive\b|\bpommel\b|\bflat of (?:my|the) blade\b/i.test(String(text??''));
 export const withAttackIntent=(game,text)=>subdueIntent(text)?{...game,subdue:true}:game;
+// Orders to companions, said in the player's own words: "Mara, wait here.", "Everyone stay behind.", "Tobin, follow
+// me." (to one waiting here), "Send word to Mara." (one waiting elsewhere catches up), "Mara, we part ways here.";
+// and a yes to someone who offered to come along ("Yes, Tobin, come with us."). Out of a fight only, and only when
+// the words name who they are for (or "everyone"). Questions about them and negatives are left to the Dungeon Master.
+export function followerCommand(game,text){
+  const said=String(text??'').trim();
+  if(!said||game.stage==='combat'||game.npcCombat?.active||game.pendingSpell||['dying','dead'].includes(game.stage))return null;
+  if(/^(?:why|how|what|who|when|where|did|does|do|is|was|were|has|have)/i.test(said)||/(?:don'?t|do not|never|no longer)/i.test(said))return null;
+  const scene=npcScene(game),nameOf=id=>npcLore(game,id)?.name??scene.find(n=>n.id===id)?.name??id;
+  const companions=Object.entries(game.followers??{}).filter(([,f])=>['following','waiting'].includes(f?.status)).map(([id,f])=>({id,status:f.status,present:!!scene.find(n=>n.id===id)?.present}));
+  const named=ids=>ids.filter(id=>mentionsName(said,nameOf(id)));
+  const everyone=/(?:everyone|everybody|all of you|you all|both of you|the (?:others|rest of you)|my (?:companions|friends))/i.test(said);
+  // Taking up an offer: the one who offered is named (or is the only one), and the words say yes.
+  const offers=standingOffers(game);
+  if(offers.length&&/(?:yes|gladly|welcome|very well|all right|alright|of course|come (?:along|with)|join (?:me|us)|you can come|i accept|accept your offer|take you (?:up|along|with))/i.test(said)){
+    const who=named(offers);
+    if(who.length===1||(!who.length&&offers.length===1&&!companions.some(c=>mentionsName(said,nameOf(c.id)))))return {action:{type:'accept-offer',id:who[0]??offers[0]}};
+  }
+  if(!companions.length)return null;
+  const addressed=everyone?companions:companions.filter(c=>mentionsName(said,nameOf(c.id)));
+  if(!addressed.length)return null;
+  const order=(o,list)=>list.length?{action:list.length===1?{type:'follower',id:list[0].id,order:o}:{type:'follower',ids:list.map(c=>c.id),order:o}}:null;
+  if(/part (?:ways|company)/i.test(said))return order('dismiss',addressed);
+  if(/(?:send (?:word|for)|call (?:for|back)|summon|fetch)/i.test(said)){const away=addressed.filter(c=>c.status==='waiting');return order('call',away);}
+  if(/(?:follow me|come (?:with me|along|on)|let'?s go|with me|fall in|rejoin|join me again|stay (?:with|close to|beside|by) (?:me|us)|catch up)/i.test(said))return order('resume',addressed.filter(c=>c.status==='waiting'&&c.present));
+  if(/(?:wait|stay|remain|keep watch|hold (?:here|this place|the (?:door|gate|line|fort)))/i.test(said)){
+    // "Wait for me at the inn" while elsewhere is a wish the engine cannot carry out: the Dungeon Master answers it.
+    const at=said.match(/(?:at|in) (?:the )?([A-Za-z' -]{3,40})/i);
+    if(at&&!/^(?:here|this|camp|my|our)/i.test(at[1])&&!mentionsName(said,String(placeNameHere(game))))return null;
+    return order('wait',addressed.filter(c=>c.status==='following'));
+  }
+  return null;
+}
+const placeNameHere=game=>{const id=game.dungeon?.active?null:game.wildFight?.place??(game.stage==='wild'?game.world?.at:game.stage);return id?(game.world?.places?.find(p=>p.id===id)?.name??game.story?.locations?.[id]?.name??id):'';};
 // Explicit casting commands are resolved locally so model prose cannot choose a target or spend a slot.
 export function dmCommand(hero,game,message,health=null,currentTarget=null){
   hero=gearedHero(hero,game);
@@ -55,6 +90,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   // Searching the fallen ("I search the bandit's body", "loot the lair", "skin the wolf"), while something lies here
   // that has not been searched; otherwise the words go to the Dungeon Master as before.
   if(lootWords.test(text)&&spoilsHere(game).length&&!lootError(game,health))return {action:{type:'loot'}};
+  // Orders to companions (wait here, follow me, send word) and a yes to someone's offer to come along.
+  {const order=followerCommand(game,text);if(order)return order;}
   // A stronger healing draught by name ("I drink the potion of greater healing", "quaff a superior potion").
   {const strong=text.match(/^(?:I )?(?:drink|quaff|down|swig|take|use) (?:a |my |one |the )?(?:potion of )?(greater|superior|supreme)\b/i);if(strong){const id='potion-'+strong[1].toLowerCase()+'-healing';return carriedDraughts(game).some(d=>d.magic.id===id)?{action:'drink:'+id}:{error:'You carry no '+strong[1].toLowerCase()+' healing draught.'};}}
   // The Wand of Magic Missiles in a fight ("I use my wand on the hound", "I zap it with the wand").

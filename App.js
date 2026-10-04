@@ -66,6 +66,7 @@ import {AccountSettings} from './AccountSettings';
 import {accountState} from './accountRules';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
+import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
 import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
 import {noteProblem,recentProblems} from './problemLog';
@@ -297,13 +298,15 @@ function QuestboundApp() {
         for(const key of ['resources','spellSlotsUsed','arcanumUsed','shortRests','concentration','temporarySpell','enemyEffects','bonusUsed','slotSpentThisTurn','reactionUsed','actionUsed','dodging','castingConditions','heroCondition','foeTricks'])delete advanced[key];
         if(!advanced.levelsOwed)delete advanced.levelsOwed;
         advanced=foeForLevel(advanced,character.level);
+        // Companions come along a step behind: one level below the hero.
+        advanced=levelCompanions(advanced,character.level);
         advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);
         await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));
       }catch{setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
       finally{setSaving(false);}
       return;
     }
-    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;if(game.spoils)advanced.spoils=game.spoils;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);if(game.wield)advanced.wield=game.wield;await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));}
+    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;if(game.spoils)advanced.spoils=game.spoils;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}Object.assign(advanced,levelCompanions(advanced,character.level));advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);if(game.wield)advanced.wield=game.wield;await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));}
     catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally {setSaving(false);}
   }
@@ -466,7 +469,7 @@ function QuestboundApp() {
       {screen === 'Level Up' && hero && <Advancement hero={hero} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      {screen === 'Followers' && hero && <Followers game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}
+      {screen === 'Followers' && hero && <Followers hero={hero} game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}
       {screen === 'Dice Roller' && <DiceRoller/>}
       {screen === 'Adventure' && <>
         {characterChosen && heroStats?.available && <View dataSet={{qb:'plate'}} style={s.hud}>
