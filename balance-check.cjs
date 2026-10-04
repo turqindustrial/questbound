@@ -11,6 +11,7 @@
 //                      points carried); a fall ends the day and its remaining fights count as lost
 //  --subclass <name|all> compare each subclass with its class's SRD subclass, on a plain hero of every class (by
 //                      default with --day 3): their win rates should sit within about 12 points of each other
+//  --class A,B         with --subclass: only these classes
 //  --quiet (flags and summary only)
 const fs=require('fs'),vm=require('vm');
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
@@ -42,7 +43,7 @@ function fightWith(hero,f){
 const cantripDice=level=>1+(level>=5)+(level>=11)+(level>=17);
 function bestCast(hero,g,h,foeLeft){
  const cast=words=>{const c=r.dmCommand(hero,g,words,h);return c?.action&&!c.error?c.action:null;};
- const options=r.knownSpells(hero).map(s=>({s,e:r.automaticEffects[s.id]})).filter(({s,e})=>e&&(e.attack||e.save)&&!e.heal&&(s.castingTime==='Action'||e.asAction)).map(({s,e})=>{
+ const options=r.knownSpells(hero).map(s=>({s,e:r.automaticEffects[s.id]})).filter(({s,e})=>e&&(e.attack||e.save)&&!e.heal&&!e.chooseType&&(s.castingTime==='Action'||e.asAction)).map(({s,e})=>{
   const dice=s.level===0?cantripDice(hero.level):(e.count??1),each=(e.die+1)/2*dice*(e.rays??1)+(e.then?(e.then.count??1)*(e.then.die+1)/2:0);
   return {s,expected:each*(e.attack?0.65:e.half?0.75:0.55)};
  });
@@ -138,15 +139,18 @@ if(subclassMode){
  // A caster's plain spells: an attack cantrip (the one a subclass's gift favours), a healing spell when the class has
  // one, and a damaging spell of each of the first levels from the class's own list (cast while slots last).
  function plainSpells(cls,sub){
+  // (Every Druid knows Poison Spray too, so the Fallow Field's favourite is no edge of its own.)
   const cantrip={'Frostblood Sorcery':'ray-of-frost','Circle of the Fallow Field':'poison-spray',Bonewright:'chill-touch'}[sub]??{Artificer:'fire-bolt',Bard:'vicious-mockery',Cleric:'sacred-flame',Druid:'produce-flame',Sorcerer:'fire-bolt',Warlock:'blast',Wizard:'fire-bolt'}[cls];
+  const second=cls==='Druid'?'poison-spray':null;
   const heal={Artificer:'cure',Bard:'healing-word',Cleric:'cure',Druid:'cure'}[cls];
   const slots={Wizard:['missile','scorching-ray','fireball'],Sorcerer:['chromatic-orb','scorching-ray','fireball'],Warlock:['mind-spike','vampiric-touch'],Cleric:['guiding-bolt','spirit-guardians'],Druid:['ice-knife','moonbeam','call-lightning'],Bard:['dissonant-whispers','shatter']}[cls]??[];
-  return [cantrip,heal,...slots].filter(Boolean);
+  return [...new Set([cantrip,second,heal,...slots].filter(Boolean))];
  }
  // A Ranger fights beside a companion (a Fighter a level below), so Packbound's companion gift is measured, and its
  // SRD sibling is measured the same way.
  const rate=hero=>{let sum=0,n=0;for(const f of [...r.hostileFoes,storyFoe].filter(f=>!only||f.key===only)){const c=rateCell([hero],f,choose,hero.class==='Ranger'&&!companion?{companion:'Fighter'}:{});sum+=c.win;n++;}return sum/n;};
- for(const cls of r.classes)for(const level of levels.filter(l=>l>=3)){
+ const onlyClass=arg('--class',null);
+ for(const cls of r.classes.filter(c=>!onlyClass||onlyClass.split(',').includes(c)))for(const level of levels.filter(l=>l>=3)){
   const subs=Object.keys(r.subclassOptions[cls]).filter(s=>subclassMode==='all'||s===subclassMode||Object.keys(r.subclassOptions[cls])[0]===s);if(subs.length<2&&subclassMode!=='all')continue;
   const base=rate(plainHero(cls,level,subs[0]));if(!quiet)console.log('\n'+cls+' L'+level+': '+subs[0]+' '+Math.round(100*base)+'% win');
   for(const sub of subs.slice(1)){const win=rate(plainHero(cls,level,sub)),gap=Math.round(100*(win-base));if(!quiet)console.log('  '+sub.padEnd(32)+String(Math.round(100*win)).padStart(4)+'% win ('+(gap>=0?'+':'')+gap+')');if(Math.abs(gap)>12)flags.push((gap>0?'stronger ':'weaker   ')+sub+' L'+level+': '+(gap>0?'+':'')+gap+' points against '+subs[0]);}

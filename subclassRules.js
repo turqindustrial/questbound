@@ -38,8 +38,8 @@ export const subclassEngine={
  'Vigil Domain':{class:'Cleric',effects:[{level:3,kind:'passive',name:'Steadfast Guard',acBonus:{n:1,when:'armor'}}]},
  'Threshold Domain':{class:'Cleric',effects:[{level:3,kind:'victory',name:"Ferryman's Due",plus:['level','Wisdom']}]},
  // ---- Druid ----
- 'Circle of the Thornwall':{class:'Druid',effects:[{level:3,kind:'action',id:'briar',name:'Briar Mantle',bonus:true,uses:{3:2,6:3,17:4},recharge:'short',effect:{temp:{count:0,die:0,plus:'twiceLevel'}},say:/\bbriar mantle\b|\bwrap myself in (living )?thorns?\b/i,chip:['❦','Briar Mantle','I wrap myself in living thorn.','leaf'],description:'Briar Mantle: wrap yourself in living thorn for temporary hit points equal to twice your Druid level (they do not add to any you have). A bonus action; the uses return on a short or long rest.'}]},
- 'Circle of the Fallow Field':{class:'Druid',effects:[{level:3,kind:'spell',name:'Rot and Root',damage:{types:['Poison','Necrotic'],ability:'Wisdom'}}]},
+ 'Circle of the Thornwall':{class:'Druid',effects:[{level:3,kind:'action',id:'briar',name:'Briar Mantle',bonus:true,uses:{3:2,6:3,17:4},recharge:'short',effect:{temp:{count:0,die:0,plus:'level'}},say:/\bbriar mantle\b|\bwrap myself in (living )?thorns?\b/i,chip:['❦','Briar Mantle','I wrap myself in living thorn.','leaf'],description:'Briar Mantle: wrap yourself in living thorn for temporary hit points equal to twice your Druid level (they do not add to any you have). A bonus action; the uses return on a short or long rest.'}]},
+ 'Circle of the Fallow Field':{class:'Druid',effects:[{level:3,kind:'spell',name:'Rot and Root',damage:{types:['Poison','Necrotic'],ability:'Wisdom',cantrip:0}}]},
  'Circle of the Hollow Hill':{class:'Druid',effects:[{level:3,kind:'spell',name:"Host's Gift",heal:'Wisdom'}]},
  // ---- Fighter ----
  Marshal:{class:'Fighter',effects:[{level:3,kind:'passive',name:"Captain's Call",companionBonus:'proficiency'},{level:7,kind:'passive',name:'Read the Field',initiative:'Intelligence'}]},
@@ -47,7 +47,7 @@ export const subclassEngine={
  Ironclad:{class:'Fighter',effects:[{level:3,kind:'passive',name:'Plate and Grit',hp:1}]},
  // ---- Monk ----
  'Warrior of the Crane':{class:'Monk',effects:[{level:3,kind:'passive',name:"Crane's Poise",acBonus:{n:1,when:'unarmored'}}]},
- 'Warrior of the Coiled Serpent':{class:'Monk',effects:[{level:3,kind:'rider',name:"Serpent's Fang",count:1,die:6,type:'Poison',when:'martialArts',scale:{11:2}}]},
+ 'Warrior of the Coiled Serpent':{class:'Monk',effects:[{level:3,kind:'rider',name:"Serpent's Fang",count:1,die:4,wounded:true,type:'Poison',when:'martialArts',scale:{11:2}}]},
  'Warrior of the Hidden Step':{class:'Monk',effects:[{level:3,kind:'rider',name:'Slip Behind',count:0,die:0,mark:'vex',when:'martialArts'}]},
  // ---- Paladin ----
  'Oath of the Open Road':{class:'Paladin',effects:[{level:3,kind:'passive',name:'Watchful Wayfarer',initiative:'Wisdom',skills:['Survival']}]},
@@ -60,21 +60,21 @@ export const subclassEngine={
  'Barrow Warden':{class:'Ranger',effects:[{level:3,kind:'rider',name:'Hallowed Shot',count:1,die:6,type:'Radiant',when:'weapon'}]},
  Packbound:{class:'Ranger',effects:[{level:3,kind:'rider',name:'Running with the Pack',count:1,die:6,when:'companion'}]},
  // ---- Rogue ----
- 'Quiet Knife':{class:'Rogue',effects:[{level:3,kind:'rider',name:'First Cut',count:2,die:6,when:'firstRound'}]},
+ 'Quiet Knife':{class:'Rogue',effects:[{level:3,kind:'rider',name:'First Cut',count:1,die:6,when:'firstRound'}]},
  Silvertongue:{class:'Rogue',effects:[{level:3,kind:'passive',name:'Smooth Talker',skills:['Persuasion','Deception']},{level:3,kind:'action',id:'feint',name:'Feint',bonus:true,uses:'proficiency',recharge:'short',effect:{vex:true},say:/\bfeint\b/i,chip:['↯','Feint','I feint to draw out an opening.','dagger'],description:'Feint: draw the foe out of its guard. Your next attack against it before the end of your next turn has advantage. A bonus action; the uses return on a short or long rest.'}]},
  Trickwright:{class:'Rogue',effects:[]},
  // ---- Sorcerer ----
- 'Frostblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Rime-Touched',damage:{types:['Cold'],ability:'Charisma'}}]},
+ 'Frostblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Rime-Touched',damage:{types:['Cold'],ability:'Charisma',cantrip:0.5}}]},
  'Veilborn Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'action',id:'veil',name:'Step Behind the Veil',bonus:true,uses:'proficiency',recharge:'long',effect:{mark:'sapped'},say:/\bstep behind the veil\b|\bfade (half )?(out )?of sight\b/i,chip:['◌','Behind the Veil','I fade half out of sight.','eye'],description:'Step Behind the Veil: fade half out of the world. The next attack the foe makes before your next turn has disadvantage. A bonus action.'}]},
  'Saintblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Grace in the Blood',heal:'Charisma'}]},
  // ---- Warlock ----
  'Lantern-Keeper Patron':{class:'Warlock',effects:[{level:3,kind:'action',id:'kindly',name:'Kindly Light',bonus:true,uses:'Charisma',recharge:'long',effect:{heal:{count:1,die:8,plus:'level'}},say:/\bkindly light\b|\bpatron'?s lamp\b/i,chip:['✚','Kindly Light',"I draw on my patron's lamp.",'sun'],description:"Kindly Light: draw on your patron's lamp and regain 1d8 + your Warlock level hit points. A bonus action."}]},
  'Elder Grove Patron':{class:'Warlock',effects:[{level:3,kind:'ward',name:'Bark and Bramble',count:1,die:8,plus:'Charisma',uses:'Charisma',recharge:'short'}]},
- 'Whispering Void Patron':{class:'Warlock',effects:[{level:3,kind:'spell',name:'Echo of the Void',damage:{types:['Force','Psychic'],ability:'Charisma'}}]},
+ 'Whispering Void Patron':{class:'Warlock',effects:[{level:3,kind:'spell',name:'Echo of the Void',damage:{types:['Force','Psychic'],ability:'Charisma',cantrip:0.5}}]},
  // ---- Wizard ----
- Wardwright:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Woven Ward',acBase:'Intelligence'}]},
+ Wardwright:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Woven Ward',acBase:'Intelligence',hp:1}]},
  Bonewright:{class:'Wizard',effects:[{level:3,kind:'spell',name:'Marrow-Cold',damage:{types:['Necrotic'],ability:'Intelligence'}}]},
- Fateweaver:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Foreseen Step',initiative:'Intelligence'}]},
+ Fateweaver:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Foreseen Step',initiative:'Intelligence'},{level:3,kind:'action',id:'thread',name:'Thread Pull',bonus:true,uses:{3:2,14:3},recharge:'long',effect:{mark:'sapped',line:'you tug at the thread of the moment.'},say:/thread pull|(tug|pull) (at )?(its|the|their|a) thread/i,chip:['⟆','Thread Pull','I tug at the thread of the moment.','eye'],description:'Thread Pull: tug at the thread of the moment. The next attack the foe makes before your next turn has disadvantage. A bonus action; twice per long rest (three times from level 14).'}]},
 };
 // ---- features (generated from the catalog's Questbound entries: level, name, one-line rule, engine-played) ----
 export const subclassFeatures={
@@ -421,6 +421,8 @@ export function subclassDefended(target,type,amount){
 }
 const subclassRiderFits=(e,weapon,ctx)=>{
  const unarmed=!!weapon?.unarmed,melee=!weapon?.ranged&&!weapon?.thrown;
+ // `wounded`: only against a creature already missing hit points.
+ if(e.wounded&&!ctx.wounded)return false;
  if(e.when==='melee')return melee;
  if(e.when==='weapon')return !unarmed;
  if(e.when==='martialArts')return unarmed||!!weapon?.monk;
@@ -459,12 +461,13 @@ export function subclassWardRoll(hero,game,total,random=Math.random){
  const reduce=Math.max(1,dice.reduce((a,b)=>a+b,0)+plus),cut=Math.min(total,reduce);
  return {total:total-cut,reduced:cut,name:w.name,line:`${w.name}: the blow is reduced by ${cut} (${count}d${die} [${dice.join(', ')}]${plus?(plus>0?' + ':' − ')+Math.abs(plus):''}).`,game:{...game,reactionUsed:true,resources:{...(game.resources??{}),feat:used+1}}};
 }
-// A casting's extra: the modifier once to damage of a listed type (when it dealt any), or to healing from a slot.
-export function subclassSpellBonus(hero,kind,{type=null,slot=0}={}){
+// A casting's extra: the modifier once to damage of a listed type (when it dealt any), or to healing from a slot. A
+// cantrip may carry only a share of it (`cantrip`: 0.5 is half the modifier, rounded down; 0 nothing).
+export function subclassSpellBonus(hero,kind,{type=null,slot=0,cantrip=false}={}){
  for(const e of subclassEffects(hero)){
   if(e.kind!=='spell')continue;
   if(kind==='heal'&&e.heal&&slot>=1){const amount=Math.max(0,subclassMod(hero,e.heal));if(amount)return {amount,label:e.name};}
-  if(kind==='damage'&&e.damage&&type&&e.damage.types.includes(type)){const amount=Math.max(0,subclassMod(hero,e.damage.ability));if(amount)return {amount,label:e.name};}
+  if(kind==='damage'&&e.damage&&type&&e.damage.types.includes(type)){const mod=Math.max(0,subclassMod(hero,e.damage.ability)),amount=cantrip&&e.damage.cantrip!==undefined?Math.floor(mod*e.damage.cantrip):mod;if(amount)return {amount,label:e.name};}
  }
  return {amount:0,label:''};
 }
