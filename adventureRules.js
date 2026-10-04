@@ -15,11 +15,12 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
-import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero} from "./encounterRules";
+import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions} from "./encounterRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
 import {proficiencyBonus} from "./characterRules";
 import {withSpoils,takeSpoils,magicItems,packMagic,rechargeWands} from "./lootRules";
+import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassWardRoll,subclassVictoryTemp,subclassPassive,subclassShortRecharge,subclassSpender} from "./subclassRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -316,7 +317,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       if (!contest && weapon.twoHands && holding(next)) { const freed = letGo(next, k => npcProfile(next, k)?.name ?? null); next = freed.game; entries.push(...freed.lines); }
       // After a grapple or shove, the action's other attacks (Extra Attack) are made with a weapon that leaves a hand free.
       const followUp = contest ? attackOptions(hero).find(w => !w.ranged && !(contest === 'grapple' && w.twoHands)) ?? weapon : weapon;
-      let remaining = victim.hp, thrownNow = 0;
+      let remaining = victim.hp, thrownNow = 0, featDone = false;
       for (let swing = 0; swing < attacksPerAction(hero) && remaining > 0; swing++) {
         // The grapple or shove itself: no attack roll; they resist with Strength or Dexterity.
         if (contest && swing === 0) {
@@ -342,11 +343,15 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         // Hex, Hunter's Mark or Divine Favor add to a hit.
         const rider = hit ? riderDamage(hero, next, victim.id, attack.critical, random, {weapon: true}) : null;
         if (rider) next = rider.game;
+        // The subclass's extra on a hit, once in this attack (a brawl's turn is one attack action).
+        const featHit = hit && !featDone ? subclassRiderRoll(hero, {...next, featTurn: undefined}, w, {key: victim.id, called: victim.name, critical: attack.critical, target: personDefenses(next, victim.id), wounded: remaining < (npcMaxHP(victim.id, next) ?? remaining), firstRound: !game.npcCombat?.active || game.npcCombat.round === 1, companion: fightingCompanions(next).some(n => n.id !== victim.id)}, random) : null;
+        if (featHit) { featDone = true; next = {...featHit.game}; delete next.featTurn; }
         if (hit && !w.ranged && !w.thrown) next = {...next, lastHit: {target: victim.id, ...(attack.critical ? {critical: true} : {})}};
-        const damage = (damageRoll?.total??0) + (rider?.amount ?? 0);
+        const damage = (damageRoll?.total??0) + (rider?.amount ?? 0) + (featHit?.damage ?? 0);
         remaining = Math.max(0, remaining - damage);
         entries.push(`${w.thrown ? 'You throw ' + w.name + ' at' : 'You use ' + w.name + ' against'} ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus-(w.magic??0)} proficiency${w.magic ? ' + ' + w.magic + ' magic' : ''} = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${w.type} damage${damageRoll?' ('+(w.flat?'1 + '+w.bonus:damageRoll.dice.length+'d'+w.die+' ['+damageRoll.dice.join(', ')+'] + '+w.bonus)+(w.magic?' + '+w.magic+' magic':'')+')':''}. ${remaining} HP remaining.`);
         if (rider?.lines.length) entries.push(...rider.lines);
+        if (featHit) { entries.push(...featHit.lines); if (featHit.mark === 'sapped' || featHit.mark === 'prone') next = withMark(next, victim.id, {[featHit.mark]: true}); }
         if (blessed.amount) entries.push(`Bless adds ${blessed.amount} to the roll.`);
         // Weapon Mastery against a person (Cleave reaches only creatures in a fight with a foe).
         const mastery = masteryOf(hero, w);
@@ -654,6 +659,10 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.resources = {...game.resources, wind: 0};
         lines.push('Second Wind is ready again.');
       }
+      if (subclassShortRecharge(hero, game)) {
+        next.resources = {...(next.resources ?? game.resources), feat: 0};
+        lines.push(subclassSpender(hero).name + ' is ready again.');
+      }
       if (hero.class === 'Warlock' && ((game.spellSlotsUsed ?? []).some(n => n > 0) || (game.resources?.slots ?? 0) > 0)) {
         next.spellSlotsUsed = Array(9).fill(0);
         next.resources = {...(next.resources ?? game.resources), slots: 0};
@@ -767,16 +776,20 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.stage = 'escaped';
         entries.push('You retreat to the inn. The bridge remains dark, but you live to try again.');
       } else if (typeof action === 'string' && action.startsWith('class:')) {
-        const result = resolveClassAction(hero, game, hp, stats.hp, action.slice(6), random, foe);
+        // Aimed at the foe or at the creature beside it; a subclass's extra on a hit needs to know how it stands.
+        const sub = subclassAction(hero), own = !!sub && action === 'class:' + sub.id, struck = aimedFoe ?? foe;
+        const target = {...struck, key: aim !== null ? 'ally:' + aim : 'foe', called: aim !== null ? 'the ' + aimedFoe.name : foe.group ? 'the ' + foe.group.plural : 'the ' + foe.name.replace(/^the /i, ''), wounded: aim !== null ? (game.foeAllies?.[aim]?.hp ?? 0) < (aimedFoe.maximum ?? 0) : game.enemyHP < (foe.maximum ?? game.enemyHP), firstRound: !!turnOptions.opening || game.round === 1, companion: fightingCompanions(game).length > 0};
+        const result = resolveClassAction(hero, game, hp, stats.hp, action.slice(6), random, target);
         if (!result) return {
           game,
           health,
-          error: game.bonusUsed ? 'Your bonus action is already used this turn.' : action === 'class:wind' && hp.current >= stats.hp ? 'You are already at full health.' : 'That is not available right now.'
+          error: own && subclassUsesLeft(hero, game) <= 0 ? 'No uses of ' + sub.name + ' remain until you rest.' : game.bonusUsed && (!own || sub.bonus) ? 'Your bonus action is already used this turn.' : (action === 'class:wind' || own && sub.effect.heal) && hp.current >= stats.hp ? 'You are already at full health.' : 'That is not available right now.'
         };
-        next = result.game ?? next;
+        next = result.game ? {...result.game} : next;
         next.resources = result.resources;
         hp = result.health;
-        next.enemyHP = Math.max(0, next.enemyHP - result.damage);
+        if (result.damage > 0 && target.key !== 'foe') { entries.push(...result.logs); const hurt = hurtAlly(next, aim, result.damage); next = hurt.game; if (hurt.line) entries.push(hurt.line); result.logs = []; }
+        else next.enemyHP = Math.max(0, next.enemyHP - result.damage);
         entries.push(...result.logs);
         bonusAction = result.bonus;
         dodge = !!result.enemyDisadvantage;
@@ -880,6 +893,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
             thrownNow++; next = spendThrown(next, hero, w.name);
           }
           // Bless adds 1d4 to the roll; a melee blow on a creature paralyzed or asleep is a critical hit.
+          const woundedBefore = key === 'foe' ? next.enemyHP < (foe.maximum ?? next.enemyHP) : (next.foeAllies?.[Number(key.slice(5))]?.hp ?? 0) < (targetOf(key).maximum ?? 0);
           const target = targetOf(key), edge = heroEdge(next, key, w), rolled = rollAttack(w, edgeMode(baseMode(w), edge), random), blessed = attackBoost(next, random), struckFirst = {...rolled, total: rolled.total + blessed.amount}, hit = !struckFirst.miss && (struckFirst.critical || struckFirst.total >= target.ac), attack = hit && !struckFirst.critical && !w.ranged && !w.thrown && helpless(next, key) ? {...struckFirst, critical: true} : struckFirst;
           if (edge.adv.includes('Vex')) { next = {...next}; delete next.vex; }
           if (edge.adv.includes('Guiding Bolt')) next = spendGuidance(next, key);
@@ -901,6 +915,15 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
             next = rider.game;
             entries.push(...rider.lines);
             if (rider.amount > 0 && standing(key)) { const extra = harm(key, rider.amount, false); if (extra.line) entries.push(extra.line); }
+            // The subclass's extra on a hit, once a turn (subclassRules.js): fire in the blow, an opening, the first cut.
+            const featHit = standing(key) ? subclassRiderRoll(hero, next, w, {key, called: called(key), critical: attack.critical, target, wounded: woundedBefore, firstRound: !!turnOptions.opening || game.round === 1, companion: fightingCompanions(next).length > 0}, random) : null;
+            if (featHit) {
+              next = featHit.game;
+              entries.push(...featHit.lines);
+              if (featHit.damage > 0) { const extra = harm(key, featHit.damage, false); if (extra.line) entries.push(extra.line); }
+              if (featHit.mark === 'sapped' && standing(key)) next = withMark(next, key, {sapped: true});
+              if (featHit.mark === 'prone' && standing(key)) next = withMark(next, key, {prone: true});
+            }
             if (!w.ranged && !w.thrown) next = {...next, lastHit: {target: key, ...(attack.critical ? {critical: true} : {})}};
             // Weapon Mastery: what a hit does besides its damage.
             if (mastery === 'Sap' && standing(key)) { next = withMark(next, key, {sapped: true}); entries.push(`Sap: ${called(key)} has disadvantage on its next attack.`); }
@@ -983,7 +1006,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       // Companions travelling with you strike the creature once, after your turn (in a party's fight, once a round,
       // just before the foe acts).
       if (next.stage === 'combat' && !bonusAction && !turnOptions.suppressEnemy && (turnOptions.partyFoe || !turnOptions.enemyOnly && !turnOptions.foeWaits)) {
-        const helped = companionsAttack(next, foe, random);
+        const helped = companionsAttack(next, foe, random, subclassPassive(hero).companionBonus === 'proficiency' ? proficiencyBonus(hero.level) : 0);
         next = helped.game;
         entries.push(...helped.lines);
         if (next.enemyHP === 0) {
@@ -1068,10 +1091,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           next = extras.game;
           const resisted = resistedDamage(next, foe.type, Math.max(1, damage.total + extras.extra), random);
           next = resisted.game;
-          const total = resisted.amount;
+          let total = resisted.amount;
           if (resisted.line) entries.push(resisted.line);
+          // A subclass's Reaction may blunt the blow (subclassRules.js), even to nothing.
+          const ward = subclassWardRoll(hero, next, total, random);
+          if (ward) { next = ward.game; total = ward.total; entries.push(ward.line); }
           if (total > 0) hurtByNow = 'foe';
-          const hurt = updateHealth(hp, stats.hp, 'damage', total);
+          const hurt = total > 0 ? updateHealth(hp, stats.hp, 'damage', total) : {current: hp.current, temp: hp.temp, previous: hp, message: 'No damage gets through.'};
           if (hurt.current === 0) {
             downedBy = who;
             overflow = overflowOf(hurt.previous, total);
@@ -1080,11 +1106,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
             current: hurt.current,
             temp: hurt.temp
           };
-          entries.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${extras.note} = ${total} ${foe.type} damage. ${hurt.message}`);
+          entries.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${extras.note}${ward ? ' − ' + ward.reduced + ' ' + ward.name : ''} = ${total} ${foe.type} damage. ${hurt.message}`);
           entries.push(...extras.lines);
-          const concentration = concentrationAfterDamage(hero, next, total, random);
-          next = concentration.game;
-          entries.push(...concentration.logs);
+          if (total > 0) {
+            const concentration = concentrationAfterDamage(hero, next, total, random);
+            next = concentration.game;
+            entries.push(...concentration.logs);
+          }
         }
         }
         // The creature at its side attacks too.
@@ -1103,13 +1131,17 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           const shield = hit ? shieldReaction(hero, next, attack.total, ac, attack.critical) : null;
           if (shield) { next = shield.game; entries.push(shield.line); hit = false; }
           if (!hit) continue;
-          const damage = rollDamage(a, attack.critical, random), resisted = resistedDamage(next, a.type, Math.max(1, damage.total), random), total = resisted.amount, hurt = updateHealth(hp, stats.hp, 'damage', total);
+          const damage = rollDamage(a, attack.critical, random), resisted = resistedDamage(next, a.type, Math.max(1, damage.total), random);
           next = resisted.game;
           if (resisted.line) entries.push(resisted.line);
+          const ward = subclassWardRoll(hero, next, resisted.amount, random), total = ward ? ward.total : resisted.amount;
+          if (ward) { next = ward.game; entries.push(ward.line); }
+          if (total <= 0) { entries.push(`${damage.dice.length}d${a.die} [${damage.dice.join(', ')}] + ${a.bonus} − ${ward.reduced} ${ward.name} = 0 ${a.type} damage. No damage gets through.`); continue; }
+          const hurt = updateHealth(hp, stats.hp, 'damage', total);
           if (total > 0) hurtByNow = 'ally:' + ally.index;
           if (hurt.current === 0) { allyDowned = a.name; overflow = overflowOf(hurt.previous, total); }
           hp = {current: hurt.current, temp: hurt.temp};
-          entries.push(`${damage.dice.length}d${a.die} [${damage.dice.join(', ')}] + ${a.bonus} = ${total} ${a.type} damage. ${hurt.message}`);
+          entries.push(`${damage.dice.length}d${a.die} [${damage.dice.join(', ')}] + ${a.bonus}${ward ? ' − ' + ward.reduced + ' ' + ward.name : ''} = ${total} ${a.type} damage. ${hurt.message}`);
           const concentration = concentrationAfterDamage(hero, next, total, random);
           next = concentration.game;
           entries.push(...concentration.logs);
@@ -1149,6 +1181,12 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     if (next.stage === 'victory' && game.stage !== 'victory' && hero.level >= 3 && hero.class === 'Warlock' && hero.plannedSubclass === 'Fiend Patron') {
       hp.temp = Math.max(hp.temp, Math.max(1, hero.level + modifier(hero.scores.Charisma)));
       entries.push('Dark One’s Blessing grants temporary HP.');
+    }
+    // A subclass's gift on a won fight (Ferryman's Due).
+    const gift = next.stage === 'victory' && game.stage !== 'victory' ? subclassVictoryTemp(hero) : null;
+    if (gift) {
+      hp.temp = Math.max(hp.temp, gift.amount);
+      entries.push(`${gift.name}: ${gift.amount} temporary HP.`);
     }
     next.log = [...entries, ...game.log].slice(0, 40);
     return {
@@ -1347,9 +1385,12 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   let hit=!attack.miss&&(attack.critical||attack.total>=defense.ac);
   const shield=hit&&!allied?shieldReaction(hero,next,attack.total,defense.ac,attack.critical):null;
   if(shield){next=shield.game;hit=false;}
-  const damageRoll=hit?rollDamage(weapon,attack.critical,random):null,damage=damageRoll?.total??0;
+  const damageRoll=hit?rollDamage(weapon,attack.critical,random):null;let damage=damageRoll?.total??0;
   if(shield)logs.push(shield.line);
+  // A subclass's Reaction may blunt the blow (subclassRules.js).
+  const ward=damage&&!allied?subclassWardRoll(hero,next,damage,random):null;
   logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}${why.length?', '+why.join(', '):''}) + 2 =${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
+  if(ward){next=ward.game;damage=ward.total;logs.push(ward.line);}
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
   else if(damage){if(!party)next.hurtBy=actor.id;const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
@@ -1594,6 +1635,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  if(action==='story-advance')return advanceChapter(game,health,hero);
  if(action?.type==='lead-done')return finishLead(game,health,action.id);
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
+ const ownFeat=subclassAction(hero);if(ownFeat)allowed.push('class:'+ownFeat.id);
  if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);

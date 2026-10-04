@@ -126,14 +126,15 @@ const companionWeapon={keeper:{die:6,type:'bludgeoning'},mara:{die:4,type:'pierc
 export function fightingCompanions(game){return npcScene(game).filter(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.hp>0&&n.fate!=='dead');}
 const npcLabel=(game,id)=>npcLore(game,id)?.name??id;
 // Each companion strikes the creature once after your turn.
-export function companionsAttack(game,foe,random){
+// `bonus`: what the hero adds to their attack rolls (a Marshal's Captain's Call).
+export function companionsAttack(game,foe,random,bonus=0){
  let next=game;const lines=[];
  for(const n of fightingCompanions(game)){
   if(next.enemyHP<=0)break;
-  const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},attack=rollAttack({attackBonus:2},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+  const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},attack=rollAttack({attackBonus:2+bonus},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
   const damage=hit?rollDamage({count:1,die:w.die,bonus:0},attack.critical,random).total:0;
   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
-  lines.push(`${npcLabel(game,n.id)} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + 2 = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
+  lines.push(`${npcLabel(game,n.id)} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${2+bonus} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
  }
  return {game:next,lines};
 }

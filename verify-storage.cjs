@@ -6,7 +6,7 @@ let failWrite = false;
 const storage = {getItem: async () => stored, setItem: async (key, value) => {if (failWrite) throw new Error('Storage unavailable'); stored = value;}};
 function freshModule() {
   const source = fs.readFileSync('characterStorage.js', 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/export /g, '');
-  const rules = 'const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+(fs.readFileSync('subclassOptions.js','utf8')+'\n'+fs.readFileSync('spellOptions.js','utf8') + '\n' + fs.readFileSync('equipmentRules.js','utf8') + '\n' + fs.readFileSync('characterRules.js', 'utf8')).replace(/^import .*;\r?\n/gm,'').replace(/export /g, '');
+  const rules = 'const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+(fs.readFileSync('subclassOptions.js','utf8')+'\n'+fs.readFileSync('spellOptions.js','utf8') + '\n' + fs.readFileSync('equipmentRules.js','utf8') + '\n' + fs.readFileSync('characterRules.js','utf8') + '\n' + fs.readFileSync('subclassRules.js','utf8')).replace(/^import .*;\r?\n/gm,'').replace(/export /g, '');
   return vm.runInNewContext(rules + '\n' + source + '\n({loadCharacter, saveCharacter})', {AsyncStorage: storage});
 }
 (async () => {

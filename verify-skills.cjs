@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const base=fs.readFileSync('characterRules.js','utf8')+'\n'+fs.readFileSync('skillRules.js','utf8');
+const base=fs.readFileSync('characterRules.js','utf8')+'\n'+fs.readFileSync('subclassRules.js','utf8')+'\n'+fs.readFileSync('skillRules.js','utf8');
 const s=vm.runInNewContext(base.replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')+'\n({skillCheckBonus,validSkillTraining})');
 const hero={class:'Rogue',level:7,background:'Criminal',scores:{Strength:8,Dexterity:16,Constitution:14,Intelligence:12,Wisdom:10,Charisma:13}};
 const game={skillTraining:{skills:['Acrobatics','Insight'],expertise:['Stealth']}};

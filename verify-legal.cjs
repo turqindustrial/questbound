@@ -36,7 +36,7 @@ assert.ok(notice.includes('This work includes material taken from the System Ref
 assert.ok(notice.includes('not affiliated with')&&notice.includes('compatible with fifth edition'));
 // Playable content is the System Reference Documents' plus the Artificer and the Goblin in the game's own words; subclasses offered before stay valid for old heroes.
 const rules={};vm.createContext(rules);
-vm.runInContext(['subclassOptions.js','equipmentRules.js','characterRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n;this.out={classes,legacyClasses,species,legacySpecies,subclassOptions,legacySubclassOptions,validPlannedSubclass,buildError};',rules);
+vm.runInContext(['subclassOptions.js','equipmentRules.js','characterRules.js','subclassRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n;this.out={classes,legacyClasses,species,legacySpecies,subclassOptions,legacySubclassOptions,validPlannedSubclass,buildError};',rules);
 const r=rules.out;
 assert.deepEqual(JSON.parse(JSON.stringify(r.classes)),['Artificer','Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard']);
 assert.deepEqual(JSON.parse(JSON.stringify(r.species)),['Dragonborn','Dwarf','Elf','Dark Elf','Gnome','Goblin','Goliath','Half-Elf','Halfling','Human','Orc','Tiefling']);
