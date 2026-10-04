@@ -5,7 +5,7 @@ import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
 import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace} from "./mapRules";
-import {resolveClassAction,bonusOptions,shortRestLimit} from "./classActions";
+import {resolveClassAction,bonusOptions,shortRestLimit,surgeReady,turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack} from "./weaponRules";
 import {modifier} from "./characterRules";
@@ -654,6 +654,10 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.resources = {...game.resources, wind: 0};
         lines.push('Second Wind is ready again.');
       }
+      if (hero.class === 'Fighter' && (game.resources?.surge ?? 0) > 0) {
+        next.resources = {...(next.resources ?? game.resources), surge: 0};
+        lines.push('Action Surge is ready again.');
+      }
       if (hero.class === 'Warlock' && ((game.spellSlotsUsed ?? []).some(n => n > 0) || (game.resources?.slots ?? 0) > 0)) {
         next.spellSlotsUsed = Array(9).fill(0);
         next.resources = {...(next.resources ?? game.resources), slots: 0};
@@ -669,7 +673,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     // adventure stays exactly as it was: the places found, the people met, the pack, the story so far.
     if (action === 'long-rest' && game.stage === 'inn') {
       const rested = {...game, round: 1, potions: Math.max(1, game.potions ?? 1), map: mapState(game), campaign: campaignState(game)};
-      for (const key of ['resources', 'spellSlotsUsed', 'arcanumUsed', 'speciesUsed', 'buffs', 'shieldUp', 'hurtBy', 'lastHit', 'shortRests', 'concentration', 'temporarySpell', 'enemyEffects', 'bonusUsed', 'slotSpentThisTurn', 'reactionUsed', 'actionUsed', 'dodging', 'castingConditions', 'heroCondition', 'foeTricks', 'pendingSpell']) delete rested[key];
+      for (const key of ['resources', 'spellSlotsUsed', 'arcanumUsed', 'speciesUsed', 'buffs', 'shieldUp', 'hurtBy', 'lastHit', 'shortRests', 'concentration', 'temporarySpell', 'enemyEffects', 'bonusUsed', 'slotSpentThisTurn', 'reactionUsed', 'actionUsed', 'surged', 'dodging', 'castingConditions', 'heroCondition', 'foeTricks', 'pendingSpell']) delete rested[key];
       const lines = ['You finish a long rest. HP and casting resources are restored.'];
       // Companions who are with you (and still on their feet) sleep it off too.
       for (const n of npcScene(game)) {
@@ -747,7 +751,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           next = struck.game;
           if (struck.line) entries.push(struck.line);
         } else next.enemyHP = Math.max(0, next.enemyHP - (spellResult.damage ?? 0));
-        bonusAction = spellResult.bonus || spellResult.reaction || !!spellResult.manualRounds;
+        bonusAction = spellResult.bonus || spellResult.reaction;
         if (spellResult.reaction) next.reactionUsed = true;
         if (spellResult.manualRounds) {
           next.round += spellResult.manualRounds;
@@ -766,7 +770,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       } else if (action === 'flee') {
         next.stage = 'escaped';
         entries.push('You retreat to the inn. The bridge remains dark, but you live to try again.');
-      } else if (typeof action === 'string' && action.startsWith('class:')) {
+      } else if (typeof action === 'string' && action.startsWith('class:') && action !== 'class:surge') {
         const result = resolveClassAction(hero, game, hp, stats.hp, action.slice(6), random, foe);
         if (!result) return {
           game,
@@ -781,10 +785,26 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         bonusAction = result.bonus;
         dodge = !!result.enemyDisadvantage;
         if (bonusAction) { next.bonusUsed = true; usedBonus = true; }
+      } else if (action?.type === 'improvised') {
+        // An attempt the Dungeon Master ruled as a check (commitWorldCheck): its roll is already told; it spends the action.
+      } else if (action === 'class:surge') {
+        // Action Surge: one more action this turn (not the Magic action), once a turn, once per short or long rest.
+        if (!game.actionUsed) return {game, health, error: 'Take your action first: Action Surge then gives you one more.'};
+        if (!surgeReady(hero, game)) return {game, health, error: game.surged ? 'Action Surge works once a turn.' : 'Action Surge is spent until you rest.'};
+        next.resources = {...game.resources, surge: (game.resources?.surge ?? 0) + 1};
+        next.surged = true;
+        delete next.actionUsed;
+        entries.push('Action Surge: you push past your limits and take one more action.');
+        next.log = [...entries, ...game.log].slice(0, 40);
+        return {game: next, events: entries, health: hp};
       } else if (action?.type === 'give-potion') {
-        // Saving a fallen companion costs your turn.
+        // Giving a healing draught to someone beside you is a bonus action (2024 rules), like drinking one.
+        if (game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
         const error = givePotion();
         if (error) return {game, health, error};
+        next.bonusUsed = true;
+        bonusAction = true;
+        usedBonus = true;
       } else if (action === 'potion' && game.potions > 0) {
         // Drinking a healing draught is a bonus action: you can still act this turn.
         if (game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
@@ -964,7 +984,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       // After the action, a hero who still has a bonus action worth using gets the chance: the turn waits for it, or
       // for End turn. A bonus action taken after the action ends the turn by itself.
       const acted = !bonusAction && !ending && !turnOptions.enemyOnly;
-      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && !spellResult?.manualRounds && bonusOptions(hero, next, hp, stats.hp).length > 0;
+      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && !spellResult?.manualRounds && (bonusOptions(hero, next, hp, stats.hp).length > 0 || surgeReady(hero, next));
       if (paused) {
         next.actionUsed = true;
         // A Dodge (or a foe thrown off by a spell) still counts when the turn ends.
@@ -973,7 +993,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       }
       if (usedBonus && game.actionUsed) bonusAction = false;
       // The other hand's blow under Nick was part of the action: a bonus action may still follow it.
-      if (nickNow && next.stage === 'combat' && hp.current > 0 && bonusOptions(hero, next, hp, stats.hp).length > 0) {
+      if (nickNow && next.stage === 'combat' && hp.current > 0 && (bonusOptions(hero, next, hp, stats.hp).length > 0 || surgeReady(hero, next))) {
         bonusAction = true;
         next.actionUsed = true;
         entries.push('You still have a bonus action: use it, or end your turn.');
@@ -1005,6 +1025,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.slotSpentThisTurn = false;
         next.reactionUsed = false;
         delete next.actionUsed;
+        delete next.surged;
         delete next.dodging;
         tickHeroSpells(next, hp);
         endHeroTurn(next);
@@ -1124,6 +1145,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.slotSpentThisTurn = false;
         next.reactionUsed = false;
         delete next.actionUsed;
+        delete next.surged;
         delete next.dodging;
         // In a party each hero's spells count down at the end of their own turn instead.
         if (!turnOptions.partyFoe) tickHeroSpells(next, hp);
@@ -1141,7 +1163,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         if (next.enemyEffects) next.enemyEffects = Object.fromEntries(Object.entries(next.enemyEffects).filter(([, rounds]) => rounds > 1).map(([key, rounds]) => [key, rounds - 1]));
         if (hp.current === 0) delete next.concentration;
       }
-      if (next.stage !== 'combat') { delete next.actionUsed; delete next.dodging; }
+      if (next.stage !== 'combat') { delete next.actionUsed; delete next.surged; delete next.dodging; }
     } else return {
       game,
       health
@@ -1236,6 +1258,28 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  if(!active&&!target)return creatureCombatStep(game,health,hero,action,random,opts);
  if(!stats.available||stats.ac===null)return {game,health,error:'Complete your combat statistics first.'};
  if((health?.current??stats.hp)<=0)return {game,health,error:'You are down and cannot act.'};
+ // A bonus action in a brawl (2024 rules): a healing draught, Second Wind or Lay on Hands. It is taken before the
+ // action (the action ends the turn here), once a turn, and the people fighting do not answer it.
+ if(active&&(['potion','class:wind','class:hands'].includes(action)||typeof action==='string'&&action.startsWith('drink:'))){
+  if(game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
+  if(game.bonusUsed)return {game,health,error:'Your bonus action is already used this turn.'};
+  let hp={current:health?.current??stats.hp,temp:health?.temp??0},next={...game},line;
+  if(hp.current>=stats.hp)return {game,health,error:'You are already at full health.'};
+  if(action==='potion'){
+   if((game.potions??0)<=0)return {game,health,error:'You have no healing draughts left.'};
+   const dose=potionHealing(random),healed=updateHealth(hp,stats.hp,'heal',dose.total);
+   line=`Healing draught: ${dose.a} + ${dose.b} + 2; restored ${healed.current-hp.current} HP.`;hp={current:healed.current,temp:healed.temp};next.potions=game.potions-1;
+  } else if(action.startsWith('drink:')){
+   const drunk=drinkDraught(next,hp,stats.hp,action.slice(6),random);if(drunk.error)return {game,health,error:drunk.error};
+   next=drunk.game;hp=drunk.health;line=drunk.line;
+  } else {
+   const used=resolveClassAction(hero,{...game,stage:'combat'},hp,stats.hp,action.slice(6),random);
+   if(!used)return {game,health,error:'That is not available right now.'};
+   next.resources=used.resources;hp=used.health;line=used.logs.join(' ');
+  }
+  const events=[line,'You still have your action: attack, cast, dodge, wait, surrender or flee.'];
+  return {game:{...next,bonusUsed:true,log:[...events,...game.log].slice(0,40)},health:hp,events};
+ }
  if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)||action?.type==='travel'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
  if(active&&['npc-flee','npc-surrender'].includes(action)){
   if(game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
@@ -1282,6 +1326,12 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  let result=special?{game:{...next,log:[action==='npc-dodge'?'You take the Dodge action.':'You hold your ground.',...next.log].slice(0,40)},health:hp}:adventureStepCore(next,hp,hero,action,random);
  if(result.error)return {game:next,health:hp,events,error:active?result.error:undefined};
  if(result.waiting)return result;
+ // A bonus action (a bonus-action spell, or a healing draught given to someone) leaves the turn going: the action
+ // still follows, and only then do the people fighting answer.
+ if(active&&!special&&(result.bonus||action?.type==='give-potion')){
+  if(action?.type==='give-potion'&&game.bonusUsed)return {game,health,error:'Your bonus action is already used this turn.'};
+  return {...result,game:{...result.game,bonusUsed:true},events:result.events??stepLogEntries(next.log,result.game.log)};
+ }
  // A party's brawl: this hero's turn is over; the people fighting act at their own places in the turn order.
  if(opts.party){
   const own=result.events??stepLogEntries(next.log,result.game.log),g={...result.game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false},h={...(result.health??hp)};
@@ -1371,10 +1421,31 @@ function stepLogEntries(before=[],after=[]){
 }
 
 export function adventureStep(game,health,hero,action,random=Math.random){
+ // Two moves in one message (dmCommands.js twoMoves): played one after the other while the turn allows.
+ if(action?.type==='turn')return wholeTurn(game,health,hero,action,random);
  // A party at the shared table takes its fights in turns.
  const result=isPartyGame(game)?partyStep(game,health,hero,action,random):heroStep(game,health,hero,action,random);
  // Whatever fell in this step (a creature, a lair's owner, the tale's foe, a person) can be searched afterwards.
  return withSpoils(game,result,hero);
+}
+// A whole turn from one sentence: an action and a bonus action (or a free move) in a fight, in the order said; or one
+// move with the rest of the sentence told to wait (`rest`, `why`). The second move follows only while it is still this
+// hero's turn (the first paused for a bonus action, or was itself the bonus action).
+function wholeTurn(game,health,hero,action,random){
+ const steps=action.steps,fight=game.stage==='combat'||!!game.npcCombat?.active,said=typeof action.rest==='string'&&action.rest.length>0&&action.rest.length<=200?action.rest:null;
+ const geared=gearedHero(hero,game),costs=Array.isArray(steps)?steps.map(s=>turnCost(geared,game,s)):[];
+ if(!Array.isArray(steps)||steps.length<1||steps.length>2||steps.some(s=>!s||s.type==='turn')||(steps.length===1&&!said)||(steps.length===2&&!(fight&&costs.filter(c=>c==='action').length===1&&costs.some(c=>c!=='action'))))return {game,health,error:'One thing at a time.'};
+ const wait=(result,line)=>({...result,events:[...(result.events??[]),line],game:{...result.game,log:[line,...(result.game.log??[])].slice(0,40)}});
+ const first=adventureStep(game,health,hero,steps[0],random);
+ if(first.error||first.waiting)return first;
+ if(steps.length===1)return wait(first,fight?'Not this turn: "'+said+'" must wait for your next turn ('+(action.why==='a turn has only one bonus action'?'a turn has only one bonus action':action.why==='send it on its own'?'send it on its own':'a turn has one action and one bonus action')+').':'One thing at a time: "'+said+'" waits for your next message.');
+ const g=first.game,holder=g.turnOrder?.order?.[g.turnOrder.at]?.id;
+ const still=(g.stage==='combat'||!!g.npcCombat?.active)&&!first.turnOver&&(!!g.actionUsed||!!g.bonusUsed&&!game.bonusUsed)&&(!g.turnOrder||holder===g.party?.lead);
+ if(!still)return said?wait(first,'Not this turn: "'+said+'" must wait for your next turn.'):first;
+ const second=adventureStep(g,first.health,hero,steps[1],random);
+ if(second.error)return wait(first,'Not done: '+second.error);
+ if(second.waiting)return wait(first,'Not done: that spell needs the Dungeon Master to rule on it, so cast it on its own.');
+ return {...second,events:[...(first.events??[]),...(second.events??[])]};
 }
 // ---------- A party's fight: turns in initiative order ----------
 // At the shared table (partyRules.js) each device plays its own hero. The first move of a fight (the opening attack)
@@ -1451,7 +1522,7 @@ function partyStep(game,health,hero,action,random){
 }
 // Every standing hero rolls initiative (on this device, for all of them), and the foe or each person fighting.
 function beginPartyFight(game,health,hero,random){
- let next={...game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};delete next.actionUsed;delete next.dodging;
+ let next={...game,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};delete next.actionUsed;delete next.surged;delete next.dodging;
  const settled=settleParty(snapshotOf(next,health,hero)),entries=[],lines=[];
  for(const id of settled.order){
   const member=settled.members[id],h=heroOf(member?.character);if(member?.status!=='up'||!h)continue;
@@ -1593,7 +1664,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  }
  if(action==='story-advance')return advanceChapter(game,health,hero);
  if(action?.type==='lead-done')return finishLead(game,health,action.id);
- const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
+ const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','class:surge','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);

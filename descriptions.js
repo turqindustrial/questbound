@@ -49,7 +49,7 @@ const gearNotes={
  "Entertainer’s Pack":'A backpack with a bedroll, costumes, candles, rations, a waterskin and a disguise kit.',
  "Burglar’s Pack":'A backpack with ball bearings, string, a bell, candles, a crowbar, a hammer, pitons, a hooded lantern, oil, rations, a tinderbox, a waterskin and rope.',
  "Scholar’s Pack":'A backpack with a book of lore, ink and a pen, parchment, a little bag of sand and a small knife.',
- 'Potion of Healing':'A red draught. Drink it to regain 2d4 + 2 hit points (a bonus action in a fight), or give it to a companion.',
+ 'Potion of Healing':'A red draught. Drink it to regain 2d4 + 2 hit points (a bonus action in a fight), or give it to someone beside you (also a bonus action).',
 };
 const kindNotes={weapon:'A weapon you can fight with.',ammunition:'Ammunition for a weapon that shoots or is thrown.',treasure:'Something of value: sell it for about half its worth, or trade it.',gear:'Useful gear. Tell the Dungeon Master how you use it.',quest:'It matters to your errand. Keep it safe.',potion:'A draught to drink. Ask the Dungeon Master what it does.'};
 // A magic item in a sentence or two: the weapon or armour it is made as, then the catalogue's own words for what it
@@ -125,11 +125,12 @@ export function actionDescription(action,hero,game){
  if(key==='loot')return 'Search the fallen and anything they guarded. What you find goes into your pack; each foe can be searched once.';
  if(key.startsWith('drink:')){const m=magicItems[key.slice(6)];return m?m.name+': '+m.effect:'Drink a healing draught.';}
  if(key==='item:wand-of-magic-missiles'||key.startsWith('ally-item:')){const wand=packMagic(game,'wand-of-magic-missiles');return 'Wand of Magic Missiles: three darts of force strike '+(key.startsWith('ally-')?'the creature beside your foe':'your foe')+' for 1d4 + 1 each, and never miss. Uses your action and one charge'+(wand?' ('+wand.magic.charges+' left)':'')+'; it regains 1d6 + 1 charges after a long rest.';}
- if(key.startsWith('give-potion:'))return 'Give them one of your healing draughts: they regain 2d4 + 2 hit points and come round. Someone you bring back will not forget it.';
+ if(key.startsWith('give-potion:'))return 'Give them one of your healing draughts: they regain 2d4 + 2 hit points and come round. A bonus action in a fight. Someone you bring back will not forget it.';
  if(key==='class:wind')return 'Second Wind: catch your breath and regain 1d10 + '+level+' hit points. A bonus action; '+windLimit(hero)+' uses, which return when you rest.';
  if(key==='class:hands')return 'Lay on Hands: heal your own wounds from a pool of '+5*level+' hit points that returns after a long rest. A bonus action.';
  if(key==='class:strike')return 'Martial Arts: follow up with one unarmed strike. A bonus action.';
- if(key==='short-rest')return 'Rest for an hour: you and each companion regain half your hit points, and a Fighter’s Second Wind and a Warlock’s spell slots return. '+shortRestLimit(hero)+' short rests between long rests.';
+ if(key==='class:surge')return 'Action Surge: push past your limits and take one more action this turn (an attack, a Dodge, anything but casting a spell). Free; once a turn, and '+(hero?.level>=17?'twice':'once')+' between rests: a short or long rest brings it back.';
+ if(key==='short-rest')return 'Rest for an hour: you and each companion regain half your hit points, and a Fighter’s Second Wind and Action Surge and a Warlock’s spell slots return. '+shortRestLimit(hero)+' short rests between long rests.';
  if(key==='long-rest')return 'Sleep the night somewhere safe: all hit points, spell slots, abilities and short rests return.';
  if(key==='death-save')return 'Roll a d20. Ten or more is a success: three successes and you live, three failures and you die. A 20 puts you back on your feet with 1 hit point; a 1 counts as two failures.';
  if(key==='approach')return 'Go and face it. The fight begins.';
@@ -146,6 +147,8 @@ export function actionCost(action,game){
  if(['potion','class:wind','class:hands','class:strike'].includes(key)||key.startsWith('drink:'))return 'Bonus action';
  if(key.startsWith('offhand:'))return action.detail==='Nick'?null:'Bonus action';
  if(key.startsWith('spell:'))return action.detail?.includes('Bonus')?'Bonus action':'Action';
+ if(key.startsWith('give-potion:'))return 'Bonus action';
+ if(key==='class:surge')return null;
  if(key==='end-turn'||key==='cast'||key==='spells-back'||key==='death-save')return null;
  return 'Action';
 }

@@ -79,7 +79,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game,health)];
  // Whose move it is: the player's action, or (once it is spent) a bonus action or the end of the turn.
  // In a party's fight the turn may be someone else's (adventureRules.js keeps the order).
-  const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':'Your turn';
+  const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':game.surged?'One more action':'Your turn';
  const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
  const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).

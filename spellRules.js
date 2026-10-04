@@ -168,6 +168,10 @@ export function castError(hero,game,request) {
   if(!spellCostOptions(hero,game,spell).includes(request.slot))return 'No eligible spell slot or free casting remains.';
   if(game.stage==='combat' && request.slot==='ritual')return 'Ritual casting requires time outside this encounter.';
   const bonus=spell.castingTime==='Bonus Action'&&!automaticEffects[spell.id]?.asAction;
+  // One action a turn (2024 rules): a spell cast as an action needs the action still unspent, and the extra action
+  // of a Fighter's Action Surge cannot be the Magic action.
+  if(game.stage==='combat' && !bonus && spell.castingTime!=='Reaction' && game.actionUsed)return 'You have already used your action this turn. Use a bonus action or end your turn.';
+  if(game.stage==='combat' && !bonus && spell.castingTime!=='Reaction' && game.surged)return 'The extra action from Action Surge cannot be used to cast a spell.';
   if(fighting && spell.castingTime==='Reaction' && game.reactionUsed)return 'Your reaction is already used.';
   if(fighting && request.reaction && spell.id==='hellish-rebuke' && !game.hurtBy)return 'Hellish Rebuke answers a creature that has just hurt you.';
   if(automaticEffects[spell.id]?.smite && !game.lastHit)return `${spell.name} follows a hit with a melee weapon or an unarmed strike: strike first.`;
@@ -176,6 +180,13 @@ export function castError(hero,game,request) {
   if(typeof request.intent!=='string' || request.intent.trim().length<3 || request.intent.length>500)return 'Describe your target and intended effect.';
   if(request.componentsConfirmed!==true)return 'Confirm that the spell components and casting requirements are available.';
   return '';
+}
+// Whether the spell could be cast at this moment with some cost the hero has (the chips offer only these): in a
+// fight no ritual, and no slot once one was spent this turn. The same rules as castError, so a chip is never refused.
+export function castableNow(hero,game,spell,extra={}){
+  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
+  const costs=spellCostOptions(hero,game,spell).filter(c=>!(fighting&&c==='ritual')&&!(fighting&&typeof c==='number'&&c>0&&game.slotSpentThisTurn));
+  return costs.some(slot=>!castError(hero,game,{id:spell.id,slot,intent:'now',componentsConfirmed:true,...extra}));
 }
 function spendSpell(hero,game,spell,slot) {
   const next={...game};

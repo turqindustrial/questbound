@@ -294,7 +294,7 @@ function QuestboundApp() {
     if(game.stage!=='victory'){
       try{
         let advanced={...game,encounterLevel:character.level,levelsOwed:Math.max(0,(game.levelsOwed??1)-1),round:1};
-        for(const key of ['resources','spellSlotsUsed','arcanumUsed','shortRests','concentration','temporarySpell','enemyEffects','bonusUsed','slotSpentThisTurn','reactionUsed','actionUsed','dodging','castingConditions','heroCondition','foeTricks'])delete advanced[key];
+        for(const key of ['resources','spellSlotsUsed','arcanumUsed','shortRests','concentration','temporarySpell','enemyEffects','bonusUsed','slotSpentThisTurn','reactionUsed','actionUsed','surged','dodging','castingConditions','heroCondition','foeTricks'])delete advanced[key];
         if(!advanced.levelsOwed)delete advanced.levelsOwed;
         advanced=foeForLevel(advanced,character.level);
         advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);

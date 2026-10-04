@@ -6,6 +6,7 @@ import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
 import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError} from './spellRules';
+import {turnCost} from './classActions';
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
 // feet (or no weapon at all) make an Unarmed Strike, and "shoot" reaches for a bow.
 const VERBS='attack|strike|stab|slash|hit|punch|kick|swing at|smash|bash|cut down|cut|hack at|hack|chop at|chop|lunge at|charge at|charge|shoot at|shoot|headbutt|kill|slay|murder|finish off|cleave|club|bludgeon|thrust at|jab|knock out';
@@ -46,12 +47,46 @@ export function spellNickname(known,phrase){
 // Setting out to knock someone out rather than kill them: a finishing melee blow then leaves them alive.
 export const subdueIntent=text=>/\bknock (?:\w+ )?(?:out|unconscious|senseless|cold)\b|\bsubdue|\bnon-?lethal|\bspare (?:him|her|them|it)\b|\bwithout killing\b|\b(?:take|capture) (?:him|her|them|it) alive\b|\bpommel\b|\bflat of (?:my|the) blade\b/i.test(String(text??''));
 export const withAttackIntent=(game,text)=>subdueIntent(text)?{...game,subdue:true}:game;
+// Two moves in one sentence ("I attack the bandit, then drink a potion"): where the second begins, when it starts with
+// something a turn can be spent on. Returns [first, second] (the second as "I …"), or null.
+const turnJoin=/(?:\s*,\s*(?:and\s+)?(?:then\s+)?|\s+and\s+then\s+|\s+then\s+|\s+and\s+(?:also\s+)?|\s*;\s*|[.!]\s+(?:then\s+)?)(?=(?:I\s+)?(?:cast|drink|quaff|swig|attack|strike|stab|slash|hit|punch|kick|swing|smash|bash|hack|chop|lunge|charge|shoot|throw|hurl|toss|fling|shove|grapple|trip|give|pour|end my turn|end turn|use (?:my )?second wind|use action surge|action surge|lay on hands|dodge)\b)/i;
+// `from`: where the search may begin (after a spell's own name, so "Purify Food and Drink" is not two moves).
+export function splitTurn(text,from=0){
+  const said=String(text??'').trim(),skip=Math.max(1,from),found=said.slice(skip).search(turnJoin);if(found<0)return null;
+  const at=skip+found-1;
+  const first=said.slice(0,at+1).trim(),match=said.slice(at+1).match(turnJoin),rest=said.slice(at+1+match[0].length).trim().replace(/^then\s+/i,'');
+  if(first.length<3||rest.length<3)return null;
+  return [first,/^I\s/i.test(rest)?rest:'I '+rest];
+}
+const sameAttack=(a,b)=>{
+  const target=x=>typeof x==='string'?(/^(attack|throw):|^(grapple|shove)$/.test(x)?'foe':null):['encounter-attack','npc-attack'].includes(x?.type)?(x.type==='npc-attack'?'npc:'+x.target:x.target??'foe'):null;
+  const t=target(a);return !!t&&t===target(b);
+};
+// A sentence with two moves (dmCommand): an action and a bonus action in a fight become one whole turn ({type:'turn'},
+// played step by step by adventureStep); two blows at the same target are one Attack action (Extra Attack makes every
+// swing the hero has); anything more is resolved as the first move only, and the rest is told to wait.
+function twoMoves(hero,game,text,health,currentTarget){
+  const cast=text.match(/^(?:I )?cast\s+/i),named=cast?knownSpells(hero).filter(s=>text.slice(cast[0].length).toLowerCase().startsWith(s.name.toLowerCase())).sort((a,b)=>b.name.length-a.name.length)[0]:null;
+  const parts=splitTurn(text,named?cast[0].length+named.name.length:0);if(!parts)return null;
+  const first=dmCommand(hero,game,parts[0],health,currentTarget);
+  if(!first?.action||first.error||first.action?.type==='turn')return null;
+  const second=dmCommand(hero,game,parts[1],health,currentTarget),next=second?.action&&!second.error&&second.action?.type!=='turn'?second.action:null;
+  if(next&&sameAttack(first.action,next))return first;
+  const fight=game.stage==='combat'||!!game.npcCombat?.active,rest=parts[1].slice(0,200);
+  // A spell the Dungeon Master must rule on goes alone, as it always has.
+  if(first.action?.type==='spell'&&first.action.request?.forceDM)return first;
+  const costs=next?[turnCost(hero,game,first.action),turnCost(hero,game,next)]:[];
+  if(fight&&next&&!(next.type==='spell'&&next.request?.forceDM)&&costs.filter(c=>c==='action').length===1&&costs.some(c=>c!=='action'))return {action:{type:'turn',steps:[first.action,next],rest}};
+  const why=!fight?'one thing at a time':!next?'send it on its own':costs[0]==='bonus'&&costs[1]==='bonus'?'a turn has only one bonus action':'a turn has one action and one bonus action';
+  return {action:{type:'turn',steps:[first.action],rest,why}};
+}
 // Explicit casting commands are resolved locally so model prose cannot choose a target or spend a slot.
 export function dmCommand(hero,game,message,health=null,currentTarget=null){
   hero=gearedHero(hero,game);
   let text=message.trim();
   // A dying hero can only fight to hold on.
   if(game.stage==='dying')return /\b(?:death sav|saving throw|hold on|stay alive|survive|breathe|stay conscious|fight (?:to|for)|roll)\w*/i.test(text)?{action:'death-save'}:null;
+  {const both=twoMoves(hero,game,text,health,currentTarget);if(both)return both;}
   // Searching the fallen ("I search the bandit's body", "loot the lair", "skin the wolf"), while something lies here
   // that has not been searched; otherwise the words go to the Dungeon Master as before.
   if(lootWords.test(text)&&spoilsHere(game).length&&!lootError(game,health))return {action:{type:'loot'}};

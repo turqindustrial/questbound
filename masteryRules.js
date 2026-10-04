@@ -146,13 +146,13 @@ export const sapSpent=(game,key)=>markOf(game,key).sapped?withMark(game,key,{sap
 export function sapsEnd(game){let next=game;for(const key of Object.keys(game.marks??{}))next=sapSpent(next,key);return next;}
 // The end of the hero's own turn: what lasts only for a turn goes, and Vex lasts one more turn of theirs.
 export function endHeroTurn(next){
- delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;delete next.lastHit;
+ delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;delete next.lastHit;delete next.surged;
  if(next.vex){if(next.vex.fresh)next.vex={target:next.vex.target};else delete next.vex;}
  return next;
 }
 // Nothing of a fight outlasts it.
 export function fightOver(game){
- const lasting=['marks','vex','lightAttack','nickUsed','cleaveUsed','lastHit','hurtBy','shieldUp'];
+ const lasting=['marks','vex','lightAttack','nickUsed','cleaveUsed','lastHit','hurtBy','shieldUp','surged'];
  if(!lasting.some(k=>game[k]!==undefined))return game;
  const next={...game};for(const k of lasting)delete next[k];return next;
 }

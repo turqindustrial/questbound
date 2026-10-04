@@ -1,5 +1,5 @@
 import {dmChoices,shortRestsLeft} from './dmContext';
-import {knownSpells,automaticEffects,castingStages,spellCostOptions} from './spellRules';
+import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow} from './spellRules';
 import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 import {combatBasics} from './combatRules';
@@ -19,10 +19,13 @@ const verbs={
  'long-rest':['☾','Long rest','I take a long rest.','rest'],'short-rest':['☾','Short rest','I take a short rest.','camp'],'npc-dodge':['⛨','Dodge','I dodge.','shield'],'npc-flee':['↩','Flee','I flee.','retreat'],'npc-wait':['⧗','Wait','I wait.','wait'],
  'npc-surrender':['⚐','Surrender','I surrender.','flag'],'cancel-spell':['✕','Cancel spell','Cancel spell','close'],'end-concentration':['✕','End concentration','End concentration','close'],
  'class:wind':['✚','Second Wind','I use Second Wind.','heal'],'class:hands':['✚','Lay on Hands','I lay my hands on my wounds.','heal'],'class:strike':['✊','Bonus strike','I follow up with a quick unarmed strike.','fist'],
+ 'class:surge':['»','Action Surge','I use Action Surge.','bolt'],
 };
 // In a fight these cost a bonus action, not the action: their chips say so.
 const bonusIds=['potion','class:wind','class:hands','class:strike'];
 const isBonus=id=>bonusIds.includes(id)||id.startsWith('drink:');
+// Free in a fight: they cost neither the action nor the bonus action.
+const freeIds=['class:surge'];
 export function quickActions(hero,game,health=null){
  // The main weapon leads (gold); backup weapons wait at the end so defence and the potion stay within thumb reach.
  const place=id=>placeName(game,id),primary=[],rest=[],backup=[],last=[];let trips=0;
@@ -41,8 +44,8 @@ export function quickActions(hero,game,health=null){
   // The creature beside the foe gets one chip, with the main weapon.
   if(id.startsWith('ally-attack:')){const [,index,weapon]=id.split(':'),ally=game.foeAllies?.[Number(index)];if(!ally||(weapon==='Unarmed Strike'&&armed)||primary.concat(rest).some(a=>a.ally===index))continue;rest.unshift({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:'Hit '+ally.name.split(' ').pop(),question:'I attack the '+ally.name+' with my '+(weapon==='Unarmed Strike'?'bare hands':weapon)+'.',action:c.action,ally:index});continue;}
   // A fallen friend in a party is revived with a draught, like a fallen companion.
-  if(id.startsWith('give-potion:party:')){const member=game.party?.members?.[c.action.target.slice(6)];if(member?.status!=='down')continue;const name=c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ')[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
-  if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
+  if(id.startsWith('give-potion:party:')){const member=game.party?.members?.[c.action.target.slice(6)];if(member?.status!=='down')continue;const name=c.label.replace(/^Give | a healing draught(?: \(bonus action\))?$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ')[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
+  if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught(?: \(bonus action\))?$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   // Searching the fallen leads the row right after a win (one chip, however many lie here).
   if(id==='loot'){const n=spoilsHere(game).length;primary.unshift({key:id,glyph:'⚲',icon:'bag',label:'Loot',...(n>1?{detail:String(n)}:{}),question:'I search the fallen for anything of value.',action:c.action,primary:true});continue;}
   // A stronger healing draught from the pack (a bonus action in a fight).
@@ -65,7 +68,7 @@ export function quickActions(hero,game,health=null){
   const verb=verbs[id];
   // A short rest comes first for a hero who is hurt (it is what they are looking for); otherwise it waits with the rest.
   if(id==='short-rest'){const chip={key:id,glyph:verb[0],icon:verb[3],label:verb[1],question:verb[2],action:c.action,detail:shortRestsLeft(hero,game)+' left'};if(health&&health.current<combatBasics(hero).hp)rest.unshift(chip);else rest.push(chip);continue;}
-  if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action,...(fighting&&isBonus(id)?{detail:'Bonus'}:{})});continue;}
+  if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action,...(fighting&&isBonus(id)?{detail:'Bonus'}:fighting&&freeIds.includes(id)?{detail:'Free'}:{}),...(id==='class:surge'?{primary:true}:{})});continue;}
   rest.push({key:id,glyph:'✦',icon:'star',label:c.label.replace(/:.*$/,''),question:c.label.replace(/:.*$/,'')+'.',action:c.action});
  }
  // Attack…: every weapon, melee and ranged, at whoever can be attacked now (attackActions). In a fight it sits beside
@@ -137,7 +140,7 @@ export function spellActions(hero,game){
   if(game.actionUsed)return spell.castingTime==='Bonus Action'&&!effect?.asAction&&!game.bonusUsed;
   return ['Action','Bonus Action'].includes(spell.castingTime)&&!(spell.castingTime==='Bonus Action'&&!effect?.asAction&&game.bonusUsed);
  };
- return knownSpells(hero).filter(spell=>now(spell)&&spellCostOptions(hero,game,spell).length>0).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).flatMap(spell=>{
+ return knownSpells(hero).filter(spell=>now(spell)&&spellCostOptions(hero,game,spell).length>0&&(!fighting||castableNow(hero,game,spell,spell.castingTime==='Reaction'?{reaction:true}:{}))).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).flatMap(spell=>{
   const effect=automaticEffects[spell.id],self=!!(effect&&(effect.heal||effect.temp||effect.protection||effect.detection||effect.buff));
   // The chip says what the cast costs when that is not a plain slot, and what it ends.
   const costs=spellCostOptions(hero,game,spell),how=costs.includes('species')?'Free':!fighting&&costs.includes('ritual')?'Ritual · 10 min':null;
