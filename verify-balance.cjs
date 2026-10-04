@@ -61,10 +61,11 @@ const make=(cls,sub,level=3)=>{const h={name:'Brawler',class:cls,species:'Human'
  table=r.joinParty(table,'B',{character:JSON.stringify(ilyra),game:null,health:null,name:'Jo'}).snapshot;
  table=plain(r.joinParty(table,'C',{character:JSON.stringify(wren),game:null,health:null,name:'Ash'}).snapshot);
  const view=id=>r.partyView(table,id);
- assert.equal(r.sideStrength(view('A').game,kara),3,'three heroes');
+ const three=Math.round(100*(1+2*r.foeScaling.hero))/100;
+ assert.equal(r.sideStrength(view('A').game,kara),three,'three heroes');
  const opening=r.adventureStep(view('B').game,view('B').health,ilyra,swing(ilyra),seeded(11));assert.ok(!opening.error,opening.error);
  table=plain(r.adventureSnapshot(ilyra,opening.game,opening.health,true));
- assert.equal(table.game.foeScale?.f,3,'the foe is scaled to the party');
+ assert.equal(table.game.foeScale?.f,three,'the foe is scaled to the party');
  for(const [id,h] of [['A',kara],['B',ilyra],['C',wren]])valid(h,view(id).game,view(id).health,'party view '+id);
  assert.equal(r.encounterFoe(kara,view('A').game).maximum,r.encounterFoe(wren,view('C').game).maximum,'the same foe from every point of view');
  assert.ok(r.encounterFoe(kara,view('A').game).swings>=2,'the foe strikes more than once a turn at a party');

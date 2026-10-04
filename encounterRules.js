@@ -204,12 +204,14 @@ export function partyTargets(game){
 // ---------- A foe against a bigger side ----------
 // Creatures, the tale's foe and the vault's guardians are written for one hero. When more fight on the hero's side
 // (other heroes standing at the shared table, companions who follow and fight, allies who live where the fight is),
-// the foe is scaled by the side's strength: the hero is 1, each other standing hero 1, a companion with a class half
-// of one (less when well below the party's level), one without a class a quarter. A hero fighting alone meets exactly
-// what they always did. The strength is kept for the fight (game.foeScale {f, key}): it grows when someone joins
+// the foe is scaled by the side's strength f: the hero is 1, each other standing hero 1.15 (heroes at one table help
+// each other), a companion with a class their class's share (`foeScaling.companion`, less when well below the party's
+// level), one without a class a quarter. Against f the foe has f times the hit points and about f^0.9 times the blows
+// (foeOffense: more attacks a turn, each a little harder or softer); a pack gains members instead. A hero fighting
+// alone meets exactly what they always did. The strength is kept for the fight (game.foeScale {f, key}): it grows when someone joins
 // mid-fight and never shrinks as the side falls. Tuned with balance-check.cjs (--companion, --party).
 // A companion's share of a hero by their class (sturdy fighters stand in front and soak blows; casters less so).
-export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6};
+export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},hero:1.15,untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6};
 export const sideWeightOf=cls=>foeScaling.companion[cls]??0.5;
 const sideHeroLevel=character=>{try{const h=JSON.parse(character);return Number.isInteger(h?.level)?h.level:1;}catch{return 1;}};
 function sideCompanionWeight(game,id,mean){
@@ -220,7 +222,7 @@ function sideCompanionWeight(game,id,mean){
 function sideOf(game,hero,ids){
  const party=game?.party?.members&&typeof game.party.lead==='string'?game.party:null,others=party?partyTargets(game):[];
  const levels=[hero?.level??1,...others.map(id=>sideHeroLevel(party.members[id]?.character))],mean=Math.max(1,levels.reduce((a,b)=>a+b,0)/levels.length);
- let f=1+others.length;
+ let f=1+others.length*foeScaling.hero;
  for(const id of ids)f+=sideCompanionWeight(game,id,mean);
  return Math.min(foeScaling.most,Math.round(f*100)/100);
 }

@@ -38,7 +38,7 @@ export const subclassEngine={
  'Vigil Domain':{class:'Cleric',effects:[{level:3,kind:'passive',name:'Steadfast Guard',acBonus:{n:1,when:'armor'}}]},
  'Threshold Domain':{class:'Cleric',effects:[{level:3,kind:'victory',name:"Ferryman's Due",plus:['level','Wisdom']}]},
  // ---- Druid ----
- 'Circle of the Thornwall':{class:'Druid',effects:[{level:3,kind:'action',id:'briar',name:'Briar Mantle',bonus:true,uses:{3:2,6:3,17:4},recharge:'short',effect:{temp:{count:0,die:0,plus:'level'}},say:/\bbriar mantle\b|\bwrap myself in (living )?thorns?\b/i,chip:['❦','Briar Mantle','I wrap myself in living thorn.','leaf'],description:'Briar Mantle: wrap yourself in living thorn for temporary hit points equal to twice your Druid level (they do not add to any you have). A bonus action; the uses return on a short or long rest.'}]},
+ 'Circle of the Thornwall':{class:'Druid',effects:[{level:3,kind:'action',id:'briar',name:'Briar Mantle',bonus:true,uses:{3:2,6:3,17:4},recharge:'short',effect:{temp:{count:0,die:0,plus:'level'}},say:/\bbriar mantle\b|\bwrap myself in (living )?thorns?\b/i,chip:['❦','Briar Mantle','I wrap myself in living thorn.','leaf'],description:'Briar Mantle: wrap yourself in living thorn for temporary hit points equal to your Druid level (they do not add to any you have). A bonus action; the uses return on a short or long rest.'}]},
  'Circle of the Fallow Field':{class:'Druid',effects:[{level:3,kind:'spell',name:'Rot and Root',damage:{types:['Poison','Necrotic'],ability:'Wisdom',cantrip:0}}]},
  'Circle of the Hollow Hill':{class:'Druid',effects:[{level:3,kind:'spell',name:"Host's Gift",heal:'Wisdom'}]},
  // ---- Fighter ----
@@ -64,7 +64,7 @@ export const subclassEngine={
  Silvertongue:{class:'Rogue',effects:[{level:3,kind:'passive',name:'Smooth Talker',skills:['Persuasion','Deception']},{level:3,kind:'action',id:'feint',name:'Feint',bonus:true,uses:'proficiency',recharge:'short',effect:{vex:true},say:/\bfeint\b/i,chip:['↯','Feint','I feint to draw out an opening.','dagger'],description:'Feint: draw the foe out of its guard. Your next attack against it before the end of your next turn has advantage. A bonus action; the uses return on a short or long rest.'}]},
  Trickwright:{class:'Rogue',effects:[]},
  // ---- Sorcerer ----
- 'Frostblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Rime-Touched',damage:{types:['Cold'],ability:'Charisma',cantrip:0.5}}]},
+ 'Frostblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Rime-Touched',damage:{types:['Cold'],ability:'Charisma',cantrip:0}}]},
  'Veilborn Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'action',id:'veil',name:'Step Behind the Veil',bonus:true,uses:'proficiency',recharge:'long',effect:{mark:'sapped'},say:/\bstep behind the veil\b|\bfade (half )?(out )?of sight\b/i,chip:['◌','Behind the Veil','I fade half out of sight.','eye'],description:'Step Behind the Veil: fade half out of the world. The next attack the foe makes before your next turn has disadvantage. A bonus action.'}]},
  'Saintblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Grace in the Blood',heal:'Charisma'}]},
  // ---- Warlock ----
@@ -74,7 +74,7 @@ export const subclassEngine={
  // ---- Wizard ----
  Wardwright:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Woven Ward',acBase:'Intelligence',hp:1}]},
  Bonewright:{class:'Wizard',effects:[{level:3,kind:'spell',name:'Marrow-Cold',damage:{types:['Necrotic'],ability:'Intelligence'}}]},
- Fateweaver:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Foreseen Step',initiative:'Intelligence'},{level:3,kind:'action',id:'thread',name:'Thread Pull',bonus:true,uses:{3:2,14:3},recharge:'long',effect:{mark:'sapped',line:'you tug at the thread of the moment.'},say:/thread pull|(tug|pull) (at )?(its|the|their|a) thread/i,chip:['⟆','Thread Pull','I tug at the thread of the moment.','eye'],description:'Thread Pull: tug at the thread of the moment. The next attack the foe makes before your next turn has disadvantage. A bonus action; twice per long rest (three times from level 14).'}]},
+ Fateweaver:{class:'Wizard',effects:[{level:3,kind:'passive',name:'Foreseen Step',initiative:'Intelligence',acBonus:{n:1,when:'any'}},{level:3,kind:'action',id:'thread',name:'Thread Pull',bonus:true,uses:{3:2,5:3,14:4},recharge:'short',effect:{mark:'sapped',line:'you tug at the thread of the moment.'},say:/\bthread pull\b|\b(tug|pull) (at )?(its|the|their|a) thread\b/i,chip:['⟆','Thread Pull','I tug at the thread of the moment.','eye'],description:'Thread Pull: tug at the thread of the moment. The next attack the foe makes before your next turn has disadvantage. A bonus action; twice per short or long rest (three times from level 5, four from level 14).'}]},
 };
 // ---- features (generated from the catalog's Questbound entries: level, name, one-line rule, engine-played) ----
 export const subclassFeatures={
@@ -136,14 +136,14 @@ export const subclassFeatures={
  ],
  "Circle of the Thornwall":[
   [3,"Thornwall Spells","Always prepared from level 3: Entangle, Ensnaring Strike, Barkskin and Spike Growth; more at higher levels.",1],
-  [3,"Briar Mantle","Bonus Action: Temporary HP equal to twice your Druid level. 2 uses (3 at level 6, 4 at 17), back on a Short or Long Rest.",1],
+  [3,"Briar Mantle","Bonus Action: Temporary HP equal to your Druid level. 2 uses (3 at level 6, 4 at 17), back on a Short or Long Rest.",1],
   [6,"Hedge of Thorns","While Briar Mantle's Temporary HP last, melee attackers that hit you take 1d6 Piercing.",0],
   [10,"Rooted Ground","Chosen creatures pass through your Entangle and Spike Growth unhindered and unharmed.",0],
   [14,"Heartwood Guardian","Once per Long Rest, Magic action, 1 minute: Resistance to Bludgeoning, Piercing and Slashing; allies within 10 ft get +1 AC.",0]
  ],
  "Circle of the Fallow Field":[
   [3,"Fallow Field Spells","Always prepared from level 3: Ray of Sickness, False Life, Blindness/Deafness and Gentle Repose; more at higher levels.",1],
-  [3,"Rot and Root","Druid spells dealing Poison or Necrotic damage add your Wisdom modifier, once per casting.",1],
+  [3,"Rot and Root","Druid spells of level 1 or higher dealing Poison or Necrotic damage add your Wisdom modifier, once per casting.",1],
   [6,"Green from Grey","When your spell deals Poison or Necrotic damage, an ally within 30 ft regains HP equal to your Wisdom modifier (minimum 1).",0],
   [10,"Spore-Hardened","Resistance to Poison and Necrotic; you cannot be Poisoned.",0],
   [14,"Fallow Season","Once per Long Rest, 1 minute, 20-ft radius: chosen creatures starting a turn there make a Con save, 2d8 Necrotic, half on a success.",0]
@@ -187,7 +187,7 @@ export const subclassFeatures={
   [17,"Crane Ascending","Reaction when a melee attack misses you: one Unarmed Strike; on a hit the attacker is knocked Prone.",0]
  ],
  "Warrior of the Coiled Serpent":[
-  [3,"Serpent's Fang","Once a turn, an Unarmed Strike or Monk weapon hit deals an extra 1d6 Poison (2d6 at level 11), the bonus strike included.",1],
+  [3,"Serpent's Fang","Once a turn, an Unarmed Strike or Monk weapon hit on a wounded creature deals an extra 1d4 Poison (2d4 at 11), bonus strike included.",1],
   [6,"Shed Skin","Resistance to Poison; 1 Focus as a Bonus Action ends Poisoned on you.",0],
   [11,"Tightening Coil","A creature failing its save against your Stunning Strike also takes 2d6 Poison.",0],
   [17,"Patience of the Serpent","On rolling Initiative choose a creature: your first hit on it before the end of your next turn is a Critical Hit.",0]
@@ -244,7 +244,7 @@ export const subclassFeatures={
   [15,"Pack Endures","Once per Short or Long Rest, Reaction: a companion within 30 ft dropping to 0 HP drops to 1 instead.",0]
  ],
  "Quiet Knife":[
-  [3,"First Cut","In a fight's first round, your first weapon hit on a creature deals an extra 2d6 of the weapon's type.",1],
+  [3,"First Cut","In a fight's first round, your first weapon hit on a creature deals an extra 1d6 of the weapon's type.",1],
   [3,"Tools of the Trade","Proficiency with the Disguise Kit and the Poisoner's Kit.",0],
   [9,"Borrowed Dark","Hide as a Bonus Action when Lightly Obscured; Advantage on Stealth while moving at half Speed.",0],
   [13,"Quiet Hands","A creature you hit before it has acted makes a Con save (DC 8 + Dex + PB) or cannot speak or cry out until its next turn ends.",0],
@@ -266,7 +266,7 @@ export const subclassFeatures={
  ],
  "Frostblood Sorcery":[
   [3,"Frostblood Spells","Always prepared from level 3: Ice Knife, Fog Cloud, Gust of Wind and Hold Person; more at higher levels.",1],
-  [3,"Rime-Touched","Sorcerer spells dealing Cold damage add your Charisma modifier, once per casting; extreme cold does not harm you.",1],
+  [3,"Rime-Touched","Sorcerer spells of level 1 or higher dealing Cold damage add your Charisma modifier, once per casting; cold does not harm you.",1],
   [6,"Hoarfrost Shell","Reaction and 1 Sorcery Point when hit: Resistance to that damage; the attacker loses 10 ft of Speed.",0],
   [14,"Glacial Stride","Resistance to Cold; ignore icy or snowy difficult terrain; walk on water by freezing it.",0],
   [18,"Heart of Winter","Once per Long Rest, Bonus Action, 1 minute: your Cold ignores Resistance; creatures starting a turn within 10 ft take 2d8 Cold.",0]
@@ -301,14 +301,14 @@ export const subclassFeatures={
  ],
  "Whispering Void Patron":[
   [3,"Whispering Void Spells","Always prepared from level 3: Silent Image, Command, Mind Spike and Blindness/Deafness; more at higher levels.",1],
-  [3,"Echo of the Void","Warlock spells dealing Force or Psychic damage add your Charisma modifier, once per casting (not per beam).",1],
+  [3,"Echo of the Void","Warlock spells dealing Force or Psychic damage add your Charisma modifier (half with a cantrip), once per casting.",1],
   [3,"Void-Sight","Once per Short Rest, 1 minute: see through magical darkness and recognise illusions within 30 ft.",0],
   [6,"Unravelling Gaze","Reaction when a creature within 30 ft saves against your spell: it takes Psychic damage equal to Cha modifier + Warlock level.",0],
   [10,"Hollow Mind","Resistance to Psychic; you cannot be Charmed or Frightened by a creature you can see.",0],
   [14,"Call of the Deep Silence","Once per Long Rest, Magic action: Wisdom save, 8d10 Psychic and Incapacitated until its next turn ends, or half on a success.",0]
  ],
  "Wardwright":[
-  [3,"Woven Ward","With no armor, your AC is 10 + Dexterity + Intelligence.",1],
+  [3,"Woven Ward","With no armor, your AC is 10 + Dexterity + Intelligence; your hit point maximum rises by 1 per Wizard level.",1],
   [3,"Ward-Scribe","Copying protective spells into your spellbook takes half the time and gold.",0],
   [6,"Spread the Ward","Reaction and a spell slot when an ally within 30 ft is hit: it gains Temporary HP of twice the slot level + Int.",0],
   [10,"Sealed Mind","Advantage on saves against charm and mind-reading spells.",0],
@@ -322,11 +322,11 @@ export const subclassFeatures={
   [14,"Unmaking Touch","Once per Long Rest, Magic action: touch a creature, Constitution save, 10d10 Necrotic or half on a success.",0]
  ],
  "Fateweaver":[
-  [3,"Foreseen Step","Add your Intelligence modifier to Initiative; you cannot be Surprised while not Incapacitated.",1],
-  [3,"Thread Pull","Twice per Long Rest, after a creature within 60 ft rolls a d20, make it roll again; you choose which roll stands.",0],
+  [3,"Foreseen Step","Add your Intelligence modifier to Initiative and +1 to your AC; you cannot be Surprised while not Incapacitated.",1],
+  [3,"Thread Pull","Bonus Action, twice per Short or Long Rest (3 at level 5): tug a creature's thread; its next attack has disadvantage.",1],
   [6,"Glimpse Ahead","Once per Short or Long Rest cast Augury or Detect Thoughts without a slot.",0],
   [10,"Cut the Thread","Reaction and a spell slot: an attack that hits an ally within 60 ft misses instead.",0],
-  [14,"Weaver's Sight","Truesight 30 ft; Thread Pull three times per Long Rest.",0]
+  [14,"Weaver's Sight","Truesight 30 ft; Thread Pull four times per Short or Long Rest.",0]
  ],
  "Snarewright":[
   [3,"Snarewright Spells","Always prepared from level 3: Grease and Alarm; more at higher levels.",1],

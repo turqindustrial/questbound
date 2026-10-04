@@ -16,7 +16,7 @@
 const fs=require('fs'),vm=require('vm');
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({npcClassList,readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics,surgeReady,subclassOptions,subclassAction,subclassUses,classes,abilities,standardArray,knownSpells,automaticEffects,startParty,joinParty,partyView,settleParty,adventureSnapshot,makeMagicItem})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({gearedHero,npcClassList,readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics,surgeReady,subclassOptions,subclassAction,subclassUses,classes,abilities,standardArray,knownSpells,automaticEffects,startParty,joinParty,partyView,settleParty,adventureSnapshot,makeMagicItem})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 // A written story's main foe, alongside the creature templates.
 const storyFoe={key:'story',foe:'Story Foe',species:'Unknown',type:'Slashing',appearance:'The main foe of a written story.',story:true};
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
@@ -57,7 +57,7 @@ const casters=['Wizard','Sorcerer','Warlock','Druid','Bard','Cleric','Artificer'
 // cantrips, then the main weapon.
 function choose(hero,g,h,max){
  const cur=h?.current??max,low=cur<=max*0.35,cast=words=>{const c=r.dmCommand(hero,g,words,h);return c?.action&&!c.error?c.action:null;};
- const weapon=()=>{const weapons=r.attackOptions(hero),w=weapons.find(x=>!x.unarmed&&!x.ranged)??weapons[0];return {type:'encounter-attack',weapon:w.name};};
+ const weapon=()=>{const weapons=r.attackOptions(r.gearedHero(hero,g)),w=weapons.find(x=>!x.unarmed&&!x.ranged)??weapons[0];return {type:'encounter-attack',weapon:w.name};};
  // A draught or Second Wind is a bonus action: taken when low, alongside the action. Once the action is spent
  // (the turn waits for a bonus action), anything not worth using is skipped with End turn.
  if(!g.bonusUsed&&low&&(g.potions??0)>0)return 'potion';

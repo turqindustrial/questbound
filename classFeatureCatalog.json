@@ -2416,7 +2416,7 @@
     "subclass": "Circle of the Thornwall",
     "level": 3,
     "name": "Briar Mantle",
-    "description": "As a Bonus Action you wrap yourself in living thorn and gain Temporary Hit Points equal to twice your Druid level. You can do this twice, three times from Druid level 6 and four times from level 17, and you regain all uses when you finish a Short or Long Rest.",
+    "description": "As a Bonus Action you wrap yourself in living thorn and gain Temporary Hit Points equal to your Druid level. You can do this twice, three times from Druid level 6 and four times from level 17, and you regain all uses when you finish a Short or Long Rest.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -2461,7 +2461,7 @@
     "subclass": "Circle of the Fallow Field",
     "level": 3,
     "name": "Rot and Root",
-    "description": "When a Druid spell you cast deals Poison or Necrotic damage, it deals extra damage equal to your Wisdom modifier, once per casting.",
+    "description": "When a Druid spell of level 1 or higher that you cast deals Poison or Necrotic damage, it deals extra damage equal to your Wisdom modifier, once per casting.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -2749,7 +2749,7 @@
     "subclass": "Warrior of the Coiled Serpent",
     "level": 3,
     "name": "Serpent's Fang",
-    "description": "Once on each of your turns, when you hit a creature with an Unarmed Strike or a Monk weapon, the blow deals an extra 1d6 Poison damage. The extra damage becomes 2d6 when you reach Monk level 11. Your Martial Arts bonus strike can carry it too.",
+    "description": "Once on each of your turns, when you hit a creature that is already wounded with an Unarmed Strike or a Monk weapon, the blow deals an extra 1d4 Poison damage. The extra damage becomes 2d4 when you reach Monk level 11. Your Martial Arts bonus strike can carry it too.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3118,7 +3118,7 @@
     "subclass": "Quiet Knife",
     "level": 3,
     "name": "First Cut",
-    "description": "In the first round of a fight, your first weapon hit on a creature deals an extra 2d6 damage of the weapon's type.",
+    "description": "In the first round of a fight, your first weapon hit on a creature deals an extra 1d6 damage of the weapon's type.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3262,7 +3262,7 @@
     "subclass": "Frostblood Sorcery",
     "level": 3,
     "name": "Rime-Touched",
-    "description": "When a Sorcerer spell you cast deals Cold damage, it deals extra damage equal to your Charisma modifier, once per casting. Extreme cold does you no harm.",
+    "description": "When a Sorcerer spell of level 1 or higher that you cast deals Cold damage, it deals extra damage equal to your Charisma modifier, once per casting. Extreme cold does you no harm.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3487,7 +3487,7 @@
     "subclass": "Whispering Void Patron",
     "level": 3,
     "name": "Echo of the Void",
-    "description": "When a Warlock spell you cast deals Force or Psychic damage, it deals extra damage equal to your Charisma modifier, once per casting (once per Eldritch Blast, not once per beam).",
+    "description": "When a Warlock spell you cast deals Force or Psychic damage, it deals extra damage equal to your Charisma modifier (half of it, rounded down, with a cantrip), once per casting (once per Eldritch Blast, not once per beam).",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3532,7 +3532,7 @@
     "subclass": "Wardwright",
     "level": 3,
     "name": "Woven Ward",
-    "description": "While you wear no armor, your Armor Class equals 10 + your Dexterity modifier + your Intelligence modifier.",
+    "description": "While you wear no armor, your Armor Class equals 10 + your Dexterity modifier + your Intelligence modifier. The weave also steadies you: your hit point maximum increases by 1 for each Wizard level you have.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3622,7 +3622,7 @@
     "subclass": "Fateweaver",
     "level": 3,
     "name": "Foreseen Step",
-    "description": "You add your Intelligence modifier to your Initiative rolls, and you cannot be Surprised while you are not Incapacitated.",
+    "description": "You add your Intelligence modifier to your Initiative rolls, a glimpse of each blow before it falls gives you a +1 bonus to Armor Class, and you cannot be Surprised while you are not Incapacitated.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3631,9 +3631,9 @@
     "subclass": "Fateweaver",
     "level": 3,
     "name": "Thread Pull",
-    "description": "Twice per Long Rest, after a creature within 60 feet of you rolls a d20, you can tug its thread and make it roll again; you choose which roll stands.",
+    "description": "As a Bonus Action you tug at the thread of the moment around a creature you can see: the next attack it makes before the start of your next turn has Disadvantage. You can do this twice (three times from Wizard level 5), and you regain all uses when you finish a Short or Long Rest.",
     "source": "Questbound",
-    "automation": "reference"
+    "automation": "engine"
   },
   {
     "class": "Wizard",
@@ -3658,7 +3658,7 @@
     "subclass": "Fateweaver",
     "level": 14,
     "name": "Weaver's Sight",
-    "description": "You have Truesight out to 30 feet, and you can use Thread Pull three times per Long Rest.",
+    "description": "You have Truesight out to 30 feet, and you can use Thread Pull four times per Short or Long Rest.",
     "source": "Questbound",
     "automation": "reference"
   },
