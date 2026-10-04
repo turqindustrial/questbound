@@ -4,6 +4,7 @@ import {sceneLocation,npcIdsOf,npcLore} from './npcRules';
 import {worldPlace} from './mapRules';
 import {templateKeys,foeKind,foeTemplate} from './encounterRules';
 import {appendJournal,journalForGame} from './journalRules';
+import {fightEnding} from './experienceRules';
 // Spoils and magic items. When a fight is won the engine itself notes what fell and where (game.spoils, shared world
 // state at the table); searching the fallen (the Loot action) rolls what they carried from tables kept by kind of
 // creature, a person's toughness and role, and the looter's level. A lair hides a hoard, and the tale's main foe always
@@ -161,7 +162,8 @@ export function withSpoils(before,result,hero){
  const w=before.wildFight;
  if(w&&!after.wildFight){
   const place=worldPlace(after,w.place);
-  if(place?.cleared&&!place.threat&&!['dying','dead'].includes(after.stage)){
+  // A won fight is what experienceRules.js says it is (fightEnding), so spoils, experience and the story log agree.
+  if(fightEnding(before,after).won&&!place?.threat&&!['dying','dead'].includes(after.stage)){
    const lair=worldPlace(before,w.place)?.danger==='lair';
    found.push({kind:'creature',template:w.template,name:trimmed(w.name,60),place:w.place,...(w.stats?.group?.size>1?{count:Math.min(4,w.stats.group.size)}:{}),...(lair?{lair:true}:{}),...(lair&&spoilText(worldPlace(before,w.place)?.feature,200)?{feature:worldPlace(before,w.place).feature.trim()}:{})});
    const events=result.events??[];
