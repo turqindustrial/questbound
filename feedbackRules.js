@@ -52,7 +52,7 @@ export function feedbackDetails({hero,game,health,screen,theme,place,chapter,tur
    stage:fbText(g.stage,20),story:fbText(g.story?.title,100),introId:fbText(g.story?.introId,30),chapter:fbText(chapter,100),place:fbText(place,80),
    round:fbNum(g.round),actionUsed:!!g.actionUsed,bonusUsed:!!g.bonusUsed,fight:fbFight(g),
    turn:fbText(turn,80),party:g.party?.members?{size:Object.keys(g.party.members).length,joined:!!table?.joined}:table?.joined?{size:fbNum(table.players?.length),joined:true}:null,
-   levelsOwed:fbNum(g.levelsOwed),
+   levelsOwed:fbNum(g.levelsOwed),xp:fbNum(g.xp),
   },
   recent:fbList((g.playback??[]).slice(-2),2,fbTurn),
   log:fbList((g.storyLog??[]).slice(-6),6,fbLogLine),

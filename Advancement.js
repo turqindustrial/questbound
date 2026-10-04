@@ -6,6 +6,7 @@ import {subclassOptions} from './subclassOptions';
 import {subclassFirstFeatures} from './subclassRules';
 import {spellLimits,spellSelectionError,spellLibrary} from './spellOptions';
 import {combatBasics} from './combatRules';
+import {xpForLevel} from './experienceRules';
 import SpellSelector from './SpellSelector';
 import FeaturePanel from './FeaturePanel';
 import {GameButton,Crest,Section} from './ui';
@@ -13,7 +14,7 @@ import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
 
-export default function Advancement({hero,onSave,onCancel,saving,error}) {
+export default function Advancement({hero,onSave,onCancel,saving,error,xp=null}) {
   const nextLevel=Math.min(20,hero.level+1);
   const [draft,setDraft]=useState(()=>({...hero,level:nextLevel,advancementVersion:1})),[localError,setLocalError]=useState('');
   const improve=advancementLevels(hero.class).includes(nextLevel);
@@ -37,6 +38,8 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
       </View>
     </View>
     <Text style={s.text}>You have earned a new level. Review your choices, then return to your adventure rested. You remain a {hero.class}. Hit points rise by your class’s fixed average.</Text>
+    {/* Where the hero's experience stands, and what the level after this one will need (experienceRules.js). */}
+    {!!xp&&<Text style={s.caption}>{'Experience '+Number(xp.xp).toLocaleString('en-US')+((hero.level??1)+1<20?' · level '+((hero.level??1)+2)+' at '+xpForLevel((hero.level??1)+2).toLocaleString('en-US'):'')}</Text>}
     {nextLevel>=3 && (!hero.plannedSubclass || hero.level<3) && <>
       <Text style={s.heading}>Choose your subclass</Text>
       {Object.entries(subclassOptions[hero.class]).map(([name,description])=><View key={name}>{button(name,()=>setDraft({...draft,plannedSubclass:name}),draft.plannedSubclass===name)}<Text style={s.caption}>{description}</Text>{subclassFirstFeatures(name).map(f=><Text key={f.name} style={s.feature}>✦ {f.name}: {f.brief}</Text>)}</View>)}

@@ -11,7 +11,7 @@ import {setCovered} from './perfWatch';
 // can be tapped away and leaves by itself after a few seconds.
 const web=Platform.OS==='web';
 export default function CinematicLayer({levelReady=false}){
- const [flash,setFlash]=useState(null),[banner,setBanner]=useState(null),[finale,setFinale]=useState(null),[area,setArea]=useState(null),[burst,setBurst]=useState(null),[deed,setDeed]=useState(null),timers=useRef([]),reduce=useRef(false),{width}=useWindowDimensions();
+ const [flash,setFlash]=useState(null),[banner,setBanner]=useState(null),[finale,setFinale]=useState(null),[area,setArea]=useState(null),[burst,setBurst]=useState(null),[deed,setDeed]=useState(null),[gain,setGain]=useState(null),timers=useRef([]),reduce=useRef(false),{width}=useWindowDimensions();
  useEffect(()=>{AccessibilityInfo.isReduceMotionEnabled().then(v=>{reduce.current=v;}).catch(()=>{});const t=timers.current;return()=>t.forEach(clearTimeout);},[]);
  const later=(fn,ms)=>{timers.current.push(setTimeout(fn,ms));};
  useEffect(()=>{setCovered('finale',!!finale);return()=>setCovered('finale',false);},[!!finale]);
@@ -21,6 +21,8 @@ export default function CinematicLayer({levelReady=false}){
   // Arriving somewhere (or a new tale beginning) names the place in large letters, then fades; it never takes input.
   if(event.kind==='area'){playSound('arrive');setArea({...event});later(()=>setArea(a=>a?.id===event.id?null:a),3700);return;}
   // A deed earned: a small card at the top, never in the way, gone after a few seconds.
+  // Experience gained without the Dungeon Master (a lead ticked by hand): a small line at the top, soon gone.
+  if(event.kind==='xp'&&event.amount>0){setGain({...event});later(()=>setGain(g=>g?.id===event.id?null:g),2800);return;}
   if(event.kind==='deed'&&event.deed){playSound('chime');setDeed({...event});later(()=>setDeed(d=>d?.id===event.id?null:d),4200);return;}
   if(event.kind==='round'){playSound('round');setBanner({id:event.id,title:'Round '+event.round,sub:event.sub??'Roll for it'});later(()=>setBanner(b=>b?.id===event.id?null:b),1950);return;}
   // Death holds the screen longer: it is the end of this hero's story.
@@ -42,6 +44,7 @@ export default function CinematicLayer({levelReady=false}){
    </View>
   </View>}
   {!!deed&&<View key={'deed'+deed.id} dataSet={{qb:'enter'}} style={[s.none,s.deedWrap]} accessibilityLiveRegion="polite"><View dataSet={{qb:'plate'}} style={s.deed}><View style={s.deedIcon}><Icon name={deed.deed.icon??'star'} size={18} color={colors.goldBright}/></View><View style={{flexShrink:1}}><Text style={s.deedOver}>Deed earned</Text><Text style={s.deedTitle}>{deed.deed.title}</Text><Text style={s.deedLine}>{deed.deed.line}</Text></View></View></View>}
+  {!!gain&&<View key={'xp'+gain.id} dataSet={{qb:'enter'}} style={[s.none,s.deedWrap,{top:deed?172:76}]} accessibilityLiveRegion="polite"><View dataSet={{qb:'plate'}} style={s.xpCard}><Icon name="star" size={14} color={colors.goldBright}/><Text style={s.deedOver}>Experience</Text><Text numberOfLines={1} style={s.xpText}>+{Number(gain.amount).toLocaleString('en-US')}{gain.label?' · '+gain.label:''}</Text></View></View>}
   {!!area&&<View key={area.id} dataSet={{qb:'area'}} style={[StyleSheet.absoluteFill,s.none,s.center]} accessibilityLiveRegion="polite">
    <View style={s.area}>
     <Text style={s.areaOver}>{area.over}</Text>
@@ -78,6 +81,7 @@ const s=StyleSheet.create({
  // 'box-none' is invalid CSS that leaves this full-screen layer catching every tap.
  layer:{zIndex:60,pointerEvents:'box-none'},none:{pointerEvents:'none'},center:{alignItems:'center',justifyContent:'center'},
  deedWrap:{position:'absolute',top:76,left:12,right:12,alignItems:'center'},deed:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:16,paddingVertical:10,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.96)'),maxWidth:440},
+ xpCard:{flexDirection:'row',alignItems:'center',gap:8,paddingHorizontal:14,paddingVertical:7,borderRadius:16,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.94)'),maxWidth:440},xpText:{fontFamily:fonts.ui,fontSize:13,fontWeight:'700',color:colors.parchment,flexShrink:1},
  deedIcon:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(48,26,78,.45)')},deedOver:{fontFamily:fonts.display,fontSize:9.5,letterSpacing:2.4,color:colors.goldMid,textTransform:'uppercase'},deedTitle:{fontFamily:fonts.display,fontSize:16,fontWeight:'800',letterSpacing:1.2,color:colors.gold},deedLine:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14,color:'#e1d4cf'},
  band:{width:'100%',paddingVertical:18,alignItems:'center',gap:6},
  bandRule:{width:'46%',maxWidth:420,height:1,backgroundColor:tint('rgba(224,74,92,.75)')},

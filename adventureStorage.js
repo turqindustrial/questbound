@@ -13,6 +13,7 @@ import {validPack} from './inventoryRules';
 import {validEarnedDeeds} from './deedRules';
 import {validMarks} from './masteryRules';
 import {validSpoils} from './lootRules';
+import {validExperience} from './experienceRules';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {combatBasics} from './combatRules';
 
@@ -34,7 +35,7 @@ export function validParty(g){
   if(p.stage!==undefined&&!['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild'].includes(p.stage))return false;
   return ids.every(id=>{const m=p.members[id];return id.length<=80&&m&&typeof m==='object'&&typeof m.name==='string'&&m.name.length<=40&&typeof m.character==='string'&&m.character.length<200000&&partyStatuses.includes(m.status)
     &&(m.health===null||m.health===undefined||(integerBetween(m.health?.current,0,9999)&&integerBetween(m.health?.temp,0,9999)))
-    &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&validPack(m.hero.pack)))
+    &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&(m.hero.xp===undefined||integerBetween(m.hero.xp,0,355000))&&validPack(m.hero.pack)))
     &&(m.stats===undefined||(integerBetween(m.stats?.ac,0,40)&&integerBetween(m.stats?.hp,1,999)));});
 }
 // A party's fight in turns (adventureRules.js): each hero, the foe or each person fighting, in initiative order.
@@ -64,6 +65,7 @@ export function validAdventure(value,hero) {
     && (g.dodging===undefined || (g.dodging===true && (g.actionUsed===true || g.surged===true)))
     && (g.shortRests===undefined || integerBetween(g.shortRests,0,3))
     && (g.levelsOwed===undefined || integerBetween(g.levelsOwed,0,5))
+    && validExperience(g)
     && validStoryLog(g.storyLog)
     && validEarnedDeeds(g.deeds)
     && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z '’-]{2,58}(?: \+[1-3])?$/.test(g.wield)))

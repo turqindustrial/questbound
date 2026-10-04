@@ -132,6 +132,11 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
    <View style={s.dmgIcon}><Icon name="gem" size={18} color={colors.goldBright}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>Magic item · {view.rarity}</PlainText><Text style={s.cardTitle}>{view.name}</Text><Text style={s.cardOutcome}>{view.text}</Text></View>
   </>,[s.card,s.taleCard],{qb:'feed-roll'});
+  // Experience: a small line of its own, under the turn's other cards.
+  case 'xp':return wrap(<>
+   <Icon name="star" size={13} color={colors.goldBright}/>
+   <Text style={s.overText}>{'Experience '+(view.amount?'+'+view.amount+' · ':'')+view.label+(view.party?' · the whole party':'')}</Text>
+  </>,s.overRow,{qb:'feed-xp'});
   case 'level':return wrap(<>
    <View style={s.dmgIcon}><Icon name="starFill" size={18} color={colors.goldBright}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>A level earned</PlainText><PlainText style={s.cardOutcome}>Take it when you are ready, out of a fight.</PlainText></View>

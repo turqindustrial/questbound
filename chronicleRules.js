@@ -35,6 +35,9 @@ export function describeEvent(event){
   const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
   const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};
   if(/^You have earned a level\b/.test(text))return {type:'level'};
+  // Experience (experienceRules.js): how much and for what; a party's line says everyone gained.
+  const xp=text.match(/^Experience: \+([\d,]+) \((.+)\)\.( Every hero in the party gains experience too\.)?$/);if(xp)return {type:'xp',amount:xp[1],label:xp[2],party:!!xp[3]};
+  const partyXp=text.match(/^The party gains experience \((.+)\)\.$/);if(partyXp)return {type:'xp',amount:null,label:partyXp[1],party:true};
   // Searching the fallen (lootRules.js): who was searched, what was found, and each magic item among it.
   const search=text.match(/^You search (.+?)\.$/);if(search)return {type:'search',title:search[1]};
   const found=text.match(/^Found: (.+?)\.$/);if(found)return {type:'found',items:found[1]==='nothing of value'?[]:found[1].split(', ')};

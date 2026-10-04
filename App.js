@@ -9,6 +9,7 @@ import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import EncounterProvider,{CombatHealthButton,EntityText} from './EncounterOverlay';
 import {freshStoryGame,levelUpReady,foeForLevel} from './storyRules';
+import {advancedInPlace,experienceView} from './experienceRules';
 import {hostileEncounterGame} from './hostileEncounter';
 import CampaignJournal from './CampaignJournal';
 import {addJournalNote,appendJournal,appendStoryLog} from './journalRules';
@@ -288,24 +289,15 @@ function QuestboundApp() {
   async function saveAdvancement(character) {
     if(saving || storageError || !hero || !levelUpReady(game,hero) || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
-    // A level earned on the road (a long tale gives one every second chapter) is taken where the hero stands: rested
-    // as after a night's sleep, everything else untouched, and a main foe not yet met grows to match. A level won by
-    // beating the main foe is taken as before, back at the starting place.
-    if(game.stage!=='victory'){
-      try{
-        let advanced={...game,encounterLevel:character.level,levelsOwed:Math.max(0,(game.levelsOwed??1)-1),round:1};
-        for(const key of ['resources','spellSlotsUsed','arcanumUsed','shortRests','concentration','temporarySpell','enemyEffects','bonusUsed','slotSpentThisTurn','reactionUsed','actionUsed','surged','dodging','castingConditions','heroCondition','foeTricks'])delete advanced[key];
-        if(!advanced.levelsOwed)delete advanced.levelsOwed;
-        advanced=foeForLevel(advanced,character.level);
-        advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);
-        await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));
-      }catch{setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
-      finally{setSaving(false);}
-      return;
-    }
-    try {const advanced=newAdventure(character,game);if(game.story){advanced.story=game.story;advanced.storyHistory=game.storyHistory;advanced.enemyHP=Math.min(game.enemyHP,advanced.enemyHP,game.story.foeStats?.maximum??Infinity);advanced.firedTriggers=game.firedTriggers;if(game.foeFate)advanced.foeFate=game.foeFate;if(game.npcFate)advanced.npcFate=game.npcFate;if(game.world)advanced.world={...game.world,at:null};if(game.people)advanced.people=game.people;if(game.spoils)advanced.spoils=game.spoils;advanced.map={...advanced.map,accepted:true,visited:[...new Set(['inn',...(game.map?.visited??[]).filter(id=>['inn','bridge','tower'].includes(id)||game.world?.places?.some(p=>p.id===id))])],minutes:game.map?.minutes??0};}advanced.journal=appendJournal(advanced.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);if(game.wield)advanced.wield=game.wield;await transition.prepare(sceneArtSubjects(advanced));await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));}
-    catch {setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
-    finally {setSaving(false);}
+    // A level is taken where the hero stands, whatever earned the experience for it: rested as after a night's sleep,
+    // everything else untouched (the party at a shared table too), and a main foe not yet met grows to match.
+    try{
+      let advanced=advancedInPlace(game,hero,character);
+      advanced=foeForLevel(advanced,character.level);
+      advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);
+      await saveCharacter(character);const marked=withDeeds(advanced,character);setHero(character);setForm(character);setGame(marked.game);setHealth(null);setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+', rested and ready.'});marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),4200+i*4400));
+    }catch{setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
+    finally{setSaving(false);}
   }
   const gameScreen=['Adventure','Character Sheet','Campaign Journal','Followers'].includes(screen)&&characterChosen&&hero;
   const saved=characterChosen&&!!hero;
@@ -394,7 +386,7 @@ function QuestboundApp() {
   {playing?<View style={s.shell}>
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. While the
         player types on a small phone, the HUD gives its row to the story too. */}
-    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
+    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} xp={experienceView(game,hero)} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
     {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
@@ -463,7 +455,7 @@ function QuestboundApp() {
       </>}
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
-      {screen === 'Level Up' && hero && <Advancement hero={hero} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
+      {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Followers' && hero && <Followers game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}

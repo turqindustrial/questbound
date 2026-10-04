@@ -120,7 +120,9 @@ export function validNpcCombat(game){
  const c=game.npcCombat;if(c===undefined)return true;
  const ids=['player',...npcIdsOf(game)];
  if(!c||!Array.isArray(c.order)||!c.order.every(n=>n&&typeof n==='object'&&(n.id==='player'?n.side==='player':['enemy','ally'].includes(n.side))))return false;
- return c&&npcFightStages.includes(game.stage)&&typeof c.active==='boolean'&&Number.isInteger(c.round)&&c.round>=1&&c.round<=100000&&Array.isArray(c.order)&&c.order.length>=2&&c.order.length<=10&&new Set(c.order.map(n=>n.id)).size===c.order.length&&c.order.filter(n=>n.id==='player'&&n.side==='player').length===1&&c.order.every(n=>n&&ids.includes(n.id)&&['player','enemy','ally'].includes(n.side)&&['attack','help'].includes(n.role)&&Number.isInteger(n.initiative)&&n.initiative>=-10&&n.initiative<=50)&&(c.help===null||c.help==='enemy'||c.help==='ally');
+ return c&&npcFightStages.includes(game.stage)&&typeof c.active==='boolean'&&Number.isInteger(c.round)&&c.round>=1&&c.round<=100000&&Array.isArray(c.order)&&c.order.length>=2&&c.order.length<=10&&new Set(c.order.map(n=>n.id)).size===c.order.length&&c.order.filter(n=>n.id==='player'&&n.side==='player').length===1&&c.order.every(n=>n&&ids.includes(n.id)&&['player','enemy','ally'].includes(n.side)&&['attack','help'].includes(n.role)&&Number.isInteger(n.initiative)&&n.initiative>=-10&&n.initiative<=50)&&(c.help===null||c.help==='enemy'||c.help==='ally')
+  // Those who were hostile when it began (experienceRules.js): each one of the fighters.
+  &&(c.worthy===undefined||Array.isArray(c.worthy)&&c.worthy.length<=10&&new Set(c.worthy).size===c.worthy.length&&c.worthy.every(id=>c.order.some(n=>n.id===id&&n.id!=='player')));
 }
 export function validNpcState(game){
  const text=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max,known=npcIdsOf(game);

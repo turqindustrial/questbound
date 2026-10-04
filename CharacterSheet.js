@@ -6,6 +6,7 @@ import {packOf,gearedHero} from './inventoryRules';
 import {masteryCount,masteredWeapons,masteryText} from './masteryRules';
 import {weapons} from './weaponRules';
 import {spellDefense} from './spellRules';
+import {experienceView} from './experienceRules';
 import FeaturePanel from './FeaturePanel';
 import React, {useState} from 'react';
 import LoadoutSummary from './LoadoutSummary';
@@ -50,6 +51,12 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         {tile('Initiative',signed(stats.initiative),'Add this to your initiative d20','bolt')}
         {tile('Proficiency',signed(stats.proficiency),'Bonus for trained abilities','star')}
       </View>
+      {/* Experience: how far this level has come, and what the next needs (experienceRules.js). */}
+      {(xp=>{const n=v=>Number(v).toLocaleString('en-US');return <View dataSet={{qb:'plate'}} style={s.xpPanel} accessible accessibilityLabel={xp.max?'Experience '+n(xp.xp)+', the highest level':'Experience '+n(xp.xp)+' of '+n(xp.next)}>
+        <View style={s.xpHead}><Icon name="star" size={14} color={colors.goldMid}/><PlainText style={s.label}>Experience</PlainText><PlainText style={s.xpValue}>{n(xp.xp)}{xp.max?'':<PlainText style={s.xpOf}> / {n(xp.next)}</PlainText>}</PlainText></View>
+        {!xp.max&&<StatBar value={Math.round(xp.progress*1000)} maximum={1000} kind="gold" height={6}/>}
+        <Text style={s.caption}>{xp.max?'Level 20: the highest a hero can reach.':xp.ready?'Level '+(xp.level+1)+' is yours to take: use Level up when you are out of a fight.':'Level '+(xp.level+1)+' at '+n(xp.next)+'. Fights won, chapters finished, leads seen through and new places all count.'}</Text>
+      </View>;})(experienceView(game,hero))}
       <View dataSet={{qb:'plate'}} style={s.panel}><Section icon="shield" title="Defense" style={{marginTop:0}}/><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>With your armor worn and any shield on your arm. A protective spell in effect is counted in the armor class above.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
       {/* Weapon Mastery (masteryRules.js): the kinds this hero has mastered and what each one's property does. */}
       {masteryCount(hero)>0&&(mastered=>mastered.length>0&&<View dataSet={{qb:'plate'}} style={s.panel}><Section icon="swords" title="Weapon mastery" style={{marginTop:0}}/>{mastered.map(name=><Text key={name} style={s.text}>{name} · {masteryText[weapons[name].mastery]}</Text>)}<Text style={s.caption}>A {hero.class} masters {masteryCount(hero)} kinds of weapon at level {hero.level}, chosen from the weapons you carry: your main weapon first, then one for range.</Text></View>)(masteredWeapons(game?gearedHero(hero,game):hero))}
@@ -97,6 +104,7 @@ const s = StyleSheet.create({overline:{...type.label},name:{fontFamily:fonts.dis
  hpBlock:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.3)',backgroundColor:'rgba(10,20,16,.45)',marginBottom:4},
  hpText:{fontFamily:fonts.display,fontSize:18,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},hpMax:{fontSize:12,color:colors.muted,fontWeight:'400'},
  gold:{fontFamily:fonts.ui,color:tint('#d6a0aa'),fontSize:14,lineHeight:23,marginVertical:8},grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:12},
+ xpPanel:{marginTop:12,padding:14,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,gap:8},xpHead:{flexDirection:'row',alignItems:'center',gap:6},xpValue:{marginLeft:'auto',fontFamily:fonts.display,fontSize:15,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},xpOf:{fontSize:12,fontWeight:'400',color:colors.muted},
  tile:{flexBasis:145,flexGrow:1,padding:16,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},tileHead:{flexDirection:'row',alignItems:'center',gap:6},
  label:{...type.label,fontSize:10,textAlign:'center'},value:{fontFamily:fonts.display,color:colors.goldBright,fontSize:36,fontWeight:'800',marginVertical:4},
  ability:{flexBasis:96,flexGrow:1,paddingVertical:12,paddingHorizontal:8,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},

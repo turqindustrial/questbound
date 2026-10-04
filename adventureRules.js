@@ -110,7 +110,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     // What you carry comes with you (weapons thrown in an unfinished fight picked up again); a fresh start always has
     // at least one draught.
     ...(previous?.pack ? {pack: thrownPickedUp(previous.pack)} : {}),
-    // A level earned on the road and not yet taken stays earned; deeds are the hero's for good.
+    // Experience (and, in old saves, a level earned on the road and not yet taken) stays earned; deeds are the hero's
+    // for good.
+    ...(Number.isInteger(previous?.xp) ? {xp: previous.xp} : {}),
     ...(previous?.levelsOwed ? {levelsOwed: previous.levelsOwed} : {}),
     ...(previous?.deeds?.length ? {deeds: previous.deeds} : {}),
     potions: Math.max(1, previous?.potions ?? 1),
@@ -1348,7 +1350,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
   // A party's brawl: every hero rolls once the opening blow has landed (adventureStep); the people fighting roll here.
   if(opts.party){
    const order=[{id:'player',side:'player',role:'attack',initiative:0},...standing.map(n=>({...n,initiative:1+Math.floor(random()*20)}))];
-   next={...next,npcCombat:{active:true,round:1,order,help:null},log:['Combat begins.',...next.log].slice(0,40)};
+   next={...next,npcCombat:{active:true,round:1,order,help:null,...brawlWorthy(game,order)},log:['Combat begins.',...next.log].slice(0,40)};
    return {game:{...next,journal:appendJournal(next.journal,'encounter','Combat begins',events.join('\n').slice(0,3000))},health:hp,events};
   }
   const roll=1+Math.floor(random()*20),second=stats.initiativeAdvantage?1+Math.floor(random()*20):roll;
@@ -1357,7 +1359,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
   events.push(...order.filter(n=>n.id!=='player').map(n=>npcProfile(next,n.id).name+' initiative: d20 '+n.initiative+' + 0 = '+n.initiative+'.'));
   events.push('Turn order: '+order.map(n=>n.id==='player'?'You':npcProfile(next,n.id).name).join(' → ')+'.');
   events.push('Round 1 begins.');
-  next={...next,npcCombat:{active:true,round:1,order,help:null},log:['Combat begins. Initiative: '+order.map(n=>(n.id==='player'?'You':npcProfile(next,n.id).name)+' '+n.initiative).join(' / ')+'.',...next.log].slice(0,40)};
+  next={...next,npcCombat:{active:true,round:1,order,help:null,...brawlWorthy(game,order)},log:['Combat begins. Initiative: '+order.map(n=>(n.id==='player'?'You':npcProfile(next,n.id).name)+' '+n.initiative).join(' / ')+'.',...next.log].slice(0,40)};
   const first=runNpcTurns(next,hp,hero,order.slice(0,order.findIndex(n=>n.id==='player')),false,random);next=first.game;hp=first.health;events.push(...first.events);
   if(next.npcCombat?.active)events.push('Your turn.');
   next={...next,journal:appendJournal(next.journal,'encounter','Combat begins',events.join('\n').slice(0,3000)),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
@@ -1521,6 +1523,12 @@ function toldOf(line,name){
   .replace(/^The blow is so savage that it kills you outright\. You die\.$/,`The blow kills ${name} outright.`).replace(/^You fall unconscious and are dying\..*$/,`${name} falls unconscious and is dying.`)
   .replace(/\bat you\b/g,'at '+name).replace(/\byour eyes\b/g,name+'’s eyes').replace(/\bYour next attack\b/g,name+'’s next attack').replace(/\bYou are knocked prone\b/g,name+' is knocked prone').replace(/\bYou keep your feet\b/g,name+' keeps their feet').replace(/\bYou are restrained\b/g,name+' is restrained').replace(/\bYou tear free\b/g,name+' tears free');
 }
+// Those fighting against the hero who were already hostile (or bore a grudge) before the first blow: only beating
+// them is worth experience (experienceRules.js), never beating up someone friendly.
+function brawlWorthy(game,order){
+ const worthy=order.filter(n=>n.side==='enemy'&&(game.npcMemory?.[n.id]?.attitude==='hostile'||game.npcMemory?.[n.id]?.grudge)).map(n=>n.id);
+ return worthy.length?{worthy}:{};
+}
 function partyStep(game,health,hero,action,random){
  const me=game.party.lead;
  if(game.turnOrder&&!partyFightOn(game))game=withoutOrder(game);
@@ -1681,16 +1689,16 @@ function dyingStep(game,health,hero,action,random){
  else if(next.stage!=='dying')next.journal=appendJournal(journalForGame(next),'encounter','Survived',hero.name+' clung to life after falling'+(game.dying.placeName?' at '+game.dying.placeName:'')+'.');
  return {...result,game:next};
 }
-// The chapter under way is finished: what it reveals is told, and the next begins. Every second chapter finished
-// earns the hero a level, taken when they choose (levelUpReady).
+// The chapter under way is finished: what it reveals is told, and the next begins. Finishing it is worth experience
+// to every hero (experienceRules.js), worked out after the turn.
 function advanceChapter(game,health,hero){
  const q=questState(game);
  if(!q?.current||q.last||game.story.status!=='active')return {game,health,error:'There is no further chapter to begin.'};
- const done=q.current,next=q.next,number=q.number,earns=number%2===0&&(hero?.level??1)+(game.levelsOwed??0)<20;
- const lines=['Chapter '+number+' complete: '+done.title+'. '+done.turn,'Chapter '+(number+1)+' begins: '+next.title+'. '+next.goal,...(earns?['You have earned a level. Take it when you are ready.']:[])];
+ const done=q.current,next=q.next,number=q.number;
+ const lines=['Chapter '+number+' complete: '+done.title+'. '+done.turn,'Chapter '+(number+1)+' begins: '+next.title+'. '+next.goal];
  let journal=appendJournal(journalForGame(game),'quest',('Chapter '+number+' complete: '+done.title).slice(0,100),done.turn);
  journal=appendJournal(journal,'quest',('Chapter '+(number+1)+': '+next.title).slice(0,100),next.goal);
- return {game:{...game,story:{...game.story,chapter:game.story.chapter+1},...(earns?{levelsOwed:(game.levelsOwed??0)+1}:{}),journal,worldFacts:[...(game.worldFacts??[]),('Chapter '+number+' ('+done.title+') is finished: '+done.turn).slice(0,800)].slice(-60),log:[...lines,...game.log].slice(0,40)},health,events:lines};
+ return {game:{...game,story:{...game.story,chapter:game.story.chapter+1},journal,worldFacts:[...(game.worldFacts??[]),('Chapter '+number+' ('+done.title+') is finished: '+done.turn).slice(0,800)].slice(-60),log:[...lines,...game.log].slice(0,40)},health,events:lines};
 }
 // A lead (a side errand of the tale) has been seen through.
 function finishLead(game,health,id){

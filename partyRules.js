@@ -8,7 +8,7 @@ import {gearedHero} from './inventoryRules';
 // (adventureRules.js), and the Dungeon Master is told about them but never speaks or acts for them (dmContext.js).
 // Turning the view is not a move: the table compares snapshots in their settled form (canonicalParty), which is the
 // same from every point of view, so only real changes are sent.
-export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
+export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','xp','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
 // What belongs to one hero's turn and does not outlast it.
 const turnFields=['actionUsed','surged','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed','featTurn'];
 export const maxPartySize=4;
@@ -94,10 +94,4 @@ export function soloFromParty(snapshot,level=null){
 export function partyMembers(game){
  if(!isPartyGame(game))return [];
  return (game.party.order??Object.keys(game.party.members)).filter(id=>game.party.members[id]).map(id=>{const m=game.party.members[id],hero=parse(m.character)??{};return {id,lead:id===game.party.lead,name:hero.name??'A hero',player:m.name||null,species:hero.species??hero.race??'',heroClass:hero.class??'',level:hero.level??1,status:m.status,hp:m.health?.current??m.stats?.hp??null,maxHp:m.stats?.hp??null};});
-}
-// A won fight earns a level for every other hero still alive (taken on their own next turn, as an owed level).
-export function partyVictory(before,after){
- if(!isPartyGame(after)||after.stage!=='victory'||before?.stage==='victory')return after;
- const members=Object.fromEntries(Object.entries(after.party.members).map(([id,m])=>[id,id===after.party.lead||m.status==='dead'?m:{...m,hero:{...m.hero,levelsOwed:Math.min(5,(m.hero?.levelsOwed??0)+1)}}]));
- return {...after,party:{...after.party,members}};
 }

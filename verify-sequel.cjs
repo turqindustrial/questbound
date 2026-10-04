@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // to the new start), its people and everyone met since (with memories, ties, fates, companions), the pack and
 // draughts; setting out somewhere new keeps only the companions and the pack. The roster sets heroes aside with
 // their adventures; the fallen go to the graveyard.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','rosterRules.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','rosterRules.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
@@ -28,6 +28,8 @@ const story2={...g.story,id:'s2',title:'The Salt Road',status:'active',premise:'
  npcs:{keeper:{...g.story.npcs.keeper,name:'Ysolde Fenn'},mara:{...g.story.npcs.mara,name:'Pim Ashdown'}}};
 delete story2.openingDialogue;
 const fresh=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g)));
+// Experience carries into the next tale; the tale's tally (fights, places, leads) starts again.
+{const withXp=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase({...g,xp:250,xpTally:{tale:g.story.id,fights:4,places:2,leads:[]}})));assert.equal(withXp.xp,250);assert.equal(withXp.xpTally,undefined);assert.ok(valid(withXp));}
 let next=r.joinRegion(fresh,g,{sameRegion:true,bearing:'N',miles:5});
 assert.ok(valid(next),'The continued story is a valid save');
 // Places: the old start, its two neighbours, then the places found there, joined in order.

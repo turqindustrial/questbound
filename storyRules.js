@@ -2,6 +2,7 @@ import {validTies,validRegard,firstImpressions,seatResidents} from './relationsh
 import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,placeKinds} from './mapRules';
 import {genders} from './npcRules';
 import {magicItems} from './lootRules';
+import {heroXp,xpForLevel} from './experienceRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
  const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -64,12 +65,13 @@ export function questState(game){
 }
 // What the player is working toward right now: the chapter's goal in a long tale, else the story's objective.
 export function currentGoal(game){const q=questState(game);return q?.current?.goal??game?.story?.objective??'';}
-// A level can be taken after the main foe falls (as ever), or when the tale has earned one (every second chapter
-// finished) and the hero is somewhere they can stop: not in a fight, not dying.
+// A level can be taken once the hero has the experience for it (experienceRules.js) and is somewhere they can stop:
+// not in a fight (nor a party's turn order), not dying, no spell waiting. A main foe beaten no longer grants one by
+// itself; the win is worth experience like everything else.
 export function levelUpReady(game,hero){
  if(!game||!hero||(hero.level??1)>=20)return false;
- if(game.stage==='victory')return true;
- return (game.levelsOwed??0)>0&&['inn','bridge','tower','wild'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&!game.wildFight&&!game.pendingSpell;
+ if(heroXp(game,hero)<xpForLevel((hero.level??1)+1))return false;
+ return ['inn','bridge','tower','wild','victory'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&!game.wildFight&&!game.pendingSpell&&!game.turnOrder;
 }
 // The story's foe grows with a hero who levels before meeting it; once the fight has been joined it stays as it is.
 export function foeForLevel(game,level){

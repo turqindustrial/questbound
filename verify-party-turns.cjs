@@ -5,9 +5,9 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // spent action survives another device's write, a hero who is down rolls their death save on their turn, an absent
 // player's turn can be passed, a hero who joins mid-fight takes the last place, a brawl with people goes the same way,
 // and a won fight ends the order. Every device's view stays a valid save throughout.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,turnOrderView,dmChoices,dmContext,quickActions,spellActions,dmCommand,attackOptions,freshStoryGame,commitDmTurn})',{AsyncStorage:{}});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,turnOrderView,dmChoices,dmContext,quickActions,withExperience,spellActions,dmCommand,attackOptions,freshStoryGame,commitDmTurn})',{AsyncStorage:{}});
 const plain=v=>JSON.parse(JSON.stringify(v));
 // Seeds spread over the generator's range (a small seed's first draws are all near 0).
 const seeded=seed=>{let s=(seed*48271+12345)%2147483647;return ()=>(s=(s*16807)%2147483647)/2147483647;};
@@ -143,6 +143,14 @@ table.game.enemyHP=1;
 const finisher=holder(),win=act(finisher,main(finisher),always(0.97));assert.ok(!win.error,win.error);
 assert.equal(table.game.stage,'victory');assert.equal(table.game.turnOrder,undefined,'no turn order once the fight is won');
 allValid('after the victory');
+// ---- A fight won on the foe's own turn (a companion finishes it): every living hero gains experience ----
+startTable();act('A',main('A'),seeded(5));
+table.game.followers={mara:{status:'following',location:'bridge',reason:'Hired to guard the wagons.',terms:''}};table.game.enemyHP=1;
+let gainedBy=null;for(let i=0;i<12&&table.game.stage==='combat';i++){const h=holder(),before=view(h),res=act(h,'dodge',always(0.97));assert.ok(!res.error,res.error);
+ const xp=r.withExperience(before.game,res.game,heroes[h],{});if(res.game.stage==='victory'){gainedBy={id:h,xp};table=plain(r.adventureSnapshot(heroes[h],xp.game,res.health,true));}}
+assert.ok(gainedBy,'Mara finished the bandit on its turn');assert.ok(gainedBy.xp.gained>0);
+for(const id of ['A','B','C'])assert.ok(view(id).game.xp>0,id+' gains experience from the win');
+allValid('after experience');
 
 // ---- A brawl with people goes in turns too ----
 const written={title:'The Test Road',premise:'A quiet inn.',opening:'You arrive.',objective:'Find the thief.',resolution:'Catch them.',secret:'The keeper knows.',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'The Lamp',description:'An inn.'},bridge:{name:'The Ford',description:'A ford.'},tower:{name:'The Mill',description:'A mill.'}},npcs:{keeper:{name:'Ivo Brask',species:'Human',role:'Innkeeper',motive:'Keep the peace.',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera Vane',species:'Elf',role:'Scribe',motive:'Learn the truth.',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',ties:{other:'friend',foe:'neutral',note:'n'}}}};
