@@ -95,7 +95,20 @@ const make=(cls,sub,level=3)=>{const h={name:'Brawler',class:cls,species:'Human'
  assert.equal(r.brawlStrength(allied,brute),1+r.sideWeightOf('Fighter'),'an ally fighting beside the hero');
  const pressed=r.adventureStep({...allied,npcCombat:{...allied.npcCombat,order:allied.npcCombat.order}},{current:999,temp:0},brute,'npc-dodge',always(.3));assert.ok(!pressed.error,pressed.error);
  assert.equal(blows(pressed),r.foeOffense(1+r.sideWeightOf('Fighter')).swings,'blows against a side with an ally: '+lines(pressed));
- valid(brute,pressed.game,{current:Math.min(pressed.health.current,r.combatBasics(brute).hp),temp:0},'a brawl against a bigger side');}
+ valid(brute,pressed.game,{current:Math.min(pressed.health.current,r.combatBasics(brute).hp),temp:0},'a brawl against a bigger side');
+ // A party's brawl in turns: each person fighting strikes as often as the party's size calls for, at any standing
+ // hero; a hero who falls lies dying while the others fight on, and every view stays a valid save.
+ const heroes={A:brute,B:ilyra};let table=r.startParty(r.adventureSnapshot(brute,inn,hpOf(brute),true),'A','Sam');
+ table=plain(r.joinParty(table,'B',{character:JSON.stringify(ilyra),game:null,health:null,name:'Jo'}).snapshot);
+ const view=id=>r.partyView(table,id),act=(id,action,random)=>{const v=view(id),res=r.adventureStep(v.game,v.health,heroes[id],action,random);if(!res.error)table=plain(r.adventureSnapshot(heroes[id],res.game,res.health,true));return res;};
+ const opened=act('A',{type:'npc-attack',target:'keeper',weapon:r.attackOptions(brute)[0].name},always(.02));assert.ok(!opened.error,opened.error);
+ assert.ok(table.game.npcCombat?.active&&table.game.turnOrder,'a party brawl in turns');
+ assert.equal(r.brawlStrength(view('A').game,brute),1+r.foeScaling.hero,'two heroes');
+ let most=0;
+ for(let i=0;i<10&&table.game.turnOrder;i++){const id=table.game.turnOrder.order[table.game.turnOrder.at].id,v=view(id),res=act(id,v.game.stage==='dying'?'death-save':v.game.actionUsed?'end-turn':'npc-dodge',seeded(40+i));assert.ok(!res.error,res.error);
+  most=Math.max(most,(res.events??[]).filter(l=>/^Captain Oona Brask attacks/.test(l)).length);
+  for(const [h,hh] of Object.entries(heroes))if(view(h))valid(hh,view(h).game,view(h).health,'party brawl view '+h);}
+ assert.equal(most,r.foeOffense(1+r.foeScaling.hero).swings,'she strikes twice in her turn against two heroes');}
 
 // ---- 6. A subclass's action turned on a person in a brawl ----
 {const snare=make('Artificer','Snarewright'),g={...fightFor(snare),stage:'inn',enemyHP:0,resources:{}};delete g.openingAttackAvailable;
