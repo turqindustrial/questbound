@@ -3,7 +3,7 @@ import {View,Text,Pressable,Animated,Easing,Platform,StyleSheet,useWindowDimensi
 import {playSound} from './audio';
 import {fonts,colors,tint} from './theme';
 const native=Platform.OS!=='web';
-// The launch sequence: the emblem draws in, the title rises out of the dark, then one tap begins the game.
+// The launch sequence: the emblem draws in (a serpent biting its tail turns slowly around it, webTheme.js), the title rises out of the dark, then one tap begins the game.
 // That tap is also what browsers require before sound (and full screen) may start.
 export default function LaunchScreen({ready,onBegin}){
  const {width,height}=useWindowDimensions(),size=Math.min(width,height);
@@ -41,8 +41,7 @@ export default function LaunchScreen({ready,onBegin}){
    <View dataSet={{qb:'embers'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
    <View dataSet={{qb:'grain'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
    <Animated.View style={{marginVertical:Math.round(ring*.2),opacity:emblem,transform:[{scale:emblem.interpolate({inputRange:[0,1],outputRange:[.82,1]})}]}}>
-    <View dataSet={{qb:'bezel',dir:'back'}} style={[s.bezel,{width:ring*1.42,height:ring*1.42,left:-ring*.21,top:-ring*.21}]}/>
-    <View dataSet={{qb:'bezel'}} style={[s.bezel,{width:ring*1.28,height:ring*1.28,left:-ring*.14,top:-ring*.14}]}/>
+    <View dataSet={{qb:'serpent'}} style={[s.serpent,{width:ring*1.42,height:ring*1.42,left:-ring*.21,top:-ring*.21}]}/>
     <View dataSet={{qb:'launch-ring'}} style={[s.ring,{width:ring,height:ring,borderRadius:ring/2}]}>
      <View style={[s.inner,{width:ring-18,height:ring-18,borderRadius:(ring-18)/2}]}/>
      <Text dataSet={{qb:'title'}} style={[s.q,{fontSize:q,lineHeight:Math.round(q*1.15)}]}>Q</Text>
@@ -62,7 +61,7 @@ export default function LaunchScreen({ready,onBegin}){
 }
 const s=StyleSheet.create({
  root:{zIndex:100,backgroundColor:colors.ink},passThrough:{pointerEvents:'none'},fill:{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:18,overflow:'hidden'},
- ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},bezel:{position:'absolute',pointerEvents:'none'},inner:{position:'absolute',borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')},
+ ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},serpent:{position:'absolute',pointerEvents:'none'},inner:{position:'absolute',borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')},
  q:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center'},
  eyebrow:{fontFamily:fonts.display,fontSize:11,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase',marginBottom:6},
  logo:{fontFamily:fonts.logo,fontWeight:'900',letterSpacing:5,color:colors.gold,textAlign:'center'},

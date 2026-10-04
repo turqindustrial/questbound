@@ -53,8 +53,8 @@ for(const id of themeIds)for(const value of Object.values(plain(themeSwatches(id
 const keys=[];mapColours('a #e04a5c b rgba(178,34,58,.5) c rgba(178,34,58,0.05) d #6fbf8e e #abc f url(#n) g #E04A5C',colour=>{keys.push(colour.key);});
 assert.deepEqual(keys,['e04a5c','b2223a-500','b2223a-050','e04a5c']);for(const key of keys)assert.match(key,/^[0-9a-f]{6}(-\d{3})?$/);
 // Every family colour written in a screen is inside tint(...), so no theme leaves a stray red or violet behind.
-// (Rules files and the map's own art are not screens; webTheme.js wraps its whole style sheet.)
-const notScreens=new Set(['mapArt.js','mapLayout.js','iconPaths.js','audio.js','themeRules.js','webTheme.js']);
+// (Rules files and the map's and the serpent's own art are not screens; webTheme.js wraps its whole style sheet.)
+const notScreens=new Set(['serpent.js','mapArt.js','mapLayout.js','iconPaths.js','audio.js','themeRules.js','webTheme.js']);
 const pattern=/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/g;
 const familyOf=m=>{let r,g,b;if(m[1]){const h=m[1].length===3?m[1].split('').map(c=>c+c).join(''):m[1];r=parseInt(h.slice(0,2),16);g=parseInt(h.slice(2,4),16);b=parseInt(h.slice(4,6),16);}else{r=+m[2];g=+m[3];b=+m[4];}return colourFamily(r,g,b);};
 const stray=[];let wrapped=0;
@@ -68,7 +68,7 @@ for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f)&&!/^(verify|qa-)
 });
 assert.deepEqual(stray,[],'colours written outside tint(): '+stray.slice(0,12).join('; '));assert.ok(wrapped>400);
 const web=fs.readFileSync('webTheme.js','utf8');
-assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMarkup(turn),theme)')&&web.includes("'--qb-bezel':svg(themedText(bezelMarkup,theme))"),'webTheme.js wraps its style sheet and writes its pictures per theme');
+assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMarkup(turn),theme)')&&web.includes("'--qb-serpent':svg(themedText(serpent,theme))")&&web.includes('const serpent=serpentMarkup();'),'webTheme.js wraps its style sheet and writes its pictures per theme');
 const themeSource=fs.readFileSync('theme.js','utf8');
 assert.ok(themeSource.includes("const KEY='questbound.theme.v1'")&&themeSource.includes('export function setTheme')&&themeSource.includes("coin:'#e8c77b'"));
 // The Theme section is in Settings.
@@ -83,6 +83,13 @@ const table=Object.fromEntries(themeIds.filter(id=>id!=='red').map(id=>[id,card.
 const script="<script>(function(){try{var t=JSON.parse(localStorage.getItem('questbound.theme.v1')||'{}').theme,c="+JSON.stringify(table)+"[t];if(c){var s=document.documentElement.style;for(var i=0;i<c.length;i++)s.setProperty('--b'+i,c[i]);}}catch(e){}})();</script>";
 const block=/(<!-- qb-theme-colours:start[^>]*-->\s*)([\s\S]*?)(\s*<!-- qb-theme-colours:end -->)/,found=page.match(block);
 assert.ok(found,'public/index.html has the qb-theme-colours block');
-if(process.argv.includes('--write')){fs.writeFileSync(pagePath,page.replace(block,(whole,start,old,end)=>start+script+end));console.log('Wrote the loading card colours for '+Object.keys(table).join(', ')+'.');}
-else assert.equal(found[2],script,'the loading card colours are out of date: run node verify-theme.cjs --write');
+// The loading card's serpent is the silhouette of serpent.js (the game's own ring), as a mask in the card's colour.
+const serpentContext={};vm.createContext(serpentContext);
+vm.runInContext(fs.readFileSync('serpent.js','utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.serpentMarkup=serpentMarkup;',serpentContext);
+const maskUrl='url("data:image/svg+xml,'+encodeURIComponent(serpentContext.serpentMarkup({detail:false})).replace(/'/g,'%27')+'")';
+const mask='-webkit-mask: '+maskUrl+' center/contain no-repeat; mask: '+maskUrl+' center/contain no-repeat;';
+const serpentBlock=/(\/\* qb-serpent:start \*\/)([\s\S]*?)(\/\* qb-serpent:end \*\/)/,serpentFound=page.match(serpentBlock);
+assert.ok(serpentFound,'public/index.html has the qb-serpent block');
+if(process.argv.includes('--write')){fs.writeFileSync(pagePath,page.replace(block,(whole,start,old,end)=>start+script+end).replace(serpentBlock,(whole,start,old,end)=>start+mask+end));console.log('Wrote the loading card colours for '+Object.keys(table).join(', ')+' and its serpent.');}
+else{assert.equal(found[2],script,'the loading card colours are out of date: run node verify-theme.cjs --write');assert.equal(serpentFound[2],mask,'the loading card serpent is out of date: run node verify-theme.cjs --write');}
 console.log('Themes: '+themeIds.join(', ')+'; '+wrapped+' screen colours follow the theme; loading card in step.');

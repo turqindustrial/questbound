@@ -2,6 +2,7 @@
 // The colours are written as the Red theme; tint() turns each into a style variable that follows the chosen theme.
 import {tint,themeVariables} from './theme';
 import {themedText} from './themeRules';
+import {serpentMarkup} from './serpent';
 const svg=markup=>'url("data:image/svg+xml,'+encodeURIComponent(markup)+'")';
 // Corner filigree for framed panels: a rounded bracket, an inner echo, two curls and a lozenge.
 const flourishMarkup=transform=>(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${transform}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M20 1.5c3 0 4.5 1.6 4.5 3.6' stroke-opacity='.8'/><path d='M1.5 20c0 3 1.6 4.5 3.6 4.5' stroke-opacity='.8'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#be96ff' stroke='none'/></g></svg>`);
@@ -9,11 +10,13 @@ const turns={tl:'',tr:'translate(34 0) scale(-1 1)',bl:'translate(0 34) scale(1 
 const corners={tl:'var(--qb-corner-tl)',tr:'var(--qb-corner-tr)',bl:'var(--qb-corner-bl)',br:'var(--qb-corner-br)'};
 // Film grain: fractal noise baked into a small tile once; it only moves on the compositor.
 const grain=svg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>`);
-// A bezel of ticks and lozenges that turns slowly around the launch emblem.
-const bezelMarkup=(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='#c4344e'><circle cx='100' cy='100' r='96' stroke-opacity='.35' stroke-width='.8'/><circle cx='100' cy='100' r='88' stroke-opacity='.2' stroke-width='.6'/>${Array.from({length:48},(_,i)=>{const a=i*7.5*Math.PI/180,long=i%4===0,r1=long?86:90,r2=95,x1=100+r1*Math.sin(a),y1=100-r1*Math.cos(a),x2=100+r2*Math.sin(a),y2=100-r2*Math.cos(a);return `<path d='M${x1.toFixed(2)} ${y1.toFixed(2)}L${x2.toFixed(2)} ${y2.toFixed(2)}' stroke-opacity='${long?.9:.45}' stroke-width='${long?1.2:.7}'/>`;}).join('')}${[0,90,180,270].map(d=>`<path transform='rotate(${d} 100 100)' d='M100 0.5 103.5 4 100 7.5 96.5 4Z' fill='#be96ff' stroke='none'/>`).join('')}</svg>`);
+// A serpent biting its tail (an ouroboros) turns slowly around the launch emblem and the story seal: scales, a head with a
+// violet eye, its jaws on the tail tip (serpent.js).
+const serpent=serpentMarkup();
 // A picture written as text cannot read a style variable, so these are written out afresh for each theme.
-const bezel='var(--qb-bezel)';
-themeVariables(theme=>({...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme))])),'--qb-bezel':svg(themedText(bezelMarkup,theme))}));
+// Each theme's set is worked out once: theme.js repaints every extra whenever a colour is first used.
+const pictures={};
+themeVariables(theme=>pictures[theme]??={...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme))])),'--qb-serpent':svg(themedText(serpent,theme))});
 const css=tint(`
 :root{--qb-gold:#e04a5c;--qb-gold-mid:#b2223a;--qb-ink:#0a070b;--qb-ease:cubic-bezier(.2,.8,.2,1);}
 html,body{background:#0a070b;color-scheme:dark;}
@@ -35,32 +38,23 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 /* Atmosphere: painted backdrop drifting slowly, light shafts, low fog, candle glow, vignette, rising embers and film grain. */
 /* The painting starts at its true size and drifts in only a little (the host asked for it zoomed out, 2026-10-02). */
 [data-qb=backdrop]{animation:qb-drift 70s ease-in-out infinite alternate;transform-origin:50% 40%;}
-/* The title painting. Wide: the lich's head and the heroes stay in view however short the window. On an upright phone
-   it sits between the name and the menu (App.js sets the variables from titleArt): "tall" is the tall painting at a
-   set height, its sides fading out when it is narrower than the screen; "band" is the wide painting across the width. */
-[data-qb=backdrop]>div{background-position:50% 30% !important;}
-[data-qb=backdrop][data-frame=tall]{--qb-title-rise:34px;}
-[data-qb=backdrop][data-frame=band]{--qb-title-rise:12px;}
-[data-qb=backdrop][data-frame=tall],[data-qb=backdrop][data-frame=band]{animation:none;
- -webkit-mask-image:linear-gradient(180deg,transparent var(--qb-title-top,112px),#000 calc(var(--qb-title-top,112px) + var(--qb-title-rise,34px)),#000 calc(var(--qb-title-top,112px) + var(--qb-title-size,540px) - 64px),transparent calc(var(--qb-title-top,112px) + var(--qb-title-size,540px)));
- mask-image:linear-gradient(180deg,transparent var(--qb-title-top,112px),#000 calc(var(--qb-title-top,112px) + var(--qb-title-rise,34px)),#000 calc(var(--qb-title-top,112px) + var(--qb-title-size,540px) - 64px),transparent calc(var(--qb-title-top,112px) + var(--qb-title-size,540px)));}
-[data-qb=backdrop][data-frame=tall]>div,[data-qb=backdrop][data-frame=band]>div{background-position:50% var(--qb-title-top,112px) !important;background-color:transparent;}
-[data-qb=backdrop][data-frame=tall]>div{background-size:auto var(--qb-title-size,540px) !important;
- -webkit-mask-image:linear-gradient(90deg,transparent var(--qb-title-edge,0px),#000 calc(var(--qb-title-edge,0px) + var(--qb-title-fade,0px)),#000 calc(100% - var(--qb-title-edge,0px) - var(--qb-title-fade,0px)),transparent calc(100% - var(--qb-title-edge,0px)));
- mask-image:linear-gradient(90deg,transparent var(--qb-title-edge,0px),#000 calc(var(--qb-title-edge,0px) + var(--qb-title-fade,0px)),#000 calc(100% - var(--qb-title-edge,0px) - var(--qb-title-fade,0px)),transparent calc(100% - var(--qb-title-edge,0px)));}
-[data-qb=backdrop][data-frame=band]>div{background-size:100% auto !important;}
+/* The valley painting: the horizon on wide screens; on an upright phone the tower, the bridge and the peak. */
+[data-qb=backdrop]>div{background-position:50% 42% !important;}
+[data-qb=backdrop][data-frame=tall]>div{background-position:62% 50% !important;}
 @keyframes qb-drift{from{transform:scale(1) translate3d(0,0,0);}to{transform:scale(1.05) translate3d(-1%,-1.5%,0);}}
 [data-qb=atmosphere]{background:
  radial-gradient(ellipse 80% 55% at 50% -8%,rgba(140,82,255,.20),transparent 60%),
  radial-gradient(ellipse 70% 50% at 50% 115%,rgba(72,35,115,.22),transparent 65%),
  linear-gradient(180deg,rgba(10,7,11,.45) 0%,rgba(10,7,11,.72) 45%,rgba(10,7,11,.94) 100%) !important;}
+/* The menu sits in the valley's dark left third; a faint warm glow toward the break in the clouds. */
 [data-qb=atmosphere-home]{background:
- linear-gradient(90deg,rgba(6,4,7,.93) 0%,rgba(6,4,7,.8) 15%,rgba(6,4,7,.34) 29%,rgba(6,4,7,.04) 42%,rgba(6,4,7,0) 100%),
- linear-gradient(180deg,rgba(6,4,7,.25) 0%,rgba(6,4,7,0) 22%,rgba(6,4,7,0) 62%,rgba(6,4,7,.78) 100%) !important;}
+ linear-gradient(90deg,rgba(6,4,7,.9) 0%,rgba(6,4,7,.66) 28%,rgba(6,4,7,.08) 58%,rgba(6,4,7,.12) 100%),
+ radial-gradient(ellipse 70% 60% at 78% 20%,rgba(236,164,84,.10),transparent 65%),
+ linear-gradient(180deg,rgba(6,4,7,.12) 0%,rgba(6,4,7,0) 50%,rgba(6,4,7,.8) 100%) !important;}
 /* The title screen shows its painting: a lighter frame than the menus and the game use. */
 [data-qb=vignette][data-home=on]{box-shadow:inset 0 0 140px 20px rgba(0,0,0,.6);}
 [data-qb=atmosphere-home-narrow]{background:
- linear-gradient(180deg,rgba(6,4,7,.55) 0%,rgba(6,4,7,.2) 20%,rgba(6,4,7,0) 34%,rgba(6,4,7,0) 58%,rgba(6,4,7,.7) 74%,rgba(6,4,7,.95) 100%) !important;}
+ linear-gradient(180deg,rgba(6,4,7,.5) 0%,rgba(6,4,7,.08) 30%,rgba(6,4,7,.62) 58%,rgba(6,4,7,.96) 100%) !important;}
 [data-qb=atmosphere-game]{background:
  radial-gradient(ellipse 90% 60% at 50% -10%,rgba(140,82,255,.12),transparent 60%),
  linear-gradient(180deg,rgba(10,7,11,.25) 0%,rgba(10,7,11,.55) 60%,rgba(10,7,11,.82) 100%) !important;}
@@ -298,8 +292,8 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=launch-glow]{background:radial-gradient(ellipse 60% 45% at 50% 42%,rgba(140,82,255,.22),transparent 70%),radial-gradient(ellipse 120% 80% at 50% 110%,rgba(72,35,115,.18),transparent 70%),#0a070b !important;animation:qb-candle 5s ease-in-out infinite;}
 @keyframes qb-candle{0%,100%{opacity:.85;}45%{opacity:1;}70%{opacity:.9;}}
 [data-qb=launch-ring]{box-shadow:0 0 0 1px rgba(0,0,0,.8),0 0 40px rgba(230,48,82,.35),inset 0 0 30px rgba(230,48,82,.18);background:radial-gradient(circle at 50% 40%,rgba(48,26,78,.55),rgba(14,10,14,.9) 70%) !important;}
-[data-qb=bezel]{background:${bezel} center/contain no-repeat;animation:qb-spin 90s linear infinite;opacity:.85;}
-[data-qb=bezel][data-dir=back]{animation-direction:reverse;animation-duration:140s;opacity:.4;transform:scale(1.12);}
+/* The serpent turns the way its head faces, chasing its tail. */
+[data-qb=serpent]{background:var(--qb-serpent) center/contain no-repeat;animation:qb-spin 120s linear infinite reverse;opacity:.95;}
 [data-qb=launch-prompt]{animation:qb-pulse 2.2s ease-in-out infinite;}
 @keyframes qb-pulse{0%,100%{opacity:.45;}50%{opacity:1;}}
 /* Game HUD and phone tab bar: dark glass, always on top of the scene. They are almost opaque, so they carry no blur
@@ -311,8 +305,6 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=tabbar]::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(224,74,92,.6) 20%,rgba(224,74,92,.6) 80%,transparent);pointer-events:none;}
 [data-qb=tab-on]{background:radial-gradient(ellipse 60% 90% at 50% 0%,rgba(230,48,82,.22),transparent 70%) !important;}
 [data-qb=emblem]{box-shadow:0 0 16px rgba(230,48,82,.35),inset 0 0 10px rgba(230,48,82,.2);}
-/* A sideways-scrolling row fades at its right edge, so more actions read as "swipe for more". */
-[data-qb=actions-scroll]{-webkit-mask-image:linear-gradient(90deg,#000 86%,transparent);mask-image:linear-gradient(90deg,#000 86%,transparent);}
 [data-qb=key]{box-shadow:inset 0 -1px 0 rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.06);}
 @media (hover:none){[data-qb=key]{display:none !important;}}
 [data-qb=typing] [data-qb=dot]{animation:qb-typing 1.2s ease-in-out infinite;}
@@ -327,7 +319,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
    look, still. No grain or light shafts, the fog, embers and painting stay where they are, and the frosted panels
    become plain dark glass (a blur of the moving scene behind them was redrawn every frame). */
 html[data-effects=light] [data-qb=grain],html[data-effects=light] [data-qb=rays]{display:none !important;}
-html[data-effects=light] [data-qb=fog],html[data-effects=light] [data-qb=embers]::before,html[data-effects=light] [data-qb=embers]::after,html[data-effects=light] [data-qb=backdrop],html[data-effects=light] [data-qb=btn-primary]::after,html[data-effects=light] [data-qb=launch-glow],html[data-effects=light] [data-qb=bezel]{animation:none !important;}
+html[data-effects=light] [data-qb=fog],html[data-effects=light] [data-qb=embers]::before,html[data-effects=light] [data-qb=embers]::after,html[data-effects=light] [data-qb=backdrop],html[data-effects=light] [data-qb=btn-primary]::after,html[data-effects=light] [data-qb=launch-glow],html[data-effects=light] [data-qb=serpent]{animation:none !important;}
 html[data-effects=light] [data-qb=glass],html[data-effects=light] [data-qb=hud],html[data-effects=light] [data-qb=tabbar],html[data-effects=light] [data-qb=scrim],html[data-effects=light] [data-qb=slot],html[data-effects=light] [data-qb=area],html[data-effects=light] [data-qb=finale]{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
 html[data-effects=light] [data-qb=glass]{background:linear-gradient(180deg,rgba(29,22,30,.95),rgba(16,11,17,.96)) !important;}
 html[data-effects=light] [data-qb=hud]{background:linear-gradient(180deg,rgba(22,17,23,.97),rgba(14,10,14,.95)) !important;}
