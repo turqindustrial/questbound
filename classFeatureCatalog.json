@@ -330,7 +330,7 @@
     "name": "Cutting Words",
     "description": "You learn to use your wit to supernaturally distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature's roll, reducing the damage or potentially turning the success into a failure.",
     "source": "SRD 5.2",
-    "automation": "reference"
+    "automation": "engine"
   },
   {
     "class": "Bard",
@@ -1437,7 +1437,7 @@
     "name": "Hunter's Prey",
     "description": "You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.\n\n**Colossus Slayer.** Your tenacity can wear down even the most resilient foes. When you hit a creature with a weapon, the weapon deals an extra 1d8 damage to the target if it's missing any of its Hit Points. You can deal this extra damage only once per turn.\n\n**Horde Breaker.** Once on each of your turns when you make an attack with a weapon, you can make another attack with the same weapon against a different creature that is within 5 feet of the original target, that is within the weapon's range, and that you haven't attacked this turn.",
     "source": "SRD 5.2",
-    "automation": "reference"
+    "automation": "engine"
   },
   {
     "class": "Ranger",
@@ -2058,6 +2058,1815 @@
     "name": "Overchannel",
     "description": "You can increase the power of your spells. When you cast a Wizard spell with a spell slot of levels 1–5 that deals damage, you can deal maximum damage with that spell on the turn you cast it.\n\nThe first time you do so, you suffer no adverse effect. If you use this feature again before you finish a Long Rest, you take 2d12 Necrotic damage for each level of the spell slot immediately after you cast it. This damage ignores Resistance and Immunity.\n\nEach time you use this feature again before finishing a Long Rest, the Necrotic damage per spell level increases by 1d12.",
     "source": "SRD 5.2",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Bulwark",
+    "level": 3,
+    "name": "Iron Brace",
+    "description": "When a creature you can see hits you with an attack, you can take a Reaction to brace against it and reduce the damage by 1d8 + your Constitution modifier (minimum 1). You can do this a number of times equal to your Proficiency Bonus, and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Bulwark",
+    "level": 6,
+    "name": "Stand Between",
+    "description": "While your Rage is active, when a creature within 5 feet of you is hit by an attack you can see, you can take a Reaction to step into the blow: you take the damage instead, and you have Resistance to it.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Bulwark",
+    "level": 10,
+    "name": "Rallying Roar",
+    "description": "As a Bonus Action you let out a roar that steadies your friends: you and each ally within 30 feet who can hear you gain Temporary Hit Points equal to your Barbarian level. You can do this once per Long Rest, or again by spending one use of your Rage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Bulwark",
+    "level": 14,
+    "name": "Last Wall Standing",
+    "description": "While your Rage is active, creatures of your choice within 10 feet of you have Disadvantage on attack rolls against any target other than you.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Ember Heart",
+    "level": 3,
+    "name": "Kindled Blows",
+    "description": "Once on each of your turns, when you hit a creature with a melee weapon or an Unarmed Strike, the blow deals an extra 1d6 Fire damage. The extra damage becomes 2d6 when you reach Barbarian level 10.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Ember Heart",
+    "level": 6,
+    "name": "Heat-Forged",
+    "description": "You have Resistance to Fire damage, and extreme heat does you no harm. While your Rage is active, flammable objects you strike that nobody is wearing or carrying catch fire.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Ember Heart",
+    "level": 10,
+    "name": "Flashpoint",
+    "description": "When you start a Rage, a wave of heat rolls off you: creatures of your choice within 10 feet make a Dexterity saving throw (DC 8 + your Constitution modifier + your Proficiency Bonus), taking 2d8 Fire damage on a failure or half as much on a success.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Ember Heart",
+    "level": 14,
+    "name": "Smouldering Retort",
+    "description": "While your Rage is active, a creature within 5 feet of you that hits you with an attack takes Fire damage equal to your Constitution modifier plus your Rage Damage bonus.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Stoneborn",
+    "level": 3,
+    "name": "Bedrock",
+    "description": "Your Hit Point maximum increases by 1 for each Barbarian level you have, and the saving throw DC of your Grapple and Shove rises by 2.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Stoneborn",
+    "level": 6,
+    "name": "Rooted",
+    "description": "While your Rage is active, nothing can push you, pull you or knock you Prone against your will.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Stoneborn",
+    "level": 10,
+    "name": "Rockslide Charge",
+    "description": "If you move at least 20 feet in a straight line toward a creature and then hit it with a melee attack, it makes a Strength saving throw (DC 8 + your Strength modifier + your Proficiency Bonus) or is pushed 10 feet away and knocked Prone.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Barbarian",
+    "subclass": "Path of the Stoneborn",
+    "level": 14,
+    "name": "Granite Skin",
+    "description": "While your Rage is active, the first damage you take on each turn is reduced by your Constitution modifier plus your Rage Damage bonus.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Steel Verses",
+    "level": 3,
+    "name": "Battle Cadence",
+    "description": "You gain proficiency with Martial weapons. Once on each of your turns, when you hit a creature with a weapon, the blow rings with your song and deals an extra 1d6 Thunder damage.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Steel Verses",
+    "level": 6,
+    "name": "Second Measure",
+    "description": "You can attack twice, instead of once, whenever you take the Attack action on your turn. You can replace one of those attacks with a Bard cantrip that takes an action to cast (the Dungeon Master plays this swap).",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Steel Verses",
+    "level": 14,
+    "name": "Crescendo",
+    "description": "When you cast a Bard spell with your action, you can make one weapon attack as a Bonus Action.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Borrowed Faces",
+    "level": 3,
+    "name": "Rattling Jest",
+    "description": "As a Bonus Action you aim a cruel jest at a creature you can see within 60 feet. It makes a Wisdom saving throw against your spell save DC or has Disadvantage on its next attack roll. You can do this a number of times equal to your Charisma modifier (minimum once), and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Borrowed Faces",
+    "level": 3,
+    "name": "Practised Liar",
+    "description": "You gain proficiency in the Deception and Insight skills.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Borrowed Faces",
+    "level": 6,
+    "name": "A Second Face",
+    "description": "You can cast Disguise Self without a spell slot a number of times equal to your Proficiency Bonus, regaining the uses on a Long Rest. You have Advantage on Deception checks to pass as someone you have studied for at least an hour.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of Borrowed Faces",
+    "level": 14,
+    "name": "The Last Mask",
+    "description": "Once per Long Rest, when a creature attacks you, you can take a Reaction to slip behind a borrowed face: the attack misses, and the attacker is Frightened of you until the end of its next turn.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of the Long Road",
+    "level": 3,
+    "name": "Hearthsong",
+    "description": "As a Bonus Action you hum an old walking song and gain Temporary Hit Points equal to 1d8 + your Bard level. You can do this a number of times equal to your Proficiency Bonus, and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of the Long Road",
+    "level": 3,
+    "name": "Road-Wise",
+    "description": "You gain proficiency in the Survival skill.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of the Long Road",
+    "level": 6,
+    "name": "Well-Travelled",
+    "description": "You and your companions cannot become lost except by magic, and companions who share a Short Rest with you regain extra Hit Points equal to your Charisma modifier.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Bard",
+    "subclass": "College of the Long Road",
+    "level": 14,
+    "name": "Song of Homecoming",
+    "description": "Once per Long Rest you can sing for one minute: each ally who hears the whole song regains Hit Points equal to your Bard level and ends one Charmed or Frightened condition on itself.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Hearth Domain",
+    "level": 3,
+    "name": "Hearth Domain Spells",
+    "description": "You always have these spells prepared once you reach the Cleric level shown, and they never count against the spells you prepare: level 3, Burning Hands, Heroism, Heat Metal and Flaming Sphere; level 5, Daylight and Protection from Energy; level 7, Fire Shield and Stone Shape; level 9, Flame Strike and Creation.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Hearth Domain",
+    "level": 3,
+    "name": "Banked Fire",
+    "description": "When a Cleric spell you cast deals Fire or Radiant damage, it deals extra damage equal to your Wisdom modifier, once per casting.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Hearth Domain",
+    "level": 3,
+    "name": "Hearthkeeper's Welcome",
+    "description": "As a Magic action you can spend a use of your Channel Divinity to kindle a welcoming warmth: you and each ally within 30 feet gain Temporary Hit Points equal to your Cleric level.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Hearth Domain",
+    "level": 6,
+    "name": "Warmth Shared",
+    "description": "Allies who finish a Short Rest with you regain extra Hit Points equal to your Wisdom modifier.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Hearth Domain",
+    "level": 17,
+    "name": "Undying Flame",
+    "description": "You have Resistance to Fire damage, and Fire damage from your spells ignores Resistance. Once per Long Rest, when you drop to 0 Hit Points, you drop to 1 instead, and creatures of your choice within 10 feet make a Dexterity saving throw against your spell save DC, taking 4d8 Fire damage on a failure or half as much on a success.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Vigil Domain",
+    "level": 3,
+    "name": "Vigil Domain Spells",
+    "description": "You always have these spells prepared once you reach the Cleric level shown, and they never count against the spells you prepare: level 3, Shield of Faith, Command, Spiritual Weapon and Warding Bond; level 5, Spirit Guardians and Magic Circle; level 7, Guardian of Faith and Freedom of Movement; level 9, Hallow and Hold Monster.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Vigil Domain",
+    "level": 3,
+    "name": "Steadfast Guard",
+    "description": "While you are wearing armor, you gain a +1 bonus to your Armor Class.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Vigil Domain",
+    "level": 3,
+    "name": "Sentinel's Rebuke",
+    "description": "When a creature attacks an ally within 5 feet of you, you can take a Reaction and spend a use of your Channel Divinity to give that attack roll Disadvantage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Vigil Domain",
+    "level": 6,
+    "name": "Interpose",
+    "description": "When a creature within 5 feet of you is targeted by an attack, you can take a Reaction to trade places with it and become the attack's target instead.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Vigil Domain",
+    "level": 17,
+    "name": "Bastion",
+    "description": "As a Magic action you can spend a use of your Channel Divinity to raise a holy bastion for 1 minute: you and allies within 10 feet gain a +2 bonus to Armor Class and cannot be Frightened.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Threshold Domain",
+    "level": 3,
+    "name": "Threshold Domain Spells",
+    "description": "You always have these spells prepared once you reach the Cleric level shown, and they never count against the spells you prepare: level 3, False Life, Bane, Gentle Repose and Ray of Enfeeblement; level 5, Speak with Dead and Revivify; level 7, Death Ward and Blight; level 9, Raise Dead and Antilife Shell.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Threshold Domain",
+    "level": 3,
+    "name": "Ferryman's Due",
+    "description": "When a fight you took part in ends in victory, you gain Temporary Hit Points equal to your Cleric level + your Wisdom modifier.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Threshold Domain",
+    "level": 3,
+    "name": "Hand at the Gate",
+    "description": "You can cast Spare the Dying as a Bonus Action, and its range is 60 feet for you.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Threshold Domain",
+    "level": 6,
+    "name": "Turn Back the Tide",
+    "description": "When you heal a creature that has 0 Hit Points with a spell, it regains extra Hit Points equal to your Cleric level.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Cleric",
+    "subclass": "Threshold Domain",
+    "level": 17,
+    "name": "Close the Door",
+    "description": "Undead have Disadvantage on saving throws against your spells. Once per Long Rest you can cast Revivify without a spell slot and without material components.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Thornwall",
+    "level": 3,
+    "name": "Thornwall Spells",
+    "description": "You always have these spells prepared once you reach the Druid level shown, and they never count against the spells you prepare: level 3, Entangle, Ensnaring Strike, Barkskin and Spike Growth; level 5, Plant Growth and Wind Wall; level 7, Stoneskin and Conjure Woodland Beings; level 9, Wall of Stone and Tree Stride.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Thornwall",
+    "level": 3,
+    "name": "Briar Mantle",
+    "description": "As a Bonus Action you wrap yourself in living thorn and gain Temporary Hit Points equal to twice your Druid level. You can do this twice, three times from Druid level 6 and four times from level 17, and you regain all uses when you finish a Short or Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Thornwall",
+    "level": 6,
+    "name": "Hedge of Thorns",
+    "description": "While you have Temporary Hit Points from Briar Mantle, a creature that hits you with a melee attack takes 1d6 Piercing damage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Thornwall",
+    "level": 10,
+    "name": "Rooted Ground",
+    "description": "Creatures you choose can move through the area of your Entangle and Spike Growth unhindered and unharmed.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Thornwall",
+    "level": 14,
+    "name": "Heartwood Guardian",
+    "description": "Once per Long Rest, as a Magic action, you take on a heartwood hide for 1 minute: you have Resistance to Bludgeoning, Piercing and Slashing damage, and allies within 10 feet of you gain a +1 bonus to Armor Class.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Fallow Field",
+    "level": 3,
+    "name": "Fallow Field Spells",
+    "description": "You always have these spells prepared once you reach the Druid level shown, and they never count against the spells you prepare: level 3, Ray of Sickness, False Life, Blindness/Deafness and Gentle Repose; level 5, Stinking Cloud and Plant Growth; level 7, Blight and Giant Insect; level 9, Contagion and Insect Plague.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Fallow Field",
+    "level": 3,
+    "name": "Rot and Root",
+    "description": "When a Druid spell you cast deals Poison or Necrotic damage, it deals extra damage equal to your Wisdom modifier, once per casting.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Fallow Field",
+    "level": 6,
+    "name": "Green from Grey",
+    "description": "When one of your spells deals Poison or Necrotic damage, an ally within 30 feet of you regains Hit Points equal to your Wisdom modifier (minimum 1).",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Fallow Field",
+    "level": 10,
+    "name": "Spore-Hardened",
+    "description": "You have Resistance to Poison and Necrotic damage, and you cannot be Poisoned.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Fallow Field",
+    "level": 14,
+    "name": "Fallow Season",
+    "description": "Once per Long Rest you can call a fallow season into a 20-foot radius around you for 1 minute. Creatures of your choice that start their turn there make a Constitution saving throw against your spell save DC, taking 2d8 Necrotic damage on a failure or half as much on a success.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Hollow Hill",
+    "level": 3,
+    "name": "Hollow Hill Spells",
+    "description": "You always have these spells prepared once you reach the Druid level shown, and they never count against the spells you prepare: level 3, Sleep, Faerie Fire, Invisibility and Pass without Trace; level 5, Plant Growth and Meld into Stone; level 7, Hallucinatory Terrain and Dimension Door; level 9, Dream and Tree Stride.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Hollow Hill",
+    "level": 3,
+    "name": "Host's Gift",
+    "description": "When you cast a spell with a spell slot that restores Hit Points, the creature regains extra Hit Points equal to your Wisdom modifier.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Hollow Hill",
+    "level": 6,
+    "name": "Under-Hill Paths",
+    "description": "Once per Short or Long Rest, as a Bonus Action, you can step into earth or a plant you touch and step out of another within 30 feet.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Hollow Hill",
+    "level": 10,
+    "name": "Glamoured Welcome",
+    "description": "You cannot be Charmed, and fey creatures start out at least indifferent toward you unless you have wronged them.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Druid",
+    "subclass": "Circle of the Hollow Hill",
+    "level": 14,
+    "name": "The Hall Beneath",
+    "description": "Once per Long Rest you can lead yourself and up to six allies into a hidden hall under the hill, where you take a Short Rest while only one minute passes outside.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Marshal",
+    "level": 3,
+    "name": "Captain's Call",
+    "description": "Companions fighting beside you add your Proficiency Bonus to their attack rolls.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Marshal",
+    "level": 3,
+    "name": "Rallying Word",
+    "description": "When you use Second Wind, one ally within 30 feet of you gains Temporary Hit Points equal to your Fighter level.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Marshal",
+    "level": 7,
+    "name": "Read the Field",
+    "description": "You add your Intelligence modifier to your Initiative rolls, and you cannot be Surprised while you are not Incapacitated.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Marshal",
+    "level": 10,
+    "name": "Strike on My Word",
+    "description": "When you take the Attack action, you can give up one of its attacks so that an ally or companion who can see or hear you makes one weapon attack with its Reaction.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Marshal",
+    "level": 15,
+    "name": "Hold the Ranks",
+    "description": "Allies within 10 feet of you gain a +1 bonus to Armor Class while you are not Incapacitated.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Marshal",
+    "level": 18,
+    "name": "Last Command",
+    "description": "Once per Long Rest, when an ally within 60 feet of you drops to 0 Hit Points, you can shout an order: it drops to 1 Hit Point instead and can make one attack with its Reaction.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Wardblade",
+    "level": 3,
+    "name": "Spark of the Art",
+    "description": "You learn the Shocking Grasp and Fire Bolt cantrips. Intelligence is your spellcasting ability for them.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Wardblade",
+    "level": 3,
+    "name": "Crackling Guard",
+    "description": "When a creature you can see hits you with an attack, you can take a Reaction to throw up a crackling ward and reduce the damage by 1d8 + your Intelligence modifier (minimum 1). You can do this a number of times equal to your Proficiency Bonus, and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Wardblade",
+    "level": 7,
+    "name": "Spell and Steel",
+    "description": "When you cast a cantrip with your action, you can make one weapon attack as a Bonus Action.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Wardblade",
+    "level": 10,
+    "name": "Unsettling Strike",
+    "description": "A creature you hit with a weapon has Disadvantage on the next saving throw it makes against a spell you cast before the end of your next turn.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Wardblade",
+    "level": 15,
+    "name": "Fold the Distance",
+    "description": "As a Bonus Action you can teleport up to 30 feet to an unoccupied space you can see. You can do this a number of times equal to your Proficiency Bonus, regaining the uses on a Long Rest.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Wardblade",
+    "level": 18,
+    "name": "Spellbreaker's Will",
+    "description": "You have Advantage on saving throws against spells, and when you succeed on one you gain Temporary Hit Points equal to your Fighter level.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Ironclad",
+    "level": 3,
+    "name": "Plate and Grit",
+    "description": "Your Hit Point maximum increases by 1 for each Fighter level you have.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Ironclad",
+    "level": 3,
+    "name": "Shield Bash",
+    "description": "While you hold a Shield, you can replace one attack of your Attack action with a Shove made with the Shield.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Ironclad",
+    "level": 7,
+    "name": "Shoulder Into Them",
+    "description": "When you Shove a creature, you can both push it 5 feet away and knock it Prone.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Ironclad",
+    "level": 10,
+    "name": "Shrug It Off",
+    "description": "When you succeed on a Constitution saving throw, you regain Hit Points equal to your Constitution modifier + your Proficiency Bonus.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Ironclad",
+    "level": 15,
+    "name": "Unmoved",
+    "description": "While you wear Medium or Heavy armor, damage you take from weapon attacks is reduced by 3.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Fighter",
+    "subclass": "Ironclad",
+    "level": 18,
+    "name": "Iron Will",
+    "description": "Once per Long Rest, when you drop to 0 Hit Points and are not killed outright, you drop to a number of Hit Points equal to your Fighter level instead.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Crane",
+    "level": 3,
+    "name": "Crane's Poise",
+    "description": "While you wear no armor and hold no Shield, you gain a +1 bonus to your Armor Class.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Crane",
+    "level": 3,
+    "name": "Wingbeat",
+    "description": "When you use Step of the Wind, you can carry one willing ally within 5 feet of you along with you.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Crane",
+    "level": 6,
+    "name": "Settle the Storm",
+    "description": "When an ally within 5 feet of you is hit by an attack, you can take a Reaction to turn the blow aside and reduce its damage by one roll of your Martial Arts die + your Wisdom modifier.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Crane",
+    "level": 11,
+    "name": "Still as Water",
+    "description": "As a Bonus Action you can spend 1 Focus Point to grow perfectly still: attack rolls against you have Disadvantage until the start of your next turn.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Crane",
+    "level": 17,
+    "name": "Crane Ascending",
+    "description": "When a creature misses you with a melee attack, you can take a Reaction to make one Unarmed Strike against it; on a hit it is also knocked Prone.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Coiled Serpent",
+    "level": 3,
+    "name": "Serpent's Fang",
+    "description": "Once on each of your turns, when you hit a creature with an Unarmed Strike or a Monk weapon, the blow deals an extra 1d6 Poison damage. The extra damage becomes 2d6 when you reach Monk level 11. Your Martial Arts bonus strike can carry it too.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Coiled Serpent",
+    "level": 6,
+    "name": "Shed Skin",
+    "description": "You have Resistance to Poison damage, and as a Bonus Action you can spend 1 Focus Point to end the Poisoned condition on yourself.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Coiled Serpent",
+    "level": 11,
+    "name": "Tightening Coil",
+    "description": "A creature that fails its saving throw against your Stunning Strike also takes 2d6 Poison damage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Coiled Serpent",
+    "level": 17,
+    "name": "Patience of the Serpent",
+    "description": "When you roll Initiative, choose a creature you can see: your first hit on it before the end of your next turn is a Critical Hit.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Hidden Step",
+    "level": 3,
+    "name": "Slip Behind",
+    "description": "Once on each of your turns, after you hit a creature with an Unarmed Strike or a Monk weapon, your next attack roll against that creature before the end of your next turn has Advantage.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Hidden Step",
+    "level": 6,
+    "name": "Quiet Feet",
+    "description": "You have Advantage on Dexterity (Stealth) checks, and as a Bonus Action you can spend 2 Focus Points to become Invisible until the end of your next turn or until you attack.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Hidden Step",
+    "level": 11,
+    "name": "Fold of the Moment",
+    "description": "Once per Short or Long Rest, when you take damage, you can take a Reaction to halve it and reappear in an unoccupied space you can see within 30 feet.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Monk",
+    "subclass": "Warrior of the Hidden Step",
+    "level": 17,
+    "name": "The Unseen Hand",
+    "description": "Once per Long Rest, as a Bonus Action, you become Invisible for 1 minute. Attacking does not end it, but you regain no Focus Points while it lasts.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Open Road",
+    "level": 3,
+    "name": "Open Road Spells",
+    "description": "You always have these spells prepared once you reach the Paladin level shown, and they never count against the spells you prepare: level 3, Sanctuary and Longstrider; level 5, Warding Bond and Find Steed; level 9, Create Food and Water and Water Walk; level 13, Freedom of Movement and Locate Creature; level 17, Tree Stride and Commune with Nature.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Open Road",
+    "level": 3,
+    "name": "Watchful Wayfarer",
+    "description": "You add your Wisdom modifier to your Initiative rolls, and you gain proficiency in the Survival skill.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Open Road",
+    "level": 3,
+    "name": "Shelter the Wayfarer",
+    "description": "As a Bonus Action you can spend a use of your Channel Divinity to shelter an ally within 30 feet: for 1 minute it gains a +2 bonus to Armor Class while it stays within 30 feet of you.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Open Road",
+    "level": 7,
+    "name": "Aura of the Road",
+    "description": "You and allies within 10 feet of you ignore difficult terrain made of rubble, mud, snow or undergrowth, and have Advantage on saving throws against being knocked Prone.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Open Road",
+    "level": 15,
+    "name": "Brigand's Bane",
+    "description": "When a creature within 30 feet of you hits an ally, you can take a Reaction to move up to your Speed toward it without provoking Opportunity Attacks. Your next melee hit on it before the end of your next turn deals an extra 2d8 Radiant damage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Open Road",
+    "level": 20,
+    "name": "Lantern of the Long Road",
+    "description": "Once per Long Rest, as a Bonus Action, you raise a lantern of holy light for 10 minutes: allies within 30 feet regain 10 Hit Points at the start of their turns while above 0, and you and they have Advantage on Wisdom saving throws.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of Ashes",
+    "level": 3,
+    "name": "Ashes Spells",
+    "description": "You always have these spells prepared once you reach the Paladin level shown, and they never count against the spells you prepare: level 3, Searing Smite and Hellish Rebuke; level 5, Heat Metal and Misty Step; level 9, Fireball and Fear; level 13, Fire Shield and Locate Creature; level 17, Flame Strike and Geas.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of Ashes",
+    "level": 3,
+    "name": "Cinder Oath",
+    "description": "Once on each of your turns, when you hit a creature with a melee weapon, the blow deals an extra 1d6 Fire damage.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of Ashes",
+    "level": 3,
+    "name": "Mark for Burning",
+    "description": "As a Bonus Action you can spend a use of your Channel Divinity to name a creature within 60 feet. For 1 minute your first hit on it each turn deals extra Fire damage equal to your Charisma modifier, and you know which way it lies while it is within 1 mile.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of Ashes",
+    "level": 7,
+    "name": "Aura of Embers",
+    "description": "Hostile creatures within 10 feet of you lose any Resistance to Fire damage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of Ashes",
+    "level": 15,
+    "name": "Unquenched",
+    "description": "Once per Long Rest, when you drop to 0 Hit Points and are not killed outright, you drop to 1 Hit Point instead.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of Ashes",
+    "level": 20,
+    "name": "Pyre-Bearer",
+    "description": "Once per Long Rest, as a Bonus Action, you become a walking pyre for 1 minute: your weapon hits deal an extra 2d8 Fire damage, melee attackers that hit you take 2d8 Fire damage, and you shed bright light for 30 feet.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Living Wood",
+    "level": 3,
+    "name": "Living Wood Spells",
+    "description": "You always have these spells prepared once you reach the Paladin level shown, and they never count against the spells you prepare: level 3, Goodberry and Entangle; level 5, Barkskin and Lesser Restoration; level 9, Plant Growth and Water Walk; level 13, Giant Insect and Freedom of Movement; level 17, Tree Stride and Wall of Stone.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Living Wood",
+    "level": 3,
+    "name": "Heartwood",
+    "description": "Your Hit Point maximum increases by 1 for each Paladin level you have.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Living Wood",
+    "level": 3,
+    "name": "Bough and Root",
+    "description": "As a Magic action you can spend a use of your Channel Divinity to call up roots: creatures of your choice within 15 feet make a Strength saving throw against your spell save DC or are Restrained until the end of your next turn.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Living Wood",
+    "level": 7,
+    "name": "Aura of Green Shelter",
+    "description": "You and allies within 10 feet of you have Resistance to Poison damage and Advantage on saving throws against being Poisoned.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Living Wood",
+    "level": 15,
+    "name": "Deep Roots",
+    "description": "While you stand on earth or living wood, nothing can move you or knock you Prone against your will. While you have half your Hit Points or fewer (but more than 0), you regain 5 Hit Points at the start of each of your turns.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Paladin",
+    "subclass": "Oath of the Living Wood",
+    "level": 20,
+    "name": "Elder of the Grove",
+    "description": "Once per Long Rest, as a Bonus Action, you take on the shape of an elder of the grove for 1 minute: you have Resistance to Bludgeoning, Piercing and Slashing damage, your reach grows by 5 feet, and allies within 30 feet regain 5 Hit Points at the start of their turns.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Trailbreaker",
+    "level": 3,
+    "name": "Trailbreaker Spells",
+    "description": "You always have these spells prepared once you reach the Ranger level shown, and they never count against the spells you prepare: level 3, Longstrider; level 5, Pass without Trace; level 9, Water Walk; level 13, Freedom of Movement; level 17, Tree Stride.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Trailbreaker",
+    "level": 3,
+    "name": "Trailbreaker's Lead",
+    "description": "You have Advantage on Initiative rolls, and you gain proficiency in the Survival skill.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Trailbreaker",
+    "level": 7,
+    "name": "Sure-Footed",
+    "description": "Difficult terrain does not slow you or the companions travelling with you, and you have Advantage on saving throws against being knocked Prone.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Trailbreaker",
+    "level": 11,
+    "name": "Ambush Lines",
+    "description": "In the first round of a fight, your first weapon hit on a creature that has not yet acted deals an extra 2d8 damage of the weapon's type.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Trailbreaker",
+    "level": 15,
+    "name": "Vanish into the Land",
+    "description": "You can take the Hide action as a Bonus Action while you are Lightly Obscured by foliage, mist or rubble.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Barrow Warden",
+    "level": 3,
+    "name": "Barrow Warden Spells",
+    "description": "You always have these spells prepared once you reach the Ranger level shown, and they never count against the spells you prepare: level 3, Protection from Evil and Good; level 5, See Invisibility; level 9, Speak with Dead; level 13, Death Ward; level 17, Dispel Evil and Good.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Barrow Warden",
+    "level": 3,
+    "name": "Hallowed Shot",
+    "description": "Once on each of your turns, when you hit a creature with a weapon, the blow deals an extra 1d6 Radiant damage.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Barrow Warden",
+    "level": 7,
+    "name": "Tomb-Sense",
+    "description": "You know when Undead are within 60 feet of you, though not exactly where, and you have Advantage on saving throws against being Frightened.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Barrow Warden",
+    "level": 11,
+    "name": "Lay to Rest",
+    "description": "Undead you reduce to 0 Hit Points cannot rise again short of a Wish, and creatures of your choice within 10 feet of the fallen creature regain Hit Points equal to your Wisdom modifier.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Barrow Warden",
+    "level": 15,
+    "name": "Warden's Resolve",
+    "description": "You have Resistance to Necrotic damage, and your Hit Point maximum cannot be reduced.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Packbound",
+    "level": 3,
+    "name": "Packbound Spells",
+    "description": "You always have these spells prepared once you reach the Ranger level shown, and they never count against the spells you prepare: level 3, Animal Friendship; level 5, Animal Messenger; level 9, Conjure Animals; level 13, Dominate Beast; level 17, Commune with Nature.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Packbound",
+    "level": 3,
+    "name": "Running with the Pack",
+    "description": "Once on each of your turns, when you hit a creature while a companion is fighting beside you, the blow deals an extra 1d6 damage of the weapon's type.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Packbound",
+    "level": 7,
+    "name": "Shared Senses",
+    "description": "Companions travelling with you add your Wisdom modifier to their Wisdom (Perception) checks.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Packbound",
+    "level": 11,
+    "name": "Harrying Pack",
+    "description": "When a companion beside you hits a creature, your next attack roll against that creature before the end of your next turn has Advantage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Ranger",
+    "subclass": "Packbound",
+    "level": 15,
+    "name": "Pack Endures",
+    "description": "Once per Short or Long Rest, when a companion within 30 feet of you drops to 0 Hit Points, you can take a Reaction so that it drops to 1 Hit Point instead.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Quiet Knife",
+    "level": 3,
+    "name": "First Cut",
+    "description": "In the first round of a fight, your first weapon hit on a creature deals an extra 2d6 damage of the weapon's type.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Quiet Knife",
+    "level": 3,
+    "name": "Tools of the Trade",
+    "description": "You gain proficiency with the Disguise Kit and the Poisoner's Kit.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Quiet Knife",
+    "level": 9,
+    "name": "Borrowed Dark",
+    "description": "You can take the Hide action as a Bonus Action while you are Lightly Obscured, and you have Advantage on Dexterity (Stealth) checks while you move at no more than half your Speed.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Quiet Knife",
+    "level": 13,
+    "name": "Quiet Hands",
+    "description": "When you hit a creature that has not yet acted in the fight, it makes a Constitution saving throw (DC 8 + your Dexterity modifier + your Proficiency Bonus) or cannot speak or cry out until the end of its next turn.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Quiet Knife",
+    "level": 17,
+    "name": "The Last Cut",
+    "description": "Once per Long Rest, when you hit a creature with a weapon, you can turn the hit into a Critical Hit.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Silvertongue",
+    "level": 3,
+    "name": "Feint",
+    "description": "As a Bonus Action you feint at a creature within 5 feet of you: your next attack roll against it before the end of your next turn has Advantage. You can do this a number of times equal to your Proficiency Bonus, and you regain all uses when you finish a Short or Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Silvertongue",
+    "level": 3,
+    "name": "Smooth Talker",
+    "description": "You gain proficiency in the Persuasion and Deception skills.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Silvertongue",
+    "level": 9,
+    "name": "Read the Room",
+    "description": "As a Bonus Action you study a creature you can see: you learn its attitude toward you and whether the next thing it says is a lie.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Silvertongue",
+    "level": 13,
+    "name": "Silver Promise",
+    "description": "Once per Long Rest, when you fail a Charisma (Persuasion) or Charisma (Deception) check, you can turn the failure into a success.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Silvertongue",
+    "level": 17,
+    "name": "Unshakeable Story",
+    "description": "You cannot be Charmed, and magic cannot read your thoughts or tell whether you are lying unless you allow it.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Trickwright",
+    "level": 3,
+    "name": "Trickwright Cantrips",
+    "description": "You learn the Mage Hand, Minor Illusion and Shocking Grasp cantrips. Intelligence is your spellcasting ability for them.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Trickwright",
+    "level": 3,
+    "name": "Unseen Fingers",
+    "description": "Your Mage Hand is invisible, and you can use it to pick locks, lift purses or plant objects on someone, making the check yourself.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Trickwright",
+    "level": 9,
+    "name": "False Doubles",
+    "description": "While a creature can see a double of you made with your Minor Illusion, its attack rolls against you have Disadvantage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Trickwright",
+    "level": 13,
+    "name": "Spark Trap",
+    "description": "As a Bonus Action you charge an object you touch. The next creature to touch it within 1 minute takes 3d8 Lightning damage, or half as much on a successful Dexterity saving throw (DC 8 + your Intelligence modifier + your Proficiency Bonus).",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Rogue",
+    "subclass": "Trickwright",
+    "level": 17,
+    "name": "Grand Misdirection",
+    "description": "Once per Long Rest, when an attack or spell is aimed at you, you can take a Reaction to send it at another creature within 30 feet of you instead.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Frostblood Sorcery",
+    "level": 3,
+    "name": "Frostblood Spells",
+    "description": "You always have these spells prepared once you reach the Sorcerer level shown, and they never count against the spells you prepare: level 3, Ice Knife, Fog Cloud, Gust of Wind and Hold Person; level 5, Sleet Storm and Protection from Energy; level 7, Ice Storm and Stoneskin; level 9, Cone of Cold and Wall of Stone.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Frostblood Sorcery",
+    "level": 3,
+    "name": "Rime-Touched",
+    "description": "When a Sorcerer spell you cast deals Cold damage, it deals extra damage equal to your Charisma modifier, once per casting. Extreme cold does you no harm.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Frostblood Sorcery",
+    "level": 6,
+    "name": "Hoarfrost Shell",
+    "description": "When you are hit by an attack, you can take a Reaction and spend 1 Sorcery Point to gain Resistance to that attack's damage, and the attacker loses 10 feet of Speed until the end of its next turn.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Frostblood Sorcery",
+    "level": 14,
+    "name": "Glacial Stride",
+    "description": "You have Resistance to Cold damage, you ignore difficult terrain made of ice or snow, and you can walk across water by freezing it beneath your feet.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Frostblood Sorcery",
+    "level": 18,
+    "name": "Heart of Winter",
+    "description": "Once per Long Rest, as a Bonus Action, you let winter loose for 1 minute: your Cold damage ignores Resistance, and creatures that start their turn within 10 feet of you take 2d8 Cold damage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Veilborn Sorcery",
+    "level": 3,
+    "name": "Veilborn Spells",
+    "description": "You always have these spells prepared once you reach the Sorcerer level shown, and they never count against the spells you prepare: level 3, Disguise Self, Silent Image, Invisibility and Darkness; level 5, Blink and Major Image; level 7, Greater Invisibility and Hallucinatory Terrain; level 9, Mislead and Seeming.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Veilborn Sorcery",
+    "level": 3,
+    "name": "Step Behind the Veil",
+    "description": "As a Bonus Action you fade half out of sight: the next attack roll a creature of your choice makes against you before your next turn has Disadvantage. You can do this a number of times equal to your Proficiency Bonus, and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Veilborn Sorcery",
+    "level": 6,
+    "name": "Through the Veil",
+    "description": "When you cast an Illusion spell of level 1 or higher, you can teleport up to 15 feet to an unoccupied space you can see.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Veilborn Sorcery",
+    "level": 14,
+    "name": "Half-There",
+    "description": "You have Resistance to Psychic damage, and you can move through creatures and objects as if they were difficult terrain, taking 1d10 Force damage if you end a turn inside one.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Veilborn Sorcery",
+    "level": 18,
+    "name": "Veilwalker",
+    "description": "Once per Long Rest, as a Magic action, you step wholly behind the veil for 1 minute: you are Invisible, you see invisible things, and you can pass through objects. Attacking does not end it.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Saintblood Sorcery",
+    "level": 3,
+    "name": "Saintblood Spells",
+    "description": "You always have these spells prepared once you reach the Sorcerer level shown, and they never count against the spells you prepare: level 3, Cure Wounds, Bless, Aid and Lesser Restoration; level 5, Revivify and Daylight; level 7, Death Ward and Guardian of Faith; level 9, Greater Restoration and Mass Cure Wounds.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Saintblood Sorcery",
+    "level": 3,
+    "name": "Grace in the Blood",
+    "description": "When you cast a spell with a spell slot that restores Hit Points, the creature regains extra Hit Points equal to your Charisma modifier.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Saintblood Sorcery",
+    "level": 6,
+    "name": "Haloed",
+    "description": "As a Bonus Action you can spend 1 Sorcery Point to wreathe yourself in a halo of bright light 20 feet across for 1 minute. Undead and Fiends in the light have Disadvantage on attack rolls against you.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Saintblood Sorcery",
+    "level": 14,
+    "name": "Martyr's Grace",
+    "description": "When an ally within 30 feet of you takes damage, you can take a Reaction to take that damage instead, with Resistance to it.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Sorcerer",
+    "subclass": "Saintblood Sorcery",
+    "level": 18,
+    "name": "Miracle",
+    "description": "Once per Long Rest, as a Magic action, you restore 70 Hit Points shared as you choose among creatures within 30 feet of you, and end the Blinded, Deafened and Poisoned conditions on them.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Lantern-Keeper Patron",
+    "level": 3,
+    "name": "Lantern-Keeper Spells",
+    "description": "You always have these spells prepared once you reach the Warlock level shown, and they never count against the spells you prepare: level 3, Healing Word, Faerie Fire, Continual Flame and See Invisibility; level 5, Daylight and Sending; level 7, Locate Creature and Guardian of Faith; level 9, Commune and Greater Restoration.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Lantern-Keeper Patron",
+    "level": 3,
+    "name": "Kindly Light",
+    "description": "As a Bonus Action you draw on your patron's lamp and regain Hit Points equal to 1d8 + your Warlock level. You can do this a number of times equal to your Charisma modifier (minimum once), and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Lantern-Keeper Patron",
+    "level": 6,
+    "name": "Lamp in the Dark",
+    "description": "You and creatures of your choice within 10 feet of you can see normally in magical darkness out to 30 feet.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Lantern-Keeper Patron",
+    "level": 10,
+    "name": "Guiding Flame",
+    "description": "Once per Short or Long Rest, when an ally within 60 feet of you fails a saving throw, you can take a Reaction to let it roll the save again.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Lantern-Keeper Patron",
+    "level": 14,
+    "name": "Bring Them Home",
+    "description": "Once per Long Rest, as a Magic action, you lead yourself and up to five allies by lantern-light to a place on this plane where you have rested before; you arrive after one minute.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Elder Grove Patron",
+    "level": 3,
+    "name": "Elder Grove Spells",
+    "description": "You always have these spells prepared once you reach the Warlock level shown, and they never count against the spells you prepare: level 3, Entangle, Goodberry, Barkskin and Spike Growth; level 5, Plant Growth and Speak with Plants; level 7, Conjure Woodland Beings and Giant Insect; level 9, Tree Stride and Awaken.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Elder Grove Patron",
+    "level": 3,
+    "name": "Bark and Bramble",
+    "description": "When a creature you can see hits you with an attack, you can take a Reaction to harden into bark and reduce the damage by 1d8 + your Charisma modifier (minimum 1). You can do this a number of times equal to your Charisma modifier (minimum once), and you regain all uses when you finish a Short or Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Elder Grove Patron",
+    "level": 6,
+    "name": "Thorned Bargain",
+    "description": "A creature within 5 feet of you that hits you with an attack takes Piercing damage equal to your Charisma modifier.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Elder Grove Patron",
+    "level": 10,
+    "name": "Green Passage",
+    "description": "Once per Short or Long Rest, as a Bonus Action, you can step into a tree or large plant you touch and out of another within 60 feet.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Elder Grove Patron",
+    "level": 14,
+    "name": "Grove's Embrace",
+    "description": "Once per Long Rest, as a Magic action, you call on the grove to seize a creature within 60 feet. It makes a Strength saving throw against your spell save DC or is Restrained for 1 minute, taking 4d10 Bludgeoning damage at the start of each of its turns; it repeats the save at the end of each of its turns.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Whispering Void Patron",
+    "level": 3,
+    "name": "Whispering Void Spells",
+    "description": "You always have these spells prepared once you reach the Warlock level shown, and they never count against the spells you prepare: level 3, Silent Image, Command, Mind Spike and Blindness/Deafness; level 5, Fear and Tongues; level 7, Arcane Eye and Resilient Sphere; level 9, Scrying and Dream.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Whispering Void Patron",
+    "level": 3,
+    "name": "Echo of the Void",
+    "description": "When a Warlock spell you cast deals Force or Psychic damage, it deals extra damage equal to your Charisma modifier, once per casting (once per Eldritch Blast, not once per beam).",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Whispering Void Patron",
+    "level": 3,
+    "name": "Void-Sight",
+    "description": "Once per Short or Long Rest you can open your eyes to the void for 1 minute: you see through magical darkness and recognise illusions within 30 feet for what they are.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Whispering Void Patron",
+    "level": 6,
+    "name": "Unravelling Gaze",
+    "description": "When a creature within 30 feet of you succeeds on a saving throw against one of your spells, you can take a Reaction to deal it Psychic damage equal to your Charisma modifier + your Warlock level.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Whispering Void Patron",
+    "level": 10,
+    "name": "Hollow Mind",
+    "description": "You have Resistance to Psychic damage, and creatures you can see cannot Charm or Frighten you.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Warlock",
+    "subclass": "Whispering Void Patron",
+    "level": 14,
+    "name": "Call of the Deep Silence",
+    "description": "Once per Long Rest, as a Magic action, you open a creature within 60 feet to the silence. It makes a Wisdom saving throw against your spell save DC: on a failure it takes 8d10 Psychic damage and is Incapacitated until the end of its next turn; on a success it takes half as much damage.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Wardwright",
+    "level": 3,
+    "name": "Woven Ward",
+    "description": "While you wear no armor, your Armor Class equals 10 + your Dexterity modifier + your Intelligence modifier.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Wardwright",
+    "level": 3,
+    "name": "Ward-Scribe",
+    "description": "Copying a spell that protects or wards into your spellbook takes you half the usual time and gold.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Wardwright",
+    "level": 6,
+    "name": "Spread the Ward",
+    "description": "When an ally within 30 feet of you is hit by an attack, you can take a Reaction and expend a spell slot to give it Temporary Hit Points equal to twice the slot's level + your Intelligence modifier against that hit.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Wardwright",
+    "level": 10,
+    "name": "Sealed Mind",
+    "description": "You have Advantage on saving throws against spells that would charm you or read your mind.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Wardwright",
+    "level": 14,
+    "name": "Woven Fortress",
+    "description": "Once per Long Rest, as a Bonus Action, you weave a fortress of wards for 1 minute: you and allies within 10 feet have Resistance to damage from spells.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Bonewright",
+    "level": 3,
+    "name": "Marrow-Cold",
+    "description": "When a Wizard spell you cast deals Necrotic damage, it deals extra damage equal to your Intelligence modifier, once per casting.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Bonewright",
+    "level": 3,
+    "name": "Bone Servant",
+    "description": "Once per Long Rest you can raise a small skeletal servant for 1 hour. It follows simple commands, can carry and fetch, and cannot attack.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Bonewright",
+    "level": 6,
+    "name": "Death's Chill",
+    "description": "You have Resistance to Necrotic damage, and your Hit Point maximum cannot be reduced.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Bonewright",
+    "level": 10,
+    "name": "Command the Restless",
+    "description": "Undead you create gain extra Hit Points equal to your Wizard level, and your spells that cover an area can leave them unharmed.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Bonewright",
+    "level": 14,
+    "name": "Unmaking Touch",
+    "description": "Once per Long Rest, as a Magic action, you touch a creature. It makes a Constitution saving throw against your spell save DC, taking 10d10 Necrotic damage on a failure or half as much on a success.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Fateweaver",
+    "level": 3,
+    "name": "Foreseen Step",
+    "description": "You add your Intelligence modifier to your Initiative rolls, and you cannot be Surprised while you are not Incapacitated.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Fateweaver",
+    "level": 3,
+    "name": "Thread Pull",
+    "description": "Twice per Long Rest, after a creature within 60 feet of you rolls a d20, you can tug its thread and make it roll again; you choose which roll stands.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Fateweaver",
+    "level": 6,
+    "name": "Glimpse Ahead",
+    "description": "Once per Short or Long Rest you can cast Augury or Detect Thoughts without a spell slot.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Fateweaver",
+    "level": 10,
+    "name": "Cut the Thread",
+    "description": "When an attack hits an ally within 60 feet of you, you can take a Reaction and expend a spell slot to make it miss instead.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Wizard",
+    "subclass": "Fateweaver",
+    "level": 14,
+    "name": "Weaver's Sight",
+    "description": "You have Truesight out to 30 feet, and you can use Thread Pull three times per Long Rest.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Snarewright",
+    "level": 3,
+    "name": "Snarewright Spells",
+    "description": "You always have these spells prepared once you reach the Artificer level shown, and they never count against the spells you prepare: level 3, Grease and Alarm; level 5, Web and Spike Growth; level 9, Glyph of Warding and Sleet Storm; level 13, Black Tentacles and Stone Shape; level 17, Wall of Stone and Hold Monster.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Snarewright",
+    "level": 3,
+    "name": "Tangle-Bolt",
+    "description": "As an action you fire a weighted line at a creature within 60 feet. It makes a Dexterity saving throw against your spell save DC: on a failure it takes 2d6 Piercing damage and is knocked Prone; on a success it takes half as much damage. You can do this a number of times equal to your Intelligence modifier (minimum once), and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Snarewright",
+    "level": 3,
+    "name": "Trap-Maker's Kit",
+    "description": "You gain proficiency with Tinker's Tools, and during a Short Rest you can set a snare on a 10-foot square you choose.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Snarewright",
+    "level": 5,
+    "name": "Barbed Lines",
+    "description": "Your Tangle-Bolt deals 3d6 Piercing damage.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Snarewright",
+    "level": 9,
+    "name": "Chain Reaction",
+    "description": "When a snare or a Tangle-Bolt catches a creature, a second creature within 10 feet of it makes the same saving throw.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Snarewright",
+    "level": 15,
+    "name": "Master of Snares",
+    "description": "Your Tangle-Bolt deals 5d6 Piercing damage, and creatures have Disadvantage on saving throws against your snares.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Alchemist",
+    "level": 3,
+    "name": "Field Tonic",
+    "description": "As a Bonus Action you drink a tonic you mixed in the field and regain Hit Points equal to 1d8 + your Intelligence modifier. You can do this a number of times equal to your Intelligence modifier (minimum once), and you regain all uses when you finish a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Alchemist",
+    "level": 5,
+    "name": "Reagent Boost",
+    "description": "When you cast a spell that restores Hit Points or deals Acid, Fire or Poison damage, you can add your Intelligence modifier to one roll of it.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Alchemist",
+    "level": 9,
+    "name": "Restoring Draughts",
+    "description": "You can cast Lesser Restoration without a spell slot a number of times equal to your Intelligence modifier, regaining the uses on a Long Rest, and a healing draught you hand to an ally restores extra Hit Points equal to your Intelligence modifier.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Alchemist",
+    "level": 15,
+    "name": "Proof Against Poison",
+    "description": "You have Resistance to Acid and Poison damage, and you cannot be Poisoned.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Armorer",
+    "level": 3,
+    "name": "Plated Craft",
+    "description": "While you wear armor, you gain a +1 bonus to your Armor Class: you have fitted and tuned every plate of it yourself.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Armorer",
+    "level": 5,
+    "name": "Second Swing",
+    "description": "You can attack twice, instead of once, whenever you take the Attack action on your turn.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Armorer",
+    "level": 9,
+    "name": "Tuned Plating",
+    "description": "Your armor counts as a magic item for you, and once per Short or Long Rest, when you are hit, you can take a Reaction to gain Temporary Hit Points equal to your Artificer level.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Armorer",
+    "level": 15,
+    "name": "Masterwork Suit",
+    "description": "Your armor grants you Advantage on saving throws against being Grappled, Restrained or knocked Prone, and your Speed increases by 10 feet while you wear it.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Artillerist",
+    "level": 3,
+    "name": "Field Engine",
+    "description": "As an action you fire a small arcane engine you built at a creature within 60 feet. It makes a Dexterity saving throw against your spell save DC, taking 2d8 Force damage on a failure or half as much on a success. The damage grows to 3d8 at Artificer level 9 and 4d8 at level 15. You can do this a number of times equal to your Intelligence modifier (minimum once), regaining the uses on a Long Rest.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Artillerist",
+    "level": 5,
+    "name": "Steadied Barrel",
+    "description": "When you cast an Artificer spell that deals damage, you can add your Intelligence modifier to one of its damage rolls.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Artillerist",
+    "level": 9,
+    "name": "Burst the Engine",
+    "description": "As a Magic action you can make your field engine burst: each creature within 10 feet of the point you choose makes a Dexterity saving throw against your spell save DC, taking 3d8 Force damage on a failure or half as much on a success.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Artillerist",
+    "level": 15,
+    "name": "Entrenched Battery",
+    "description": "While you stand still behind your field engine, you and allies within 10 feet of you have Half Cover.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Battle Smith",
+    "level": 3,
+    "name": "Smith's Drill",
+    "description": "You gain proficiency with Martial weapons.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Battle Smith",
+    "level": 3,
+    "name": "Forged Companion",
+    "description": "You build a small mechanical companion that follows your commands. It acts on your turn, can take the Help action or make one attack, and you repair it during a Short or Long Rest (the Dungeon Master plays it).",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Battle Smith",
+    "level": 5,
+    "name": "Drilled Strikes",
+    "description": "You can attack twice, instead of once, whenever you take the Attack action on your turn.",
+    "source": "Questbound",
+    "automation": "engine"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Battle Smith",
+    "level": 9,
+    "name": "Spark Strike",
+    "description": "Once on each of your turns, when you or your companion hits a creature, you can deal an extra 2d6 Force damage to it, or restore 2d6 Hit Points to a creature within 30 feet. You can do this a number of times equal to your Intelligence modifier per Long Rest.",
+    "source": "Questbound",
+    "automation": "reference"
+  },
+  {
+    "class": "Artificer",
+    "subclass": "Battle Smith",
+    "level": 15,
+    "name": "Reforged Companion",
+    "description": "Your companion gains a +2 bonus to Armor Class, and when it is hit it deals 1d4 + your Intelligence modifier Force damage back to the attacker.",
+    "source": "Questbound",
     "automation": "reference"
   }
 ]
