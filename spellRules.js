@@ -928,7 +928,8 @@ export function alliesNamed(game,spell,text,level=spell.level){
   const keys=[];
   for(const raw of t.split(/\s*(?:,|\band\b|&)\s*/).map(w=>w.trim().replace(/^(?:the|my)\s+/,'')).filter(Boolean)){
     if(['me','myself','self','i','you'].includes(raw)){keys.push('self');continue;}
-    const hit=names.find(([,name])=>{const first=name.split(' ')[0];return raw===name||raw===first||raw.startsWith(first+' ')||name.split(' ').includes(raw);});
+    // The game writes people's ids into the player's words ("on mara"), so an id matches too.
+    const hit=names.find(([id,name])=>{const first=name.split(' ')[0];return raw===id||raw===name||raw===first||raw.startsWith(first+' ')||name.split(' ').includes(raw);});
     if(!hit)return null;keys.push(hit[0]);
   }
   return keys.length?[...new Set(keys)]:null;
@@ -1094,7 +1095,7 @@ export function websBurn(game,key,type,name){
   if(type!=='Fire')return {game,lines:[]};
   const caught=(markOf(game,key).spells??[]).find(m=>m.id==='web'&&m.cond==='restrained');if(!caught)return {game,lines:[]};
   let next=dropSpellMark(game,key,caught);next=withSpellMark(next,key,{id:'web',cond:'aflame',by:caught.by,dc:caught.dc,save:'Dexterity',rounds:1});
-  return {game:next,lines:[`The webs around ${name} catch fire and burn away: ${name} is free, but burns at the start of its next turn.`]};
+  return {game:next,lines:[`The webs around ${name.replace(/^The /,'the ')} catch fire and burn away: ${name} is free, but burns at the start of its next turn.`]};
 }
 // The spell held can be used again this turn (its kind: 'bonus' or 'action'), or why not.
 export function againError(game,fighting=game.stage==='combat'||!!game.npcCombat?.active){
