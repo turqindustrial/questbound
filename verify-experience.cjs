@@ -186,3 +186,16 @@ for(const [L,[lo,hi]] of Object.entries(bands)){const m=median(L);assert.ok(m>=l
 for(let L=4;L<=10;L++){const step=median(L)-median(L-1);assert.ok(step>=.8&&step<=3.5,'level '+L+' takes '+step.toFixed(2)+' h');}
 
 console.log('Experience: SRD 5.2 thresholds; old saves read lazily (owed levels, an untaken victory); creature fights, lairs, packs and the ninth fight; the Skirmish closed past level 2; the main foe, chapters, leads and the tale paid once; places (ten a tale) and new lands; brawls only for the hostile; caps, level 20 and the dead; saves; levels taken where the hero stands (party kept); the Dungeon Master told only that a level waits; parties paid each their own; pace medians '+Object.keys(bands).map(L=>'L'+L+' '+median(L).toFixed(1)+' h').join(', ')+'.');
+
+// ---- The Dungeon Master's standing instructions and request (a fake provider; nothing is sent) ----
+(async()=>{
+ const server=require(process.env.QB_DM??'./dm-server.cjs');
+ assert.ok(server.questInstructions.includes('EXPERIENCE AND LEVELS: the game keeps the hero\'s experience itself'),'the standing instruction');
+ assert.ok(server.questInstructions.includes('context.levelReady means the hero has earned a level not yet taken'));assert.ok(!server.questInstructions.includes('levelEarned'));
+ const blank={narration:'The road is quiet.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null};
+ let request=null;const fetchImpl=async(url,options)=>{request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',usage:{input_tokens:100,output_tokens:10},output:[{content:[{type:'output_text',text:JSON.stringify(blank)}]}]})};};
+ const ripeGame={...fresh(),xp:400},body={input:'I rest a moment by the road.',context:{...r.dmContext(hero,ripeGame,hp),storyPreferences:{brutality:'gritty'},conversationWith:null,conversationParticipants:[]}};
+ const reply=await server.generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl});assert.equal(reply.narration,'The road is quiet.');
+ const sent=JSON.stringify(request.input);assert.ok(sent.includes('levelReady'),'the model is told a level waits');assert.ok(!/"xp"|xpTally|levelsOwed/.test(sent),'and never the numbers');
+ assert.ok(request.instructions.includes('EXPERIENCE AND LEVELS'));
+})().catch(error=>{console.error(error);process.exitCode=1;});
