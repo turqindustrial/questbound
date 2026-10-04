@@ -14,7 +14,7 @@ export function skirmishHint(game,health,maxHp){
   if(!(game.playback?.length))return 'Your first move. Tap your weapon to attack, or type what you do in your own words.';
   return 'Each turn: one action and one bonus action. Attack, Dodge, cast, or try something bold in your own words.';
  }
- if(game.foeFate==='slain'||game.enemyHP===0)return 'You won. Search the body, speak to the captain or walk to Lookout Rock: whatever you type is understood.';
+ if(game.foeFate==='slain'||game.enemyHP===0)return 'You won. Search the body, speak to the captain or walk to Lookout Rock: whatever you type is understood. Practice fights teach a hero up to level 3; a tale does the rest.';
  if(game.stage==='inn'&&(game.enemyHP??0)>0)return 'You got clear. Rest to recover, then face the bandit again when you are ready.';
  return null;
 }

@@ -14,7 +14,10 @@ import {useShownHp} from './cinematics';
 import {shortcutsBlocked} from './keyboard';
 import {fonts,colors,type,tint} from './theme';
 // The in-game heads-up display: always on screen, never scrolls away. HP follows the story as a turn plays out.
-export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,feedback={}}){
+// Experience as the screen shows it ("1,240/2,700"); xp is experienceView(game,hero) from experienceRules.js.
+const xpShort=n=>String(Math.round(n??0)).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+export const xpText=xp=>xp&&!xp.max?'XP '+xpShort(xp.xp)+'/'+xpShort(xp.next):'';
+export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,xp=null,feedback={}}){
  const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),[request,setRequest]=useState(null),shown=useShownHp();
  // A Report chip or the Dungeon Master's admitted fault opens this sheet with the problem attached.
  useFeedbackRequests(next=>{setMenu(false);setRequest(next??{});setNotes(true);});
@@ -36,10 +39,13 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
   <Pressable accessibilityRole="button" accessibilityLabel={'Open '+hero.name+"'s character sheet"} onPress={()=>go('Character Sheet')} style={s.identity}>
    <View dataSet={{qb:low?'low-ring':undefined,hit}}><HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/></View>
    <View style={[s.hero,!wide&&{flex:1}]}>
-    <View style={s.heroTop}><Text numberOfLines={1} style={[s.name,!wide&&{fontSize:15}]}>{hero.name}</Text>{(wide||width>=400)&&<Text numberOfLines={1} style={s.meta}>{roomy?'Level '+hero.level+' '+hero.class:'Lv '+hero.level+' '+hero.class}</Text>}</View>
+    <View style={s.heroTop}><Text numberOfLines={1} style={[s.name,!wide&&{fontSize:15}]}>{hero.name}</Text>{(wide||width>=400)&&<Text numberOfLines={1} style={s.meta}>{roomy?'Level '+hero.level+' '+hero.class+(xp&&!xp.max?' · '+xpText(xp):''):'Lv '+hero.level+' '+hero.class}</Text>}</View>
     <View style={s.hpRow}>
      <Icon name="heart" size={wide?14:12} color={low?colors.bloodBright:colors.heal}/>
-     <View style={{flex:1}}><StatBar value={hp} maximum={maxHp} height={wide?10:8}/></View>
+     <View style={{flex:1}}><StatBar value={hp} maximum={maxHp} height={wide?10:8}/>
+      {/* Experience toward the next level: a thin line in the gap under the HP bar, so the HUD keeps its height. */}
+      {!!xp&&!xp.max&&<View accessible accessibilityLabel={'Experience '+xpShort(xp.xp)+' of '+xpShort(xp.next)} style={s.xpLine}><StatBar value={Math.round(xp.progress*1000)} maximum={1000} kind="gold" height={3}/></View>}
+     </View>
      <View><Text style={[s.hp,low&&{color:colors.bloodBright}]}>{hpCount}<Text style={s.hpMax}>/{maxHp}</Text>{temp>0?<Text style={s.temp}> +{temp}</Text>:null}</Text><HpFloaters value={hp}/></View>
     </View>
    </View>
@@ -55,11 +61,11 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
     <IconButton icon="menu" label="Game menu" tip="Menu · M" onPress={()=>{setMenu(true);playSound('open');}}/>
    </View>
    :<View style={s.actions}><CombatHealthButton hud activeOnly/><AudioToggle compact/><IconButton icon="menu" label="Game menu" onPress={()=>{setMenu(true);playSound('open');}}/></View>}
-  <GameMenu visible={menu} hero={hero} hp={hp} maxHp={maxHp} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setRequest(null);setNotes(true);}}/>
+  <GameMenu visible={menu} hero={hero} hp={hp} maxHp={maxHp} xp={xp} onClose={()=>setMenu(false)} go={go} onFeedback={()=>{setMenu(false);setRequest(null);setNotes(true);}}/>
   <FeedbackSheet visible={notes} onClose={()=>{setNotes(false);setRequest(null);}} context={feedback} problem={request?.problem??null} prefill={request?.prefill??''}/>
  </View>;
 }
-function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){
+function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp,xp}){
  const [display,setDisplay]=useState(displayState),[audio,setAudioState]=useState(audioSettings);
  useEffect(()=>subscribeDisplay(setDisplay),[]);useEffect(()=>subscribeAudio(setAudioState),[]);
  // A phone gets tighter cells and a name sized to fit; on a short screen (a phone on its side) the sheet scrolls.
@@ -69,7 +75,7 @@ function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp}){
  return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}><Pressable accessibilityLabel="Close menu" onPress={onClose} dataSet={{qb:'scrim'}} style={[s.scrim,(narrow||short)&&{padding:10}]}><Pressable onPress={()=>{}} dataSet={{qb:'sheet'}} style={[s.sheet,short&&{maxWidth:640}]} accessibilityViewIsModal><ScrollView style={s.sheetScroll} contentContainerStyle={[s.sheetBody,narrow&&{padding:16},short&&{paddingVertical:12}]}>
   <View style={s.menuHead}>
    <HeroPortrait hero={hero} size={short?40:52} level={hero.level}/>
-   <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={[s.menuTitle,{fontSize:nameSize}]}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {hero.species??hero.race} {hero.class} · {hp}/{maxHp} HP</Text></View>
+   <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={[s.menuTitle,{fontSize:nameSize}]}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {hero.species??hero.race} {hero.class} · {hp}/{maxHp} HP{xp&&!xp.max?' · '+xpText(xp):''}</Text></View>
   </View>
   <GameButton variant="primary" icon="play" label="Resume" onPress={onClose}/>
   <View style={s.grid}>
@@ -93,7 +99,7 @@ const s=StyleSheet.create({
  identity:{flexDirection:'row',alignItems:'center',gap:12,flexShrink:1,flexGrow:1,minWidth:0,maxWidth:470},
  hero:{flexShrink:1,minWidth:120,flexGrow:1,gap:5},heroTop:{flexDirection:'row',alignItems:'baseline',gap:8},
  name:{fontFamily:fonts.display,fontSize:17,fontWeight:'700',color:colors.parchment,letterSpacing:.8,flexShrink:1},meta:{fontFamily:fonts.ui,fontSize:11.5,color:colors.gold,flexShrink:0,letterSpacing:.3},
- hpRow:{flexDirection:'row',alignItems:'center',gap:7},hp:{fontFamily:fonts.display,fontSize:14,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums'],minWidth:44,textAlign:'right'},hpMax:{fontSize:11,color:colors.muted,fontWeight:'400'},temp:{fontSize:11,color:colors.arcane},
+ hpRow:{flexDirection:'row',alignItems:'center',gap:7},xpLine:{position:'absolute',left:0,right:0,bottom:-5,height:3},hp:{fontFamily:fonts.display,fontSize:14,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums'],minWidth:44,textAlign:'right'},hpMax:{fontSize:11,color:colors.muted,fontWeight:'400'},temp:{fontSize:11,color:colors.arcane},
  actions:{flexDirection:'row',alignItems:'center',gap:7,marginLeft:'auto'},
  levelUp:{flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:12,borderRadius:18,borderWidth:1,borderColor:tint('#f06e80'),backgroundColor:tint('#9e1b32'),justifyContent:'center'},levelUpText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:tint('#ffeef0'),textTransform:'uppercase'},
  scrim:{flex:1,backgroundColor:tint('rgba(5,3,5,.72)'),alignItems:'center',justifyContent:'center',padding:18},

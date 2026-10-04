@@ -15,6 +15,9 @@ const saved={'questbound.character.v1':JSON.stringify(hero),'questbound.adventur
  const read=await r.readSave(code.replace(/(.{60})/g,'$1\n  '));assert.equal(read.hero.name,'Code Carrier','Line breaks from chat apps are ignored');
  const target=storage({'questbound.adventure.v1':'old adventure'});r.applySave(read,target);
  assert.equal(target.data['questbound.character.v1'],saved['questbound.character.v1']);assert.equal(target.data['questbound.adventure.v1'],saved['questbound.adventure.v1']);
+ // Experience (and the tale's tally) travel in a code like everything else.
+ {const xpGame={...game,xp:250,xpTally:{tale:'crossroads',fights:1,places:0,leads:[]}},xpSaved={...saved,'questbound.adventure.v1':JSON.stringify(r.adventureSnapshot(hero,xpGame,{current:7,temp:0},true))};
+  const xpRead=await r.readSave(await r.exportSave(storage(xpSaved)));assert.equal(JSON.parse(xpRead.adventure).game.xp,250);}
  // Browsers without compression make plain codes, which also load; a hero with no adventure clears the old one.
  const plain=await r.exportSave(storage({'questbound.character.v1':saved['questbound.character.v1']}),false);assert.match(plain,/^QB1\./);
  const heroOnly=await r.readSave(plain);assert.equal(heroOnly.adventure,null);r.applySave(heroOnly,target);assert.equal(target.data['questbound.adventure.v1'],undefined);

@@ -386,7 +386,7 @@ function QuestboundApp() {
   {playing?<View style={s.shell}>
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. While the
         player types on a small phone, the HUD gives its row to the story too. */}
-    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
+    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} xp={experienceView(game,hero)} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
     {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
@@ -455,7 +455,7 @@ function QuestboundApp() {
       </>}
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
-      {screen === 'Level Up' && hero && <Advancement hero={hero} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
+      {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Followers' && hero && <Followers game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}

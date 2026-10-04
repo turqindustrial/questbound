@@ -28,6 +28,8 @@ const story2={...g.story,id:'s2',title:'The Salt Road',status:'active',premise:'
  npcs:{keeper:{...g.story.npcs.keeper,name:'Ysolde Fenn'},mara:{...g.story.npcs.mara,name:'Pim Ashdown'}}};
 delete story2.openingDialogue;
 const fresh=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g)));
+// Experience carries into the next tale; the tale's tally (fights, places, leads) starts again.
+{const withXp=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase({...g,xp:250,xpTally:{tale:g.story.id,fights:4,places:2,leads:[]}})));assert.equal(withXp.xp,250);assert.equal(withXp.xpTally,undefined);assert.ok(valid(withXp));}
 let next=r.joinRegion(fresh,g,{sameRegion:true,bearing:'N',miles:5});
 assert.ok(valid(next),'The continued story is a valid save');
 // Places: the old start, its two neighbours, then the places found there, joined in order.
