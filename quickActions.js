@@ -10,6 +10,7 @@ import {npcLore} from './npcRules';
 import {masteryOf,unarmedDC} from './masteryRules';
 import {partyMembers} from './partyRules';
 import {spoilsHere,magicItems,packMagic} from './lootRules';
+import {subclassAction,subclassUsesLeft} from './subclassRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
 // Spells need a target, so "Cast…" starts the sentence in the message box instead. `icon` names a line icon
@@ -62,9 +63,12 @@ export function quickActions(hero,game,health=null){
   if(id.startsWith('dungeon:')){if(game.story&&id==='dungeon:enter')continue;const [glyph,label,icon]=dungeonLabels(id,c.label);(id==='dungeon:fight'?primary:rest).push({key:id,glyph,icon,label,question:'I '+c.label[0].toLowerCase()+c.label.slice(1)+'.',action:c.action,primary:id==='dungeon:fight'});continue;}
   // The nearest few places get a chip; the Map tab lists every place you know.
   if(id.startsWith('travel-')){const destination=c.action?.destination??id.slice(7);if(game.story&&++trips>4)continue;rest.push({key:id,glyph:'➜',icon:'travel',label:place(destination),question:'I travel to '+place(destination)+'.',action:c.action,destination});continue;}
-  const verb=verbs[id];
+  // A subclass's own action (subclassRules.js) brings its own chip, with the uses left.
+  const feat=subclassAction(hero),own=!!feat&&id==='class:'+feat.id;
+  const verb=verbs[id]??(own?feat.chip:null);
   // A short rest comes first for a hero who is hurt (it is what they are looking for); otherwise it waits with the rest.
   if(id==='short-rest'){const chip={key:id,glyph:verb[0],icon:verb[3],label:verb[1],question:verb[2],action:c.action,detail:shortRestsLeft(hero,game)+' left'};if(health&&health.current<combatBasics(hero).hp)rest.unshift(chip);else rest.push(chip);continue;}
+  if(own){rest.push({key:id,glyph:verb[0],icon:verb[3],label:verb[1],question:verb[2],action:c.action,detail:(fighting&&feat.bonus?'Bonus · ':'')+subclassUsesLeft(hero,game)+' left'});continue;}
   if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action,...(fighting&&isBonus(id)?{detail:'Bonus'}:{})});continue;}
   rest.push({key:id,glyph:'✦',icon:'star',label:c.label.replace(/:.*$/,''),question:c.label.replace(/:.*$/,'')+'.',action:c.action});
  }

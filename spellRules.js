@@ -3,6 +3,7 @@ import {modifier,proficiencyBonus,subclassActive} from './characterRules';
 import {rollAttack,rollDamage,attackOptions} from './weaponRules';
 import {npcProfile,npcScene,npcIdsOf} from './npcRules';
 import {heroIdOf,markOf,withMark,edgeMode} from './masteryRules';
+import {subclassSpellBonus} from './subclassRules';
 
 export const spellAbility={Artificer:'Intelligence',Bard:'Charisma',Cleric:'Wisdom',Druid:'Wisdom',Paladin:'Charisma',Ranger:'Wisdom',Sorcerer:'Charisma',Warlock:'Charisma',Wizard:'Intelligence',Fighter:'Intelligence',Rogue:'Intelligence'};
 // Explicit effects only. Unimplemented spells use a visible DM ruling, never guessed dice.
@@ -260,21 +261,23 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   } else if(effect.heal){
     const dice=subclassActive(hero,'Life Domain') && hero.level>=17?Array(count).fill(effect.die):roll(count,effect.die);
     const life=subclassActive(hero,'Life Domain')?2+level:0;
-    const healed=Math.max(0,sum(dice)+mod+life);
+    // A subclass's gift to healing cast with a slot (Host's Gift, Grace in the Blood; subclassRules.js).
+    const grace=subclassSpellBonus(hero,'heal',{slot:typeof request.slot==='number'?request.slot:0}),graceText=grace.amount?` + ${grace.amount} ${grace.label}`:'';
+    const healed=Math.max(0,sum(dice)+mod+life+grace.amount);
     if(request.partyTarget){
       // Another player's hero at the shared table (partyRules.js): their own hit points; one who is down wakes.
       const id=request.partyTarget,woke=partyHeal(game,id,healed);if(!woke)return {error:'That hero is not here.'};
       next.party=woke.party;
-      logs.push(`${spell.name} on ${woke.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${woke.now-woke.was} HP.${woke.was===0&&woke.now>0?' '+woke.name+' stirs and opens their eyes.':''}`);
+      logs.push(`${spell.name} on ${woke.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}${graceText}; restored ${woke.now-woke.was} HP.${woke.was===0&&woke.now>0?' '+woke.name+' stirs and opens their eyes.':''}`);
     } else if(request.npcTarget){
       // Healing someone else: an unconscious person comes round, which counts as saving their life.
       const id=request.npcTarget,most=npcProfile(game,id).maximumHP,was=game.npcHP?.[id]??most,now=Math.min(most,was+healed);
       next.npcHP={...next.npcHP,[id]:now};
       if(was===0&&now>0&&next.npcFate?.[id]){next.npcFate={...next.npcFate};delete next.npcFate[id];if(!Object.keys(next.npcFate).length)delete next.npcFate;}
-      logs.push(`${spell.name} on ${npcProfile(game,id).name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${now-was} HP.${was===0&&now>0?' '+npcProfile(game,id).name+' stirs and opens their eyes.':''}`);
+      logs.push(`${spell.name} on ${npcProfile(game,id).name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}${graceText}; restored ${now-was} HP.${was===0&&now>0?' '+npcProfile(game,id).name+' stirs and opens their eyes.':''}`);
     } else {
       hp.current=Math.min(maximum,hp.current+healed);
-      logs.push(`${spell.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}; restored ${hp.current-(health?.current??maximum)} HP.`);
+      logs.push(`${spell.name}: [${dice.join(', ')}] + ${mod}${life?` + ${life} Disciple of Life`:''}${graceText}; restored ${hp.current-(health?.current??maximum)} HP.`);
       // A mass healing spell reaches the rest of the party too (up to six creatures: four heroes at most).
       if(spell.id.startsWith('mass-')&&game.party?.members){
         const reached=[];
@@ -380,6 +383,12 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       const t=effect.then,save=saveAgainst(t.save),dice=roll((t.count??1)+(level-spell.level)*(t.upcast??0),t.die),rolled=sum(dice),dealt=save.success?0:defended(target,t.type,rolled);
       damage+=dealt;logs.push(`The shard bursts: ${save.text}: ${save.success?'success; no':'failure; '+dealt} ${t.type} damage${save.success?'':` (${dice.length}d${t.die} [${dice.join(', ')}])`}.`);
     }
+  }
+  // A subclass's mark on the casting's damage, once a casting (Banked Fire, Rot and Root, Rime-Touched, Echo of the
+  // Void, Marrow-Cold; subclassRules.js): only for spells of the hero's own class or subclass.
+  if(damage>0&&(effect.save||effect.attack)&&(spell.classes?.includes(hero.class)||automaticSpells(hero).includes(spell.id))){
+    const extra=subclassSpellBonus(hero,'damage',{type}),added=extra.amount?defended(target,type,extra.amount):0;
+    if(added>0){damage+=added;logs.push(`${added} ${type} damage (${extra.label}).`);}
   }
   if(damage>0&&!effect.inflict){
     const broke=spellCondsOf(next,key).filter(c=>breakable.includes(c));

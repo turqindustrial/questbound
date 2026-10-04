@@ -2,6 +2,7 @@ import {attackOptions,canThrow} from './weaponRules';
 import {gearedHero} from './inventoryRules';
 import {spoilsHere,lootError,packMagic,carriedDraughts} from './lootRules';
 import {offhandWeapons} from './masteryRules';
+import {subclassAction} from './subclassRules';
 import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
@@ -116,6 +117,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     if(/^(?:I )?(?:end|finish|pass|skip) (?:my |the |this )?turn\b|^(?:end turn|pass|done|I(?:'m| am) done)[.!]?$/i.test(text))return {action:'end-turn'};
     if(hero.class==='Fighter'&&/\bsecond wind\b/i.test(text))return {action:'class:wind'};
     if(hero.class==='Paladin'&&/\blay(?:ing)? (?:on )?hands\b/i.test(text))return {action:'class:hands'};
+    // The hero's subclass action by name or as it is usually said (subclassRules.js).
+    const feat=subclassAction(hero);if(feat?.say.test(text))return {action:'class:'+feat.id};
   }
   const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara|n\d{1,2})\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara|n\d{1,2}))/i);
   if(gift)return {action:{type:'give-potion',target:(gift[1]??gift[2]).toLowerCase()}};
