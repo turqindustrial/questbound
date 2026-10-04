@@ -6,6 +6,7 @@ import {View,Image,Pressable,Platform,StyleSheet,Modal,ScrollView,useWindowDimen
 import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion} from './mapRules';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
+import {WrapRow} from './ui';
 import {Text as PlainText} from 'react-native';
 import {regionLayout,regionLabels} from './mapLayout';
 import {regionMapSvg,exitLabelBoxes} from './mapArt';
@@ -123,7 +124,8 @@ function RegionMap({game,travelTo,onTravel}){
  const pick=selected&&ids.includes(selected)?selected:null,pickRoute=pick?routeTo(pick):null,canGo=id=>id!==here&&!!onTravel&&travelTo.includes(id);
  const places=[...sheetIds].sort((a,b)=>(a===here?-1:b===here?1:(routeTo(a)?.feet??0)-(routeTo(b)?.feet??0)));
  // The regions the hero knows, as a row of sheets to turn to (shown once there is more than one).
- const regionTabs=(inline=false)=>regions.length>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.regionBar,inline&&s.regionInline]} contentContainerStyle={s.regionRow} accessibilityRole="tablist">{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</ScrollView>;
+ // One line of lands; when they do not fit, a More chip shows the rest (nothing scrolls sideways).
+ const regionTabs=(inline=false)=>regions.length>1&&<WrapRow rows={1} rowHeight={34} gap={6} resetKey={shown.id} label="Lands" accessibilityRole="tablist" style={[s.regionBar,inline&&s.regionInline]}>{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</WrapRow>;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
  const pickCard=close=>pick&&<View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLiveRegion="polite">
    <View style={{flex:1,minWidth:0}}>
@@ -169,7 +171,7 @@ const s=StyleSheet.create({
  headRow:{flexDirection:'row',alignItems:'flex-end',gap:10},expand:{flexDirection:'row',alignItems:'center',gap:6,minHeight:38,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:tint('rgba(178,34,58,.5)'),backgroundColor:tint('rgba(31,24,32,.92)'),justifyContent:'center'},
  herePulse:{position:'absolute',width:30,height:30,borderRadius:15,pointerEvents:'none'},
  bigScroll:{flexGrow:0,flexShrink:1},bigBody:{gap:4},
- regionBar:{flexGrow:0,flexShrink:0,marginTop:10},regionInline:{marginTop:0,flexShrink:1,maxWidth:'50%'},regionRow:{gap:6,paddingRight:8},regionTab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:34,maxWidth:230,paddingHorizontal:12,borderRadius:17,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(31,24,32,.92)')},regionTabOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
+ regionBar:{flexGrow:0,flexShrink:0,marginTop:10},regionInline:{marginTop:0,flexShrink:1,maxWidth:'50%'},regionTab:{flexDirection:'row',alignItems:'center',gap:6,height:34,maxWidth:230,paddingHorizontal:12,borderRadius:17,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(31,24,32,.92)')},regionTabOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
  regionTabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:.9,color:colors.gold,flexShrink:1},regionDot:{width:7,height:7,borderRadius:4,backgroundColor:'#c8412f'},
  tools:{position:'absolute',right:8,bottom:8,gap:6},tool:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(59,42,23,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'#eddeb6'},toolText:{fontFamily:fonts.display,fontSize:20,lineHeight:24,fontWeight:'800',color:'#3b2a17'},
  scrim:{flex:1,backgroundColor:tint('rgba(5,3,5,.82)'),alignItems:'center',justifyContent:'center',padding:8},bigSheet:{maxWidth:'100%',maxHeight:'100%',padding:12,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.98)'),gap:4},

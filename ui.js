@@ -60,9 +60,27 @@ export function MenuItem({label,sub,icon,onPress,primary=false,disabled=false,ce
 }
 // Segmented tabs (character sheet, journal, settings).
 export function Segmented({options,value,onChange,style}){
- // On a phone the tabs drop their icons and capitals so every tab stays on one row.
- const narrow=useWindowDimensions().width<520;
- return <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.seg,narrow&&{flexWrap:'nowrap'},style]}>{options.map(([id,label,icon])=>{const on=value===id;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on){playSound('page');onChange(id);}}} dataSet={{qb:on?'seg-on':undefined}} style={[s.segItem,narrow&&s.segNarrow,on&&s.segOn]}>{!!icon&&!narrow&&<Icon name={icon} size={15} color={on?colors.goldBright:colors.muted}/>}<Text numberOfLines={1} style={[s.segText,narrow&&s.segTextNarrow,on&&{color:colors.goldBright}]}>{label}</Text></Pressable>;})}</View>;
+ // On a phone the tabs drop their icons and wrap instead of being cut short: a long label takes two lines, and four or
+ // more tabs on a narrow phone sit two to a row. Nothing scrolls sideways.
+ const {width}=useWindowDimensions(),narrow=width<520,pairs=narrow&&options.length>=4&&width<420;
+ return <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.seg,style]}>{options.map(([id,label,icon])=>{const on=value===id;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on){playSound('page');onChange(id);}}} dataSet={{qb:on?'seg-on':undefined}} style={[s.segItem,narrow&&s.segNarrow,pairs&&s.segPair,on&&s.segOn]}>{!!icon&&!narrow&&<Icon name={icon} size={15} color={on?colors.goldBright:colors.muted}/>}<Text numberOfLines={narrow?2:1} style={[s.segText,narrow&&s.segTextNarrow,on&&{color:colors.goldBright}]}>{label}</Text></Pressable>;})}</View>;
+}
+// A row of chips that wraps onto at most `rows` lines; when more would be needed, a More chip shows the rest in place
+// (and Less folds them away again; `resetKey` folds them on a new turn). Nothing in the game scrolls sideways
+// (verify-presentation.cjs). Every chip sits in a cell of the row's height, so a line held back is never half shown, and
+// a chip wider than the row is cut to it (its words end in an ellipsis).
+const rowItems=children=>React.Children.toArray(children).flatMap(child=>child?.type===React.Fragment?rowItems(child.props.children):[child]);
+export function WrapRow({rows=2,rowHeight=36,gap=6,resetKey,children,style,label,moreLabel='More',dataSet,accessibilityRole}){
+ const [natural,setNatural]=useState(0),[open,setOpen]=useState(false);
+ useEffect(()=>{setOpen(false);},[resetKey]);
+ const items=rowItems(children),limit=rows*rowHeight+(rows-1)*gap,over=natural>limit+1;
+ if(!items.length)return null;
+ return <View accessibilityLabel={label} dataSet={dataSet??{qb:'wrap-row'}} style={[s.wrapRow,{gap},style]}>
+  <View accessibilityRole={accessibilityRole} style={[s.wrapClip,over&&!open&&{maxHeight:limit}]}>
+   <View onLayout={e=>setNatural(Math.round(e.nativeEvent.layout.height))} style={[s.wrapFlow,{gap}]}>{items.map(item=><View key={item.key} style={[s.wrapCell,{height:rowHeight}]}>{item}</View>)}</View>
+  </View>
+  {over&&<Pressable accessibilityRole="button" accessibilityState={{expanded:open}} accessibilityLabel={open?'Show fewer':'Show all'} onPress={()=>{playSound('click');setOpen(v=>!v);}} dataSet={{qb:'chip',keepfocus:'true'}} style={[s.more,{height:rowHeight,borderRadius:rowHeight/2}]}><Icon name={open?'close':'dots'} size={14} color={colors.gold}/><Text style={s.moreText}>{open?'Less':moreLabel}</Text></Pressable>}
+ </View>;
 }
 export function StatBar({value,maximum,kind='hp',height=10,style}){
  const pct=Math.max(0,Math.min(100,100*(value??0)/Math.max(1,maximum)));
@@ -141,7 +159,10 @@ const s=StyleSheet.create({
  seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(10,7,11,.55)'),marginVertical:14},
  segItem:{flexGrow:1,flexBasis:0,minWidth:96,minHeight:42,paddingHorizontal:10,borderRadius:4,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:'transparent'},
  // On a phone each tab takes the room its word needs (not an equal share), so longer labels are not cut short.
- segNarrow:{minWidth:0,paddingHorizontal:5,flexBasis:'auto',flexShrink:1},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
+ segNarrow:{minWidth:0,paddingHorizontal:6,paddingVertical:3,flexBasis:'auto',flexShrink:1,maxWidth:'100%'},segPair:{flexBasis:'45%'},segTextNarrow:{fontSize:11,lineHeight:13,letterSpacing:.2,textAlign:'center',flexShrink:1},
+ wrapRow:{flexDirection:'row',alignItems:'flex-start'},wrapClip:{flex:1,minWidth:0,overflow:'hidden'},wrapFlow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center'},wrapCell:{maxWidth:'100%',minWidth:0,justifyContent:'center'},
+ more:{flexDirection:'row',alignItems:'center',gap:5,flexShrink:0,paddingHorizontal:10,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(31,24,32,.92)')},
+ moreText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  segOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
  track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),overflow:'hidden'},

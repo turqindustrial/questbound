@@ -1,11 +1,14 @@
 import React from 'react';
-import {View,Text,ScrollView,StyleSheet} from 'react-native';
+import {View,Text,StyleSheet} from 'react-native';
+import {WrapRow} from './ui';
 import Icon from './Icon';
 import {colors,fonts,tint} from './theme';
 import {partyMembers} from './partyRules';
 import {turnOrderView} from './encounterRules';
 // Every hero at a party table (partyRules.js) in one row: name, hit points as a bar, and how they stand. In a fight
 // the row follows the turn order (adventureRules.js): the foe takes its place in it, and whose turn it is stands out.
+// The cards wrap onto a second line on a phone (four heroes and a foe); a brawl with more people than that shows a
+// More chip rather than scrolling sideways.
 export default function PartyPanel({game,health,maxHp}){
  const members=partyMembers(game);if(members.length<2)return null;
  const turns=turnOrderView(game),place=new Map((turns?.entries??[]).map((e,i)=>[e.id,i]));
@@ -19,7 +22,7 @@ export default function PartyPanel({game,health,maxHp}){
  if(turns)cards.sort((a,b)=>(place.get(a.key)??99)-(place.get(b.key)??99));
  return <View dataSet={{qb:'party-panel'}} accessibilityLabel={'Party'+(turns?', round '+turns.round:'')} style={s.panel}>
   {turns&&<Text style={s.round}>Round {turns.round}</Text>}
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.row}>
+  <WrapRow rows={2} rowHeight={48} gap={6} label="Turn order" dataSet={{qb:'party-cards'}}>
    {cards.map(c=>{
     const share=c.most?Math.max(0,Math.min(1,c.hp/c.most)):0,low=share<=.35;
     return <View key={c.key} accessible accessibilityLabel={c.name+(c.mine?' (you)':'')+(c.current?', taking their turn':'')+(c.kind==='hero'?(c.status==='dead'?', fallen':c.status==='down'?', down and dying':', '+c.hp+' of '+c.most+' hit points'):'')} style={[s.card,c.kind!=='hero'&&s.foeCard,c.current&&s.current,c.status==='dead'&&{opacity:.5}]}>
@@ -35,14 +38,13 @@ export default function PartyPanel({game,health,maxHp}){
      :<Text style={s.state}>{c.status==='down'?'Down':c.current?'Acting':'Waits'}</Text>}
     </View>;
    })}
-  </ScrollView>
+  </WrapRow>
  </View>;
 }
 const s=StyleSheet.create({
  panel:{gap:4},
  round:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase'},
- row:{flexDirection:'row',gap:6,paddingRight:4},
- card:{minWidth:92,maxWidth:150,paddingVertical:5,paddingHorizontal:8,borderRadius:4,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(19,14,21,.85)'),gap:3},
+ card:{flex:1,justifyContent:'center',minWidth:92,maxWidth:150,paddingVertical:5,paddingHorizontal:8,borderRadius:4,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(19,14,21,.85)'),gap:3},
  foeCard:{borderColor:tint('rgba(240,110,128,.35)')},
  current:{borderColor:colors.goldBright,backgroundColor:tint('rgba(91,52,168,.28)')},
  nameRow:{flexDirection:'row',alignItems:'center',gap:4},
