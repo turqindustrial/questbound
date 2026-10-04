@@ -4,6 +4,7 @@ import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
 import {knownSpells} from './spellRules';
 import {placeName,travelRoute,mapLocation,distanceText,durationText} from './mapRules';
+import {magicItems,packMagic} from './lootRules';
 // What things are, in a sentence or two: every item a hero can carry, every action the game offers and every spell
 // they know. The inventory, the action guide and the spell picker all read from here, so nothing on screen is
 // without an explanation.
@@ -51,8 +52,20 @@ const gearNotes={
  'Potion of Healing':'A red draught. Drink it to regain 2d4 + 2 hit points (a bonus action in a fight), or give it to a companion.',
 };
 const kindNotes={weapon:'A weapon you can fight with.',ammunition:'Ammunition for a weapon that shoots or is thrown.',treasure:'Something of value: sell it for about half its worth, or trade it.',gear:'Useful gear. Tell the Dungeon Master how you use it.',quest:'It matters to your errand. Keep it safe.',potion:'A draught to drink. Ask the Dungeon Master what it does.'};
-// What an item is. note is what the Dungeon Master said of it when it was found.
-export function itemDescription(name,kind=null,note=null){
+// A magic item in a sentence or two: the weapon or armour it is made as, then the catalogue's own words for what it
+// does (attunement, charges), then what it looks like or what the teller said of it.
+export function magicDescription(item){
+ const m=magicItems[item?.magic?.id];if(!m)return '';
+ const said=typeof item.note==='string'&&item.note.trim()?' '+item.note.trim():m.look?' '+m.look:'';
+ if(item.magic.id.startsWith('weapon+')&&weapons[item.base])return weaponNotes[item.base]+' '+weaponSummary(item.base)+' Magic ('+m.rarity+'): +'+m.plus+' to attack and damage rolls.'+said;
+ if(item.magic.id.startsWith('armor+')||item.magic.id.startsWith('shield+'))return (gearNotes[item.base]??'')+' Magic ('+m.rarity+'): '+m.effect+(item.magic.id.startsWith('armor+')?' It counts only while it is the armor you wear.':'')+said;
+ const charges=item.magic.charges!==undefined?' '+item.magic.charges+' of '+m.charges+' charges left.':'';
+ const attune=m.attune?(item.attuned?' Attuned: it is working for you.':' It needs attunement before it works (three attuned items at most).'):'';
+ return m.name+' ('+m.rarity+'): '+m.effect+charges+attune+said;
+}
+// What an item is. note is what the Dungeon Master said of it when it was found; `item` is the pack entry (its magic).
+export function itemDescription(name,kind=null,note=null,item=null){
+ if(item?.magic&&magicItems[item.magic.id])return magicDescription(item);
  const plain=String(name??'').trim(),weapon=plain.includes('(Quarterstaff)')?null:weapons[plain];
  // Its mastery property, which heroes trained in the weapon can use (Barbarians, Fighters, Paladins, Rangers, Rogues).
  if(weapon)return weaponNotes[plain]+' '+weaponSummary(plain)+(weapon.mastery?' Mastery for those trained in it: '+masteryText[weapon.mastery]:'');
@@ -109,6 +122,9 @@ export function actionDescription(action,hero,game){
  if(key==='npc-wait')return 'Hold your ground and let the others act.';
  if(key==='npc-surrender')return 'Lay down your weapon and give yourself up. The fight ends.';
  if(key==='potion')return 'Drink a healing draught: regain 2d4 + 2 hit points. In a fight it costs your bonus action, not your action.';
+ if(key==='loot')return 'Search the fallen and anything they guarded. What you find goes into your pack; each foe can be searched once.';
+ if(key.startsWith('drink:')){const m=magicItems[key.slice(6)];return m?m.name+': '+m.effect:'Drink a healing draught.';}
+ if(key==='item:wand-of-magic-missiles'||key.startsWith('ally-item:')){const wand=packMagic(game,'wand-of-magic-missiles');return 'Wand of Magic Missiles: three darts of force strike '+(key.startsWith('ally-')?'the creature beside your foe':'your foe')+' for 1d4 + 1 each, and never miss. Uses your action and one charge'+(wand?' ('+wand.magic.charges+' left)':'')+'; it regains 1d6 + 1 charges after a long rest.';}
  if(key.startsWith('give-potion:'))return 'Give them one of your healing draughts: they regain 2d4 + 2 hit points and come round. Someone you bring back will not forget it.';
  if(key==='class:wind')return 'Second Wind: catch your breath and regain 1d10 + '+level+' hit points. A bonus action; '+windLimit(hero)+' uses, which return when you rest.';
  if(key==='class:hands')return 'Lay on Hands: heal your own wounds from a pool of '+5*level+' hit points that returns after a long rest. A bonus action.';
@@ -127,7 +143,7 @@ export function actionDescription(action,hero,game){
 export function actionCost(action,game){
  const key=String(action?.key??'');
  if(game.stage!=='combat'&&!game.npcCombat?.active)return null;
- if(['potion','class:wind','class:hands','class:strike'].includes(key))return 'Bonus action';
+ if(['potion','class:wind','class:hands','class:strike'].includes(key)||key.startsWith('drink:'))return 'Bonus action';
  if(key.startsWith('offhand:'))return action.detail==='Nick'?null:'Bonus action';
  if(key.startsWith('spell:'))return action.detail?.includes('Bonus')?'Bonus action':'Action';
  if(key==='end-turn'||key==='cast'||key==='spells-back'||key==='death-save')return null;

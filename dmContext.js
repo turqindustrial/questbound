@@ -21,6 +21,8 @@ import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules
 import {spoilsHere,lootError,magicItems,magicSummary,magicCheckMode,packMagic,carriedDraughts} from './lootRules';
 import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {loadoutFor} from './equipmentRules';
+import {foeTemplate} from './encounterRules';
+const spoilSpecies=key=>foeTemplate(key)?.species??null;
 import {combatBasics} from './combatRules';
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
 const attackChoices=hero=>{const all=attackOptions(hero);return [...all.filter(w=>!w.unarmed).slice(0,3),...all.filter(w=>w.unarmed)];};
@@ -178,7 +180,10 @@ export function dmContext(hero,game,health) {
   {const turns=turnOrderView(game);if(turns)context.turnOrder={round:turns.round,order:turns.entries.map(e=>e.name+(e.kind==='hero'&&e.status!=='up'?' ('+e.status+')':'')),current:turns.current?.name??null,yourTurn:turns.mine};}
   if(context.world){context.world.canAmbush=game.stage==='wild'&&!game.wildFight&&!game.pendingSpell&&(health?.current??1)>0;context.world.creatureTemplates=allFoeTemplates().map(f=>({template:f.key,example:f.group?f.group.count+' '+f.group.plural:f.foe,kind:f.species,pack:!!f.group,signatureMove:signatureMoves[f.key].name}));context.world.knownPlaces=context.world.knownPlaces.map(p=>{const w=worldPlace(game,p.id);return w?{...p,danger:w.danger??'safe',feature:w.feature??null,threat:w.threat?{name:w.threat.name,template:w.threat.template}:null,cleared:!!w.cleared}:p;});}
   // What the hero carries: gold, draughts, arrows and found things, with prices for trades.
-  {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items,priceList};}
+  // Magic items carry what they are and do (the catalogue's words), so the telling never invents powers.
+  {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items.map(i=>i.magic&&magicItems[i.magic.id]?{...i,magic:{name:magicItems[i.magic.id].name,rarity:magicItems[i.magic.id].rarity,effect:magicSummary(i),...(magicItems[i.magic.id].attune?{attuned:!!i.attuned}:{})}}:i),priceList};}
+  // The fallen (and lairs) here not yet searched: the game decides what they hold (the loot choice).
+  {const here=spoilsHere(game);if(here.length)context.spoils=here.map(s=>({name:s.name,kind:s.kind,what:s.kind==='person'?npcLore(game,s.person)?.role??null:s.template?spoilSpecies(s.template):null,lair:!!s.lair,feature:s.feature??null}));}
   context.foeFate=game.foeFate??null;context.npcFates=game.npcFate??{};context.dying=game.dying??null;context.death=game.death??null;
   const weapons=attackOptions(hero);
   context.attackOptions={mainWeapon:weapons.find(w=>!w.unarmed)?.name??'Unarmed Strike',carried:weapons.filter(w=>!w.unarmed).map(w=>w.name+(w.ranged?' (ranged)':'')),unarmed:'Unarmed Strike',
