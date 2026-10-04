@@ -151,15 +151,22 @@ export function spellCostOptions(hero,game,spell) {
 }
 // In a fight a spell must be quick: one that takes a minute or more waits for a calmer moment, and a reaction is cast
 // when its moment comes (Shield when a blow would land, Hellish Rebuke right after you are hurt), not as your action.
+// Reactions with no moment in this game: the creatures here cast no spells, and nobody falls from a height.
+export const reactionRefusals={
+  counterspell:'Counterspell interrupts a creature in the act of casting a spell. The creatures you meet here cast none, so there is nothing to counter.',
+  'feather-fall':'Feather Fall is cast as a reaction when someone falls from a height. No one is falling, so there is nothing to slow.',
+};
 export function fightTimingError(spell,game,reaction=false){
   if(!(game.stage==='combat'||game.npcCombat?.active))return '';
   if(!['Action','Bonus Action','Reaction'].includes(spell.castingTime))return `${spell.name} takes ${spell.castingTime.toLowerCase()} to cast: not in the middle of a fight.`;
-  if(spell.castingTime==='Reaction'&&!reaction)return spell.id==='shield'?'Shield is a reaction: the game raises it for you when a blow would otherwise land.':`${spell.name} is cast as a reaction, when its moment comes, not as your action.`;
+  if(spell.castingTime==='Reaction'&&!reaction)return spell.id==='shield'?'Shield is a reaction: the game raises it for you when a blow would otherwise land (Settings → Story → Rules).':reactionRefusals[spell.id]??`${spell.name} is cast as a reaction, when its moment comes, not as your action.`;
   return '';
 }
 export function castError(hero,game,request) {
   const spell=knownSpells(hero).find(s=>s.id===request?.id);
   if(!spell)return 'That spell is not prepared or granted to this character.';
+  // Counterspell has no moment anywhere: no creature here casts a spell for it to interrupt.
+  if(spell.id==='counterspell')return reactionRefusals.counterspell;
   if(!castingStages.includes(game.stage))return game.stage==='dying'?'You are dying: only a death save now.':game.stage==='dead'?'The dead cast no spells.':'You cannot cast a spell right now.';
   if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
   const fighting=game.stage==='combat'||!!game.npcCombat?.active,timing=fightTimingError(spell,game,request.reaction);
@@ -673,9 +680,13 @@ function castBuff(hero,game,hp,spell,effect,{mod,request,foeType}){
   next.buffs=buffs;if(!Object.keys(buffs).length)delete next.buffs;
   return {game:next,lines};
 }
-// Shield, cast for the hero as a reaction when a blow would otherwise land: +5 AC until the start of their next turn.
+// Shield, cast for the hero as a reaction when a blow would otherwise land: +5 AC until the start of their next turn,
+// unless the player turned that off on their device.
 // Returns null when it cannot or would not help (a critical hit, a blow that hits anyway, no reaction or slot left).
 export function shieldReaction(hero,game,attackTotal,ac,critical){
+  // The player can keep their slots: the device setting "Use Shield when it saves you" (storyPreferences.js autoShield)
+  // reaches the rules as hero.autoShield=false (Adventure.js rulesHero).
+  if(hero?.autoShield===false)return null;
   if(critical||attackTotal<ac||attackTotal>=ac+5||game.reactionUsed||game.shieldUp)return null;
   const spell=knownSpells(hero).find(s=>s.id==='shield');if(!spell)return null;
   const slot=slotChoices(hero,game,spell)[0];if(typeof slot!=='number')return null;

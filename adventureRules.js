@@ -768,13 +768,6 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         } else next.enemyHP = Math.max(0, next.enemyHP - (spellResult.damage ?? 0));
         bonusAction = spellResult.bonus || spellResult.reaction;
         if (spellResult.reaction) next.reactionUsed = true;
-        if (spellResult.manualRounds) {
-          next.round += spellResult.manualRounds;
-          next.bonusUsed = false;
-          next.slotSpentThisTurn = false;
-          next.reactionUsed = false;
-          entries.push(`The DM resolved ${spellResult.manualRounds} rounds of casting and intervening events.`);
-        }
         dodge = !!spellResult.enemyDisadvantage;
         if (spellResult.bonus) { next.bonusUsed = true; usedBonus = true; }
         if (hp.current === 0) {
@@ -1016,7 +1009,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       // After the action, a hero who still has a bonus action worth using gets the chance: the turn waits for it, or
       // for End turn. A bonus action taken after the action ends the turn by itself.
       const acted = !bonusAction && !ending && !turnOptions.enemyOnly;
-      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && !spellResult?.manualRounds && (bonusOptions(hero, next, hp, stats.hp).length > 0 || surgeReady(hero, next));
+      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && (bonusOptions(hero, next, hp, stats.hp).length > 0 || surgeReady(hero, next));
       if (paused) {
         next.actionUsed = true;
         // A Dodge (or a foe thrown off by a spell) still counts when the turn ends.
