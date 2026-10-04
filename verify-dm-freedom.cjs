@@ -53,6 +53,26 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal((await generate({...shop,context:{...shop.context,choices:[{id:'travel-inn',label:'Travel'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',loot:potionBuy})})).loot,null,'Loot waits for the narration of an action');
  await generate(body('I loot it.',{stage:'combat',inventory:{gold:60}}),{...keys,fetchImpl:success({narration:'Not now.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','No loot mid-fight');
  assert.ok(lastRequest.instructions.includes('LOOT AND TRADE'));
+{// Spoils and magic (lootRules.js): the schema knows armor and magic ids; the engine's own search is never doubled;
+ // gold over the level's most is cut to it (not dropped); magic only rewards a chapter or a lead, within the level.
+  const chest=body('I search the chest.',{stage:'inn',inventory:{gold:10},player:{level:1}});
+ await generate(chest,{...keys,fetchImpl:success({narration:'You open it.'})});
+ const itemSchema=lastRequest.text.format.schema.properties.loot.anyOf?.[0]??lastRequest.text.format.schema.properties.loot;
+ assert.ok(itemSchema.properties.items.items.properties.kind.enum.includes('armor'),'armor is a kind');assert.ok(itemSchema.properties.items.items.properties.magic.enum.includes('cloak-of-protection')&&itemSchema.properties.items.items.required.includes('magic'),'magic is an id from the catalogue');
+ assert.ok(lastRequest.instructions.includes('SPOILS: context.spoils')&&lastRequest.instructions.includes('MAGIC REWARDS'));
+ const hoard={gold:150,items:[{name:'Silver chalice',kind:'treasure',qty:1,value:25,note:'A dented cup.',magic:null}],reason:'Found in the chest.'};
+ const clamped=await generate(chest,{...keys,fetchImpl:success({narration:'Coins spill out.',loot:hoard})});assert.equal(clamped.loot.gold,100,'gold over the cap is cut to the most a level-1 hero may find, not dropped');assert.equal(clamped.loot.items.length,1);
+ const searched=body('I search the bandit.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['You search the Bandit Cutthroat.','Found: 9 gold, Scimitar.']});
+ assert.equal((await generate(searched,{...keys,fetchImpl:success({narration:'You find 9 gold and a scimitar.',loot:{gold:9,items:[],reason:'Searched.'}})})).loot,null,'the engine\'s search is never doubled');
+ const wonFight=body('I finish it.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['The Bandit Cutthroat is slain.']});
+ await generate(wonFight,{...keys,fetchImpl:success({narration:'It falls.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','no loot of its own on the turn a fight is won');
+ const cloak={gold:0,items:[{name:'Grey Mantle',kind:'gear',qty:1,value:0,note:'A grey cloak.',magic:'cloak-of-protection'}],reason:'The reward.'};
+ assert.equal((await generate(chest,{...keys,fetchImpl:success({narration:'A cloak lies inside.',loot:cloak})})).loot.items[0].magic,null,'no magic outside a chapter or lead reward');
+ const reward=body('I take the reward.',{stage:'inn',inventory:{gold:10},player:{level:1},engineResolved:['Lead seen through: The Copyist\'s Debt.']});
+ assert.equal((await generate(reward,{...keys,fetchImpl:success({narration:'She gives you her cloak.',loot:cloak})})).loot.items[0].magic,'cloak-of-protection','a lead\'s reward may be magic');
+ const ring={...cloak,items:[{...cloak.items[0],name:'Iron Ring',magic:'ring-of-protection'}]};
+ assert.equal((await generate(reward,{...keys,fetchImpl:success({narration:'A ring.',loot:ring})})).loot.items[0].magic,null,'no rarer than the level allows');
+ assert.equal((await generate({...reward,context:{...reward.context,player:{level:5}}},{...keys,fetchImpl:success({narration:'A ring.',loot:ring})})).loot.items[0].magic,'ring-of-protection');}
  // Relationship notes: kept on an ordinary turn or when narrating a resolved one; dropped when the turn starts an
  // action (recorded when it is narrated), for the dead, and for scene cues.
  const note={npcId:'mara',change:'grateful',memory:'The player shared their last rations with me.'};

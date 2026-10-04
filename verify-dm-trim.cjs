@@ -29,6 +29,8 @@ assert.equal(s.world.knownPlaces.find(p=>p.id==='inn').description,undefined,'Th
 assert.equal(s.travelRoutes,undefined,'Distances are in world.knownPlaces');assert.equal(s.npcDefenses,undefined,'No fight, no defenses');
 assert.ok(s.spellReference.length>0,'An ordinary turn keeps the spell list');assert.ok(s.choices.length>0);
 assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.75,'At least a quarter smaller: '+JSON.stringify(sent).length+' of '+JSON.stringify(body).length);
+// The fallen not yet searched reach the model as they are (lootRules.js).
+{const spoils=[{name:'Grey Widow',kind:'creature',what:'Giant spider',lair:true,feature:'A satchel under the webs.'}];assert.deepEqual(sceneFor({...body,context:{...full,spoils}},{}).context.spoils,spoils,'context.spoils survives the trim');}
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
 const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.deepEqual(narrated.choices,[]);assert.equal(narrated.spellReference,undefined);assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
 const legacy=sceneFor({input:'x',context:{...r.dmContext(hero,r.newAdventure(hero),hp)}},{}).context;assert.ok(Array.isArray(legacy.travelRoutes),'Without a written story the routes stay');

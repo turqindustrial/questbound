@@ -1,6 +1,7 @@
 import {validTies,validRegard,firstImpressions} from './relationshipRules';
 import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,placeKinds} from './mapRules';
 import {genders} from './npcRules';
+import {magicItems} from './lootRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
  const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -8,9 +9,11 @@ function validFoeStats(f){
   &&!!f.saves&&Object.entries(f.saves).every(([k,v])=>['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(k)&&int(v,-10,20))
   &&(f.group===undefined||(int(f.group.size,2,6)&&int(f.group.memberHP,1,200)&&f.maximum===f.group.size*f.group.memberHP&&typeof f.group.plural==='string'&&f.group.plural.length>0&&f.group.plural.length<=80));
 }
+// A tale's hoard: one magic item from the catalogue (not a draught), with the writer's name and note for it.
+export function validHoard(h){return h===undefined||(!!h&&typeof h==='object'&&!!magicItems[h.item]&&!magicItems[h.item].heal&&[[h.name,60],[h.note,160]].every(([v,max])=>typeof v==='string'&&v.trim().length>0&&v.length<=max)&&Object.keys(h).length===3);}
 export function validStory(s){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
- return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&['keeper','mara'].includes(l.speakerId)&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&validRegard(s.npcs[id].regard))
+ return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&validHoard(s.hoard)&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&['keeper','mara'].includes(l.speakerId)&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&validRegard(s.npcs[id].regard))
   // The story's own land: where its places lie, what the country is called and what kind of country it is.
   &&(s.geography===undefined||validGeography(s.geography))&&(s.region===undefined||text(s.region,60))&&(s.terrain===undefined||terrains.includes(s.terrain))
   // A long tale: its chapters, the one under way, and its leads.
@@ -69,6 +72,8 @@ function tidyStory(written){
  if(typeof story.region!=='string'||!story.region.trim()||story.region.length>60)delete story.region;else story.region=story.region.trim();
  if(!terrains.includes(story.terrain))delete story.terrain;
  if(story.foeDamageType!==undefined&&!damageTypes.includes(story.foeDamageType))delete story.foeDamageType;
+ // The foe's hoard (a magic item from the catalogue, named and described by the writer) is kept only when sound.
+ if(story.hoard!==undefined){const h=story.hoard;if(h&&typeof h==='object'&&typeof h.name==='string'&&typeof h.note==='string')story.hoard={item:h.item,name:h.name.trim().slice(0,60),note:h.note.trim().slice(0,160)};if(!validHoard(story.hoard))delete story.hoard;}
  for(const id of ['inn','bridge','tower'])if(story.locations[id]){story.locations[id]={...story.locations[id]};if(!placeKinds.includes(story.locations[id].kind))delete story.locations[id].kind;}
  for(const id of ['keeper','mara'])if(story.npcs[id]){const n=story.npcs[id]={...story.npcs[id]};if(!genders.includes(n.gender))delete n.gender;if(n.regard===undefined||n.regard===null||!validRegard(n.regard)||n.regard.stance==='indifferent')delete n.regard;else n.regard={stance:n.regard.stance,reason:n.regard.reason.trim()};}
  if(!validGeography(story.geography))story.geography=makeGeography(story.id,layout);

@@ -53,6 +53,11 @@ assert.equal(look('I look around the camp.',{...quiet,narration:'The fight is ov
 fault=look('I take a short rest.');assert.equal(fault.actionId,'short-rest');assert.equal(fault.sure,true);
 fault=look('I bed down and sleep.');assert.equal(fault.actionId,'long-rest');
 fault=look('I drink my healing potion.');assert.equal(fault.actionId,'potion');assert.equal(settled(fault).narration,'You drink a healing draught.');
+// Searching the fallen, when the game offers it (the engine rolls what they held).
+{const spoils={...base,choices:[...base.choices,{id:'loot',label:'Search the fallen and anything they guarded'}]};
+ fault=look('I search the bandit\'s body.',quiet,spoils);assert.equal(fault.actionId,'loot');assert.equal(fault.sure,true);assert.equal(settled(fault).narration,'You search the fallen.');
+ assert.equal(look('I search the bandit\'s body.',quiet),null,'only when something lies here unsearched');
+ assert.equal(look('The loot is not worth it.',quiet,spoils),null,'words about loot are not a search');}
 assert.equal(look('I take a short rest.',quiet,{...base,choices:base.choices.filter(c=>c.id!=='short-rest')}),null,'only what is offered');
 assert.equal(look('Should I rest for the night?'),null);
 // A side errand the player's words seem to settle is asked about (the game never closes one itself).
