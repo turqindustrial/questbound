@@ -40,6 +40,7 @@ const open=()=>vm.runInNewContext(source+'\n({dmCommand,commitDmTurn,dmContext,e
  const cancel=r.dmCommand(caster,waiting.game,'Cancel spell');assert.equal(cancel.action.type,'cancel-spell');
  assert.ok(r.dmCommand(caster,combat,'DM ruling: test').error);
  assert.equal(r.dmCommand(caster,combat,'Can I cast Acid Splash at the wisp?'),null);
- assert.equal(r.dmCommand(caster,combat,'I cast Acid Splash at the wisp and cast Cure Wounds on myself, components ready').action,undefined);
+ // Two spells in one sentence: the first is cast, and the rest is told to wait for the next turn (one action a turn).
+ {const both=r.dmCommand(caster,combat,'I cast Acid Splash at the wisp and cast Cure Wounds on myself, components ready').action;assert.equal(both.type,'turn');assert.equal(both.steps.length,1);assert.equal(both.steps[0].request.id,'acid-splash');assert.equal(both.rest,'I cast Cure Wounds on myself, components ready');}
  console.log('Passed: DM ability checks, success/failure, location guards, one attempt across rest, pending spells, clue effects, save/reload and nearby NPCs.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

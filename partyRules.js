@@ -10,7 +10,7 @@ import {gearedHero} from './inventoryRules';
 // same from every point of view, so only real changes are sent.
 export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
 // What belongs to one hero's turn and does not outlast it.
-const turnFields=['actionUsed','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed'];
+const turnFields=['actionUsed','surged','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed'];
 export const maxPartySize=4;
 export const isPartyGame=game=>!!game?.party&&typeof game.party==='object'&&!!game.party.members&&typeof game.party.lead==='string';
 const pick=(o,keys)=>Object.fromEntries(keys.filter(k=>o?.[k]!==undefined).map(k=>[k,o[k]]));

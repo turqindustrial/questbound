@@ -61,7 +61,8 @@ const together={...r.hostileEncounterGame(kara,r.newAdventure(kara),()=>0),follo
 const round=r.adventureStep(together,big,kara,'attack:Greatsword',seq([0.1,0.9,0.5,0.9,0.5,0.7,0.95,0.5]));
 assert.ok(round.events.some(t=>t.startsWith('Tobin Reed attacks the Bandit Cutthroat: d20')),'The companion strikes');
 assert.ok(round.events.some(t=>t.startsWith('Bandit Cutthroat attacks Tobin Reed:')),'The foe turns on the companion');
-let beaten=together,bh=big;for(let i=0;i<12&&(beaten.npcHP?.mara??9)>0&&beaten.stage==='combat';i++){const s=r.adventureStep(beaten,bh,kara,'dodge',seq([0,0.9,0.95,0.9]));beaten=s.game;bh=s.health;}
+// No draught to give (that would be a bonus action worth waiting for): every Dodge ends the turn.
+let beaten={...together,potions:0},bh=big;for(let i=0;i<12&&(beaten.npcHP?.mara??9)>0&&beaten.stage==='combat';i++){const s=r.adventureStep(beaten,bh,kara,'dodge',seq([0,0.9,0.95,0.9]));beaten=s.game;bh=s.health;}
 assert.equal(beaten.npcHP.mara,0,'A companion can be knocked down');assert.ok(valid(beaten));
 // A companion beside a dying hero stops the bleeding and carries them home.
 const dying=r.adventureStep({...together,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',seq([0,0.1,0.99,0.99,0.5,0.5]));
