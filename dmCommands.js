@@ -154,17 +154,29 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   let spell=known.find(s=>cast[1].toLowerCase()===s.name.toLowerCase()||cast[1].toLowerCase().startsWith(s.name.toLowerCase()+' ')),detail=spell?cast[1].slice(spell.name.length).trim():'';
   // Obvious shortenings that fit exactly one known spell: initials ("FB") or a word of its name ("missiles", "cure").
   if(!spell){const nick=spellNickname(known,cast[1]);if(nick){spell=nick.spell;detail=nick.rest;}}
-  if(!spell)return {error:'Name one of your prepared spells, for example: I cast Cure Wounds on myself.'};
-  if(/\b(and|then) (?:I |cast |attack |move |go |flip )/i.test(detail))return {error:'Send one action at a time, including one spell and one target.'};
-  if(!/\b(on|at|targeting|toward|towards)\s+\S/i.test(detail)&&spell.range!=='Self')return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`};
-
-  const costs=spellCostOptions(hero,game,spell),level=detail.match(/\blevel (\d) slot\b/i);
-  const slot=/\bas a ritual\b/i.test(detail)?'ritual':/\barcanum\b/i.test(detail)?'arcanum':level?Number(level[1]):costs.find(c=>typeof c==='number')??costs[0];
-  if(!costs.includes(slot))return {error:'That casting resource is unavailable. Choose an available slot or rest first.'};
-  const target=detail.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:,|\s+using\b|\s+with\b|\s+at level\b|\s+level \d slot\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(spell.range==='Self'?'myself':undefined);
-  if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.'};
-  if(spell.concentration&&game.concentration&&game.concentration.id!==spell.id&&!/replace concentration/i.test(detail))return {error:`Casting ${spell.name} will end ${game.concentration.id}. Add “replace concentration” to your cast if that is your intention.`};
+  // Wording problems are soft: the Dungeon Master may read what the player meant (context.castingIssue). Every other
+  // refusal is a rule and is shown as it is.
+  if(!spell)return {error:'Name one of your prepared spells, for example: I cast Cure Wounds on myself.',soft:true};
+  if(/\b(and|then) (?:I |cast |attack |move |go |flip )/i.test(detail))return {error:'Send one action at a time, including one spell and one target.',soft:true};
+  const effect=automaticEffects[spell.id],fighting=game.stage==='combat'||!!game.npcCombat?.active;
+  // A slot level said any common way: "level 2 slot", "at 2nd level", "using a 3rd-level slot", "at level 3".
+  const upcast=/\b(?:using |with )?(?:a |my )?(?:level (\d) slot|(\d)(?:st|nd|rd|th)[- ]level slot|at (?:level (\d)|(\d)(?:st|nd|rd|th) level))\b/i,level=detail.match(upcast),named=level?Number(level[1]??level[2]??level[3]??level[4]):null;
+  const said=detail.replace(upcast,'').replace(/\s{2,}/g,' ');
+  const bare=!/\b(on|at|targeting|toward|towards)\s+\S/i.test(said);
+  // Spells that need no one named: sensing and everyday magic, buffs on yourself, Divine Smite after a hit, and (in a
+  // creature fight) anything aimed at the creature you are fighting.
+  const untargeted=spell.range==='Self'||!!effect?.narrated||!!effect?.buff||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider));
+  if(bare&&!untargeted)return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`,soft:true};
+  const costs=spellCostOptions(hero,game,spell);
+  // A free casting from the hero's species comes first, then (out of a fight) a ritual, which needs no slot, then a slot.
+  const slot=/\bas a ritual\b/i.test(detail)?'ritual':/\barcanum\b/i.test(detail)?'arcanum':named!==null?named:costs.includes('species')&&!/\bslot\b/i.test(detail)?'species':!fighting&&costs.includes('ritual')?'ritual':costs.find(c=>typeof c==='number')??costs[0];
+  if(!costs.includes(slot))return {error:named!==null&&named<spell.level?`${spell.name} needs a slot of level ${spell.level} or higher.`:'That casting resource is unavailable. Choose an available slot or rest first.'};
+  const target=said.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:,|\s+using\b|\s+with\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(spell.range==='Self'||effect?.buff?'myself':effect?.smite?'the creature i struck':game.stage==='combat'&&effect&&!effect.narrated?'the enemy':'the scene');
+  if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.',soft:true};
   const request={id:spell.id,slot,intent:text.slice(0,500),componentsConfirmed:true};
+  // Hellish Rebuke answers the creature that has just hurt you (a reaction); Divine Smite follows your last hit.
+  if(fighting&&spell.id==='hellish-rebuke'&&game.hurtBy){request.reaction=true;if(String(game.hurtBy).startsWith('ally:'))request.aim=game.hurtBy;}
+  if(effect?.smite&&game.lastHit&&String(game.lastHit.target).startsWith('ally:'))request.aim=game.lastHit.target;
   if(game.stage==='combat'&&target){const aimed=allyNamed(game,target);if(aimed!==null)request.aim='ally:'+aimed;}
   // A person who is here (named, or by title at the crossroads inn) is the spell's target, wherever you are.
   if(npcScene(game).some(n=>n.present&&n.id===target))request.npcTarget=target;
@@ -176,6 +188,6 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     if(named){if(game.party.members[named].status==='dead')return {error:'They are dead. No spell you know can bring them back.'};request.partyTarget=named;}
   }
   const check=inspectSpellCast(hero,game,health,spell,request,target);if(check.error)return check;
-  request.forceDM=check.manual||!!(game.story&&automaticEffects[spell.id]?.detection);
+  request.forceDM=check.manual;
   return {action:{type:'spell',request},narration:check.summary};
 }

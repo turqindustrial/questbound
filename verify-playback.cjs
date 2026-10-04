@@ -25,7 +25,7 @@ for(let i=0;i<15;i++){
 assert.equal(before.playback.length,12);assert.ok(r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(before)),beforeHP,true),hero));
 result=r.adventureStep(game,{current:1,temp:0},hero,attack,sequence([.5,0,0,.99,.1,.99,.9,.9]));
 assert.ok(result.events.some(t=>t.includes('fall unconscious')));assert.ok(result.events.findIndex(t=>t.startsWith('You use'))<result.events.findIndex(t=>t.includes('initiative')),'The opening attack must happen before initiative and cannot be preempted');
-const detect=r.dmCommand(hero,game,'I cast Detect Magic').action;
+const detect=r.dmCommand(hero,game,'I cast Detect Magic using a level 1 slot').action;
 result=r.adventureStep(game,hp,hero,detect,()=>0);recorded=p.recordedTurn(hero,game,hp,result,{question:'I cast Detect Magic',narration:'You sense the lantern.'});
 assert.ok(recorded.turn.events.some(e=>e.text.includes('level 1 spell slot')));assert.ok(p.activeEffectLines(result.game,result.health).some(t=>t.includes('Detect Magic')&&t.includes('100 rounds')));
 const ended=r.adventureStep(result.game,result.health,hero,{type:'end-concentration'},()=>0);

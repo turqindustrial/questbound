@@ -30,7 +30,9 @@ const open=()=>vm.runInNewContext(source+'\n({dmCommand,commitDmTurn,dmContext,e
  const caster={...hero,class:'Wizard',spells:['acid-splash','cure'],spellbook:['acid-splash','cure']};caster.equipment=r.equipmentFor(caster);
  const combat={...r.newAdventure(caster),stage:'combat',map:{visited:['inn','bridge'],accepted:true,clue:false,peaceful:false,minutes:0}};
  assert.ok(r.dmCommand(caster,combat,'I cast Acid Splash at the wisp').action);
- assert.ok(r.dmCommand(caster,combat,'I cast Acid Splash, components ready').error);
+ // Out of a fight a blast needs a target; in a creature fight it goes at the creature.
+ assert.ok(r.dmCommand(caster,{...combat,stage:'inn'},'I cast Acid Splash, components ready').error);
+ assert.ok(r.dmCommand(caster,combat,'I cast Acid Splash, components ready').action);
  const spellCommand=r.dmCommand(caster,combat,'I cast Acid Splash at the wisp, components ready');assert.equal(spellCommand.action.request.slot,0);assert.equal(spellCommand.action.request.forceDM,false);
  const cast=r.commitDmTurn(caster,combat,null,spellCommand.action,{question:'I cast Acid Splash at the wisp, components ready',narration:'You cast.'},()=>0.5);assert.equal(cast.error,undefined);assert.ok(cast.game.log.some(line=>line.includes('Acid Splash')));
  const other=r.dmCommand(caster,combat,'I cast Acid Splash at the keeper, components ready');assert.equal(other.action.request.forceDM,true);

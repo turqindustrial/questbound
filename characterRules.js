@@ -10,6 +10,9 @@ export const classes = ['Artificer', 'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fi
 export const legacyClasses = [];
 export const species = ['Dragonborn', 'Dwarf', 'Elf', 'Dark Elf', 'Gnome', 'Goblin', 'Goliath', 'Half-Elf', 'Halfling', 'Human', 'Orc', 'Tiefling'];
 export const legacySpecies = [];
+// Lineages a species can choose (SRD 5.2); each grants its own spells (spellOptions.js lineageSpells). A Dark Elf is
+// always of the Drow lineage; an Elf, Gnome or Tiefling made before lineages were offered has none.
+export const speciesLineages = {'Dark Elf':['Drow'], Elf:['High Elf','Wood Elf'], Gnome:['Forest Gnome','Rock Gnome'], Tiefling:['Abyssal','Chthonic','Infernal']};
 export const backgrounds = {
   Artisan: {abilities: ['Strength', 'Dexterity', 'Intelligence'], feat: 'Crafter'},
   Charlatan: {abilities: ['Dexterity', 'Constitution', 'Charisma'], feat: 'Skilled'},
@@ -45,6 +48,7 @@ export function buildError(form) {
   if (form.description !== undefined && (typeof form.description !== 'string' || form.description.length > 1500)) return 'Keep appearance and personality within 1,500 characters.';
   if (!form.name?.trim() || form.name.length > 60) return 'Enter a character name (up to 60 characters).';
   if (!(species.includes(form.species) || legacySpecies.includes(form.species)) || !(classes.includes(form.class) || legacyClasses.includes(form.class))) return 'Choose a species and class from the available options.';
+  if (form.lineage !== undefined && form.lineage !== null && !speciesLineages[form.species]?.includes(form.lineage)) return 'Choose a lineage your species has.';
   const bg = backgrounds[form.background];
   if (!bg) return 'Choose a background.';
   if (!Array.isArray(form.baseScores) || JSON.stringify([...form.baseScores].sort((a,b)=>b-a)) !== JSON.stringify(standardArray)) return 'Assign each standard-array score exactly once.';
@@ -65,7 +69,7 @@ export function finalScores(form) {
 export function makeCharacter(form) {
   const error = buildError(form);
   if (error) throw new Error(error);
-  return {...form, spellSelectionVersion: 2, equipment: equipmentFor(form), baseSpecies: form.species === 'Dark Elf' ? 'Elf' : form.species, lineage: form.species === 'Dark Elf' ? 'Drow' : null, name: form.name.trim(), race: form.species, level: validLevel(form.level) ? form.level : 1, rulesVersion: '2024', schemaVersion: 2, scores: finalScores(form), originFeat: backgrounds[form.background].feat};
+  return {...form, spellSelectionVersion: 2, equipment: equipmentFor(form), baseSpecies: form.species === 'Dark Elf' ? 'Elf' : form.species, lineage: form.species === 'Dark Elf' ? 'Drow' : speciesLineages[form.species]?.includes(form.lineage) ? form.lineage : null, name: form.name.trim(), race: form.species, level: validLevel(form.level) ? form.level : 1, rulesVersion: '2024', schemaVersion: 2, scores: finalScores(form), originFeat: backgrounds[form.background].feat};
 }
 
 

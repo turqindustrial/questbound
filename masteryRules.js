@@ -110,8 +110,13 @@ export function heroEdge(game,key,weapon){
  const adv=[],dis=[];
  if(game.vex?.target===key)adv.push('Vex');
  if(markOf(game,key).prone)((weapon.ranged||weapon.thrown)?dis:adv).push('prone');
+ // What a spell left on it (spellRules.js): held, asleep, blinded, outlined, or lit by Guiding Bolt.
+ const conds=(markOf(game,key).spells??[]).map(m=>m.cond),open=conds.find(c=>openConds.includes(c));
+ if(open)adv.push(open);
+ if(conds.includes('guided'))adv.push('Guiding Bolt');
  return {adv,dis};
 }
+const openConds=['paralyzed','asleep','restrained','blinded','outlined','entranced'];
 export function edgeMode(base,{adv,dis}){
  const a=base==='advantage'||adv.length>0,d=base==='disadvantage'||dis.length>0;
  return a===d?'normal':a?'advantage':'disadvantage';
@@ -123,6 +128,7 @@ export function foeEdge(game,key,target,health){
  if(mark.prone)why.push('prone');
  if(mark.sapped)why.push('Sap');
  const by=grappledBy(game,key,health);if(by&&by!==target)why.push('grappled');
+ for(const c of new Set((mark.spells??[]).map(m=>m.cond)))if(['restrained','blinded','frightened','poisoned'].includes(c))why.push(c);
  return why;
 }
 // At the start of its turn a prone creature gets up, unless a grapple holds it (its speed is 0); a hold whose hero has
@@ -138,19 +144,26 @@ export const sapSpent=(game,key)=>markOf(game,key).sapped?withMark(game,key,{sap
 export function sapsEnd(game){let next=game;for(const key of Object.keys(game.marks??{}))next=sapSpent(next,key);return next;}
 // The end of the hero's own turn: what lasts only for a turn goes, and Vex lasts one more turn of theirs.
 export function endHeroTurn(next){
- delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;
+ delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;delete next.lastHit;
  if(next.vex){if(next.vex.fresh)next.vex={target:next.vex.target};else delete next.vex;}
  return next;
 }
 // Nothing of a fight outlasts it.
 export function fightOver(game){
- if(!['marks','vex','lightAttack','nickUsed','cleaveUsed'].some(k=>game[k]!==undefined))return game;
- const next={...game};for(const k of ['marks','vex','lightAttack','nickUsed','cleaveUsed'])delete next[k];return next;
+ const lasting=['marks','vex','lightAttack','nickUsed','cleaveUsed','lastHit','hurtBy','shieldUp'];
+ if(!lasting.some(k=>game[k]!==undefined))return game;
+ const next={...game};for(const k of lasting)delete next[k];return next;
 }
+// A spell's mark on a creature (spellRules.js withSpellMark).
+const spellMarkConds=['asleep','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned'];
+const validSpellMark=m=>!!m&&typeof m==='object'&&typeof m.id==='string'&&m.id.length>0&&m.id.length<=60&&spellMarkConds.includes(m.cond)&&typeof m.by==='string'&&m.by.length>0&&m.by.length<=80&&Number.isInteger(m.dc)&&m.dc>=1&&m.dc<=40&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(m.save)&&(m.rounds===undefined||(Number.isInteger(m.rounds)&&m.rounds>=1&&m.rounds<=100000))&&Object.keys(m).every(k=>['id','cond','by','dc','save','rounds'].includes(k));
 export function validMarks(g){
  const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1[0-2]))$/;
- return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)))))
+ return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)||(f==='spells'&&Array.isArray(v)&&v.length>=1&&v.length<=4&&v.every(validSpellMark))))))
   &&(g.vex===undefined||(!!g.vex&&keys.test(String(g.vex.target))&&(g.vex.fresh===undefined||g.vex.fresh===true)))
   &&(g.lightAttack===undefined||(!!g.lightAttack&&typeof g.lightAttack.weapon==='string'&&g.lightAttack.weapon.length<=30&&keys.test(String(g.lightAttack.target))))
-  &&(g.nickUsed===undefined||g.nickUsed===true)&&(g.cleaveUsed===undefined||g.cleaveUsed===true);
+  &&(g.nickUsed===undefined||g.nickUsed===true)&&(g.cleaveUsed===undefined||g.cleaveUsed===true)
+  // After a melee hit (Divine Smite), after being hurt (Hellish Rebuke), and Shield raised until the hero's next turn.
+  &&(g.lastHit===undefined||(!!g.lastHit&&keys.test(String(g.lastHit.target))&&(g.lastHit.critical===undefined||g.lastHit.critical===true)))
+  &&(g.hurtBy===undefined||keys.test(String(g.hurtBy)))&&(g.shieldUp===undefined||g.shieldUp===true);
 }
