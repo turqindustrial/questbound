@@ -35,6 +35,10 @@ export function describeEvent(event){
   const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
   const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};
   if(/^You have earned a level\b/.test(text))return {type:'level'};
+  // Searching the fallen (lootRules.js): who was searched, what was found, and each magic item among it.
+  const search=text.match(/^You search (.+?)\.$/);if(search)return {type:'search',title:search[1]};
+  const found=text.match(/^Found: (.+?)\.$/);if(found)return {type:'found',items:found[1]==='nothing of value'?[]:found[1].split(', ')};
+  const magic=text.match(/^Among the hoard: (.+?) \((uncommon|rare|very rare)\): ([\s\S]+)$/);if(magic)return {type:'treasure',name:magic[1],rarity:magic[2],text:magic[3]};
  }
  if(kind==='effect'){
   const hp=text.match(/^(.*): (\d+) → (\d+) HP\.?$/);

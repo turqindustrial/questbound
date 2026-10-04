@@ -30,20 +30,21 @@ export function masteryCount(hero){
 // first, then their best weapon for range, then the rest (a Barbarian masters melee weapons only).
 export function masteredWeapons(hero){
  const count=masteryCount(hero);if(!count)return [];
- const fit=weaponAttacks(hero).filter(w=>weapons[w.name]?.mastery&&w.proficient&&(hero.class!=='Barbarian'||!w.ranged));
+ const fit=weaponAttacks(hero).filter(w=>weapons[w.base??w.name]?.mastery&&w.proficient&&(hero.class!=='Barbarian'||!w.ranged));
  if(!fit.length)return [];
  const main=fit[0],range=fit.find(w=>w!==main&&w.ranged)??fit.find(w=>w!==main&&/^Thrown\b/.test(String(w.range??'')));
- return [...new Set([main,range,...fit].filter(Boolean).map(w=>w.name))].slice(0,count);
+ // Mastery is of a kind of weapon: a magic longsword is a longsword.
+ return [...new Set([main,range,...fit].filter(Boolean).map(w=>w.base??w.name))].slice(0,count);
 }
 // The mastery property this hero can use with this weapon, or null.
 export function masteryOf(hero,weapon){
  if(!weapon||weapon.unarmed)return null;
- const mastery=weapons[weapon.name]?.mastery;
- return mastery&&masteredWeapons(hero).includes(weapon.name)?mastery:null;
+ const kind=weapon.base??weapon.name,mastery=weapons[kind]?.mastery;
+ return mastery&&masteredWeapons(hero).includes(kind)?mastery:null;
 }
 
 // ---------- Two-weapon fighting (the Light property) ----------
-export const isLight=weapon=>!!weapons[weapon?.name]?.light;
+export const isLight=weapon=>!!weapons[weapon?.base??weapon?.name]?.light;
 // After attacking with a Light weapon (`used`), the other hand can make one extra attack with a different Light weapon
 // (a second of the same kind counts) as a bonus action. Both hands must be free of a shield.
 export function offhandWeapons(hero,used){

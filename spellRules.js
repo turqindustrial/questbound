@@ -348,7 +348,8 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       const nearbyThreat=!game.openingAttackAvailable && (game.castingConditions?.targetDistance??target.distance??5)<=5 && target.canSeeAttacker!==false && !target.incapacitated;
       const edge=spellEdge(next,key,effect.attack==='ranged');
       const base=effect.attack==='ranged' && nearbyThreat?'disadvantage':'normal';
-      const rolled=rollAttack({attackBonus:bonus},edgeMode(base,edge),random),bless=attackBoost(next,random);
+      // A Wand of the War Mage adds to spell attack rolls (lootRules.js).
+      const war=hero.equipment?.magic?.spellAttack??0,rolled=rollAttack({attackBonus:bonus+war},edgeMode(base,edge),random),bless=attackBoost(next,random);
       const attack={...rolled,total:rolled.total+bless.amount};
       const hit=!attack.miss && (attack.critical || attack.total>=target.ac);
       const critical=attack.critical||(hit&&effect.attack==='melee'&&helpless(next,key));
@@ -360,7 +361,7 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       if(!hit && subclassActive(hero,'Evoker')){damageDice=roll(effect.beams?1:count,effect.die);part=Math.floor(sum(damageDice)/2);note='; halved by Potent Cantrip';}
       else if(!hit && effect.missHalf){damageDice=roll(count,effect.die);part=Math.floor(sum(damageDice)/2);note='; half on a miss';}
       const before=part;part=defended(target,type,part);
-      logs.push(`${spell.name}${beams>1?` beam ${i+1}`:''}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv,...edge.dis].length?', '+[...edge.adv,...edge.dis].join(', '):''}) + ${mod} ${castingAbility(hero)} + ${proficiencyBonus(hero.level)} proficiency${bless.amount?' + '+bless.amount+' Bless':''} = ${attack.total} vs AC ${target.ac}. ${critical?'Critical hit':hit?'Hit':'Miss'}; ${before} ${type} damage${damageDice.length?' ('+damageDice.length+'d'+effect.die+' ['+damageDice.join(', ')+']'+(effect.addMod&&hit?' + '+mod:'')+note+')':''}.`);
+      logs.push(`${spell.name}${beams>1?` beam ${i+1}`:''}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv,...edge.dis].length?', '+[...edge.adv,...edge.dis].join(', '):''}) + ${mod} ${castingAbility(hero)} + ${proficiencyBonus(hero.level)} proficiency${war?` + ${war} magic`:''}${bless.amount?' + '+bless.amount+' Bless':''} = ${attack.total} vs AC ${target.ac}. ${critical?'Critical hit':hit?'Hit':'Miss'}; ${before} ${type} damage${damageDice.length?' ('+damageDice.length+'d'+effect.die+' ['+damageDice.join(', ')+']'+(effect.addMod&&hit?' + '+mod:'')+note+')':''}.`);
       if(part!==before)logs.push(`After the target's ${type} defenses: ${part} damage applied (${before} before defenses).`);
       if(hit){
         const rider=riderDamage(hero,next,key,critical,random);next=rider.game;part+=defended(target,rider.type,rider.amount);logs.push(...rider.lines);
@@ -450,8 +451,8 @@ export function concentrationAfterDamage(hero,game,damage,random=Math.random) {
   if(game.concentration&&game.castingConditions?.incapacitated){const next={...game};delete next.concentration;return {game:next,logs:['Concentration ended: incapacitated.']};}
   if(!game.concentration || damage<=0)return {game,logs:[]};
   const die=1+Math.floor(random()*20),trained=['Artificer','Barbarian','Fighter','Sorcerer'].includes(hero.class);
-  const bonus=modifier(hero.scores.Constitution)+(trained?proficiencyBonus(hero.level):0),dc=Math.min(30,Math.max(10,Math.floor(damage/2)));
-  // Bless adds 1d4 to the save.
+  const bonus=modifier(hero.scores.Constitution)+(trained?proficiencyBonus(hero.level):0)+(hero.equipment?.magic?.saves??0),dc=Math.min(30,Math.max(10,Math.floor(damage/2)));
+  // Bless adds 1d4 to the save; a Cloak or Ring of Protection or a Stone of Good Luck adds to every saving throw (a geared hero's magic).
   const blessed=attackBoost(game,random).amount;
   const success=die+bonus+blessed>=dc,next={...game};if(!success)delete next.concentration;
   return {game:next,logs:[`Concentration: Constitution save ${die} + ${bonus}${blessed?' + '+blessed+' Bless':''} vs DC ${dc}. ${success?'Maintained.':'Spell ended.'}`]};

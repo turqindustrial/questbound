@@ -66,6 +66,8 @@ const plainChoices=[
  ['short-rest',/\b(short rest|catch (?:my|our) breath|take a breather|rest (?:a while|a little|briefly|for an hour|for a bit)|bind (?:my|our) wounds)\b/,'taking a short rest'],
  ['long-rest',/\b(long rest|rest for the night|rest until (?:morning|dawn)|sleep|bed down|turn in for the night|make camp for the night|get a night's rest)\b/,'resting for the night'],
  ['potion',/\b(drink|quaff|down|swallow|use)\b[^.!?]{0,30}\b(potion|draught)\b/,'drinking a healing draught'],
+ // Searching the fallen or a lair (the game rolls what they held: lootRules.js).
+ ['loot',/^(?:i |we |let me |let's )?(?:(?:loot|skin)\b(?! is)|(?:search|rifle through|go through|strip|check|rummage through|go over)\s+(?:(?:him|her|them|it)\b|.*\b(?:bod(?:y|ies)|corpses?|remains|fallen|dead|pockets|belongings|purse|lair|den|nest|hoard|carcass(?:es)?|pelts?)\b))/,'searching the fallen'],
 ];
 // A side errand (a lead) the player's words seem to settle: they name it (a word of its title) and do something that
 // ends such errands (hand over, return, tell, pay, free, destroy...).
@@ -104,7 +106,7 @@ function secondLook(body,reply,{canDiscover=false}={}){
  const lead=none&&!asking?settledLead(text,context):null;
  if(lead)return {kind:'lead',sure:false,
   note:'Your last reply closed nothing. The player\'s message may settle the lead "'+String(lead.title).slice(0,80)+'", and lead-done:'+lead.id+' is on offer. If this message completes it (the thing is handed over, the truth is told to the one who asked, the matter is settled for good or ill), select actionId lead-done:'+lead.id+' in this reply; the telling of the moment follows. If it only moves the errand along, answer as you did.'};
- if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.'}[id],
+ if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.','loot':'You search the fallen.'}[id],
   note:'Your last reply started no game action. The player\'s message reads as '+what+', and '+id+' is on offer. Select actionId '+id+' unless the message is plainly not doing so now.'};
  return null;
 }

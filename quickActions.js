@@ -9,6 +9,7 @@ import {foeLabel} from './encounterRules';
 import {npcLore} from './npcRules';
 import {masteryOf,unarmedDC} from './masteryRules';
 import {partyMembers} from './partyRules';
+import {spoilsHere,magicItems,packMagic} from './lootRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
 // Spells need a target, so "Cast…" starts the sentence in the message box instead. `icon` names a line icon
@@ -21,6 +22,7 @@ const verbs={
 };
 // In a fight these cost a bonus action, not the action: their chips say so.
 const bonusIds=['potion','class:wind','class:hands','class:strike'];
+const isBonus=id=>bonusIds.includes(id)||id.startsWith('drink:');
 export function quickActions(hero,game,health=null){
  // The main weapon leads (gold); backup weapons wait at the end so defence and the potion stay within thumb reach.
  const place=id=>placeName(game,id),primary=[],rest=[],backup=[],last=[];let trips=0;
@@ -41,6 +43,13 @@ export function quickActions(hero,game,health=null){
   // A fallen friend in a party is revived with a draught, like a fallen companion.
   if(id.startsWith('give-potion:party:')){const member=game.party?.members?.[c.action.target.slice(6)];if(member?.status!=='down')continue;const name=c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ')[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
   if(id.startsWith('give-potion:')){const target=c.action.target;if((game.npcHP?.[target]??1)>0)continue;const name=game.story?.npcs?.[target]?.name??c.label.replace(/^Give | a healing draught$/g,'');primary.push({key:id,glyph:'✚',icon:'potion',label:'Revive '+name.split(' ').filter(w=>!/^(captain|the|old|young|sir|lady|lord)$/i.test(w))[0],question:'I give '+name+' a healing draught.',action:c.action});continue;}
+  // Searching the fallen leads the row right after a win (one chip, however many lie here).
+  if(id==='loot'){const n=spoilsHere(game).length;primary.unshift({key:id,glyph:'⚲',icon:'bag',label:'Loot',...(n>1?{detail:String(n)}:{}),question:'I search the fallen for anything of value.',action:c.action,primary:true});continue;}
+  // A stronger healing draught from the pack (a bonus action in a fight).
+  if(id.startsWith('drink:')){const m=magicItems[id.slice(6)],held=(game.pack?.items??[]).find(i=>i.magic?.id===id.slice(6));if(!m)continue;rest.push({key:id,glyph:'✚',icon:'potion',label:m.name.replace(/^Potion of /,'').replace(/ Healing$/,'')+(held?.qty>1?' ×'+held.qty:''),question:'I drink a '+m.name.toLowerCase().replace(/^potion/,'potion')+'.',action:c.action,...(fighting?{detail:'Bonus'}:{})});continue;}
+  // The Wand of Magic Missiles at the foe (at the creature beside it, by typing "I use my wand on …").
+  if(id==='item:wand-of-magic-missiles'){const wand=packMagic(game,'wand-of-magic-missiles');rest.unshift({key:id,glyph:'✧',icon:'staff',label:'Wand',detail:(wand?.magic?.charges??0)+' charges',question:'I use my wand of magic missiles.',action:c.action});continue;}
+  if(id.startsWith('ally-item:'))continue;
   if(id==='death-save'){primary.push({key:id,glyph:'☠',icon:'skull',label:'Death save',question:'I fight to hold on.',action:c.action,primary:true});continue;}
   // Throws, and attacks with the other weapons, are in the Attack… picker.
   if(/^(throw|encounter-throw|ally-throw|npc-throw):/.test(id)||/^(grapple|shove)$|^(ally|npc)-(grapple|shove):/.test(id))continue;
@@ -56,7 +65,7 @@ export function quickActions(hero,game,health=null){
   const verb=verbs[id];
   // A short rest comes first for a hero who is hurt (it is what they are looking for); otherwise it waits with the rest.
   if(id==='short-rest'){const chip={key:id,glyph:verb[0],icon:verb[3],label:verb[1],question:verb[2],action:c.action,detail:shortRestsLeft(hero,game)+' left'};if(health&&health.current<combatBasics(hero).hp)rest.unshift(chip);else rest.push(chip);continue;}
-  if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action,...(fighting&&bonusIds.includes(id)?{detail:'Bonus'}:{})});continue;}
+  if(verb){rest.push({key:id,glyph:verb[0],icon:verb[3],label:id==='potion'&&game.potions>1?verb[1]+' ×'+game.potions:verb[1],question:verb[2],action:c.action,...(fighting&&isBonus(id)?{detail:'Bonus'}:{})});continue;}
   rest.push({key:id,glyph:'✦',icon:'star',label:c.label.replace(/:.*$/,''),question:c.label.replace(/:.*$/,'')+'.',action:c.action});
  }
  // Attack…: every weapon, melee and ranged, at whoever can be attacked now (attackActions). In a fight it sits beside

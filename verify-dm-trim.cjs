@@ -6,7 +6,7 @@ const server=require(process.env.QB_DM??'./dm-server.cjs'),{generate,sceneFor,re
 const {modelOptions,providerTimeout,outputBudget,effortOf}=require('./ai-request.cjs');
 const {generateAdventure}=require(process.env.QB_ADV??'./adventure-generator.cjs');
 const {checkSetup}=require('./check-dm-setup.cjs');
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,dmContext,conversationPeople,adventureStep})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('wizard'),hp={current:8,temp:0};
@@ -29,6 +29,8 @@ assert.equal(s.world.knownPlaces.find(p=>p.id==='inn').description,undefined,'Th
 assert.equal(s.travelRoutes,undefined,'Distances are in world.knownPlaces');assert.equal(s.npcDefenses,undefined,'No fight, no defenses');
 assert.ok(s.spellReference.length>0,'An ordinary turn keeps the spell list');assert.ok(s.choices.length>0);
 assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.75,'At least a quarter smaller: '+JSON.stringify(sent).length+' of '+JSON.stringify(body).length);
+// The fallen not yet searched reach the model as they are (lootRules.js).
+{const spoils=[{name:'Grey Widow',kind:'creature',what:'Giant spider',lair:true,feature:'A satchel under the webs.'}];assert.deepEqual(sceneFor({...body,context:{...full,spoils}},{}).context.spoils,spoils,'context.spoils survives the trim');}
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
 const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.deepEqual(narrated.choices,[]);assert.equal(narrated.spellReference,undefined);assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
 const legacy=sceneFor({input:'x',context:{...r.dmContext(hero,r.newAdventure(hero),hp)}},{}).context;assert.ok(Array.isArray(legacy.travelRoutes),'Without a written story the routes stay');

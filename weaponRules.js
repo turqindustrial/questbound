@@ -2,7 +2,7 @@ import {modifier,martialDie,proficiencyBonus,subclassActive} from './characterRu
 import {combatBasics} from './combatRules';
 import {loadoutFor,classWeapons} from './equipmentRules';
 // How well a weapon suits this hero: the chance to hit an ordinary foe times the damage of a hit.
-const weaponScore=w=>Math.max(.05,Math.min(.95,(w.attackBonus+8)/20))*(w.heavyDisadvantage?.5:1)*Math.max(1,(w.count*(w.die+1))/2+w.bonus);
+const weaponScore=w=>Math.max(.05,Math.min(.95,(w.attackBonus+8)/20))*(w.heavyDisadvantage?.5:1)*Math.max(1,(w.count*(w.die+1))/2+w.bonus+(w.magic??0));
 
 // Only weapons available in the current starter kits are supported. `light` weapons can fight two at once, and
 // `mastery` is the weapon's mastery property (masteryRules.js), both as in the 2024 rules (SRD 5.2).
@@ -28,8 +28,9 @@ export function weaponAttacks(hero) {
   const has = name => hero.equipment.items.some(item => item.name === name && item.quantity > 0);
   const armored = hero.equipment.items.some(item => /Armor|Chain Mail|Chain Shirt/.test(item.name) && item.quantity > 0);
   const attacks = hero.equipment.items.filter(item => item.quantity > 0).flatMap(item => {
-    const name = item.name.includes('(Quarterstaff)') ? 'Quarterstaff' : item.name;
-    const weapon = weapons[name];
+    // A magic weapon ('Longsword +1', or a name of its own) fights as its base kind, with its plus to attack and damage.
+    const name = item.name.includes('(Quarterstaff)') ? 'Quarterstaff' : item.name, base = weapons[item.base] ? item.base : name;
+    const weapon = weapons[base], magic = Number.isInteger(item.plus) ? item.plus : 0;
     if (!weapon) return [];
     const monk = hero.class === 'Monk' && !armored && !has('Shield') && !weapon.ranged && (!weapon.martial || weapon.finesse);
     // Shillelagh (spellRules.js): a club or quarterstaff strikes with the caster's spellcasting ability when that is better.
@@ -39,12 +40,12 @@ export function weaponAttacks(hero) {
     const proficient = subclassActive(hero,'College of Valor') || (hero.class==='Artificer' && subclassActive(hero,'Battle Smith')) || !weapon.martial || ['Barbarian','Fighter','Paladin','Ranger'].includes(hero.class) || (['Rogue','Monk'].includes(hero.class) && weapon.finesse);
     const die = hero.shillelagh && ['Club', 'Quarterstaff'].includes(name) ? Math.max(weapon.die, hero.level >= 11 ? 12 : hero.level >= 5 ? 10 : 8) : monk ? Math.max(martialDie(hero.level),weapon.die) : weapon.die;
     const heavyDisadvantage = !!weapon.heavy && hero.scores[weapon.ranged ? 'Dexterity' : 'Strength'] < 13;
-    return [{...weapon,name,die,count:weapon.count ?? 1,ability,bonus,attackBonus:bonus+(proficient?proficiencyBonus(hero.level):0),proficient,monk,heavyDisadvantage,
+    return [{...weapon,name,...(base !== name ? {base} : {}),...(magic ? {magic} : {}),die,count:weapon.count ?? 1,ability,bonus,attackBonus:bonus+(proficient?proficiencyBonus(hero.level):0)+magic,proficient,monk,heavyDisadvantage,
       criticalThreshold:combatBasics(hero).criticalThreshold,blocked:weapon.twoHands && has('Shield') ? 'This weapon needs two free hands. Shield changes are not available yet.' : weapon.ranged && !has('Arrow') ? 'No arrows available.' : ''}];
   });
   // The main weapon leads: the close-range weapon that suits this hero best (a frail wizard's dagger, a strong
   // one's staff), the class's usual choice settling ties.
-  const usual = classWeapons[hero.class] ?? [], rank = w => { const i = usual.indexOf(w.name); return i < 0 ? 99 : i; };
+  const usual = classWeapons[hero.class] ?? [], rank = w => { const i = usual.indexOf(w.base ?? w.name); return i < 0 ? 99 : i; };
   const best = attacks.filter(w => !w.ranged && !w.blocked).sort((a,b) => weaponScore(b) - weaponScore(a) || rank(a) - rank(b))[0]?.name ?? loadoutFor(hero).mainWeapon;
   // A weapon the player chose to wield (from the inventory) leads instead, bow or blade, while they can use it.
   const chosen = hero.equipment.wield, main = chosen && attacks.some(w => w.name === chosen && !w.blocked) ? chosen : best;
@@ -99,7 +100,7 @@ export function rangedMode(weapon, {closeEnemy=false,distance=5}={}) {
 }
 // The damage arithmetic as the log shows it: "1d8 [6] + 3", or "1 + 2" for a plain unarmed blow.
 export function damageMath(weapon, roll) {
-  const bonus = weapon.bonus >= 0 ? ' + ' + weapon.bonus : ' − ' + Math.abs(weapon.bonus);
+  const bonus = (weapon.bonus >= 0 ? ' + ' + weapon.bonus : ' − ' + Math.abs(weapon.bonus)) + (weapon.magic ? ' + ' + weapon.magic + ' magic' : '');
   return weapon.flat ? '1' + bonus : roll.dice.length + 'd' + weapon.die + ' [' + roll.dice.join(', ') + ']' + bonus;
 }
 export function rollAttack(weapon, mode='normal', random=Math.random) {
@@ -115,7 +116,8 @@ export function rollDamage(weapon, critical=false, random=Math.random) {
   // A plain unarmed strike rolls no dice, so a critical hit adds nothing to it.
   if (weapon.flat) return {dice:[],total:Math.max(1,1+weapon.bonus)};
   const dice = Array.from({length:weapon.count*(critical?2:1)},()=>1+Math.floor(random()*weapon.die));
-  return {dice,total:Math.max(0,dice.reduce((sum,n)=>sum+n,0)+weapon.bonus)};
+  // A magic weapon's plus is added to every hit (Cleave and the other hand drop only the ability bonus).
+  return {dice,total:Math.max(0,dice.reduce((sum,n)=>sum+n,0)+weapon.bonus+(weapon.magic??0))};
 }
 
 export function attacksPerAction(hero) {

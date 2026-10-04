@@ -1,5 +1,6 @@
 import {attackOptions,canThrow} from './weaponRules';
 import {gearedHero} from './inventoryRules';
+import {spoilsHere,lootError,packMagic,carriedDraughts} from './lootRules';
 import {offhandWeapons} from './masteryRules';
 import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {livingAllies} from './encounterRules';
@@ -25,6 +26,8 @@ function commandWeapon(hero,text,requested){
 }
 const missingWeapon=(hero,requested)=>{const carried=attackOptions(hero).filter(w=>!w.unarmed).map(w=>w.name);return {error:requested?'You don\'t carry '+(/^(?:a|an|my|the)\s/i.test(requested)?requested.replace(/^(?:my|the)\s/i,'a '):'a '+requested)+'. '+(carried.length?'You have: '+carried.join(', ')+', or your fists.':'You can fight with your fists.'):'You have no bow ready (or no arrows).'};};
 // Which creature beside the foe a phrase names, if any: its name, or a word of it or of its kind ("hound", "wolf").
+// Words that search the fallen or a lair (only acted on when something lies here unsearched).
+export const lootWords=/^(?:I )?(?:(?:loot|skin)\b|(?:search|rifle through|go through|strip|check|rummage through|go over)\s+(?:(?:him|her|them|it)\b|.*\b(?:bod(?:y|ies)|corpses?|remains|fallen|dead|pockets|belongings|purse|lair|den|nest|hoard|carcass(?:es)?|pelts?)\b))/i;
 export function allyNamed(game,phrase){
   const said=String(phrase??'').toLowerCase().replace(/^(?:the|that|this|a|an) /,'').split(/[^a-z]+/).filter(w=>w.length>=3);
   const found=livingAllies(game).filter(a=>{const words=[...a.name.toLowerCase().split(/[^a-z]+/),a.template].filter(w=>w.length>=3);return said.some(w=>words.some(n=>n===w||n===w.replace(/s$/,'')||n.startsWith(w)));});
@@ -49,6 +52,13 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   let text=message.trim();
   // A dying hero can only fight to hold on.
   if(game.stage==='dying')return /\b(?:death sav|saving throw|hold on|stay alive|survive|breathe|stay conscious|fight (?:to|for)|roll)\w*/i.test(text)?{action:'death-save'}:null;
+  // Searching the fallen ("I search the bandit's body", "loot the lair", "skin the wolf"), while something lies here
+  // that has not been searched; otherwise the words go to the Dungeon Master as before.
+  if(lootWords.test(text)&&spoilsHere(game).length&&!lootError(game,health))return {action:{type:'loot'}};
+  // A stronger healing draught by name ("I drink the potion of greater healing", "quaff a superior potion").
+  {const strong=text.match(/^(?:I )?(?:drink|quaff|down|swig|take|use) (?:a |my |one |the )?(?:potion of )?(greater|superior|supreme)\b/i);if(strong){const id='potion-'+strong[1].toLowerCase()+'-healing';return carriedDraughts(game).some(d=>d.magic.id===id)?{action:'drink:'+id}:{error:'You carry no '+strong[1].toLowerCase()+' healing draught.'};}}
+  // The Wand of Magic Missiles in a fight ("I use my wand on the hound", "I zap it with the wand").
+  if(game.stage==='combat'&&/\bwand\b/i.test(text)&&/^(?:I )?(?:use|point|aim|zap|fire|blast|raise|wave)\b/i.test(text)&&packMagic(game,'wand-of-magic-missiles')){const on=text.match(/\b(?:on|at)\s+(.+)$/i),ally=on?allyNamed(game,on[1]):null;return {action:ally!==null?{type:'use-item',id:'wand-of-magic-missiles',target:'ally:'+ally}:'item:wand-of-magic-missiles'};}
   // Two-weapon fighting: after a Light weapon's attack, the other hand ("I stab with my other dagger", "off-hand").
   if(game.stage==='combat'&&game.lightAttack&&/\b(?:off-?hand|other hand|other (?:dagger|sickle|scimitar|shortsword|handaxe|blade|sword|axe|knife))\b/i.test(text)){
     const options=offhandWeapons(hero,game.lightAttack.weapon),named=options.find(w=>text.toLowerCase().includes(w.name.toLowerCase()))??options[0];

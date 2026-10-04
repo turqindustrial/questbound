@@ -1,4 +1,5 @@
 import {combatBasics} from './combatRules';
+import {gearedHero} from './inventoryRules';
 // A party at the shared table: every player brings their own hero into one adventure. The world (the story, the map,
 // the people, the fight) is shared; each hero's own state (hit points, draughts, pack, slots, deeds, dying...) is kept
 // per hero in game.party.members. A snapshot always has one hero in the lead: the one whose device sent it. Every
@@ -15,7 +16,8 @@ export const isPartyGame=game=>!!game?.party&&typeof game.party==='object'&&!!ga
 const pick=(o,keys)=>Object.fromEntries(keys.filter(k=>o?.[k]!==undefined).map(k=>[k,o[k]]));
 const omit=(o,keys)=>{const c={...o};for(const k of keys)delete c[k];return c;};
 const parse=text=>{try{return JSON.parse(text);}catch{return null;}};
-const statsOf=character=>{const hero=parse(character);if(!hero)return {ac:10,hp:1};const b=combatBasics(hero);return {ac:b.ac,hp:b.hp};};
+// A hero's armor class with their pack and magic counted (what foes roll against); hit points are the hero's own.
+const statsOf=(character,state=null)=>{const hero=parse(character);if(!hero)return {ac:10,hp:1};const b=combatBasics(hero),g=state?combatBasics(gearedHero(hero,state)):b;return {ac:g.available&&g.ac!==null?g.ac:b.ac,hp:b.hp};};
 // Where the party stands when the hero in the lead has just fallen: a fight in the wilds or with the story's foe goes
 // on for the others; a brawl, a hazard or a vault ends where it happened.
 const placeOf=record=>{const place=record?.at??record?.place??'inn';return place==='dungeon'?'bridge':['inn','bridge','tower','wild'].includes(place)?place:'inn';};
@@ -34,7 +36,7 @@ export function settleParty(snapshot){
  // change made meanwhile at another device cannot hand them a second action.
  const holder=turnHolder(game),members=Object.fromEntries(Object.entries(party.members).map(([id,m])=>[id,id===holder?m:omit(m,['turn'])]));
  const turn=holder===lead&&status==='up'?pick(game,turnFields):{};
- members[lead]={...omit(members[lead]??{},['turn']),character:snapshot.character,health:snapshot.health,hero:omit(pick(game,heroFields),status==='up'?['dying','death']:[]),status,stats:statsOf(snapshot.character),...(Object.keys(turn).length?{turn}:{})};
+ members[lead]={...omit(members[lead]??{},['turn']),character:snapshot.character,health:snapshot.health,hero:omit(pick(game,heroFields),status==='up'?['dying','death']:[]),status,stats:statsOf(snapshot.character,game),...(Object.keys(turn).length?{turn}:{})};
  // The world's own place: where the party was when this hero, down already, took their turn (party.stage), or where
  // it stands now.
  let stage=party.stage??(status==='up'?game.stage:stageAfterFall(game));
@@ -62,7 +64,7 @@ export function canonicalParty(snapshot){
 const ownState=(game,health)=>({hero:{potions:1,...omit(pick(game??{},heroFields),['dying','death','pendingSpell','concentration'])},health:health&&health.current>0?health:null});
 // The host turns their own table into a party with their hero in the lead.
 export function startParty(snapshot,me,name){
- return {...snapshot,game:{...snapshot.game,party:{lead:me,order:[me],members:{[me]:{name:String(name||'').slice(0,40),character:snapshot.character,health:snapshot.health,hero:{},status:'up',stats:statsOf(snapshot.character)}}}}};
+ return {...snapshot,game:{...snapshot.game,party:{lead:me,order:[me],members:{[me]:{name:String(name||'').slice(0,40),character:snapshot.character,health:snapshot.health,hero:{},status:'up',stats:statsOf(snapshot.character,snapshot.game)}}}}};
 }
 // A player joins with their own hero (or replaces a hero of theirs who has died). Returns the table seen from them, or
 // an error.
@@ -71,7 +73,7 @@ export function joinParty(snapshot,me,{character,game,health,name}){
  if(known&&known.status!=='dead'&&known.character===character)return {snapshot:partyView(snapshot,me)};
  if(!known&&Object.keys(settled.members).length>=maxPartySize)return {error:'This party is full: four heroes at most.'};
  const own=ownState(game,health);
- const members={...settled.members,[me]:{name:String(name||'').slice(0,40),character,health:own.health,hero:own.hero,status:'up',stats:statsOf(character)}};
+ const members={...settled.members,[me]:{name:String(name||'').slice(0,40),character,health:own.health,hero:own.hero,status:'up',stats:statsOf(character,own.hero)}};
  const order=[...settled.order.filter(id=>id!==me),me];
  // The lead's own state stays in the snapshot, where settling reads it.
  return {snapshot:partyView({...snapshot,game:{...snapshot.game,party:{...snapshot.game.party,members,order}}},me)};
