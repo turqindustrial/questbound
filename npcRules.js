@@ -47,18 +47,41 @@ export function metPerson(game,id){
  const p=game?.people?.[id];
  return !p?.resident||(game.map?.visited??[]).includes(p.home)||!!game.followers?.[id]||sceneLocation(game)===p.home;
 }
+// ---------- Forgiveness ----------
+// A grudge is not forever, but it is never cheap. It has a weight: blood (their family, their beloved or their own kin
+// was killed) or grave (anything else that made it: a friend killed, a wrong the Dungeon Master recorded). Forgiving it
+// takes acts of amends and time: a grave grudge two acts and a day, a blood grudge three acts and two days. A debt they
+// owe the hero (a bond) takes one act off; a grudge sworn again after an earlier forgiveness needs one more. Time is
+// counted in the story log since the grudge was sworn: long rests, new chapters and tales, journeys to a new land.
+export const grudgeWeights={grave:{amends:2,days:1},blood:{amends:3,days:2}};
+// Saves from before weights were kept: the grudge's own words say whether it was blood.
+export const grudgeWeight=m=>['grave','blood'].includes(m?.grudgeWeight)?m.grudgeWeight:/\b(?:my (?:beloved|family|own kin)|whom I loved)\b/i.test(m?.grudge??'')?'blood':'grave';
+export const amendsNeeded=m=>Math.max(1,grudgeWeights[grudgeWeight(m)].amends+(m?.forgave?1:0)-(m?.bond?1:0));
+export function daysSince(game,since=0){
+ const log=Array.isArray(game?.storyLog)?game.storyLog:[];
+ // A log that has scrolled past the grudge, or begun afresh since, counts as long ago.
+ if(log.length&&(log[0].id>since+1||since>log.at(-1).id))return 99;
+ return log.filter(e=>e&&e.id>since&&((e.kind==='rest'&&/^Took a long rest/.test(e.text))||e.kind==='story'||(e.kind==='place'&&/^Set out for a new land/.test(e.text)))).length;
+}
+export function forgivenessOf(game,id){
+ const m=game?.npcMemory?.[id];if(!m?.grudge)return null;
+ const weight=grudgeWeight(m),rule=grudgeWeights[weight],needed=amendsNeeded(m),amends=Math.max(0,m.amends??0),days=Math.min(99,daysSince(game,m.grudgeSince??0));
+ return {weight,amends,needed,amendsToGo:Math.max(0,needed-amends),daysPassed:days,daysNeeded:rule.days,daysToGo:Math.max(0,rule.days-days),canForgive:amends>=needed&&days>=rule.days};
+}
 export function npcScene(game){
  const location=sceneLocation(game);
  return npcIdsOf(game).map(id=>{
   const p=npcProfile(game,id),person=game.people?.[id];
   // Followers go where the player goes; people met on the road stay where they live, and step aside from a fight.
   const present=game.followers?.[id]?game.followers[id].status==='following'||game.followers[id].location===location:person?person.home===location&&!['combat','dying','dead'].includes(game.stage)&&!game.dungeon?.active:game.stage==='inn'&&!game.dungeon?.active;
-  return {id,...p,fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
+  return {id,...p,fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,forgave:game.npcMemory?.[id]?.forgave??null,forgiveness:forgivenessOf(game,id),present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
  });
 }
 export function recordNpcAggression(before,after,target,kind){
  const victim=npcProfile(before,target);
  if(!victim)return after;
+ // Witnesses remember the victim by the story's name for them, not the crossroads default.
+ const victimName=npcLore(before,target)?.name??victim.name;
  const scene=npcScene(before),witnesses=scene.filter(n=>n.present&&n.hp>0).map(n=>n.id);
  if(!witnesses.includes(target)&&!scene.some(n=>n.id===target&&n.present))return after;
  const location=sceneLocation(before),max=victim.maximumHP;
@@ -66,7 +89,7 @@ export function recordNpcAggression(before,after,target,kind){
  const memory={...after.npcMemory},logs=[],killed=after.npcFate?.[target]==='dead'&&before.npcFate?.[target]!=='dead';
  for(const id of witnesses){
   const p=npcProfile(before,id),personal=id===target,knowsVictim=p.knows.includes(target);
-  const text=personal?(killed?'The player killed you.':`The player attacked you (${kind}).`):killed?`You saw the player kill ${victim.name}${knowsVictim?', whom you knew':''}.`:`You witnessed the player attack ${victim.name}${knowsVictim?', whom you know':''} (${kind}).`;
+  const text=personal?(killed?'The player killed you.':`The player attacked you (${kind}).`):killed?`You saw the player kill ${victimName}${knowsVictim?', whom you knew':''}.`:`You witnessed the player attack ${victimName}${knowsVictim?', whom you know':''} (${kind}).`;
   // A grudge keeps someone hostile; a bond (the player once saved them or someone dear) keeps them at least friendly.
   const raw=killed&&!personal?'hostile':!personal&&memory[id]?.allegiance==='player'?'indifferent':personal||knowsVictim?'hostile':'unfriendly';
   const attitude=memory[id]?.grudge?'hostile':memory[id]?.bond&&['hostile','unfriendly','indifferent'].includes(raw)?'friendly':raw;
@@ -102,7 +125,7 @@ export function validNpcCombat(game){
 export function validNpcState(game){
  const text=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max,known=npcIdsOf(game);
  const ids=v=>Array.isArray(v)&&v.length<=10&&new Set(v).size===v.length&&v.every(id=>known.includes(id));
- return validNpcCombat(game)&&(game.npcMemory===undefined||(game.npcMemory&&typeof game.npcMemory==='object'&&!Array.isArray(game.npcMemory)&&Object.entries(game.npcMemory).every(([id,m])=>known.includes(id)&&m&&['hostile','unfriendly','indifferent','friendly','devoted'].includes(m.attitude)&&(m.allegiance===undefined||m.allegiance==='player')&&text(m.response,300)&&Array.isArray(m.memories)&&m.memories.length<=12&&m.memories.every(t=>text(t,300))&&(m.grudge===undefined||text(m.grudge,200))&&(m.bond===undefined||text(m.bond,200))&&(!m.grudge||m.attitude==='hostile')&&(!m.bond||m.grudge||['friendly','devoted'].includes(m.attitude)))))
+ return validNpcCombat(game)&&(game.npcMemory===undefined||(game.npcMemory&&typeof game.npcMemory==='object'&&!Array.isArray(game.npcMemory)&&Object.entries(game.npcMemory).every(([id,m])=>known.includes(id)&&m&&['hostile','unfriendly','indifferent','friendly','devoted'].includes(m.attitude)&&(m.allegiance===undefined||m.allegiance==='player')&&text(m.response,300)&&Array.isArray(m.memories)&&m.memories.length<=12&&m.memories.every(t=>text(t,300))&&(m.grudge===undefined||text(m.grudge,200))&&(m.bond===undefined||text(m.bond,200))&&(!m.grudge||m.attitude==='hostile')&&(m.grudgeWeight===undefined||['grave','blood'].includes(m.grudgeWeight))&&(m.grudgeSince===undefined||(Number.isSafeInteger(m.grudgeSince)&&m.grudgeSince>=0))&&(m.amends===undefined||(Number.isInteger(m.amends)&&m.amends>=0&&m.amends<=6))&&(m.forgave===undefined||(!!m.forgave&&typeof m.forgave==='object'&&text(m.forgave.grudge,200)&&['grave','blood'].includes(m.forgave.weight)&&text(m.forgave.memory,300)))&&(!m.bond||m.grudge||['friendly','devoted'].includes(m.attitude)))))
  &&(game.actionEvents===undefined||(Array.isArray(game.actionEvents)&&game.actionEvents.length<=30&&game.actionEvents.every(e=>e&&['weapon-attack','harmful-spell'].includes(e.kind)&&e.actor==='player'&&known.includes(e.target)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,2})$/.test(e.location)&&ids(e.witnesses)&&Number.isInteger(e.damage)&&e.damage>=0&&e.damage<=40)));
 }
 

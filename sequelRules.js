@@ -22,7 +22,7 @@ export function regionSummary(game,bearing){
  return {previousTitle:s.title,previousPremise:s.premise,outcome:s.status==='complete'?'completed':'left unfinished',foe:s.foe,foeFate:game.foeFate??(game.enemyHP===0?'defeated':'still at large'),
   newStartBearing:'The new starting place lies a few miles '+({N:'south',NE:'south-west',E:'west',SE:'north-west',S:'north',SW:'north-east',W:'east',NW:'south-east'}[bearing])+' of '+s.locations.inn.name+'.',
   places:[...coreIds.map(id=>s.locations[id].name),...worldPlaces(game).map(p=>p.name)].slice(0,24),
-  people:people.map(id=>{const m=game.npcMemory?.[id],lore=npcLore(game,id);return {name:lore.name,role:lore.role,alive:game.npcFate?.[id]!=='dead',feelingAboutHero:m?.grudge?'sworn enemy':m?.bond?'owes the hero a debt':m?.attitude??'indifferent',travelsWithHero:game.followers?.[id]?.status==='following'};}).slice(0,14)};
+  people:people.map(id=>{const m=game.npcMemory?.[id],lore=npcLore(game,id);return {name:lore.name,role:lore.role,alive:game.npcFate?.[id]!=='dead',feelingAboutHero:m?.grudge?'sworn enemy':m?.bond?'owes the hero a debt':m?.forgave&&!['friendly','devoted'].includes(m.attitude)?'forgave the hero; trust is thin':m?.attitude??'indifferent',travelsWithHero:game.followers?.[id]?.status==='following'};}).slice(0,14)};
 }
 const kindOf={inn:'settlement',bridge:'road',tower:'landmark'};
 // Join the earlier region onto a freshly written story (next = freshStoryGame(...)). bearing: where the earlier

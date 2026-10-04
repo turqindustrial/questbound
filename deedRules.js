@@ -16,6 +16,7 @@ export const deedList=[
  {id:'silver-tongue',title:'Silver Tongue',icon:'speak',line:'Won three people over.',earned:({log})=>countLines(log,e=>e.kind==='deed'&&/^You won .* over\.$/.test(e.text))>=3},
  {id:'sworn-friend',title:'Sworn Friend',icon:'people',line:'Someone owes you their life.',earned:({log})=>log.some(e=>e.kind==='deed'&&/owes you a debt for life/.test(e.text))},
  {id:'marked',title:'Marked',icon:'eye',line:'Someone swore never to forgive you.',earned:({log})=>log.some(e=>e.kind==='deed'&&/never to forgive/.test(e.text))},
+ {id:'mended',title:'Mended',icon:'hand',line:'Someone forgave you a grudge.',earned:({log})=>log.some(e=>e.kind==='deed'&&/ forgave you\.$/.test(e.text))},
  {id:'good-company',title:'Good Company',icon:'party',line:'Someone joined you on the road.',earned:({log})=>log.some(e=>e.kind==='person'&&/ joined you\.$/.test(e.text))},
  {id:'full-purse',title:'Full Purse',icon:'coin',line:'Carried a hundred gold.',earned:({game,hero})=>packOf(game,hero).gold>=100},
  {id:'pack-rat',title:'Pack Rat',icon:'bag',line:'Carried eight different things.',earned:({game})=>(game.pack?.items??[]).filter(i=>i.name!=='Arrow'&&(i.qty??1)>0).length>=8},

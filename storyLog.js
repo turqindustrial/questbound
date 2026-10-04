@@ -53,7 +53,9 @@ export function storyEvents(before,after,hero,{action=null}={}){
   else if(fate1==='unconscious'&&fate0!=='unconscious')add('deed',struck?'You knocked '+name+' senseless.':name+' was struck down.');
   else if(fate0==='unconscious'&&!fate1)add('deed',name+' came round.');
   const m0=before.npcMemory?.[id],m1=after.npcMemory?.[id];
-  if(m1?.grudge&&!m0?.grudge)add('deed',name+' swore never to forgive you.');
+  // A grudge set down (amends made and time gone by, or a life saved) is a turn in the tale of its own.
+  if(m0?.grudge&&!m1?.grudge&&m1?.forgave&&fate1!=='dead')add('deed',name+' forgave you.');
+  else if(m1?.grudge&&!m0?.grudge)add('deed',name+' swore never to forgive you.');
   else if(m1?.bond&&!m0?.bond)add('deed',name+' owes you a debt for life.');
   else if(m1&&m1.attitude!==(m0?.attitude??'indifferent')&&fate1!=='dead'){
    if(m1.attitude==='hostile')add('deed',name+' turned against you.');
