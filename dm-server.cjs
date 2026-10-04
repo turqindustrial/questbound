@@ -88,8 +88,8 @@ function sceneFor(body,{canDiscover=false,canAmbush=false}={}){
   scene.story=story;
  }
  // People elsewhere (residents of places not yet reached among them) are told in brief: who and where they are, how
- // they feel and their last two memories.
- if(Array.isArray(scene.npcSocialState))scene.npcSocialState=scene.npcSocialState.map(n=>!n||typeof n!=='object'||n.present!==false?n:{id:n.id,name:n.name,role:n.role,livesAt:n.livesAt,attitude:n.attitude,grudge:n.grudge,bond:n.bond,fate:n.fate,ties:n.ties,metHero:n.metHero,memories:(Array.isArray(n.memories)?n.memories:[]).slice(-2)});
+ // they feel, how near a grudge is to forgiveness, and their last two memories.
+ if(Array.isArray(scene.npcSocialState))scene.npcSocialState=scene.npcSocialState.map(n=>!n||typeof n!=='object'||n.present!==false?n:{id:n.id,name:n.name,role:n.role,livesAt:n.livesAt,attitude:n.attitude,grudge:n.grudge,...(n.grudge&&n.forgiveness?{forgiveness:n.forgiveness}:{}),...(n.forgave?{forgave:n.forgave}:{}),bond:n.bond,fate:n.fate,ties:n.ties,metHero:n.metHero,memories:(Array.isArray(n.memories)?n.memories:[]).slice(-2)});
  if(Array.isArray(scene.nearbyNPCs))scene.nearbyNPCs=scene.nearbyNPCs.map(n=>{if(!n||typeof n!=='object')return n;const {memories,...rest}=n;return {...rest,appearance:cut(n.appearance,200)};});
  if(Array.isArray(scene.journal))scene.journal=scene.journal.filter(e=>e?.title!=='AI DM conversation').slice(-6).map(e=>e&&typeof e==='object'?{...e,text:cut(e.text,500)}:e);
  if(Array.isArray(scene.conversationHistory))scene.conversationHistory=scene.conversationHistory.slice(-6).map(e=>e&&typeof e==='object'?{...e,text:cut(e.text,1000)}:e);
