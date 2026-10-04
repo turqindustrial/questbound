@@ -1,19 +1,23 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
 // Better than a wait and a fixed list: tales written ahead start at once (tale-pantry.cjs), a player can ask for a
 // tale of their own idea, and a narrator of their choosing tells it. Nothing here calls the provider.
-const {createPantry,stockFor,revision}=require('./tale-pantry.cjs');
+const {createPantry,stockFor,revision,generation}=require('./tale-pantry.cjs');
 const {generate}=require('./dm-server.cjs');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-tales-'));
 const tick=(ms=5)=>new Promise(resolve=>setTimeout(resolve,ms));
 const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',regard:{stance:'wary',reason:'I lost a brother to your kind.'},ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',regard:{stance:'warm',reason:'Travellers bring news.'},ties:{other:'friend',foe:'neutral',note:'n'}}}};
 (async()=>{
  // ---- The stock ----
- assert.equal(revision,2);assert.equal(stockFor('surprise'),2);assert.equal(stockFor('crown'),1);
+ assert.equal(revision,3);assert.equal(generation,3);assert.equal(stockFor('surprise'),2);assert.equal(stockFor('easy'),2,'Easy to get into is meant to start fast');assert.equal(stockFor('crown'),1);
+ // Tales stocked by an earlier story writer (no residents, no errands) are cleared away and never served.
+ fs.mkdirSync(path.join(tmp,'stock'),{recursive:true});const legacy=path.join(tmp,'stock','crown-0f8fad5b-d9cb-469f-a165-70867728950e.json'),older=path.join(tmp,'stock','crown-g2-0f8fad5b-d9cb-469f-a165-70867728950f.json'),other=path.join(tmp,'stock','notes.txt');
+ for(const file of [legacy,older])fs.writeFileSync(file,JSON.stringify({story:{...story,title:'Legacy'}}));fs.writeFileSync(other,'kept');
  let clock=1000;const pantry=createPantry({dir:path.join(tmp,'stock'),now:()=>clock});
+ assert.ok(!fs.existsSync(legacy)&&!fs.existsSync(older)&&fs.existsSync(other),'old generations removed, nothing else touched');assert.equal(pantry.count('crown'),0);
  assert.equal(JSON.stringify(pantry.wanted(['surprise','crown'])),JSON.stringify(['surprise','crown']));assert.equal(pantry.take('crown'),null,'nothing in stock yet');
  let wrote=[];const write=async id=>{wrote.push(id);return {story:{...story,title:'Tale '+wrote.length}};};
  assert.equal(pantry.topUp(['surprise','crown'],write),true);assert.equal(pantry.topUp(['surprise','crown'],write),false,'one tale at a time');
- await pantry.settled();assert.equal(pantry.count('surprise'),1);
+ await pantry.settled();assert.equal(pantry.count('surprise'),1);assert.ok(fs.readdirSync(path.join(tmp,'stock')).some(f=>/^surprise-g3-[0-9a-f-]{36}.json$/.test(f)),'stocked as <opening>-g3-<uuid>.json');
  for(let i=0;i<3;i++){pantry.topUp(['surprise','crown'],write);await pantry.settled();}
  assert.equal(pantry.count('surprise'),2);assert.equal(pantry.count('crown'),1);assert.equal(JSON.stringify(wrote),JSON.stringify(['surprise','surprise','crown']));
  assert.equal(pantry.topUp(['surprise','crown'],write),false,'full: nothing more is written');
@@ -50,7 +54,26 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  assert.match(calls.at(-1).instructions,/WRITTEN AHEAD/);assert.equal(ahead.story.npcs.keeper.regard,undefined,'written ahead, the view of the hero\'s kind is left to the game');
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',continuing:{previousTitle:'Old',newStartBearing:'north'},idea:'my sister comes looking for me',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
  assert.match(JSON.parse(calls.at(-1).input).creativeDirection,/The player wishes: my sister comes looking for me/);
- const intros=JSON.parse(fs.readFileSync('adventureIntros.json','utf8')),own=intros.find(i=>i.id==='idea');assert.ok(own&&own.idea&&!own.local&&intros[1].id==='idea','Your own tale is offered second');
+ const intros=JSON.parse(fs.readFileSync('adventureIntros.json','utf8')),own=intros.find(i=>i.id==='idea');assert.ok(own&&own.idea&&!own.local&&intros[0].id==='idea'&&intros[1].id==='easy'&&intros[2].id==='surprise','Your own tale first, then Easy to get into, then Let fate decide');
+ const easyIntro=intros[1];assert.ok(easyIntro.errand&&easyIntro.openingDialogue&&easyIntro.scale==='saga'&&!easyIntro.local,'Easy to get into is an errand with voices');assert.ok(intros.find(i=>i.id==='surprise').openingDialogue&&own.openingDialogue,'Let fate decide and Your own tale open with voices');
+ // ---- The story writer: residents for every tale, an errand for Easy to get into, and a varied opening ----
+ const {errandDirections,openingScenes}=(()=>{const src=fs.readFileSync('adventure-generator.cjs','utf8');return vm.runInNewContext(src.match(/const openingScenes=\[[^\]]*\];/)[0]+src.match(/const errandDirections=\[[^\]]*\];/)[0]+'({openingScenes,errandDirections})');})();
+ assert.equal(errandDirections.length,12);assert.equal(openingScenes.length,12);
+ await generateAdventure({input:'Create',context:{mode:'adventure',introId:'easy',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
+ const easyCall=calls.at(-1),easySchema=easyCall.text.format.schema,easyInput=JSON.parse(easyCall.input);
+ for(const field of ['residents','errand','openingDialogue'])assert.ok(easySchema.required.includes(field),'an errand tale must have '+field);
+ assert.match(easyCall.instructions,/EASY TO GET INTO/);assert.match(easyCall.instructions,/RESIDENTS:/);assert.ok(!easyCall.instructions.includes('Only the two specified NPCs'),'the writer may put more than two people at the start');
+ assert.ok(errandDirections.some(d=>easyInput.creativeDirection.endsWith(d)),'an errand from the list');assert.ok(openingScenes.includes(easyInput.openingScene),'a kind of opening moment');
+ assert.deepEqual(easySchema.properties.openingDialogue.items.properties.speakerId.enum.slice(0,3),['keeper','mara','resident1']);assert.equal(easySchema.properties.residents.maxItems,8);
+ assert.equal(easySchema.properties.errand.properties.threat.properties.ally.type.join(),'object,null');
+ await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
+ const fate=calls.at(-1);assert.ok(fate.text.format.schema.required.includes('residents')&&!fate.text.format.schema.required.includes('errand'),'every tale has residents; only Easy to get into has an errand');assert.ok(openingScenes.includes(JSON.parse(fate.input).openingScene));assert.ok(!fate.instructions.includes('EASY TO GET INTO'));
+ await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});assert.equal(JSON.parse(calls.at(-1).input).openingScene,undefined,'a written opening keeps its own arrival');
+ // Written ahead, residents' views of the hero's kind are dropped too; their lines are kept by residentN.
+ const peopled={...story,residents:[{name:'Old Tam',regard:{stance:'scornful',reason:'x'}}],openingDialogue:[{speakerId:'resident1',text:'Orders are orders.'},{speakerId:'resident9',text:'No.'},{speakerId:'keeper',text:'Go now.'}]};
+ const peopledFetch=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(peopled)}]}]})};};
+ const aheadEasy=await generateAdventure({input:'Create',context:{mode:'adventure',introId:'easy',ahead:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl:peopledFetch});
+ assert.equal(aheadEasy.story.residents[0].regard,undefined,'written ahead, what the residents think of the hero\'s kind is left to the game');assert.deepEqual(aheadEasy.story.openingDialogue.map(l=>l.speakerId),['resident1','keeper'],'only known voices');
 
  // ---- The New Adventure screen and the game ----
  const screen=fs.readFileSync('AdventureIntros.js','utf8'),app=fs.readFileSync('App.js','utf8');
@@ -65,5 +88,5 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8');assert.ok(/NARRATOR: context\.storyPreferences\.narrator/.test(dm)&&dm.includes('instructions:instructions+narratorInstructions+')&&/never changes the rules/.test(dm)&&dm.includes('phaseInstructions+narratorVoice(body)+note')&&/NARRATOR THIS TURN: Wick the Lamplighter/.test(dm)&&/NARRATOR THIS TURN: Sable the Bard/.test(dm),'the Dungeon Master is told who narrates, in its standing instructions and, concretely, last in each turn');
  const header=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(header.includes('{teller.name}')&&header.includes('name={teller.icon}'),'the narrator heads the story');
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Tales ahead, your own idea and narrators: a stock of tales written ahead (two for Let fate decide, one per opening, refilled one at a time at the asker\'s cost, kept on disk), the next tale and the player\'s own idea written fresh, the idea cleaned and kept to Questbound\'s own world, and three narrators of our own.');
+ console.log('Tales ahead, your own idea and narrators: a stock of tales written ahead by the current story writer (two for Let fate decide and Easy to get into, one per opening, refilled one at a time at the asker\'s cost, kept on disk), the next tale and the player\'s own idea written fresh, the idea cleaned and kept to Questbound\'s own world, and three narrators of our own.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

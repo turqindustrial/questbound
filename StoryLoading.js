@@ -41,7 +41,7 @@ export default function StoryLoading({introId,hero=null,near=null}){
  useEffect(()=>{const a=setInterval(()=>setTip(t=>(t+1)%tips.length),5200),b=setInterval(()=>setSeconds(s=>s+1),1000);return()=>{clearInterval(a);clearInterval(b);};},[]);
  useEffect(()=>{if(!teaching||turned)return;const t=setInterval(()=>setPage(p=>Math.min(primer.length-1,p+1)),11000);return()=>clearInterval(t);},[teaching,turned]);
  const turn=by=>{setTurned(true);setPage(p=>Math.max(0,Math.min(primer.length-1,p+by)));};
- const title=hero!=null?'Your hero':near?'The next tale':intro?.id==='surprise'?'A tale of your own':intro?.title??'Your next adventure';
+ const title=hero!=null?'Your hero':near?'The next tale':intro?.id==='surprise'?'A tale of your own':intro?.errand?'Your orders':intro?.title??'Your next adventure';
  const detail=hero!=null?(hero.trim()?'“'+hero.trim().slice(0,160)+'”':'Anyone the dice allow'):near?'A few miles from '+near+', in the country you know.':intro?.setting;
  // A phone on its side has little height: the title shrinks and the lines around it step aside for the primer.
  const size=Math.max(tiny?20:24,Math.min(tiny?24:40,Math.floor((width-48)/(title.length*.62))));

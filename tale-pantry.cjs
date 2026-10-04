@@ -7,12 +7,17 @@
 // when hosted), so a restart keeps them.
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs);
 // bump `revision` when it changes and the server loads it afresh.
-const revision=2;
+// Each stocked tale's file name carries the generation of the story writer that wrote it (`<opening>-g3-<uuid>.json`):
+// tales from an earlier generation (written before tales had residents, errands and varied openings) are never served
+// and are cleared away once when the pantry is made.
+const revision=3,generation=3;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const stockFor=id=>id==='surprise'?2:1,failurePause=10*60*1000;
+const stockFor=id=>id==='surprise'||id==='easy'?2:1,failurePause=10*60*1000;
 function createPantry({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-tales'),now=Date.now}={}){
  let filling=null,lastFailure=-Infinity;
- const files=()=>{try{return fs.readdirSync(dir).filter(f=>/^[a-z]+-[0-9a-f-]{36}\.json$/.test(f));}catch{return [];}};
+ const current=new RegExp('^[a-z]+-g'+generation+'-[0-9a-f-]{36}\\.json$');
+ try{for(const f of fs.readdirSync(dir))if(/^[a-z]+-(?:g\d+-)?[0-9a-f-]{36}\.json$/.test(f)&&!current.test(f))fs.rmSync(path.join(dir,f),{force:true});}catch{}
+ const files=()=>{try{return fs.readdirSync(dir).filter(f=>current.test(f));}catch{return [];}};
  const count=id=>files().filter(f=>f.startsWith(id+'-')).length;
  // The oldest stocked tale for this opening, removed from the stock; null when there is none.
  function take(id){
@@ -35,7 +40,7 @@ function createPantry({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.qu
   const next=wanted(openings)[0];if(!next)return false;
   filling=Promise.resolve().then(()=>write(next)).then(result=>{
    if(!result?.story||typeof result.story!=='object')throw Error('no story');
-   fs.mkdirSync(dir,{recursive:true});const file=path.join(dir,next+'-'+crypto.randomUUID()+'.json');
+   fs.mkdirSync(dir,{recursive:true});const file=path.join(dir,next+'-g'+generation+'-'+crypto.randomUUID()+'.json');
    fs.writeFileSync(file+'.tmp',JSON.stringify({at:new Date(now()).toISOString(),introId:next,story:result.story}));fs.renameSync(file+'.tmp',file);
   }).then(()=>true,()=>{lastFailure=now();return false;}).then(ok=>{filling=null;if(ok&&then)topUp(openings,then,then);});
   return true;
@@ -45,4 +50,4 @@ function createPantry({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.qu
  return {take,topUp,count,wanted,busy:()=>!!filling,settled};
 }
 const pantry=createPantry();
-module.exports={revision,createPantry,pantry,stockFor};
+module.exports={revision,generation,createPantry,pantry,stockFor};
