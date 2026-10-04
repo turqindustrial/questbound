@@ -46,6 +46,8 @@ function situation(context){
  else if(c.stage==='dying'||c.dying)lines.push('The player\'s hero is down and dying; whatever dropped them has turned away.');
  else if(inFight)lines.push('A fight is in progress'+(c.encounter?.name?' against '+c.encounter.name:c.npcCombat?.active?' with people here':'')+'.');
  else lines.push('No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.');
+ // What the player still has this turn (one action, one bonus action), worked out by the game.
+ if(inFight&&c.stage!=='dying'&&!c.dying&&typeof c.turnResources?.left==='string')lines.push('This turn the player has left: '+c.turnResources.left+'.');
  if(foe){
   if(c.foeFate==='slain'||(c.enemyHP===0&&c.foeFate!=='subdued'))lines.push(foe+' is dead and no longer a threat.');
   else if(c.foeFate==='subdued')lines.push(foe+' is beaten and no longer a threat.');
