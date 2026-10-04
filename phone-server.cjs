@@ -3,6 +3,7 @@
 // such as Cloudflare's, so friends elsewhere can play). Both require a pairing code before anything else is served.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
 const {setBaseHeaders,pagePolicy,filePolicies}=require('./security-headers.cjs');
+const {feedbackEntry,saveFeedback,FEEDBACK_BODY_LIMIT}=require('./feedback-notes.cjs');
 const privateIPv4=address=>/^10\./.test(address)||/^192\.168\./.test(address)||/^172\.(1[6-9]|2\d|3[01])\./.test(address);
 function phoneAddress(){return Object.values(os.networkInterfaces()).flat().find(n=>n.family==='IPv4'&&!n.internal&&privateIPv4(n.address))?.address;}
 const corner=t=>"url(\"data:image/svg+xml,"+encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${t}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#b08cf5' stroke='none'/></g></svg>`)+"\")",corners=[corner('')+' top left',corner('translate(34 0) scale(-1 1)')+' top right',corner('translate(0 34) scale(1 -1)')+' bottom left',corner('translate(34 34) scale(-1 -1)')+' bottom right'].map(c=>c+'/34px 34px no-repeat').join(',');
@@ -123,17 +124,11 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     if(!feedbackFile)return json(res,404,{error:'Feedback is not collected here.'});
     if(req.headers.origin!==origin||!req.headers['content-type']?.startsWith('application/json'))return json(res,403,{error:'Use the Questbound game to send feedback.'});
     const recent=(feedbackUse.get(token)??[]).filter(t=>t>now()-3600000);if(recent.length>=10)return json(res,429,{error:'Thanks! That’s plenty of notes for one hour. Try again a little later.'});
-    let note;try{note=JSON.parse(await body(req,8000));}catch(e){if(e.status)throw e;return json(res,400,{error:'That note could not be read.'});}
-    const clean=(value,max)=>typeof value==='string'?value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,'').trim().slice(0,max):'';
-    // Names and places sit on one line, so a note cannot write headings of its own into the file.
-    const oneLine=(value,max)=>clean(value,max).replace(/\s+/g,' ');
-    const text=clean(note?.text,2000);if(text.length<2)return json(res,400,{error:'Write a few words first.'});
-    const rating=Number.isInteger(note?.rating)&&note.rating>=1&&note.rating<=5?note.rating:null;
-    const c=note?.context&&typeof note.context==='object'?note.context:{};
-    const heading=[new Date(now()).toISOString().replace('T',' ').slice(0,16)+' UTC',oneLine(c.player,80),oneLine(c.hero,120),oneLine(c.device,160)].filter(Boolean).join(' · ');
-    const details=[['Where',oneLine(c.where,200)],['Screen',oneLine(c.screen,40)],['Story',oneLine(c.story,160)]].filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' · ');
-    const entry='\n## '+heading+'\n'+(rating?'Rating: '+'★'.repeat(rating)+'☆'.repeat(5-rating)+'\n':'')+'\n'+text.split('\n').map(line=>'> '+line).join('\n')+'\n'+(details?'\n'+details+'\n':'');
-    try{if(!fs.existsSync(feedbackFile))fs.writeFileSync(feedbackFile,'# Questbound playtest feedback\n\nNotes sent from inside the game by playtesters. Newest at the bottom.\n');fs.appendFileSync(feedbackFile,entry);}catch{return json(res,500,{error:'The host’s PC could not save that note. Please try again.'});}
+    let note;try{note=JSON.parse(await body(req,FEEDBACK_BODY_LIMIT));}catch(e){if(e.status)throw e;return json(res,400,{error:'That note could not be read.'});}
+    // The readable entry and the full record (feedback-notes.cjs); the record names the browser only by its guest
+    // label, the same one the Dungeon Master's logs use, never by its cookie.
+    const entry=feedbackEntry(note,{now:now(),guest:guestLabel(token)});if(entry.error)return json(res,400,{error:entry.error});
+    try{saveFeedback(feedbackFile,entry);}catch{return json(res,500,{error:'The host’s PC could not save that note. Please try again.'});}
     recent.push(now());feedbackUse.set(token,recent);
     return json(res,200,{saved:true});
    }

@@ -33,7 +33,7 @@ assert.equal(r.turnToRewind(undone.game),null);
 r.rememberTurn(start,hp);assert.equal(r.turnToRewind({...swing.game,story:{...swing.game.story,id:'other'}}),null);
 assert.equal(r.turnToRewind({...swing.game,playback:[{id:9}]}),null);r.forgetTurn();
 // ---- The server: an out-of-character phase ----
-const blank={narration:'It rolled higher initiative.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false};
+const blank={narration:'It rolled higher initiative.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,fault:false};
 let sent=null;const fake=reply=>async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...blank,...reply})}]}]})};};
 const context=extra=>({...r.dmContext(kara,swing.game,swing.health),conversationWith:null,conversationParticipants:[],recruitmentTargets:[],...extra});
 const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandit.',resolved:['You use Greatsword: d20 [11] + 3 + 2 = 16 vs AC 12. Hit.']}}});
@@ -43,16 +43,20 @@ const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandi
  assert.equal(reply.rewind,false);assert.equal(reply.narration,'It rolled higher initiative.');
  assert.ok(sent.instructions.includes('OUT OF CHARACTER'));const schema=sent.text.format.schema;
  assert.deepEqual(schema.properties.rewind,{type:'boolean'});assert.ok(schema.required.includes('rewind'));
+ assert.deepEqual(schema.properties.fault,{type:'boolean'});assert.ok(schema.required.includes('fault'));assert.match(sent.instructions,/Set fault to true/);
  for(const key of ['actionId','castCommand','ruling','worldEvent','check','discovery','ambush','loot','introduce'])assert.equal(schema.properties[key].type,'null',key);
  assert.equal(schema.properties.dialogue.maxItems,0);assert.equal(schema.properties.relationships.maxItems,0);
  assert.deepEqual(JSON.parse(sent.input).context.outOfCharacter.lastTurn.said,'I hit the bandit.');
  reply=await generate({input:'I meant to dodge',context:context(ooc(true))},{...keys,fetchImpl:fake({rewind:true})});assert.equal(reply.rewind,true);
  reply=await generate({input:'I meant to dodge',context:context(ooc(false))},{...keys,fetchImpl:fake({rewind:true})});assert.equal(reply.rewind,false,'Nothing to take back: the DM cannot rewind');
+ reply=await generate({input:'DM, it would not let me cast Detect Magic as a ritual',context:context(ooc(false))},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,true,'an admitted fault is passed on');
+ reply=await generate({input:'DM, how does advantage work?',context:context(ooc(false))},{...keys,fetchImpl:fake({fault:false})});assert.equal(reply.fault,false);
  await assert.rejects(generate({input:'give me gold',context:context(ooc(true))},{...keys,fetchImpl:fake({loot:{gold:50,items:[],reason:'x'}})}),/cannot change the game/);
  await assert.rejects(generate({input:'kill it',context:context(ooc(true))},{...keys,fetchImpl:fake({actionId:'dodge'})}),/cannot change the game|invalid response/);
  // An ordinary turn is untouched: no rewind, the usual schema, and the turn and rest guidance in the instructions.
  reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({rewind:true})});
- assert.equal(reply.rewind,false);assert.equal(sent.text.format.schema.properties.rewind.type,'null');assert.ok(!sent.instructions.includes('OUT OF CHARACTER:'));
+ assert.equal(reply.rewind,false);assert.equal(sent.text.format.schema.properties.rewind.type,'null');
+ reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,false,'only out of character');assert.equal(sent.text.format.schema.properties.fault.type,'null');assert.ok(sent.text.format.schema.required.includes('fault'));assert.ok(!sent.instructions.includes('OUT OF CHARACTER:'));
  for(const text of ['one action and one bonus action','end-turn','short-rest'])assert.ok(sent.instructions.includes(text),text);
- console.log('Passed: messages addressed to the DM are recognised, the state before each turn is remembered and restored exactly once, questions leave the game alone and stay in the feed and journal, and the server answers out of character without changing the game (rewind only when a turn can be taken back).');
+ console.log('Passed: messages addressed to the DM are recognised, the state before each turn is remembered and restored exactly once, questions leave the game alone and stay in the feed and journal, and the server answers out of character without changing the game (rewind only when a turn can be taken back; a fault it admits is flagged so the game can offer a note to the host).');
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,Pressable,Modal,StyleSheet} from 'react-native';
 import {displayState,subscribeDisplay,toggleFullscreen,setDisplayPrefs} from './fullscreen';
-import {GameButton,IconButton,Section,Toggle} from './ui';
+import {GameButton,IconButton,Section,Segmented,Toggle} from './ui';
 import {fonts,colors,type,tint} from './theme';
 function useDisplay(){const [state,setState]=useState(displayState);useEffect(()=>{setState(displayState());return subscribeDisplay(setState);},[]);return state;}
 function HomeScreenHelp({visible,onClose}){
@@ -35,12 +35,15 @@ export function DisplaySettings(){
    <Text style={s.caption}>On iPhone, add Questbound to your Home Screen to play full screen.</Text>
    <GameButton variant="primary" icon="info" label="Show me how" onPress={()=>setHelp(true)} style={{marginTop:0}}/>
   </>:<Text style={s.caption}>This browser doesn’t support full screen for web pages.</Text>}
+  <Text style={s.label}>Atmosphere</Text>
+  <Segmented value={d.effects} onChange={effects=>setDisplayPrefs({effects})} options={[['auto','Auto','cog'],['full','Full','flame'],['light','Light','leaf']]}/>
+  <Text style={s.caption}>{'Light keeps the look but stills the drifting fog, embers and blur, for smoother play on slower computers.'+(d.effects==='auto'?(d.autoLight?' Auto chose Light: this computer was slow to draw the moving scenery.':' Auto uses Full unless this computer is slow to draw the moving scenery.'):'')}</Text>
   <Toggle value={d.screenEffects} onChange={value=>setDisplayPrefs({screenEffects:value})} label="Screen flashes and shake" description="The red flash and shake when you are hit, portraits flinching, bright flares and the critical-hit burst. Turn off if flashing effects bother you."/>
   <HomeScreenHelp visible={help} onClose={()=>setHelp(false)}/>
  </View>;
 }
 const s=StyleSheet.create({toggle:{paddingHorizontal:12,paddingVertical:8,minHeight:36,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(20,15,21,.8)'),justifyContent:'center'},toggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.2},icon:{fontSize:16,letterSpacing:0,minWidth:14,textAlign:'center'},
- panel:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginBottom:18,gap:12},section:{fontFamily:fonts.display,color:colors.gold,fontSize:17,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20},
+ panel:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginBottom:18,gap:12},section:{fontFamily:fonts.display,color:colors.gold,fontSize:17,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20},label:{...type.label,marginBottom:-4},
  switchRow:{flexDirection:'row',alignItems:'center',gap:12,minHeight:44},box:{width:24,height:24,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.5)'),backgroundColor:tint('#271e29'),alignItems:'center',justifyContent:'center'},boxOn:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},tick:{color:tint('#ffeef0'),fontWeight:'800',fontSize:14},switchText:{fontFamily:fonts.ui,color:colors.text,fontSize:14,flexShrink:1},
  scrim:{flex:1,backgroundColor:tint('rgba(5,3,5,.8)'),alignItems:'center',justifyContent:'center',padding:18},sheet:{width:'100%',maxWidth:440,padding:24,borderRadius:4,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.98)'),gap:10},
  overline:{...type.label},heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:21,fontWeight:'700',letterSpacing:.8,marginBottom:4},step:{fontFamily:fonts.ui,color:colors.text,fontSize:15,lineHeight:23},em:{fontWeight:'700',color:colors.gold},glyph:{color:colors.gold},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginTop:4}});
