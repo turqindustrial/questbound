@@ -4,6 +4,7 @@ import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {playSound} from './audio';
 import {displayState} from './fullscreen';
+import {wrapLimit,wrapOverflows} from './fitRules';
 const web=Platform.OS==='web';
 // Building blocks for the crimson and violet look. On web, dataSet hooks add gradients, glows and corner filigree from webTheme.js.
 export function Panel({children,style,variant='panel',...props}){
@@ -73,7 +74,7 @@ const rowItems=children=>React.Children.toArray(children).flatMap(child=>child?.
 export function WrapRow({rows=2,rowHeight=36,gap=6,resetKey,children,style,label,moreLabel='More',dataSet,accessibilityRole}){
  const [natural,setNatural]=useState(0),[open,setOpen]=useState(false);
  useEffect(()=>{setOpen(false);},[resetKey]);
- const items=rowItems(children),limit=rows*rowHeight+(rows-1)*gap,over=natural>limit+1;
+ const items=rowItems(children),limit=wrapLimit(rows,rowHeight,gap),over=wrapOverflows(natural,limit);
  if(!items.length)return null;
  return <View accessibilityLabel={label} dataSet={dataSet??{qb:'wrap-row'}} style={[s.wrapRow,{gap},style]}>
   <View accessibilityRole={accessibilityRole} style={[s.wrapClip,over&&!open&&{maxHeight:limit}]}>

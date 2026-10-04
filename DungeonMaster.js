@@ -17,6 +17,7 @@ import {attitudeLabel} from './relationshipRules';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
 import {KeyHint,IconButton,WrapRow} from './ui';
+import {chipLayout} from './fitRules';
 import {shortcutsBlocked} from './keyboard';
 import {View,Text as PlainText,TextInput,Pressable,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
 import {dmContext,dmChoices,commitDmTurn} from './dmContext';
@@ -281,11 +282,11 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     if(a.prefill){setInput(a.prefill);setTimeout(()=>inputRef.current?.focus(),30);return;}
     ask(a.action?a:{question:a.question,parse:true});
   };
-  // Nothing scrolls sideways: the chips wrap, up to a few rows, and a More chip shows the rest in place (WrapRow).
-  // A short screen (a phone on its side) has one row, with people and effects in it so the story keeps its height;
-  // a phone or a window of middling height (a small laptop, which also drops the narrator's heading) has two; a roomy
-  // screen three. An open Attack… or Cast… picker, or the wait for another hero, gets at least three.
-  const snug=viewHeight<700,chipRows=short?1:(compact||snug)?2:3,tight=compact||short,chipH=tight?36:40;
+  // Nothing scrolls sideways: the chips wrap, up to a few rows, and a More chip shows the rest in place (WrapRow,
+  // chipLayout in fitRules.js). A short screen (a phone on its side) has one row, with people and effects in it so the
+  // story keeps its height; a phone or a window of middling height (a small laptop, which also drops the narrator's
+  // heading) has two; a roomy screen three. An open Attack… or Cast… picker, or the wait for another hero, gets more.
+  const snug=viewHeight<700,fit=chipLayout(viewWidth,viewHeight),tight=fit.tight,chipH=fit.rowHeight;
   // With a keyboard, 1–9 press the matching action (shown as a small key on each chip).
   // Suggestions: what the Dungeon Master offered with the latest turn, else a few stand-ins worked out here. They sit in
   // a tab beside the actions (never popping up on their own) and a tap only fills the message box.
@@ -316,7 +317,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const extraChips=[...effects.map(line=><View key={'effect:'+line} style={[s.effectChip,{height:chipH-4}]}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
     ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={[s.personChip,{height:chipH}]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.chipAvatar,tight&&s.chipAvatarTight]} compact/><PlainText numberOfLines={1} style={[s.chipName,tight&&{fontSize:13}]}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/>{!tight&&<PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText>}</View></Pressable>)];
   const picker=spellsOpen||attackOpen||!!waitRow;
-  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} rowHeight={chipH} gap={tight?6:8} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen} label="Quick actions" dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
+  const chipRows=chipLayout(viewWidth,viewHeight,{picker}).rows;
+  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} rowHeight={chipH} gap={fit.gap} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen} label="Quick actions" dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
   // The Actions | Suggestions tabs sit just above the message box. A suggestion is a short thing to say in the hero's
   // own voice; a tap writes it into the box (it never sends), so the player can change it first. The suggestions wrap
   // onto a second line rather than scrolling sideways.
@@ -325,7 +327,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const tabButtons=ideaLines.length>0?[...(actions.length?[tabButton('actions','Actions',0)]:[]),tabButton('suggestions','Suggestions',ideaLines.length)]:[];
   const tabStrip=tabButtons.length>0&&<View accessibilityRole="tablist" style={s.tabs}>{tabButtons}</View>;
   const ideaRow=<View dataSet={{qb:'actions'}} accessibilityLabel="Suggestions" style={[s.actionBar,s.ideaWrap]}>{ideaChips}</View>;
-  const actionBar=short?(showIdeas?<>{row(extraChips,1,'extra')}<View dataSet={{qb:'actions'}} style={[s.actionBar,s.ideaWrap]}>{tabButtons}{ideaChips}</View></>:row([...tabButtons,...actionChips,...extraChips],picker?2:1,'all')):<>{row(extraChips,1,'extra')}{tabStrip}{showIdeas?ideaRow:row(actionChips,picker?Math.max(chipRows,3):chipRows,'actions')}</>;
+  const actionBar=short?(showIdeas?<>{row(extraChips,1,'extra')}<View dataSet={{qb:'actions'}} style={[s.actionBar,s.ideaWrap]}>{tabButtons}{ideaChips}</View></>:row([...tabButtons,...actionChips,...extraChips],chipRows,'all')):<>{row(extraChips,1,'extra')}{tabStrip}{showIdeas?ideaRow:row(actionChips,chipRows,'actions')}</>;
   // One on one or everyone here: who may answer when others are about.
   const aloneSwitch=people.length>1&&!!person&&<Pressable accessibilityRole="switch" accessibilityState={{checked:alone,disabled:busy||playing}} accessibilityLabel={alone?'Just you two: only '+person.name+' answers. Tap to let everyone here join in':'Everyone here may join in. Tap to speak with '+person.name+' alone'} disabled={busy||playing} onPress={()=>{playSound('click');setAlone(value=>!value);}} dataSet={{qb:alone?'seg-on':'chip',keepfocus:'true'}} style={[s.aloneSwitch,alone&&s.aloneOn,(busy||playing)&&{opacity:.45}]}><Icon name={alone?'speak':'people'} size={14} color={alone?colors.goldBright:colors.gold}/><PlainText numberOfLines={1} style={[s.aloneText,alone&&{color:colors.goldBright}]}>{alone?(compact?'You two':'Just you two'):(compact?'Everyone':'Everyone here')}</PlainText></Pressable>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
