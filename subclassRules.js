@@ -18,7 +18,7 @@ import {modifier,proficiencyBonus} from './characterRules';
 export const subclassLevels={Artificer:[3,5,9,15],Barbarian:[3,6,10,14],Bard:[3,6,14],Cleric:[3,6,17],Druid:[3,6,10,14],Fighter:[3,7,10,15,18],Monk:[3,6,11,17],Paladin:[3,7,15,20],Ranger:[3,7,11,15],Rogue:[3,9,13,17],Sorcerer:[3,6,14,18],Warlock:[3,6,10,14],Wizard:[3,6,10,14]};
 export const subclassEngine={
  // ---- Artificer ----
- Alchemist:{class:'Artificer',effects:[{level:3,kind:'action',id:'tonic',name:'Field Tonic',bonus:true,uses:'Intelligence',recharge:'long',effect:{heal:{count:1,die:8,plus:'Intelligence'}},say:/\bfield tonic\b|\b(drink|down|swig) (a |my )?tonic\b/i,chip:['⚗','Field Tonic','I drink one of my field tonics.','potion'],description:'Field Tonic: drink a tonic you mixed yourself and regain 1d8 + your Intelligence modifier hit points. A bonus action.'}]},
+ Alchemist:{class:'Artificer',effects:[{level:3,kind:'action',id:'tonic',name:'Field Tonic',bonus:true,uses:'Intelligence',recharge:'long',effect:{heal:{count:1,die:8,plus:'Intelligence'}},say:/\bfield tonics?\b|\b(drink|down|swig) (a |my |one of my )?tonics?\b/i,chip:['⚗','Field Tonic','I drink one of my field tonics.','potion'],description:'Field Tonic: drink a tonic you mixed yourself and regain 1d8 + your Intelligence modifier hit points. A bonus action.'}]},
  Armorer:{class:'Artificer',effects:[{level:3,kind:'passive',name:'Plated Craft',acBonus:{n:1,when:'armor'}},{level:5,kind:'passive',name:'Second Swing',extraAttack:true}]},
  Artillerist:{class:'Artificer',effects:[{level:3,kind:'action',id:'engine',name:'Field Engine',bonus:false,uses:'Intelligence',recharge:'long',effect:{strike:{count:2,die:8,type:'Force',save:'Dexterity',half:true}},scale:{9:3,15:4},say:/\bfield engine\b|\bfire (my |the )?(engine|cannon)\b/i,chip:['✹','Field Engine','I fire my field engine at the foe.','cog'],description:'Field Engine: fire your arcane engine at the foe. It makes a Dexterity save against your spell save DC and takes Force damage, half as much on a success. Uses your action.'}]},
  'Battle Smith':{class:'Artificer',effects:[{level:3,kind:'passive',name:"Smith's Drill",martial:true},{level:5,kind:'passive',name:'Drilled Strikes',extraAttack:true}]},
@@ -118,7 +118,7 @@ export const subclassFeatures={
   [3,"Banked Fire","Cleric spells dealing Fire or Radiant damage add your Wisdom modifier, once per casting.",1],
   [3,"Hearthkeeper's Welcome","Channel Divinity, Magic action: you and allies within 30 ft gain Temporary HP equal to your Cleric level.",0],
   [6,"Warmth Shared","Allies sharing your Short Rest regain extra HP equal to your Wisdom modifier.",0],
-  [17,"Undying Flame","Fire Resistance; your Fire ignores Resistance; once per Long Rest drop to 1 HP instead of 0 and burst 4d8 Fire (Dex save, half).",0]
+  [17,"Hearth Never Cold","Fire Resistance; your Fire ignores Resistance; once per Long Rest drop to 1 HP instead of 0 and burst 4d8 Fire (Dex save, half).",0]
  ],
  "Vigil Domain":[
   [3,"Vigil Domain Spells","Always prepared from level 3: Shield of Faith, Command, Spiritual Weapon and Warding Bond; more at higher levels.",1],

@@ -2307,7 +2307,7 @@
     "class": "Cleric",
     "subclass": "Hearth Domain",
     "level": 17,
-    "name": "Undying Flame",
+    "name": "Hearth Never Cold",
     "description": "You have Resistance to Fire damage, and Fire damage from your spells ignores Resistance. Once per Long Rest, when you drop to 0 Hit Points, you drop to 1 instead, and creatures of your choice within 10 feet make a Dexterity saving throw against your spell save DC, taking 4d8 Fire damage on a failure or half as much on a success.",
     "source": "Questbound",
     "automation": "reference"

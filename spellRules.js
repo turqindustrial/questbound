@@ -387,8 +387,10 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   // A subclass's mark on the casting's damage, once a casting (Banked Fire, Rot and Root, Rime-Touched, Echo of the
   // Void, Marrow-Cold; subclassRules.js): only for spells of the hero's own class or subclass.
   if(damage>0&&(effect.save||effect.attack)&&(spell.classes?.includes(hero.class)||automaticSpells(hero).includes(spell.id))){
-    const extra=subclassSpellBonus(hero,'damage',{type}),added=extra.amount?defended(target,type,extra.amount):0;
-    if(added>0){damage+=added;logs.push(`${added} ${type} damage (${extra.label}).`);}
+    // The first of the casting's damage types the gift names (Ice Knife's burst is Cold, its shard Piercing).
+    const gifted=[type,effect.also,effect.then?.type].filter(Boolean).find(k=>subclassSpellBonus(hero,'damage',{type:k}).amount>0);
+    const extra=gifted?subclassSpellBonus(hero,'damage',{type:gifted}):{amount:0},added=extra.amount?defended(target,gifted,extra.amount):0;
+    if(added>0){damage+=added;logs.push(`${added} ${gifted} damage (${extra.label}).`);}
   }
   if(damage>0&&!effect.inflict){
     const broke=spellCondsOf(next,key).filter(c=>breakable.includes(c));
