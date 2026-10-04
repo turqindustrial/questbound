@@ -2,11 +2,21 @@
 // iPhone browsers do not allow it for web pages, so there the game is added to the Home Screen and opens full screen from there.
 const KEY='questbound.display.v1';
 const doc=()=>typeof document!=='undefined'?document:null;
-function load(){try{return {autoFullscreen:false,...JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}')};}catch{return {autoFullscreen:false};}}
+// Atmosphere (effects): 'full' moves the fog, embers, light shafts and painting; 'light' keeps the look but holds it
+// still and drops the blur behind panels; 'auto' is full unless this computer struggled to keep up when the game
+// started (perfWatch.js sets autoLight). Prefs saved before these existed load with the defaults.
+const effectModes=['auto','full','light'];
+function load(){
+ const base={autoFullscreen:false,effects:'auto',autoLight:false};
+ try{const saved={...base,...JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}')};if(!effectModes.includes(saved.effects))saved.effects='auto';saved.autoLight=saved.autoLight===true;return saved;}catch{return base;}
+}
 let prefs=load();const listeners=new Set();
-const notify=()=>listeners.forEach(fn=>fn(displayState()));
+export const effectsMode=(p=prefs)=>p.effects==='light'||(p.effects!=='full'&&p.autoLight)?'light':'full';
+// The page carries the mode as <html data-effects="full|light">, which webTheme.js's styles follow.
+function applyEffects(){const d=doc();if(d?.documentElement?.dataset)d.documentElement.dataset.effects=effectsMode();}
+const notify=()=>{applyEffects();listeners.forEach(fn=>fn(displayState()));};
 // screenEffects: red and gold flashes, the shake when hit and the critical burst (on unless the player turns them off).
-export function displayState(){return {fullscreen:isFullscreen(),supported:fullscreenSupported(),installed:isInstalled(),ios:isIOS(),autoFullscreen:prefs.autoFullscreen,screenEffects:prefs.screenEffects!==false};}
+export function displayState(){return {fullscreen:isFullscreen(),supported:fullscreenSupported(),installed:isInstalled(),ios:isIOS(),autoFullscreen:prefs.autoFullscreen,screenEffects:prefs.screenEffects!==false,effects:prefs.effects,autoLight:prefs.autoLight,effectsActive:effectsMode()};}
 export function subscribeDisplay(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 export function setDisplayPrefs(changes){prefs={...prefs,...changes};try{globalThis.localStorage?.setItem(KEY,JSON.stringify(prefs));}catch{}notify();}
 export function fullscreenSupported(){const d=doc();if(!d)return false;const el=d.documentElement;return !!(el.requestFullscreen||el.webkitRequestFullscreen)&&(d.fullscreenEnabled??d.webkitFullscreenEnabled??false)!==false;}
@@ -25,6 +35,7 @@ export async function exitFullscreen(){const d=doc();if(!d||!isFullscreen())retu
 export const toggleFullscreen=()=>isFullscreen()?exitFullscreen():enterFullscreen();
 export function initializeFullscreen(){
  const d=doc();if(!d)return;
+ applyEffects();
  // Home-screen and install support: manifest, Apple web-app tags and the icon.
  const head=d.head,add=(tag,attrs)=>{const el=d.createElement(tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));head.appendChild(el);};
  if(!d.querySelector('link[rel="manifest"]'))add('link',{rel:'manifest',href:'/manifest.json'});
