@@ -8,7 +8,7 @@ import {npcArtSubject,creatureArtSubject,placeArtSubject,locationArtSubject} fro
 import {subscribeArt,artIdentity} from './artClient';
 import {storyText} from './storyRules';
 import TurnPlayback from './TurnPlayback';
-import {conversationPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
+import {conversationPeople,speakingPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
 import {adventureStep} from './adventureRules';
 import {dmCommand,withAttackIntent} from './dmCommands';
 import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
@@ -26,7 +26,7 @@ import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemo
 import {touchKeyboard} from './webLayout';
 import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
-import {greeting,shouldGreet} from './greetings';
+import {greeting,shouldGreet,replyIdeas} from './greetings';
 import {turnOrderView} from './encounterRules';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
@@ -54,6 +54,13 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const [conversationId,setConversationId]=useState(null),[animateId,setAnimateId]=useState(null),[playing,setPlaying]=useState(false);
   const people=conversationPeople(game),person=people.find(n=>n.id===conversationId);
   useEffect(()=>{if(conversationId&&!person)setConversationId(null);onConversationChange(!!person);},[conversationId,!!person,onConversationChange]);
+  // Just you two: with others about, the one turned to answers alone unless the player opens the talk to everyone here.
+  const [alone,setAlone]=useState(true);
+  useEffect(()=>{setAlone(true);},[conversationId]);
+  // Things the player might say next (the Suggestions tab), as the Dungeon Master wrote them for the latest turn. Only
+  // this device's memory holds them: they are never saved or shared with the table.
+  const [ideas,setIdeas]=useState(null);
+  const keepIdeas=(turn,personId,body)=>setIdeas({turn:turn??null,person:personId??null,lines:(Array.isArray(body?.suggestions)?body.suggestions:[]).filter(t=>typeof t==='string'&&t.trim()).slice(0,3)});
   const [endpoint,setEndpoint]=useState(lastReady??endpoints[0]);
   const [connected,setConnected]=useState(false),[protocol,setProtocol]=useState(0),[checked,setChecked]=useState(false),[unpaired,setUnpaired]=useState(false);
   const inputRef=useRef(null);
@@ -75,7 +82,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
   const [draft,setDraft]=useState('');
   // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
-  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(hero).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role}:null,conversationParticipants:conversationPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(hero).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -84,11 +91,11 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const speaker=people.find(n=>n.id===cue.speakerId)??people[0],snapshot=fingerprint;triedCue.current=attempt;
     lock.current=true;setBusy(true);setError('');
     (async()=>{
-      let narration=cue.scene,dialogue=speaker?[{speakerId:speaker.id,text:cue.fallback}]:[];
-      if(connected&&speaker)try{const body=await post(cue.scene,game,health,speaker,{sceneTrigger:{id:cue.id,cue:cue.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>people.some(n=>n.id===l.speakerId));if(lines.length){narration=body.narration;dialogue=lines;}}catch{}
+      let narration=cue.scene,dialogue=speaker?[{speakerId:speaker.id,text:cue.fallback}]:[],said=null;
+      if(connected&&speaker)try{const body=await post(cue.scene,game,health,speaker,{sceneTrigger:{id:cue.id,cue:cue.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>people.some(n=>n.id===l.speakerId));if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
       if(!alive.current||latest.current!==snapshot)return;
       const result=await act(null,{question:cue.scene,narration,dialogue,trigger:true,npcId:speaker?.id??null});
-      if(!result.error){setAnimateId(result.turn?.id??null);if(speaker&&conversationPeople(result.game).some(n=>n.id===speaker.id))setConversationId(speaker.id);}
+      if(!result.error){setAnimateId(result.turn?.id??null);const talking=!!speaker&&conversationPeople(result.game).some(n=>n.id===speaker.id);if(talking)setConversationId(speaker.id);keepIdeas(result.turn?.id,talking?speaker.id:conversationId,said);}
     })().catch(e=>{if(alive.current)setError(e.message);}).finally(()=>{lock.current=false;if(alive.current)setBusy(false);});
   },[game.sceneCue?.id,busy,playing]);
   // Turning to someone (the Speak chip): the conversation opens and they speak first, in their own voice and true to
@@ -102,11 +109,11 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const opening=greeting(game,id,hero),snapshot=fingerprint;
     lock.current=true;setBusy(true);setError('');setDraft('');
     try{
-      let narration=opening.aside,dialogue=[{speakerId:id,text:opening.fallback}];
-      if(connected)try{const body=await post(opening.scene,game,health,speaker,{sceneTrigger:{id:'greet:'+id,cue:opening.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>l.speakerId===id).slice(0,2);if(lines.length){narration=body.narration;dialogue=lines;}}catch{}
+      let narration=opening.aside,dialogue=[{speakerId:id,text:opening.fallback}],said=null;
+      if(connected)try{const body=await post(opening.scene,game,health,speaker,{sceneTrigger:{id:'greet:'+id,cue:opening.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>l.speakerId===id).slice(0,2);if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
       if(!alive.current||latest.current!==snapshot)return;
       const result=await act(null,{question:opening.scene,narration,dialogue,trigger:true,npcId:id});
-      if(!result.error){setAnimateId(result.turn?.id??null);if(conversationPeople(result.game).some(n=>n.id===id))setConversationId(id);}
+      if(!result.error){setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,said);}
     }catch(e){if(alive.current)setError(e.message);}
     finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   };
@@ -169,7 +176,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);setConversationId(conversationPeople(result.game).some(n=>n.id===target)?target:null);if(!preset)setInput('');return result;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw Error(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
       const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw Error(preview.error);
@@ -180,13 +187,13 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         if(resolved.error)throw Error(resolved.error);
         if(body.ruling.decision==='cast'){
           const reaction=await request(resolved.game,resolved.health,{engineResolved:(resolved.events??[]).map(t=>storyText(resolved.game,t)).slice(0,40)});
-          body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.loot=reaction.loot;body.introduce=reaction.introduce;
+          body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.loot=reaction.loot;body.introduce=reaction.introduce;body.suggestions=reaction.suggestions;
         }
         let index=0;await finish(action,body,normalized,()=>dice[index++]??0.5);
       }
       else {let body={narration:narration??command.narration??'Your action is resolved below.'};
         if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot,introduce:body.introduce},normalized,()=>rolled[index++]??0.5);
+        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},normalized,()=>rolled[index++]??0.5);
       }
     };
     try{
@@ -201,14 +208,14 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
         const action={type:'ai-check',check:body.check},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw Error(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}
       // A place the DM revealed: added to the map, and walked to when the player set out for it.
@@ -258,11 +265,18 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // heading, so the story has the room.)
   const snug=viewHeight<700,swipe=compact||short||snug;
   // With a keyboard, 1–9 press the matching action (shown as a small key on each chip).
-  const keysRef=useRef({});keysRef.current={actions:actions.filter(a=>!a.heading),disabled:actionsDisabled,run:a=>runAction(a)};
+  // Suggestions: what the Dungeon Master offered with the latest turn, else a few stand-ins worked out here. They sit in
+  // a tab beside the actions (never popping up on their own) and a tap only fills the message box.
+  const standIns=useMemo(()=>replyIdeas(game,hero,person?.id??null),[fingerprint,person?.id]);
+  const ideaLines=direct||dead||dying||!!turnWait||!!waiting?[]:ideas?.turn===lastTurnId&&ideas.person===(person?.id??null)&&ideas.lines.length?ideas.lines:standIns;
+  const [tab,setTab]=useState('actions');
+  const showIdeas=ideaLines.length>0&&(!actions.length||tab==='suggestions'),ideasDisabled=busy||playing;
+  const fillIdea=text=>{playSound('click');setInput(text);setTimeout(()=>inputRef.current?.focus(),30);};
+  const keysRef=useRef({});keysRef.current=showIdeas?{actions:ideaLines.map(text=>({key:'idea:'+text,text})),disabled:ideasDisabled,run:a=>fillIdea(a.text)}:{actions:actions.filter(a=>!a.heading),disabled:actionsDisabled,run:a=>runAction(a)};
   useEffect(()=>{
     if(typeof document==='undefined')return;
     const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[1-9]$/.test(e.key)||shortcutsBlocked())return;
-      const {actions,disabled,run}=keysRef.current,a=actions[Number(e.key)-1];if(!a||disabled)return;e.preventDefault();playSound('click');run(a);};
+      const {actions,disabled,run}=keysRef.current,a=actions[Number(e.key)-1];if(!a||disabled)return;e.preventDefault();if(!a.text)playSound('click');run(a);};
     document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
   },[]);
   const pressable=actions.filter(a=>!a.heading);
@@ -277,14 +291,20 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   </Pressable>;});
   // The guide: what every action (or spell) in the row does, one tap away.
   if(actions.length)actionChips.push(<Pressable key="guide" accessibilityRole="button" accessibilityLabel={spellsOpen?'What these spells do':'What these actions do'} onPress={()=>{playSound('open');setGuide(true);}} dataSet={{qb:'chip'}} style={[s.action,{paddingHorizontal:11}]}><Icon name="info" size={16} color={colors.gold}/></Pressable>);
-  // A first-time player's first turns: things to try saying. A tap writes the words into the message box (it does
-  // not send them), which shows that anything can be typed.
-  const starters=tips&&lastTurnId<2&&!person&&!dead&&!dying&&!direct&&!input&&game.stage!=='combat'&&!game.npcCombat?.active?['I look around.','I ask what is going on here.']:[];
   const extraChips=[...effects.map(line=><View key={'effect:'+line} style={s.effectChip}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
-    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/><PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText></View></Pressable>),
-    ...starters.map(text=><Pressable key={'try:'+text} accessibilityRole="button" accessibilityLabel={'Try saying: '+text} disabled={busy||playing} onPress={()=>{playSound('click');setInput(text);setTimeout(()=>inputRef.current?.focus(),30);}} dataSet={{qb:'chip',keepfocus:'true'}} style={s.tryChip}><Icon name="quill" size={13} color={colors.goldMid}/><PlainText numberOfLines={1} style={s.tryText}>Try: {text}</PlainText></Pressable>)];
+    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={s.personChip}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.chipAvatar} compact/><PlainText numberOfLines={1} style={s.chipName}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/><PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText></View></Pressable>)];
   const row=(chips,wrap,ref)=>chips.length>0&&<ScrollView ref={ref} horizontal={!wrap} dataSet={{qb:wrap?'actions':'actions-scroll'}} showsHorizontalScrollIndicator={false} style={s.actionBar} contentContainerStyle={[s.actionContent,wrap&&s.actionWrap]} accessibilityLabel="Quick actions">{chips}</ScrollView>;
-  const actionBar=short?row([...actionChips,...extraChips],false,actionScroll):<>{row(extraChips,false)}{row(actionChips,!swipe,actionScroll)}</>;
+  // The Actions | Suggestions tabs sit just above the message box. A suggestion is a short thing to say in the hero's
+  // own voice; a tap writes it into the box (it never sends), so the player can change it first. The suggestions wrap
+  // onto a second line rather than scrolling sideways.
+  const ideaChips=ideaLines.map((text,i)=><Pressable key={'idea:'+text} accessibilityRole="button" accessibilityLabel={'Suggestion: '+text} accessibilityState={{disabled:ideasDisabled}} disabled={ideasDisabled} onPress={()=>fillIdea(text)} onHoverIn={()=>!ideasDisabled&&playSound('tick')} dataSet={{qb:'chip',keepfocus:'true'}} style={[s.ideaChip,ideasDisabled&&{opacity:.45}]}><Icon name="quill" size={13} color={colors.goldMid}/><PlainText numberOfLines={2} style={s.ideaText}>{text}</PlainText>{!compact&&showIdeas&&i<9&&<KeyHint>{i+1}</KeyHint>}</Pressable>);
+  const tabButton=(id,label,count)=>{const on=id==='suggestions'?showIdeas:!showIdeas;return <Pressable key={'tab:'+id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(on)return;playSound('click');setTab(id);}} dataSet={{qb:on?'seg-on':'chip',keepfocus:'true'}} style={[s.tab,on&&s.tabOn]}><PlainText style={[s.tabText,on&&s.tabTextOn]}>{label}</PlainText>{!on&&count>0&&<View style={s.tabCount}><PlainText style={s.tabCountText}>{count}</PlainText></View>}</Pressable>;};
+  const tabButtons=ideaLines.length>0?[...(actions.length?[tabButton('actions','Actions',0)]:[]),tabButton('suggestions','Suggestions',ideaLines.length)]:[];
+  const tabStrip=tabButtons.length>0&&<View accessibilityRole="tablist" style={s.tabs}>{tabButtons}</View>;
+  const ideaRow=<View dataSet={{qb:'actions'}} accessibilityLabel="Suggestions" style={[s.actionBar,s.ideaWrap]}>{ideaChips}</View>;
+  const actionBar=short?(showIdeas?<>{row(extraChips,false)}<View dataSet={{qb:'actions'}} style={[s.actionBar,s.ideaWrap]}>{tabButtons}{ideaChips}</View></>:row([...tabButtons,...actionChips,...extraChips],false,actionScroll)):<>{row(extraChips,false)}{tabStrip}{showIdeas?ideaRow:row(actionChips,!swipe,actionScroll)}</>;
+  // One on one or everyone here: who may answer when others are about.
+  const aloneSwitch=people.length>1&&!!person&&<Pressable accessibilityRole="switch" accessibilityState={{checked:alone,disabled:busy||playing}} accessibilityLabel={alone?'Just you two: only '+person.name+' answers. Tap to let everyone here join in':'Everyone here may join in. Tap to speak with '+person.name+' alone'} disabled={busy||playing} onPress={()=>{playSound('click');setAlone(value=>!value);}} dataSet={{qb:alone?'seg-on':'chip',keepfocus:'true'}} style={[s.aloneSwitch,alone&&s.aloneOn,(busy||playing)&&{opacity:.45}]}><Icon name={alone?'speak':'people'} size={14} color={alone?colors.goldBright:colors.gold}/><PlainText numberOfLines={1} style={[s.aloneText,alone&&{color:colors.goldBright}]}>{alone?(compact?'You two':'Just you two'):(compact?'Everyone':'Everyone here')}</PlainText></Pressable>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
   const composer=<TextInput ref={inputRef} dataSet={{qb:'input',composer:'true'}} onFocus={onFocus} onBlur={onBlur} accessibilityLabel={direct?'Message for the Dungeon Master, out of character':'Action for the Dungeon Master'} editable={!dead||direct} value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={direct?(compact?'Ask the Dungeon Master…':'Ask the Dungeon Master: a ruling, a mistake, or what you meant to do…'):turnWait?(compact?turnWait.name.split(' ')[0]+'’s turn…':'It is '+turnWait.name+'’s turn. Wait for it, or tap DM to ask the Dungeon Master something.'):dead?'Your hero has died.':dying?(compact?'Fight to hold on…':'You are dying. Fight to hold on…'):person?'Speak to '+person.name+'…':game.stage==='combat'||game.npcCombat?.active?(compact?(game.actionUsed?'Bonus action, or end turn…':'Your move…'):game.actionUsed?'A bonus action, or end your turn…':'Your move: attack, cast a spell, dodge, or try something bold…'):'Describe your next move…'} placeholderTextColor={tint('#938890')} style={[s.input,fill&&s.fillInput,fill&&short&&{minHeight:42,paddingVertical:9},direct&&s.inputDirect]}/>;
   // The DM switch: the next message is a word with the Dungeon Master, player to DM.
@@ -296,6 +316,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <IconButton icon="back" label="Back to adventure" size={36} disabled={busy||playing} onPress={()=>setConversationId(null)}/>
       <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
       <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
+      {aloneSwitch}
     </View>:!short&&!compact&&!snug&&<View style={s.fillHeader}>
       <View style={s.dmMark}><Icon name={teller.icon} size={compact?17:19} color={colors.goldBright}/></View>
       <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>{teller.name}</Text></View>
@@ -328,11 +349,12 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {reply?.pending&&<Text style={s.caption}>Suggested action: {reply.pending.label}. Send “confirm action” to carry it out.</Text>}
   </View>;
   return <View dataSet={{qb:'plate'}} style={[s.panel,person&&s.conversation,compact&&{padding:14}]}>
-    {person?<View><Pressable accessibilityRole="button" disabled={busy||playing} onPress={()=>setConversationId(null)} style={s.back}><Text style={s.backText}>‹  Back to adventure</Text></Pressable><View style={s.portraitRow}><DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.portrait,compact&&{width:132,height:156}]}/><View style={{flex:1,minWidth:150}}><Text style={s.overline}>{people.length>1?'GROUP CONVERSATION':'IN CONVERSATION'}</Text><PlainText style={[s.personName,compact&&{fontSize:24}]}>{person.name}</PlainText><Text style={s.role}>{person.role}</Text><View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><Text style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</Text></View></View></View>{people.length>1&&<View style={s.group}>{people.map(n=><Pressable key={n.id} accessibilityRole="button" accessibilityLabel={'Address '+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={[s.groupMember,n.id===person.id&&s.groupActive]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.avatar} compact/><PlainText style={s.chipText}>{n.name}</PlainText></Pressable>)}</View>}</View>:<View style={s.header}><View><Text style={s.overline}>YOUR NARRATOR</Text><Text style={s.heading}>The Dungeon Master</Text></View><View style={s.status}><View style={[s.dot,{backgroundColor:busy||playing?colors.gold:connected?colors.heal:tint('#7d1b2e')}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:busy||playing?colors.gold:connected?'#a6d8b8':'#d8b879'}]}>{busy?'Resolving your turn…':playing?'Playing turn…':connected?'Connected':'Offline'}</Text></View></View>}
+    {person?<View><Pressable accessibilityRole="button" disabled={busy||playing} onPress={()=>setConversationId(null)} style={s.back}><Text style={s.backText}>‹  Back to adventure</Text></Pressable><View style={s.portraitRow}><DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.portrait,compact&&{width:132,height:156}]}/><View style={{flex:1,minWidth:150}}><Text style={s.overline}>{people.length>1?'GROUP CONVERSATION':'IN CONVERSATION'}</Text><PlainText style={[s.personName,compact&&{fontSize:24}]}>{person.name}</PlainText><Text style={s.role}>{person.role}</Text><View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><Text style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</Text></View></View></View>{people.length>1&&<View style={s.group}>{people.map(n=><Pressable key={n.id} accessibilityRole="button" accessibilityLabel={'Address '+n.name} disabled={busy||playing} onPress={()=>openConversation(n.id)} dataSet={{qb:'chip'}} style={[s.groupMember,n.id===person.id&&s.groupActive]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={s.avatar} compact/><PlainText style={s.chipText}>{n.name}</PlainText></Pressable>)}{aloneSwitch}</View>}</View>:<View style={s.header}><View><Text style={s.overline}>YOUR NARRATOR</Text><Text style={s.heading}>The Dungeon Master</Text></View><View style={s.status}><View style={[s.dot,{backgroundColor:busy||playing?colors.gold:connected?colors.heal:tint('#7d1b2e')}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:busy||playing?colors.gold:connected?'#a6d8b8':'#d8b879'}]}>{busy?'Resolving your turn…':playing?'Playing turn…':connected?'Connected':'Offline'}</Text></View></View>}
     
     {!connected&&<Text style={s.caption}>{status}</Text>}
     <TurnPlayback me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     <Text style={s.prompt}>{person?'What do you say?':'What do you do?'}</Text>
+    {ideaLines.length>0&&<View accessibilityLabel="Suggestions" style={[s.ideaWrap,{marginBottom:10}]}>{ideaChips}</View>}
     <TextInput dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':'Describe your next move…'} placeholderTextColor={tint('#938890')} style={s.input}/>
     <View style={s.toolbar}><Text style={[s.hint,!!waiting&&{color:colors.gold}]}>{tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':compact?'Tap Send to DM':'Enter to send · Shift+Enter for a new line'}</Text><Pressable accessibilityRole="button" accessibilityState={{disabled:busy||playing||!input.trim()||!!waiting||tableSyncing}} disabled={busy||playing||!input.trim()||!!waiting||tableSyncing} onPress={()=>ask()}dataSet={{qb:'btn-primary'}} style={[s.button,(busy||playing||!input.trim()||!!waiting||tableSyncing)&&{opacity:0.45}]}><Text style={s.buttonText}>{tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing turn…':waiting?'Waiting…':'Send to DM  ➤'}</Text></Pressable></View>
     {effects.length>0&&<View style={s.effects}><Text style={[s.overline,{color:colors.arcane}]}>✧ ONGOING EFFECTS</Text>{effects.map(line=><Text key={line} style={s.effectText}>{line}</Text>)}</View>}
@@ -361,7 +383,11 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:'#c2b1ab',fontSize:14,marginBottom:3},
  effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12,flexShrink:1},
  lesson:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:6,paddingHorizontal:4},lessonText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:tint('#c9bfc6')},
- tryChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:12,paddingVertical:6,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:tint('rgba(176,140,245,.5)'),backgroundColor:tint('rgba(20,15,21,.7)')},tryText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:tint('#e2dde1')},
+ ideaChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,maxWidth:'100%',paddingHorizontal:12,paddingVertical:6,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:tint('rgba(176,140,245,.5)'),backgroundColor:tint('rgba(20,15,21,.7)')},ideaText:{flexShrink:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:20,color:tint('#e2dde1')},
+ ideaWrap:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},
+ tabs:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:32,paddingHorizontal:12,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(23,17,24,.85)')},tabOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
+ tabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:colors.gold,textTransform:'uppercase'},tabTextOn:{color:colors.goldBright},tabCount:{minWidth:18,height:18,borderRadius:9,paddingHorizontal:5,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(176,140,245,.28)')},tabCountText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',color:tint('#e2dde1')},
+ aloneSwitch:{flexDirection:'row',alignItems:'center',gap:5,minHeight:36,paddingHorizontal:10,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.92)'),flexShrink:0},aloneOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},aloneText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  notice:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12,marginBottom:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},noticeText:{fontFamily:fonts.ui,fontSize:13,lineHeight:20,color:colors.muted},
  errorRow:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingVertical:8,paddingHorizontal:10,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.35)',backgroundColor:'rgba(60,18,14,.5)'},
  sendRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},chipSpeak:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:4},
