@@ -251,6 +251,19 @@ const table=(kara,bram,game,health)=>{
  const burnt=r.lastingTurn(fromB.game,'foe','end',{name:'The foe',saves:{}},()=>0.3);assert.match(burnt.lines.join(' '),/Moonbeam \(Rule Druid\)/);
 }
 
+// ---------- More areas that go on working: Insect Plague, Wall of Fire, Black Tentacles, Vitriolic Sphere ----------
+{
+ const plays=[['Druid',9,'insect-plague',/Insect Plague: The Salt Bandit ends its turn in it/],['Wizard',7,'wall-of-fire',/Wall of Fire: The Snag ends its turn in it/],['Wizard',7,'black-tentacles',/Black Tentacles: The Salt Bandit ends its turn in it/],['Wizard',7,'vitriolic-sphere',/Vitriolic Sphere: The Salt Bandit takes \d+ Acid damage/]];
+ for(const [cls,level,id,told] of plays){
+  // (Both are given more hit points than they really have, so that they live to take the lasting damage.)
+  const h=hero(cls,level,[id],{scores:{Strength:10,Dexterity:14,Constitution:16,Intelligence:18,Wisdom:18,Charisma:10}}),fight={...banditFight(h),potions:0,enemyHP:200,foeAllies:banditFight(h).foeAllies.map(a=>({...a,hp:200,maximum:200}))};
+  const spell=r.spellLibrary.find(s=>s.id===id),step=cast(h,fight,'I cast '+spell.name+' at the bandit.',()=>0.05);
+  assert.equal(step.error,undefined,id+': '+step.error);
+  assert.match(lines(step),new RegExp(spell.name+' also reaches'),id+' catches the goblin too');
+  assert.ok(step.game.foeAllies[0].hp<200&&step.game.enemyHP<200,id+' hurts both');
+  assert.match(lines(step),told,id+' goes on working');
+ }
+}
 // ---------- Hex and Hunter's Mark move as a bonus action once their creature drops ----------
 {
  const lock=hero('Warlock',2,['eldritch-blast','hex']),fight=banditFight(lock);
@@ -291,4 +304,4 @@ const table=(kara,bram,game,health)=>{
  assert.ok(r.validAdventure(r.adventureSnapshot(cleric,clone({...inn,concentration:{id:'moonbeam',remaining:10,duration:'1 minute',level:2,dc:13,target:'foe',fresh:true}}),null,true),cleric));
  assert.ok(r.validAdventure(r.adventureSnapshot(cleric,clone({...inn,concentration:{id:'hex',remaining:600,duration:'1 hour',lost:true}}),null,true),cleric));
 }
-console.log('Passed: Aid raises hit points and the maximum for the hero, a companion and another hero until a long rest; Bless, Heroism, Shield of Faith, Guidance, Resistance, Protection from Evil and Good and Longstrider reach friends at the table and companions; areas and many-target spells catch the creatures beside the foe and the people in a brawl; Moonbeam, Heat Metal, Spiritual Weapon, Call Lightning, Spirit Guardians, Acid Arrow, Searing Smite and burning webs go on working; Hex moves as a bonus action once its creature drops; Shield follows the device\'s choice; Counterspell and Feather Fall are refused plainly; the saves hold it all.');
+console.log('Passed: Aid raises hit points and the maximum for the hero, a companion and another hero until a long rest; Bless, Heroism, Shield of Faith, Guidance, Resistance, Protection from Evil and Good and Longstrider reach friends at the table and companions; areas and many-target spells catch the creatures beside the foe and the people in a brawl; Moonbeam, Heat Metal, Spiritual Weapon, Call Lightning, Spirit Guardians, Insect Plague, Wall of Fire, Black Tentacles, Vitriolic Sphere, Acid Arrow, Searing Smite and burning webs go on working; Hex moves as a bonus action once its creature drops; Shield follows the device\'s choice; Counterspell and Feather Fall are refused plainly; the saves hold it all.');
