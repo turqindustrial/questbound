@@ -59,11 +59,13 @@ export function followerCommand(game,text){
   const companions=Object.entries(game.followers??{}).filter(([,f])=>['following','waiting'].includes(f?.status)).map(([id,f])=>({id,status:f.status,present:!!scene.find(n=>n.id===id)?.present}));
   const named=ids=>ids.filter(id=>mentionsName(said,nameOf(id)));
   const everyone=/\b(?:everyone|everybody|all of you|you all|both of you|the (?:others|rest of you)|my (?:companions|friends))\b/i.test(said);
-  // Taking up an offer: the one who offered is named (or is the only one), and the words say yes.
+  // Taking up an offer: the one who offered is named and the words say yes, or (when only one offer stands) the words
+  // plainly ask them along. A bare "yes" to someone else ("Yes, I'll take the room") is not an answer to the offer.
   const offers=standingOffers(game);
-  if(offers.length&&/\b(?:yes|gladly|welcome|very well|all right|alright|of course|come (?:along|with)|join (?:me|us)|you can come|i accept|accept your offer|take you (?:up|along|with))\b/i.test(said)){
+  if(offers.length){
+    const along=/\b(?:come (?:along|with (?:me|us))|join (?:me|us)|you can come|you may come|i accept|accept your offer|take you (?:up|along|with)|glad to have you|welcome aboard)\b/i.test(said),yes=along||/\b(?:yes|gladly|welcome|very well|all right|alright|of course)\b/i.test(said);
     const who=named(offers);
-    if(who.length===1||(!who.length&&offers.length===1&&!companions.some(c=>mentionsName(said,nameOf(c.id)))))return {action:{type:'accept-offer',id:who[0]??offers[0]}};
+    if(who.length===1&&yes||!who.length&&along&&offers.length===1&&!companions.some(c=>mentionsName(said,nameOf(c.id)))&&!scene.some(n=>n.present&&!offers.includes(n.id)&&mentionsName(said,nameOf(n.id))))return {action:{type:'accept-offer',id:who[0]??offers[0]}};
   }
   if(!companions.length)return null;
   const addressed=everyone?companions:companions.filter(c=>mentionsName(said,nameOf(c.id)));

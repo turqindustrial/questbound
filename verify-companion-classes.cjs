@@ -62,6 +62,8 @@ assert.equal(taken.game.followers[tobin].status,'following');same(taken.game.npc
 assert.ok(valid(taken.game));
 // A typed yes takes the offer too.
 same(r.dmCommand(kara,offered.game,'Yes, Tobin, come with us.',hp)?.action,{type:'accept-offer',id:tobin});
+same(r.dmCommand(kara,offered.game,'You can come along.',hp)?.action,{type:'accept-offer',id:tobin},'the only offer, plainly accepted');
+assert.notEqual(r.dmCommand(kara,offered.game,"Yes, I'll take a room for the night.",hp)?.action?.type,'accept-offer','a bare yes to something else is not an answer to the offer');
 // Away from him, the offer no longer stands.
 const away=step(offered.game,{type:'travel',destination:'tower'});
 assert.ok(!r.dmChoices(kara,away.game,hp).some(c=>c.id==='join:'+tobin),'no chip once he is not here');

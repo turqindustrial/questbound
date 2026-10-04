@@ -2,11 +2,12 @@
 // plain tactic (swing the main weapon or throw a damaging cantrip; drink a draught or heal when low). Prints the win
 // rate, how often the hero falls, fight length and HP left, and flags fights that look deadly or trivial. Plain Node,
 // no AI calls. Options: --fights N (default 200 per cell), --levels 1,3,5, --foe key (one creature, or "story" for a
-// written story's main foe), --quiet (flags only).
+// written story's main foe), --companion Class (a companion of that class, a level below the hero, fights
+// beside every hero), --quiet (flags only).
 const fs=require('fs'),vm=require('vm');
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({npcClassList,readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 // A written story's main foe, alongside the creature templates.
 const storyFoe={key:'story',foe:'Story Foe',species:'Unknown',type:'Slashing',appearance:'The main foe of a written story.',story:true};
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
@@ -31,14 +32,17 @@ function choose(hero,g,h,max){
  if(hero.class==='Wizard')return cast('I cast Magic Missile at the '+foe)??cast('I cast Fire Bolt at the '+foe)??weapon();
  return weapon();
 }
-const flags=[],problems=new Set(),only=arg('--foe',null);
+const flags=[],problems=new Set(),only=arg('--foe',null),companion=arg('--companion',null);
+if(companion&&!r.npcClassList.includes(companion)){console.error('Unknown class: '+companion);process.exit(1);}
+// A companion travelling with the hero (followerRules.js): one level below them, fighting by their class.
+const withCompanion=(g,level)=>companion?{...g,followers:{mara:{status:'following',location:'inn',reason:'Balance check.',terms:''}},npcClasses:{mara:{class:companion,level:Math.max(1,level-1)}}}:g;
 for(const entry of r.readyHeroes)for(const level of levels){
  const hero=heroAt(entry,level);if(!hero){problems.add(entry.form.name+' could not be built at level '+level);continue;}
  const max=r.combatBasics(hero).hp,row=[];
  for(const f of [...r.hostileFoes,storyFoe].filter(f=>!only||f.key===only)){
   let wins=0,falls=0,rounds=0,hpLeft=0;
   for(let n=0;n<fights;n++){
-   let g=fightWith(hero,f),h=null,t=0;
+   let g=withCompanion(fightWith(hero,f),level),h=null,t=0;
    if(n===0&&r.encounterFoe(hero,g).maximum!==g.enemyHP)problems.add('Foe HP mismatch for '+f.key);
    for(;t<60&&g.stage==='combat'&&(h?.current??1)>0;t++){
     const step=r.adventureStep(g,h,hero,choose(hero,g,h,max),Math.random);
@@ -55,7 +59,7 @@ for(const entry of r.readyHeroes)for(const level of levels){
   if(win<0.35)flags.push('deadly   '+name+' vs '+f.foe+(f.group?' (pack)':'')+': '+Math.round(100*win)+'% win, '+Math.round(100*fall)+'% fall');
   else if(win>0.97&&fall<0.01)flags.push('trivial  '+name+' vs '+f.foe+(f.group?' (pack)':'')+': '+Math.round(100*win)+'% win');
  }
- if(!quiet){console.log('\n'+hero.name+' ('+hero.class+' L'+level+', '+max+' HP, AC '+r.combatBasics(hero).ac+'), '+fights+' fights each:');for(const line of row)console.log('  '+line);}
+ if(!quiet){console.log('\n'+hero.name+' ('+hero.class+' L'+level+', '+max+' HP, AC '+r.combatBasics(hero).ac+')'+(companion?' with a level '+Math.max(1,level-1)+' '+companion+' companion':'')+', '+fights+' fights each:');for(const line of row)console.log('  '+line);}
 }
 console.log('\nFlags ('+flags.length+'):');for(const flag of flags)console.log('  '+flag);
 if(!flags.length)console.log('  none: every fight sits between 35% and 97% wins.');
