@@ -1,4 +1,4 @@
-import {validTies,validRegard,firstImpressions} from './relationshipRules';
+import {validTies,validRegard,firstImpressions,seatResidents} from './relationshipRules';
 import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,placeKinds} from './mapRules';
 import {genders} from './npcRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
@@ -10,11 +10,35 @@ function validFoeStats(f){
 }
 export function validStory(s){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
- return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&['keeper','mara'].includes(l.speakerId)&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&validRegard(s.npcs[id].regard))
+ return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&/^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(l.speakerId))&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&validRegard(s.npcs[id].regard))
   // The story's own land: where its places lie, what the country is called and what kind of country it is.
   &&(s.geography===undefined||validGeography(s.geography))&&(s.region===undefined||text(s.region,60))&&(s.terrain===undefined||terrains.includes(s.terrain))
   // A long tale: its chapters, the one under way, and its leads.
-  &&validChapters(s)&&validLeads(s);
+  &&validChapters(s)&&validLeads(s)
+  // An Easy to get into tale: the errand the hero accepted before it began.
+  &&(s.errand===undefined||validErrand(s.errand));
+}
+// ---------- The errand (Easy to get into) ----------
+// The hero starts with orders in hand: someone with authority (keeper) has sent them to deal with one plain trouble
+// close by. The errand's place is a landmark held by a creature (a lair on the map), and chapter 1 is the errand.
+export function validErrand(e){
+ const text=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
+ return !!e&&typeof e==='object'&&!Array.isArray(e)&&text(e.title,1,80)&&text(e.task,1,240)&&text(e.reward,0,160)&&/^p\d{1,2}$/.test(String(e.place));
+}
+// Creatures an errand may send a hero against: one of them, never a pack (the errand is often a new hero's first
+// fight). A pack the writer chose anyway becomes one of its kind.
+const errandSingles={zombies:'skeleton',wolves:'wolf',orc:'goblin'},errandKinds=['bandit','wolf','goblin','skeleton','boar','spider'];
+// The errand's place: the landmark it names, else the first risky one, else the first. Returns the places with that one
+// held by the errand's creature, and the errand as the story keeps it (null when there is no errand to be had).
+export function errandPlaces(written,places,hero){
+ const e=written&&typeof written==='object'?written:null,line=(v,max)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max).trim():'';
+ const threat=e?.threat&&typeof e.threat==='object'?e.threat:null,template=errandSingles[threat?.template]??threat?.template;
+ if(!e||!places.length||!line(e.title,80)||!line(e.task,240)||!errandKinds.includes(template)||!line(threat.name,60)||!line(threat.appearance,400))return {places,errand:null};
+ const named=line(e.place,60).toLowerCase(),at=places.find(p=>p.name.trim().toLowerCase()===named)??places.find(p=>p.danger==='risky')??places[0];
+ // A second creature at its side only for a hero past their first level, and never one of the same kind or a pack.
+ const a=threat.ally&&typeof threat.ally==='object'?threat.ally:null,ally=a&&(hero?.level??1)>=2&&errandKinds.includes(a.template)&&a.template!==template&&line(a.name,60)&&line(a.appearance,400)?{template:a.template,name:line(a.name,60),appearance:line(a.appearance,400)}:null;
+ const held={...at,danger:'lair',threat:{template,name:line(threat.name,60),appearance:line(threat.appearance,400),...(ally?{ally}:{})}};
+ return {places:places.map(p=>p.id===at.id?held:p),errand:{title:line(e.title,80),task:line(e.task,240),place:at.id,reward:line(e.reward,160)}};
 }
 // ---------- The long tale: chapters and leads ----------
 // A written story may be told in chapters (the spine of the main errand, taken one at a time; `story.chapter` is the
@@ -93,8 +117,10 @@ function retell(s,text){
 export function freshStoryGame(hero,written,base){
  if(!written||typeof written!=='object'||!written.locations||!written.npcs)throw Error('The new story was incomplete. Your current adventure is unchanged.');
  // Every story gets its own geography (from the writer's layout, or drawn from the story itself) and may mark a
- // few places on the map from the start.
- const {story,landmarks,lands}=tidyStory(written);
+ // few places on the map from the start. The people who live in its country, the errand (Easy to get into) and the
+ // opening's lines are seated below, once the places are known; none of them is kept in the story as written.
+ const {residents,errand:orders,openingDialogue:said,...told}=written;
+ const {story,landmarks,lands}=tidyStory(told);
  if(!story.foeStats)story.foeStats=storyFoeStats(hero?.level??1,story.foeDamageType);
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
  const first=story.chapters?.[0];
@@ -102,10 +128,22 @@ export function freshStoryGame(hero,written,base){
   // The story so far starts here (a hero's earlier chapters are joined on by joinRegion).
   storyLog:[{id:1,kind:'story',text:(story.title+': the tale began at '+story.locations.inn.name+'.').slice(0,160)}]};
  // Places heard of from the start, then the lands beyond this country that the tale speaks of (each its own map).
- const places=landmarkPlaces(story,landmarks),far=farLandPlaces(story,lands,places);
+ // An errand's place is one of the landmarks, held by the creature the hero was sent to deal with.
+ const marked=landmarkPlaces(story,landmarks),{places,errand}=errandPlaces(orders,marked,hero),far=farLandPlaces(story,lands,places);
  if(places.length||far.places.length)game.world={places:[...places,...far.places],at:null,...(far.regions.length?{regions:far.regions}:{})};
- // Opening dialogue plays as the first turn, so the residents are already talking when the player arrives.
- if(story.openingDialogue)game.playback=[{id:1,npcId:null,participants:['keeper','mara'],events:[{kind:'narration',text:story.opening},...story.openingDialogue.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:story.npcs[l.speakerId].name,text:l.text}))]}];
- // The residents have already formed a view of the hero's kind.
+ if(errand){story.errand=errand;game.journal.entries[0].text=(game.journal.entries[0].text+'\nYour orders: '+errand.task+(errand.reward?' Reward: '+errand.reward:'')).slice(0,3000);}
+ // The people who live here: two at the starting place, others where the tale puts them.
+ const seated=seatResidents(game,residents,places);game=seated.game;
+ // Opening dialogue plays as the first turn, so the people here are already talking when the player arrives: the two
+ // residents and anyone seated at the starting place (`residentN` is the Nth written resident).
+ const voice=id=>id==='keeper'||id==='mara'?id:Object.hasOwn(seated.ids,id)&&game.people[seated.ids[id]].home==='inn'?seated.ids[id]:null;
+ const lines=(Array.isArray(said)?said:[]).map(l=>l&&typeof l==='object'&&typeof l.text==='string'&&l.text.trim()?{speakerId:voice(String(l.speakerId)),text:l.text.trim().slice(0,300)}:null).filter(l=>l?.speakerId).slice(0,4);
+ if(lines.length){
+  story.openingDialogue=lines;
+  const nameOf=id=>story.npcs[id]?.name??game.people[id].name,here=Object.keys(game.people??{}).filter(id=>game.people[id].home==='inn');
+  game.playback=[{id:1,npcId:null,participants:['keeper','mara',...here],events:[{kind:'narration',text:story.opening},...lines.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:nameOf(l.speakerId),text:l.text}))]}];
+ }
+ if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
+ // Everyone has already formed a view of the hero's kind.
  return firstImpressions(game,hero);
 }

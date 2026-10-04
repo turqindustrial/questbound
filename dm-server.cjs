@@ -113,8 +113,8 @@ const lootSchema=max=>({type:['object','null'],properties:{gold:{type:'integer'}
 // An item's note is a courtesy: one that is missing or too long is tidied, never a reason to refuse the loot.
 const repairedLoot=l=>l&&typeof l==='object'&&Array.isArray(l.items)?{...l,items:l.items.map(i=>i&&typeof i==='object'?{...i,note:typeof i.note==='string'?tidy(i.note,160):''}:i)}:l;
 function validLoot(l,context){if(l===null)return true;const level=context.player?.level??1,have=context.inventory?.gold??0;return !!l&&Number.isInteger(l.gold)&&l.gold<=40*level+60&&have+l.gold>=0&&Array.isArray(l.items)&&l.items.length<=4&&l.items.every(i=>i&&typeof i.name==='string'&&i.name.trim().length>0&&i.name.length<=60&&['weapon','potion','ammunition','treasure','gear','quest'].includes(i.kind)&&Number.isInteger(i.qty)&&i.qty!==0&&Math.abs(i.qty)<=40&&typeof i.value==='number'&&i.value>=0&&i.value<=5000)&&typeof l.reason==='string'&&l.reason.length<=300&&(l.gold!==0||l.items.length>0);}
-// The people the game knows: the two residents and anyone met since (n1…n12).
-const personId=id=>/^(?:keeper|mara|n(?:[1-9]|1[0-2]))$/.test(String(id));
+// The people the game knows: the two residents and anyone met since (n1…n24).
+const personId=id=>/^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(id));
 const knownPeople=context=>{const ids=(context.npcSocialState??[]).map(n=>n?.id).filter(personId);return ids.length?ids:['keeper','mara'];};
 const tieKindsList=['family','beloved','close friend','friend','ally','acquaintance','rival','enemy'],foeTieList=['kin','beloved','ally','neutral','enemy'];
 const regardStanceList=['kin','warm','curious','indifferent','wary','scornful'],terrainKinds=['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns'];

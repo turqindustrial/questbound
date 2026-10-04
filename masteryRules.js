@@ -148,7 +148,7 @@ export function fightOver(game){
  const next={...game};for(const k of ['marks','vex','lightAttack','nickUsed','cleaveUsed'])delete next[k];return next;
 }
 export function validMarks(g){
- const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1[0-2]))$/;
+ const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/;
  return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)))))
   &&(g.vex===undefined||(!!g.vex&&keys.test(String(g.vex.target))&&(g.vex.fresh===undefined||g.vex.fresh===true)))
   &&(g.lightAttack===undefined||(!!g.lightAttack&&typeof g.lightAttack.weapon==='string'&&g.lightAttack.weapon.length<=30&&keys.test(String(g.lightAttack.target))))

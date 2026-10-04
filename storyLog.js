@@ -1,5 +1,5 @@
 import {mapLocation,placeName,worldPlaces,mapRegions,distanceText,placeCoordinates} from './mapRules';
-import {npcIdsOf,npcLore} from './npcRules';
+import {npcIdsOf,npcLore,metPerson} from './npcRules';
 import {dungeonRooms} from './dungeonRules';
 import {appendStoryLog} from './journalRules';
 import {packOf} from './inventoryRules';
@@ -41,7 +41,8 @@ export function storyEvents(before,after,hero,{action=null}={}){
   else add('travel',(visitedBefore.has(here)?'Returned to ':'Reached ')+placeNow+(visitedBefore.has(here)?'':' for the first time')+'.');
  }
  // ---- People ----
- for(const id of Object.keys(after.people??{}))if(!before.people?.[id]){const p=after.people[id],role=clip(String(p.role??'').split(/[,;:(]| who | that | which | at the | in the | from the /)[0].replace(/[.\s]+$/,''),44);add('person','Met '+p.name+(role?', '+role[0].toLowerCase()+role.slice(1):'')+'.');}
+ // Someone new, or one of the tale's residents met for the first time (on reaching where they live).
+ for(const id of Object.keys(after.people??{}))if(before.people?.[id]?!metPerson(before,id)&&metPerson(after,id):metPerson(after,id)){const p=after.people[id],role=clip(String(p.role??'').split(/[,;:(]| who | that | which | at the | in the | from the /)[0].replace(/[.\s]+$/,''),44);add('person','Met '+p.name+(role?', '+role[0].toLowerCase()+role.slice(1):'')+'.');}
  for(const id of npcIdsOf(after)){
   const name=nameOf(after,id),f0=before.followers?.[id]?.status,f1=after.followers?.[id]?.status;
   if(f1==='following'&&f0!=='following')add('person',name+' joined you.');
