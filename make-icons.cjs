@@ -1,12 +1,19 @@
 // Draws the Questbound app icons (home screen, manifest, browser tab, Android adaptive layers) in the game's colours:
-// a crimson-foil Q in a red seal with a violet inner ring, over the darkened title painting. The artwork is the page
+// a crimson-foil Q in a red seal ringed by a serpent biting its tail, over the darkened title painting. The artwork is the page
 // assets/title/icon.html; this photographs it at each size with a headless Chrome or Edge (a throwaway profile).
-// Run: node make-icons.cjs        (needs the internet once, for the title typeface; without it the Q falls back to Georgia)
+// Run: node make-icons.cjs        (the title typeface comes from public/fonts; no internet needed)
 // After changing the icon, raise the version in the icon links (public/manifest.json, public/index.html,
 // fullscreen.js, phone-server.cjs: "?v=N") so installed copies and browser tabs fetch the new one.
 const {spawnSync}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const browser=['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Microsoft/Edge/Application/msedge.exe','/usr/bin/google-chrome','/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find(file=>fs.existsSync(file));
+function iconSerpent(){const vm=require('node:vm'),context={};vm.createContext(context);
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'serpent.js'),'utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.serpentMarkup=serpentMarkup;',context);
+ return 'background-image:url("data:image/svg+xml,'+encodeURIComponent(context.serpentMarkup()).replace(/'/g,'%27')+'");';}
 if(!browser){console.error('Chrome or Edge is needed to draw the icons.');process.exit(1);}
+// The serpent is serpentMarkup() from serpent.js, written into icon.html's qb-serpent block first so the two never drift
+// (verify-presentation.cjs checks it).
+const iconPath=path.join(__dirname,'assets','title','icon.html');
+fs.writeFileSync(iconPath,fs.readFileSync(iconPath,'utf8').replace(/(\/\* qb-serpent:start \*\/)([\s\S]*?)(\/\* qb-serpent:end \*\/)/,(whole,start,old,end)=>start+iconSerpent()+end));
 const page='file:///'+path.join(__dirname,'assets','title','icon.html').replace(/\\/g,'/');
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-icons-'));
 // [pixels, file, query]. Maskable and adaptive icons keep the seal inside the safe middle; tiny ones drop the fine rings.

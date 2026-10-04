@@ -35,7 +35,7 @@ import {fonts,colors,type,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
 import {setNarratorStyle} from './narrator';
 import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
-import HomeScreen,{homeLayout,titleArt} from './HomeScreen';
+import HomeScreen,{homeLayout} from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
@@ -75,9 +75,8 @@ import {currentTheme} from './theme';
 import {questState} from './storyRules';
 import {turnOrderView} from './encounterRules';
 import {useVisualViewport} from './webLayout';
-// The title paintings: four heroes against a lich, wide for a computer or a phone on its side (dark on the left,
-// where the menu sits) and tall for an upright phone (see assets/title/ART-NOTES.md).
-const titleWide=require('./assets/title/questbound-title-wide.jpg'),titleTall=require('./assets/title/questbound-title-tall.jpg');
+// The title painting: a valley at dusk, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
+const titlePainting=require('./assets/title/questbound-title.jpg');
 
 export default function App(){return <SceneTransitionProvider><QuestboundApp/></SceneTransitionProvider>;}
 function QuestboundApp() {
@@ -368,8 +367,8 @@ function QuestboundApp() {
   },[]);
   // Only problems are worth showing away from Home; a routine "saved" line there is just noise.
   const saveProblem=!!saveStatus&&!/^(Adventure saved|Saving adventure)/.test(saveStatus);
-  // The title screen's shape decides which painting is shown and how it is framed (see titleArt).
-  const homeShape=homeLayout(windowWidth,windowHeight),art=titleArt(windowWidth,windowHeight,{protect:saved&&!account});
+  // The title screen's shape decides how the painting is framed: the horizon when wide, the tower on an upright phone.
+  const homeShape=homeLayout(windowWidth,windowHeight);
   const home=screen==='Home'&&!inGame,wideHome=home&&homeShape.wide;
   // On Home the title screen's own sheet answers requests to open feedback (in play, GameHud's does).
   useFeedbackRequests(request=>{setFeedbackRequest(request??{});setFeedbackOpen(true);},home);
@@ -377,11 +376,10 @@ function QuestboundApp() {
   const storyCover=creatingStory&&(selectedIntro!=='hostile'||continuingNow),agreementShown=launched&&!agreed&&screen!=='Legal';
   useEffect(()=>{setCovered('story',storyCover);return()=>setCovered('story',false);},[storyCover]);
   useEffect(()=>{setCovered('agreement',agreementShown);return()=>setCovered('agreement',false);},[agreementShown]);
-  useEffect(()=>{if(typeof document==='undefined')return;const set=(name,value)=>document.documentElement.style.setProperty('--qb-title-'+name,value+'px');set('top',art.top);set('size',art.size);set('edge',art.edge);set('fade',art.fade);},[art.top,art.size,art.edge,art.fade]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
-    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image key={art.frame==='tall'?'tall':'wide'} source={art.frame==='tall'?titleTall:titleWide} dataSet={{qb:'backdrop',frame:art.frame}} resizeMode="cover" style={s.backdrop}/>}
+    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titlePainting} dataSet={{qb:'backdrop',frame:homeShape.wide?'wide':'tall'}} resizeMode="cover" style={s.backdrop}/>}
     <View dataSet={{qb:inGame?'atmosphere-game':home?(wideHome?'atmosphere-home':'atmosphere-home-narrow'):'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?tint('rgba(13,7,14,.35)'):home?tint('rgba(10,7,11,.45)'):tint('rgba(10,7,11,.72)')}]}/>
     {!inGame&&<View dataSet={{qb:'rays'}} style={StyleSheet.absoluteFillObject}/>}
     <View dataSet={{qb:'fog'}} style={StyleSheet.absoluteFillObject}/>
