@@ -29,17 +29,20 @@ export function fallAtZero(game,{overflow=0,maximum,cause,placeName}){
  return {game:next,entries:['You fall unconscious and are dying. Your attackers leave you where you fell. Each turn, roll to hold on: three successes and you stabilise, three failures and you die.']};
 }
 // One death saving throw. `wake` says where a stabilised hero comes to, and `rise` where a natural 20 leaves them.
-export function deathSave(game,health,random=Math.random,{wakeStage='inn',wakeText='',riseStage}={}){
+// `bonus`: what the hero's magic adds to the save (a Cloak of Protection, a Stone of Good Luck); a natural 1 and 20 still
+// read the die. `stabilise`: a Periapt of Wound Closure stops the bleeding at the start of the turn, as three successes.
+export function deathSave(game,health,random=Math.random,{wakeStage='inn',wakeText='',riseStage,bonus=0,stabilise=false}={}){
  if(game.stage!=='dying'||!game.dying)return {game,health,error:'You are not dying.'};
- const roll=1+Math.floor(random()*20),d={...game.dying},next={...game};
+ if(stabilise){const next={...game};next.stage=wakeStage;delete next.dying;return {game:next,health:{current:1,temp:0},events:['Periapt of Wound Closure: the pendant warms against your skin and the bleeding stops.','You are stable. Hours later you wake with 1 HP'+(wakeText?' '+wakeText:'.')]};}
+ const roll=1+Math.floor(random()*20),d={...game.dying},next={...game},total=roll+bonus;
  let hp={current:0,temp:0};const entries=[];
  if(roll===20){
   hp={current:1,temp:0};next.stage=riseStage??(d.place==='dungeon'?'bridge':d.place);delete next.dying;
   entries.push('Death saving throw: d20 [20] = 20 vs DC 10. Success. A natural 20: you regain 1 HP and open your eyes.');
   return {game:next,health:hp,events:entries};
  }
- if(roll===1)d.failures+=2;else if(roll>=10)d.successes+=1;else d.failures+=1;
- entries.push(`Death saving throw: d20 [${roll}] = ${roll} vs DC 10. ${roll>=10?'Success':'Failure'}.${roll===1?' A natural 1 counts as two failures.':''} Successes ${Math.min(3,d.successes)}, failures ${Math.min(3,d.failures)}.`);
+ if(roll===1)d.failures+=2;else if(total>=10)d.successes+=1;else d.failures+=1;
+ entries.push(`Death saving throw: d20 [${roll}]${bonus?' + '+bonus:''} = ${total} vs DC 10. ${roll!==1&&total>=10?'Success':'Failure'}.${roll===1?' A natural 1 counts as two failures.':''} Successes ${Math.min(3,d.successes)}, failures ${Math.min(3,d.failures)}.`);
  if(d.failures>=3){
   next.stage='dead';delete next.dying;next.death={cause:d.cause,place:d.placeName,at:d.place,massive:false};
   entries.push('Your breathing slows, then stops. You die.');

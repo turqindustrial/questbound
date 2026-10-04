@@ -40,6 +40,9 @@ export function combatBasics(hero) {
       if(Math.max(dragon,dance)>ac){ac=Math.max(dragon,dance);defense=dragon>=dance?'Draconic Resilience':'Dazzling Footwork';acFormula=`10 ${signed(mods.Dexterity)} Dexterity ${signed(mods.Charisma)} Charisma`;}
     }
     if (shield) {ac += shield; defense += ' + Shield'; acFormula += ' +2 Shield';}
+    // Magic worn or carried (a geared hero's equipment.magic: +N armour or shield, protection, bracers).
+    const magic = hero.equipment.magic;
+    if (magic?.ac > 0) {ac += magic.ac; acFormula += ' ' + magic.acText.join(' ');}
   }
   return {available:true,hp,hpFormula,hitDie:`1d${hitDice[hero.class]}`,ac,defense,acFormula,armorNote,initiative,initiativeFormula,proficiency,initiativeAdvantage:subclassActive(hero,'Champion') || (hero.class==='Barbarian' && hero.level>=7),criticalThreshold:subclassActive(hero,'Champion') ? (hero.level>=15?18:19) : 20};
 }

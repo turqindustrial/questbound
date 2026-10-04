@@ -153,12 +153,13 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     for(let i=0;i<beams;i++){
       // During the opening strike the foe has not closed the gap yet, so a ranged spell carries no close-range penalty.
       const nearbyThreat=!game.openingAttackAvailable && (game.castingConditions?.targetDistance??target.distance??5)<=5 && target.canSeeAttacker!==false && !target.incapacitated;
-      const attack=rollAttack({attackBonus:bonus},effect.attack==='ranged' && nearbyThreat?'disadvantage':'normal',random);
+      // A Wand of the War Mage adds to spell attack rolls (lootRules.js).
+      const war=hero.equipment?.magic?.spellAttack??0,attack=rollAttack({attackBonus:bonus+war},effect.attack==='ranged' && nearbyThreat?'disadvantage':'normal',random);
       const hit=!attack.miss && (attack.critical || attack.total>=target.ac);
       const diceCount=(effect.beams?1:count)*(attack.critical?2:1);
       let damageDice=hit?roll(diceCount,effect.die):[],part=sum(damageDice);
       if(!hit && subclassActive(hero,'Evoker')){damageDice=roll(effect.beams?1:count,effect.die);part=Math.floor(sum(damageDice)/2);}
-      damage+=part;logs.push(`${spell.name}${beams>1?` beam ${i+1}`:''}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${mod} ${spellAbility[hero.class]} + ${proficiencyBonus(hero.level)} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${part} ${effect.type} damage${damageDice.length?' ('+damageDice.length+'d'+effect.die+' ['+damageDice.join(', ')+']'+(!hit?'; halved by Potent Cantrip':'')+')':''}.`);
+      damage+=part;logs.push(`${spell.name}${beams>1?` beam ${i+1}`:''}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${mod} ${spellAbility[hero.class]} + ${proficiencyBonus(hero.level)} proficiency${war?` + ${war} magic`:''} = ${attack.total} vs AC ${target.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${part} ${effect.type} damage${damageDice.length?' ('+damageDice.length+'d'+effect.die+' ['+damageDice.join(', ')+']'+(!hit?'; halved by Potent Cantrip':'')+')':''}.`);
       if(hit && effect.condition){next.enemyEffects={...next.enemyEffects,[effect.condition]:spell.id==='chill-touch'?2:1};logs.push(effect.condition+'.');}
     }
   }
@@ -214,7 +215,8 @@ export function concentrationAfterDamage(hero,game,damage,random=Math.random) {
   if(game.concentration&&game.castingConditions?.incapacitated){const next={...game};delete next.concentration;return {game:next,logs:['Concentration ended: incapacitated.']};}
   if(!game.concentration || damage<=0)return {game,logs:[]};
   const die=1+Math.floor(random()*20),trained=['Artificer','Barbarian','Fighter','Sorcerer'].includes(hero.class);
-  const bonus=modifier(hero.scores.Constitution)+(trained?proficiencyBonus(hero.level):0),dc=Math.min(30,Math.max(10,Math.floor(damage/2)));
+  // A Cloak or Ring of Protection or a Stone of Good Luck adds to every saving throw (a geared hero's magic).
+  const bonus=modifier(hero.scores.Constitution)+(trained?proficiencyBonus(hero.level):0)+(hero.equipment?.magic?.saves??0),dc=Math.min(30,Math.max(10,Math.floor(damage/2)));
   const success=die+bonus>=dc,next={...game};if(!success)delete next.concentration;
   return {game:next,logs:[`Concentration: Constitution save ${die} + ${bonus} vs DC ${dc}. ${success?'Maintained.':'Spell ended.'}`]};
 }

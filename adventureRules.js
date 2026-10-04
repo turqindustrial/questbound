@@ -19,6 +19,7 @@ import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,foeRoundMoves
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
 import {proficiencyBonus} from "./characterRules";
+import {withSpoils,takeSpoils,magicItems,packMagic,rechargeWands} from "./lootRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -338,7 +339,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         const damageRoll = hit ? rollDamage(w, attack.critical, random) : null;
         const damage = damageRoll?.total??0;
         remaining = Math.max(0, remaining - damage);
-        entries.push(`${w.thrown ? 'You throw ' + w.name + ' at' : 'You use ' + w.name + ' against'} ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus} proficiency = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${w.type} damage${damageRoll?' ('+(w.flat?'1 + '+w.bonus:damageRoll.dice.length+'d'+w.die+' ['+damageRoll.dice.join(', ')+'] + '+w.bonus)+')':''}. ${remaining} HP remaining.`);
+        entries.push(`${w.thrown ? 'You throw ' + w.name + ' at' : 'You use ' + w.name + ' against'} ${victim.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus-(w.magic??0)} proficiency${w.magic ? ' + ' + w.magic + ' magic' : ''} = ${attack.total} vs AC ${victim.ac}. ${attack.critical?'Critical hit':hit ? 'Hit' : 'Miss'}; ${damage} ${w.type} damage${damageRoll?' ('+(w.flat?'1 + '+w.bonus:damageRoll.dice.length+'d'+w.die+' ['+damageRoll.dice.join(', ')+'] + '+w.bonus)+(w.magic?' + '+w.magic+' magic':'')+')':''}. ${remaining} HP remaining.`);
         // Weapon Mastery against a person (Cleave reaches only creatures in a fight with a foe).
         const mastery = masteryOf(hero, w);
         if (hit && remaining > 0) {
@@ -520,6 +521,15 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       next.log = [...entries, ...game.log].slice(0, 40);
       return {game: next, events: entries, health: hp};
     }
+    // A stronger healing draught (Greater, Superior, Supreme) from the pack, away from a fight.
+    if (typeof action === 'string' && action.startsWith('drink:') && game.stage !== 'combat') {
+      if (!['inn', 'bridge', 'tower', 'wild', 'victory'].includes(game.stage) || game.npcCombat?.active) return {game, health, error: 'You cannot drink a draught right now.'};
+      const drunk = drinkDraught(next, hp, stats.hp, action.slice(6), random);
+      if (drunk.error) return {game, health, error: drunk.error};
+      next = drunk.game; hp = drunk.health; entries.push(drunk.line);
+      next.log = [...entries, ...game.log].slice(0, 40);
+      return {game: next, events: entries, health: hp};
+    }
     // The Dungeon Master springs a creature on you at a found place (a hunting beast, a guardian, an ambush).
     if (action?.type === 'ambush') {
       if (!game.story || game.stage !== 'wild' || game.wildFight || game.npcCombat?.active) return {
@@ -659,6 +669,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         const most = npcMaxHP(n.id, game), was = game.npcHP?.[n.id] ?? most;
         if (was > 0 && was < most) { rested.npcHP = {...rested.npcHP, [n.id]: most}; lines.push(`${npcLore(game, n.id)?.name ?? n.name} is rested and whole again.`); }
       }
+      // A Wand of Magic Missiles regains 1d6 + 1 charges overnight.
+      const wands = rechargeWands(rested, random);
+      Object.assign(rested, wands.game); lines.push(...wands.lines);
       rested.log = [...lines, ...game.log].slice(0, 40);
       return {game: rested, events: lines, health: null};
     }
@@ -780,6 +793,28 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.bonusUsed = true;
         bonusAction = true;
         usedBonus = true;
+      } else if (typeof action === 'string' && action.startsWith('drink:')) {
+        // A stronger healing draught is a bonus action too.
+        if (game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
+        const drunk = drinkDraught(next, hp, stats.hp, action.slice(6), random);
+        if (drunk.error) return {game, health, error: drunk.error};
+        next = drunk.game; hp = drunk.health; entries.push(drunk.line);
+        next.bonusUsed = true;
+        bonusAction = true;
+        usedBonus = true;
+      } else if (action === 'item:wand-of-magic-missiles') {
+        // A Wand of Magic Missiles: an action, three darts of force that never miss, at the foe or the one beside it.
+        const wand = packMagic(next, 'wand-of-magic-missiles');
+        if (!wand) return {game, health, error: 'Your wand has no charges left.'};
+        const darts = [0, 1, 2].map(() => 1 + Math.floor(random() * 4)), total = darts.reduce((a, b) => a + b, 0) + 3, charges = wand.magic.charges - 1;
+        let items = next.pack.items.map(i => i === wand ? {...i, magic: {...i.magic, charges}} : i), crumbled = false;
+        // Spending the last charge may crumble it to ash.
+        if (charges === 0 && 1 + Math.floor(random() * 20) === 1) { items = items.filter(i => i.name !== wand.name); crumbled = true; }
+        next.pack = {...next.pack, items};
+        const victim = aim !== null ? 'the ' + next.foeAllies[aim].name : foe.group ? 'the ' + foe.group.plural : 'the ' + foe.name.replace(/^the /i, '');
+        entries.push(`${wand.name}: three darts of force strike ${victim}: [${darts.join(', ')}] + 3 = ${total} force damage. ${crumbled ? 'The last charge spent, the wand crumbles to ash.' : charges + ' charge' + (charges === 1 ? '' : 's') + ' left.'}`);
+        if (aim !== null) { const struck = hurtAlly(next, aim, total); next = struck.game; if (struck.line) entries.push(struck.line); }
+        else next.enemyHP = Math.max(0, next.enemyHP - total);
       } else if (action === 'dodge') {
         dodge = true;
         entries.push(game.wildFight ? `You dodge. The ${foe.name} attacks with disadvantage this turn.` : 'You dodge. The wisp attacks with disadvantage this turn.');
@@ -839,15 +874,16 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           const target = targetOf(key), edge = heroEdge(next, key, w), attack = rollAttack(w, edgeMode(baseMode(w), edge), random), hit = !attack.miss && (attack.critical || attack.total >= target.ac);
           if (edge.adv.includes('Vex')) { next = {...next}; delete next.vex; }
           const used = offhand ? ' (other hand)' : '';
-          if (key === 'foe') entries.push(`${w.thrown ? 'You throw' : 'You use'} ${w.name}${used}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
-          else entries.push(`${w.thrown ? 'You throw ' + w.name + used + ' at' : 'You use ' + w.name + used + ' on'} the ${target.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus} proficiency = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          if (key === 'foe') entries.push(`${w.thrown ? 'You throw' : 'You use'} ${w.name}${used}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus-(w.magic??0)} proficiency${w.magic ? ' + ' + w.magic + ' magic' : ''} = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
+          else entries.push(`${w.thrown ? 'You throw ' + w.name + used + ' at' : 'You use ' + w.name + used + ' on'} the ${target.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv, ...edge.dis].length ? ', ' + [...edge.adv, ...edge.dis].join(', ') : ''}) + ${w.bonus} ${w.ability} + ${w.attackBonus-w.bonus-(w.magic??0)} proficiency${w.magic ? ' + ' + w.magic + ' magic' : ''} = ${attack.total} vs AC ${target.ac}. ${attack.critical ? 'Critical hit!' : hit ? 'Hit.' : 'Miss.'}`);
           if (isLight(w) && !offhand) lightUsed = w.name;
           const mastery = masteryOf(hero, w);
           if (hit) {
             // The other hand's blow adds no ability bonus to its damage (unless that bonus is negative).
             const dw = offhand && w.bonus > 0 ? {...w, bonus: 0} : w, damage = rollDamage(dw, attack.critical, random), done = harm(key, damage.total, true);
-            if (key === 'foe') entries.push(`${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}).`);
-            else entries.push(`The ${target.name} takes ${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}); ${done.hp} HP left.`);
+            const magicPart = dw.magic ? ' + ' + dw.magic + ' magic' : '';
+            if (key === 'foe') entries.push(`${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}${magicPart}).`);
+            else entries.push(`The ${target.name} takes ${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}${magicPart}); ${done.hp} HP left.`);
             if (done.line) entries.push(done.line);
             // Weapon Mastery: what a hit does besides its damage.
             if (mastery === 'Sap' && standing(key)) { next = withMark(next, key, {sapped: true}); entries.push(`Sap: ${called(key)} has disadvantage on its next attack.`); }
@@ -865,7 +901,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
                 next = {...next, cleaveUsed: true};
                 const second = targetOf(other), edge2 = heroEdge(next, other, w), swing2 = rollAttack(w, edgeMode(baseMode(w), edge2), random), hit2 = !swing2.miss && (swing2.critical || swing2.total >= second.ac);
                 entries.push(`Cleave: you swing on into ${other === key ? 'another of the ' + foe.group.plural : called(other)}: d20 [${swing2.dice.join(', ')}] (${swing2.mode}) + ${w.attackBonus} = ${swing2.total} vs AC ${second.ac}. ${swing2.critical ? 'Critical hit!' : hit2 ? 'Hit.' : 'Miss.'}`);
-                if (hit2) { const cut = rollDamage({...w, bonus: Math.min(0, w.bonus)}, swing2.critical, random), landed = harm(other, cut.total, false); entries.push(`${cut.total} ${w.type.toLowerCase()} damage (${cut.dice.join(' + ')}${w.bonus < 0 ? ' − ' + Math.abs(w.bonus) : ''}).`); if (landed.line) entries.push(landed.line); }
+                if (hit2) { const cut = rollDamage({...w, bonus: Math.min(0, w.bonus)}, swing2.critical, random), landed = harm(other, cut.total, false); entries.push(`${cut.total} ${w.type.toLowerCase()} damage (${cut.dice.join(' + ')}${w.bonus < 0 ? ' − ' + Math.abs(w.bonus) : ''}${w.magic ? ' + ' + w.magic + ' magic' : ''}).`); if (landed.line) entries.push(landed.line); }
               }
             }
           } else if (mastery === 'Graze' && w.bonus > 0 && standing(key)) {
@@ -1102,8 +1138,14 @@ function creatureCombatStep(game,health,hero,action,random,opts={}){
   command=action.unarmed??(action.thrown?'throw:':'attack:')+action.weapon;
   if(action.target!==undefined){if(aimedAlly(game,action.target)===null)return {game,health,error:'That creature is not in this fight.'};scene={...scene,aim:action.target};}
  }
+ // A magic item aimed at the creature beside the foe (the Wand of Magic Missiles).
+ if(action?.type==='use-item'){
+  if(game.stage!=='combat'||!magicItems[action.id])return {game,health,error:'That cannot be used here.'};
+  command='item:'+action.id;
+  if(action.target!==undefined){if(aimedAlly(game,action.target)===null)return {game,health,error:'That creature is not in this fight.'};scene={...game,aim:action.target};}
+ }
  const spell=command?.type==='spell'?automaticEffects[command.request.id]:command?.type==='spell-ruling'?automaticEffects[scene.pendingSpell?.id]:null;
- const hostile=typeof command==='string'&&(command.startsWith('attack:')||command.startsWith('throw:')||['grapple','shove'].includes(command))||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
+ const hostile=typeof command==='string'&&(command.startsWith('attack:')||command.startsWith('throw:')||command.startsWith('item:')||['grapple','shove'].includes(command))||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
  if(scene.stage==='combat'&&scene.openingAttackAvailable&&hostile){
   const opening=adventureStepCore(scene,health,hero,command,random,{suppressEnemy:true,opening:true});
   if(opening.error||opening.waiting||opening.game===scene)return opening.error?{...opening,game,health}:opening;
@@ -1266,8 +1308,9 @@ function stepLogEntries(before=[],after=[]){
 
 export function adventureStep(game,health,hero,action,random=Math.random){
  // A party at the shared table takes its fights in turns.
- if(isPartyGame(game))return partyStep(game,health,hero,action,random);
- return heroStep(game,health,hero,action,random);
+ const result=isPartyGame(game)?partyStep(game,health,hero,action,random):heroStep(game,health,hero,action,random);
+ // Whatever fell in this step (a creature, a lair's owner, the tale's foe, a person) can be searched afterwards.
+ return withSpoils(game,result,hero);
 }
 // ---------- A party's fight: turns in initiative order ----------
 // At the shared table (partyRules.js) each device plays its own hero. The first move of a fight (the opening attack)
@@ -1422,6 +1465,8 @@ function foeTurn(game,health,hero,id,random){
 function heroStep(game,health,hero,action,random,opts={}){
  if(game.stage==='dead')return {game,health,error:'Your hero has died. Their story is over; begin a new tale with another hero.'};
  if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
+ // Searching the fallen: what they carried is rolled once, and goes into the looter's own pack (lootRules.js).
+ if(action?.type==='loot')return takeSpoils(game,health,gearedHero(hero,game),random);
  // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
  const result=livingStep(game,health,gearedHero(hero,game),action,random,opts);
  // Once no fight is on, weapons thrown in it are gathered up again, and nothing of the fight (a grip, a creature lying
@@ -1443,7 +1488,9 @@ function dyingStep(game,health,hero,action,random){
   const told=recordDeed(rescued,aid.id,0,'I pulled the player back from the brink of death.').game;
   result={game:told,health:{current:1,temp:0},events:[aid.line,`You are stable. ${helper} carries you back to ${start??'the inn'}, and hours later you wake with 1 HP.`]};
  } else {
-  result=deathSave(game,health,random,game.story?{wakeStage:'inn',wakeText:'at '+start+'. Someone found you and carried you back.'}:{wakeStage:'defeat',wakeText:'at the inn. The keeper found you and carried you back.'});
+  // Magic worn helps: a Periapt of Wound Closure stops the bleeding, a cloak or stone adds to the save.
+  const magic=gearedHero(hero,game).equipment?.magic;
+  result=deathSave(game,health,random,{...(game.story?{wakeStage:'inn',wakeText:'at '+start+'. Someone found you and carried you back.'}:{wakeStage:'defeat',wakeText:'at the inn. The keeper found you and carried you back.'}),bonus:magic?.saves??0,stabilise:!!magic?.stabilise});
   if(result.error)return result;
   if(aid)result={...result,events:[aid.line,...result.events]};
  }
@@ -1481,7 +1528,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  if(action==='story-advance')return advanceChapter(game,health,hero);
  if(action?.type==='lead-done')return finishLead(game,health,action.id);
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','npc-dodge','npc-flee','npc-wait','npc-surrender'];
- if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
+ if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};
@@ -1497,4 +1544,14 @@ function toldInStory(game,result){
  result.game={...result.game,story:game.story,storyHistory:game.storyHistory,log:result.game.log.map(t=>storyText(told,t)),journal:result.game.journal?{...result.game.journal,entries:result.game.journal.entries.map(e=>({...e,title:storyText(told,e.title),text:storyText(told,e.text)}))}:game.journal};
  result.events=(result.events??stepLogEntries(game.log,result.game.log)).map(t=>storyText(told,t));
  return result;
+}
+// A stronger healing draught from the pack (lootRules.js): Greater 4d4 + 4, Superior 8d4 + 8, Supreme 10d4 + 20.
+function drinkDraught(game,hp,maximum,id,random){
+ const draught=magicItems[id],it=(game.pack?.items??[]).find(i=>i.kind==='potion'&&i.magic?.id===id&&i.qty>0);
+ if(!draught?.heal||!it)return {error:'You carry no such draught.'};
+ if(hp.current>=maximum)return {error:'You are already at full health.'};
+ const dice=Array.from({length:draught.heal.count},()=>1+Math.floor(random()*draught.heal.die)),amount=dice.reduce((a,b)=>a+b,0)+draught.heal.bonus,healed=updateHealth(hp,maximum,'heal',amount);
+ const items=game.pack.items.map(i=>i===it?{...i,qty:i.qty-1}:i).filter(i=>i.qty>0);
+ const label=draught.name.replace(/^Potion of /,'').replace(/ Healing$/,'');
+ return {game:{...game,pack:{...game.pack,items}},health:{current:healed.current,temp:healed.temp},line:`${label} healing draught: ${draught.heal.count}d${draught.heal.die} [${dice.join(', ')}] + ${draught.heal.bonus}; restored ${healed.current-hp.current} HP.`};
 }

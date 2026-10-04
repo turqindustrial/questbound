@@ -18,6 +18,7 @@ import {fallAtZero,fallPlace} from './deathRules';
 import {withAttackIntent} from './dmCommands';
 import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway} from './relationshipRules';
 import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules';
+import {spoilsHere,lootError,magicItems,magicSummary,magicCheckMode,packMagic,carriedDraughts} from './lootRules';
 import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {loadoutFor} from './equipmentRules';
 import {combatBasics} from './combatRules';
@@ -44,6 +45,8 @@ function bonusChoices(hero,game,health){
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if(hero.class==='Monk')list.push(['class:strike','Martial Arts strike (bonus action)']);
   if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
+  // Stronger draughts from the pack (Greater, Superior, Supreme healing).
+  if(hurt)for(const d of carriedDraughts(game))list.push(['drink:'+d.magic.id,'Drink a '+d.name+' (bonus action)']);
   return list;
 }
 // Short rests: where one can be taken, and how many are left before the next long rest.
@@ -83,6 +86,8 @@ export function dmChoices(hero,game,health=null) {
     }
   };
   const addPersonUnarmed=npc=>{if(npc.hp<=0)return;const dc=unarmedDC(hero),name=npcLore(game,npc.id)?.name??npc.name;if(!grappledBy(game,npc.id,health))add('npc-grapple:'+npc.id,'Grapple '+name+' (an Unarmed Strike: they save against DC '+dc+' or are held)',{type:'npc-attack',target:npc.id,weapon:'Unarmed Strike',unarmed:'grapple'});if(!markOf(game,npc.id).prone)add('npc-shove:'+npc.id,'Shove '+name+' to the ground (an Unarmed Strike: they save against DC '+dc+' or fall prone)',{type:'npc-attack',target:npc.id,weapon:'Unarmed Strike',unarmed:'shove'});};
+  // A Wand of Magic Missiles with charges left: an action, at the foe or the creature beside it.
+  const addMagicItems=()=>{if(!packMagic(game,'wand-of-magic-missiles'))return;add('item:wand-of-magic-missiles','Use the Wand of Magic Missiles on '+(game.wildFight?.name??game.story?.foe??'the foe')+' (an action: three darts of force that never miss)');for(const a of livingAllies(game))add('ally-item:'+a.index+':wand-of-magic-missiles','Use the Wand of Magic Missiles on the '+a.name,{type:'use-item',id:'wand-of-magic-missiles',target:'ally:'+a.index});};
   // A healing draught can be given to anyone here who is hurt (and brings round someone lying senseless).
   const addPotionGifts=()=>{if((game.potions??0)>0){for(const n of victims)if((game.npcHP?.[n.id]??npcMaxHP(n.id,game))<npcMaxHP(n.id,game))add('give-potion:'+n.id,'Give '+(npcLore(game,n.id)?.name??n.name)+' a healing draught',{type:'give-potion',target:n.id});
    // Another player's hero who is hurt or has fallen (a party at the shared table).
@@ -90,8 +95,11 @@ export function dmChoices(hero,game,health=null) {
   if(game.story){
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
     if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);return choices;}
-    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();for(const id of ['dodge','flee'])add(id,id);for(const [id,label] of bonusChoices(hero,game,health))add(id,label);addPotionGifts();add('end-turn','End your turn without acting');}
+    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const id of ['dodge','flee'])add(id,id);for(const [id,label] of bonusChoices(hero,game,health))add(id,label);addPotionGifts();add('end-turn','End your turn without acting');}
     else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
+      // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
+      if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
+      if(!health||health.current<combatBasics(hero).hp)for(const d of carriedDraughts(game))add('drink:'+d.magic.id,'Drink a '+d.name);
       // The tale: the chapter under way gives place to the next (or, in the last one, the story ends), and each open lead can be closed.
       if(game.story.status==='active'){const q=questState(game);
         if(q.current&&!q.last)add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is finished: move on ONLY when its goal has actually been achieved in play');
@@ -175,7 +183,7 @@ export function dmContext(hero,game,health) {
   const weapons=attackOptions(hero);
   context.attackOptions={mainWeapon:weapons.find(w=>!w.unarmed)?.name??'Unarmed Strike',carried:weapons.filter(w=>!w.unarmed).map(w=>w.name+(w.ranged?' (ranged)':'')),unarmed:'Unarmed Strike',
     // Weapon Mastery (2024 rules): the engine applies these on its own; narrate them as the engine's lines say.
-    masteries:masteredWeapons(hero).map(name=>{const w=weapons.find(o=>o.name===name);return name+': '+(w?masteryText[masteryOf(hero,w)]:'');}),
+    masteries:masteredWeapons(hero).map(name=>{const w=weapons.find(o=>(o.base??o.name)===name);return name+': '+(w?masteryText[masteryOf(hero,w)]:'');}),
     grappleAndShove:'An Unarmed Strike can grapple or shove a creature prone instead of striking (the grapple and shove choices); it saves against DC '+unarmedDC(hero)+'.',
     twoWeapons:'After an attack with a light weapon, a second light weapon in the other hand can strike as a bonus action (the offhand: choices).'};
   // How the creatures in this fight stand: prone, grappled, or sapped (disadvantage on their next attack).
@@ -254,6 +262,8 @@ function commitAiRuling(hero,game,health,ruling,conversation,random,original,ori
 
 function commitWorldCheck(hero,game,health,c,conversation,random){
  const fail=error=>({game,health,error});
+ // The hero as the rules see them: magic worn counts (a Stone of Good Luck, Boots of Elvenkind).
+ hero=gearedHero(hero,game);
  if(game.pendingSpell)return fail('Resolve the pending spell first.');
  if(game.npcCombat?.active)return fail('Finish the combat turn with an attack, spell, dodge, flee, wait, or surrender.');
  if(c?.skill!=null&&!Object.hasOwn(skillAbilities,c.skill))return fail('Unknown skill; no action was applied.');
@@ -264,6 +274,7 @@ function commitWorldCheck(hero,game,health,c,conversation,random){
  const modifiers=skillCheckBonus(hero,game,c.ability,c.skill??null);
  // Winning someone over with words is easier with those who like the hero's kind and harder with those who do not.
  const sway=['Persuasion','Deception','Performance'].includes(c.skill)?regardSway(game,conversation.npcId??null,hero):{bonus:0,note:''};
+ const mode=magicCheckMode(hero,c.skill??null,c.mode);c={...c,mode};
  const dice=Array.from({length:c.mode==='normal'?1:2},()=>1+Math.floor(random()*20)),die=c.mode==='advantage'?Math.max(...dice):Math.min(...dice),bonus=modifiers.total+sway.bonus,total=(modifiers.reliable?Math.max(10,die):die)+bonus,success=total>=c.dc;
  const damageDice=(c.damageOn==='always'||(c.damageOn==='failure'&&!success))?Array.from({length:c.damageCount},()=>1+Math.floor(random()*c.damageDie)):[],damage=damageDice.reduce((a,b)=>a+b,0);
  const hp={current:health?.current??combatBasics(hero).hp,temp:health?.temp??0},absorbed=Math.min(hp.temp,damage),overflow=Math.max(0,damage-absorbed-hp.current);hp.temp-=absorbed;hp.current=Math.max(0,hp.current-damage+absorbed);
@@ -271,7 +282,7 @@ function commitWorldCheck(hero,game,health,c,conversation,random){
  // A hazard can drop the hero too: they lie dying where it happened.
  const fell=hp.current===0?fallAtZero(next,{overflow,maximum:combatBasics(hero).hp,cause:'Killed by a hazard: '+c.reason,placeName:placeName(next,fallPlace(next))}):null;if(fell)next=fell.game;
  const outcome=success?c.success:c.failure;
- const text=c.reason+': '+c.ability+(c.skill?' ('+c.skill+')':'')+' d20 ['+dice.join(', ')+']'+(modifiers.reliable&&die<10?' → 10 Reliable Talent':'')+' + '+modifiers.abilityBonus+' ability + '+modifiers.trainingBonus+(modifiers.expert?' Expertise':' training')+(sway.bonus?(sway.bonus>0?' + ':' - ')+Math.abs(sway.bonus)+' '+sway.note:'')+' = '+total+' vs DC '+c.dc+'. '+(success?'Success. ':'Failure. ')+outcome+(damageDice.length?' Damage ['+damageDice.join(', ')+'] = '+damage+'.':'');
+ const text=c.reason+': '+c.ability+(c.skill?' ('+c.skill+')':'')+' d20 ['+dice.join(', ')+']'+(modifiers.reliable&&die<10?' → 10 Reliable Talent':'')+' + '+modifiers.abilityBonus+' ability + '+modifiers.trainingBonus+(modifiers.expert?' Expertise':' training')+(modifiers.magicBonus?' + '+modifiers.magicBonus+' magic':'')+(sway.bonus?(sway.bonus>0?' + ':' - ')+Math.abs(sway.bonus)+' '+sway.note:'')+' = '+total+' vs DC '+c.dc+'. '+(success?'Success. ':'Failure. ')+outcome+(damageDice.length?' Damage ['+damageDice.join(', ')+'] = '+damage+'.':'');
  next.log=[text,...maintained.logs,...(fell?.entries??[]),...game.log].slice(0,40);next.worldFacts=[...(game.worldFacts??[]),outcome].slice(-60);next.journal=appendJournal(appendJournal(journalForGame(next),'ruling','Action check',text),'note','AI DM conversation','Player: '+conversation.question+'\nDungeon Master: '+conversation.narration+'\nResult: '+outcome);
  return {game:next,health:hp,events:[text,...maintained.logs,...(fell?.entries??[])]};
 }

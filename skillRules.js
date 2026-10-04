@@ -24,5 +24,7 @@ export function skillCheckBonus(hero,game,ability,skill=null){
  const expert=trained&&(game.skillTraining?.expertise??hero.skillExpertise??[]).includes(skill);
  const pb=proficiencyBonus(hero.level),abilityBonus=modifier(hero.scores[ability]);
  const trainingBonus=expert?2*pb:trained?pb:hero.class==='Bard'&&hero.level>=2&&!!skill?Math.floor(pb/2):0;
- return {ability,skill,abilityBonus,trainingBonus,total:abilityBonus+trainingBonus,trained,expert,reliable:hero.class==='Rogue'&&hero.level>=7&&trained};
+ // A Stone of Good Luck adds to every ability check (a geared hero's magic, lootRules.js).
+ const magicBonus=hero.equipment?.magic?.checks??0;
+ return {ability,skill,abilityBonus,trainingBonus,magicBonus,total:abilityBonus+trainingBonus+magicBonus,trained,expert,reliable:hero.class==='Rogue'&&hero.level>=7&&trained,...((hero.equipment?.magic?.advantage??[]).includes(skill)?{advantage:true}:{})};
 }

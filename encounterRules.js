@@ -4,6 +4,7 @@ import {rollAttack,rollDamage} from './weaponRules';
 import {worldPlace,worldPlaces,placeName} from './mapRules';
 import {modifier} from './characterRules';
 import {appendJournal,journalForGame} from './journalRules';
+import {magicSaveBonus} from './lootRules';
 // Fights away from the story's own foe: a creature met at a place found while exploring (a lair, or an ambush on
 // arrival), and what every kind of monster can do beyond a plain attack. Companions who travel with the hero fight
 // beside them, and can be knocked down in turn.
@@ -99,13 +100,13 @@ export function foeHitExtras(game,hero,foe,standing,random){
  if(kind==='orc'&&game.round===1){dice=roll(1,8);extra=dice[0];note=' + Savage Blow 1d8 ['+dice[0]+']';}
  const lines=[];
  if(kind==='bandit'&&!tricks.dirty&&game.round>=2){tricks.dirty=true;next={...next,heroCondition:'blinded'};lines.push(`Dirty Trick: the ${foe.name} flings grit in your eyes. Your next attack has disadvantage.`);}
- if(kind==='wolf'){const die=roll(1,20)[0],bonus=modifier(hero.scores?.Strength??10),total=die+bonus;if(total<13){next={...next,heroCondition:'prone'};lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Failure. You are knocked prone.`);}else lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Success. You keep your feet.`);}
+ if(kind==='wolf'){const die=roll(1,20)[0],bonus=modifier(hero.scores?.Strength??10)+magicSaveBonus(hero),total=die+bonus;if(total<13){next={...next,heroCondition:'prone'};lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Failure. You are knocked prone.`);}else lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Success. You keep your feet.`);}
  return {game:{...next,foeTricks:tricks},extra,note,lines};
 }
 // Moves made instead of, or before, the creature's attacks this round.
 export function foeRoundMoves(game,hero,foe,random){
  const kind=foeKind(game);if(kind!=='spider'||game.foeTricks?.web||game.round<2)return {game,lines:[]};
- const die=1+Math.floor(random()*20),bonus=modifier(hero.scores?.Dexterity??10),total=die+bonus,caught=total<12;
+ const die=1+Math.floor(random()*20),bonus=modifier(hero.scores?.Dexterity??10)+magicSaveBonus(hero),total=die+bonus,caught=total<12;
  return {game:{...game,foeTricks:{...game.foeTricks,web:true},...(caught?{heroCondition:'restrained'}:{})},lines:[`Web: the ${foe.name} spits a sticky mass at you. Dexterity save d20 [${die}] + ${bonus} = ${total} vs DC 12. ${caught?'Failure. You are restrained.':'Success. You tear free.'}`]};
 }
 // Damage the creature takes from a weapon blow, after its shield (skeleton) catches the first one.
