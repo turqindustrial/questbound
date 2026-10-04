@@ -26,7 +26,7 @@ export const primer=[
  ['swords','Quick actions','The buttons above the message box are things you can do at once: speak to someone, travel, attack, rest. Tap one, or type instead.'],
  ['d20','The dice decide','When something is uncertain the game rolls real dice and adds your hero\'s skill. The Dungeon Master tells you what the roll means.'],
  ['heart','Fights are deadly','On your turn you have one action and one bonus action. Watch your hit points: drink a healing draught, or retreat. A hero who dies stays dead.'],
- ['people','People remember','Tap Speak to talk to someone. They remember how you treat them: some will help, some will travel with you, and some will never forgive you.'],
+ ['people','People remember','Tap Speak to talk to someone. They remember how you treat them: some will help, some will travel with you, and some will not forgive you easily.'],
  ['map','Your tale','The Quest tab shows the chapter under way and the Map where you can go. If something goes wrong, tap DM beside the message box and tell the Dungeon Master.'],
 ];
 const firstTime=()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}};

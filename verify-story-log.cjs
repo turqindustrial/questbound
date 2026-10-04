@@ -31,6 +31,10 @@ const joined=r.resolveRecruitment(kara,g,hp,[{npcId:'mara',decision:'join',reaso
 g=r.withStoryLog(g,joined.game,kara,{});same(last(g),['Tobin Reed joined you.']);
 const murder=turn({...g,followers:undefined},{type:'npc-attack',target:'keeper',weapon:'Greatsword'},{random:()=>0.99});
 assert.ok(texts(murder.game).includes('You killed Captain Oona Brask.'));assert.ok(texts(murder.game).some(t=>/^A fight broke out/.test(t))||texts(murder.game).includes('Tobin Reed swore never to forgive you.'),texts(murder.game).slice(-4).join(' | '));
+// A grudge set down is a line of its own (amends made, a night gone by since it was sworn).
+const sinceId=g.storyLog.at(-1).id,grudging={...g,followers:undefined,npcMemory:{...g.npcMemory,mara:{attitude:'hostile',response:'Holds a grudge.',memories:['x y z'],grudge:'The player burned my cart.',grudgeWeight:'grave',grudgeSince:sinceId,amends:2}},storyLog:r.appendStoryLog(g.storyLog,'rest','Took a long rest at Caravan Camp.')};
+const pardoned=turn(grudging,null,{words:{question:'I stand with Tobin at the ashes.',narration:'He sighs.',relationships:[{npcId:'mara',change:'forgave',memory:'You rebuilt what you burned. I forgive you.'}]}});
+same(last(pardoned.game),['Tobin Reed forgave you.']);assert.ok(valid(pardoned.game));
 // ---- Fights: begun, won, fled, lost ----
 let f=fight,h={current:60,temp:0};const before=f;
 for(let i=0;i<80&&f.stage==='combat';i++){const s=turn(f,f.actionUsed?'end-turn':'attack:Greatsword',{health:h,random:()=>0.7});f=s.game;h=s.health;}

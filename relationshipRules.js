@@ -1,15 +1,20 @@
-import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders} from './npcRules';
+import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders,grudgeWeight,amendsNeeded,forgivenessOf} from './npcRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {seededRandom} from './mapRules';
 // How each named character feels about the player, and why. Attitudes run from hostile to devoted; deeds move them.
-// Two marks are permanent: a grudge (the player killed or gravely harmed someone who matters to them, so they stay
-// hostile whatever happens) and a bond (the player saved their life or someone who matters to them, so they never
-// fall below friendly). A grudge outweighs a bond. Every change is remembered in the character's own words.
+// Two marks run deeper than any mood: a grudge (the player killed or gravely harmed someone who matters to them, so
+// they stay hostile while it lasts) and a bond (the player saved their life or someone who matters to them, so they
+// never fall below friendly). A grudge outweighs a bond. A grudge can be forgiven, but never cheaply: it takes acts of
+// amends and time (npcRules.js forgivenessOf), and saving a life can settle a grave one at once. A forgiven grudge is
+// remembered (forgave): trust stays thin, and a grudge sworn again is harder to forgive. Every change is remembered in
+// the character's own words.
 export const attitudeLevels=['hostile','unfriendly','indifferent','friendly','devoted'];
 export const tieKinds=['family','beloved','close friend','friend','ally','acquaintance','rival','enemy'];
 export const foeTieKinds=['kin','beloved','ally','neutral','enemy'];
-export const deedChanges={pleased:1,grateful:2,offended:-1,angered:-2,bond:'bond',grudge:'grudge'};
+export const deedChanges={pleased:1,grateful:2,offended:-1,angered:-2,bond:'bond',grudge:'grudge',amends:'amends',forgave:'forgave'};
 const mattersDeeply=tie=>['family','beloved','close friend','friend'].includes(tie);
+// The killing of family or a beloved makes a blood grudge, the hardest to forgive.
+const bloodTie=tie=>['family','beloved'].includes(tie);
 export const npcName=(game,id)=>game.story?.npcs?.[id]?.name??npcProfile(game,id)?.name??npcProfiles[id]?.name??id;
 // How one character regards another: the story's two residents always know each other; someone met later has at
 // most one tie, to a character already known, and it runs both ways. Strangers have no tie (null).
@@ -29,24 +34,56 @@ export function npcTies(game,id){
  return {other,toOther:other?tieBetween(game,id,other):null,toFoe:foeTie(game,id),note:core&&typeof t?.note==='string'?t.note:null,all};
 }
 const responses={hostile:'Refuses to help the player and wants nothing to do with them.',unfriendly:'Wary and cold toward the player.',indifferent:'No strong feelings about the player.',friendly:'Warm toward the player and willing to help.',devoted:'Devoted to the player and eager to help.'};
-// Apply one deed to one character: a step change (+1, -2…), a bond or a grudge. Returns the game and the lines to show.
-export function recordDeed(game,id,change,text){
+// Apply one deed to one character: a step change (+1, -2…), a bond, a grudge (weight: grave or blood), an act of
+// amends or forgiveness. Returns the game and the lines to show.
+const memoryMarks=['allegiance','grudge','bond','grudgeWeight','grudgeSince','amends','forgave'];
+function heldResponse(entry,attitude){
+ if(entry.grudge){const a=entry.amends??0;return ('Holds a grudge against the player'+(a?' (amends so far: '+a+' of '+amendsNeeded(entry)+')':'')+': '+entry.grudge).slice(0,300);}
+ if(entry.forgave&&!['friendly','devoted'].includes(attitude))return 'Has forgiven the player ('+entry.forgave.grudge.slice(0,120)+') but has not forgotten; trust is thin.';
+ return responses[attitude];
+}
+export function recordDeed(game,id,change,text,{weight}={}){
  if(!npcIdsOf(game).includes(id)||game.npcFate?.[id]==='dead'||!text)return {game,lines:[]};
  const before=game.npcMemory?.[id],was=before?.attitude??'indifferent',name=npcName(game,id),lines=[];
- const entry={attitude:was,response:before?.response??responses[was],memories:[...(before?.memories??[])],...(before?.allegiance?{allegiance:before.allegiance}:{}),...(before?.grudge?{grudge:before.grudge}:{}),...(before?.bond?{bond:before.bond}:{})};
+ const entry={attitude:was,response:before?.response??responses[was],memories:[...(before?.memories??[])]};
+ for(const key of memoryMarks)if(before?.[key]!==undefined&&before?.[key]!==null)entry[key]=before[key];
  let level=attitudeLevels.indexOf(was);if(level<0)level=2;
- if(change==='grudge'){if(!entry.grudge)lines.push(name+' will never forgive you.');entry.grudge=String(text).slice(0,200);}
- else if(change==='bond'){if(!entry.bond)lines.push(entry.grudge?name+' is grateful, but cannot forgive you.':name+' owes you a debt they will never forget.');entry.bond=String(text).slice(0,200);level=4;}
+ let forgiven=false;
+ // Forgiving: the grudge is set down but remembered; blood leaves them cold, anything else no worse than indifferent.
+ const forgive=memory=>{const heavy=grudgeWeight(entry);entry.forgave={grudge:entry.grudge.slice(0,200),weight:heavy,memory:String(memory).slice(0,300)};for(const key of ['grudge','grudgeWeight','grudgeSince','amends'])delete entry[key];level=heavy==='blood'?1:2;forgiven=true;};
+ if(change==='grudge'){
+  const heavy=weight==='blood'||(entry.grudge&&grudgeWeight(entry)==='blood')?'blood':'grave';
+  if(!entry.grudge)lines.push(name+' will never forgive you.');
+  entry.grudge=String(text).slice(0,200);entry.grudgeWeight=heavy;entry.grudgeSince=game.storyLog?.at(-1)?.id??0;entry.amends=0;
+ }
+ else if(change==='amends'){
+  if(entry.grudge){entry.amends=Math.min(6,(entry.amends??0)+1);lines.push(name+' listens, if coldly.');}
+  else level=Math.max(0,Math.min(entry.bond?4:3,level+1));
+ }
+ else if(change==='forgave'){
+  if(entry.grudge){forgive(text);lines.push(name+' forgives you.');}
+  else{level=Math.max(level,2);lines.push(name+' lets it go.');}
+ }
+ else if(change==='bond'){
+  if(entry.grudge){
+   // A life saved is the greatest amends there is: it settles a grave grudge at once, and goes a long way toward a blood one.
+   entry.bond=String(text).slice(0,200);entry.amends=Math.min(6,(entry.amends??0)+2);
+   if(grudgeWeight(entry)==='grave'&&entry.amends>=amendsNeeded(entry)){forgive(text);lines.push(name+' forgives you: you saved a life.');}
+   else lines.push(name+' is grateful, but has not forgiven you.');
+  }
+  else{if(!entry.bond)lines.push(name+' owes you a debt they will never forget.');entry.bond=String(text).slice(0,200);level=4;}
+ }
  else if(Number.isInteger(change))level=Math.max(0,Math.min(entry.bond?4:3,level+change));
- // Permanent marks: a grudge keeps them hostile; a bond keeps them at least friendly.
+ // The deeper marks: a grudge keeps them hostile while it lasts; a bond keeps them at least friendly.
  const attitude=entry.grudge?'hostile':entry.bond?attitudeLevels[Math.max(3,level)]:attitudeLevels[level];
  if(attitude!==was&&!lines.length)lines.push(name+': '+attitude+' toward you.');
- entry.attitude=attitude;if(attitude!==was||change==='grudge'||change==='bond')entry.response=entry.grudge?'Holds a grudge against the player that will never fade: '+entry.grudge.slice(0,200):responses[attitude];
+ entry.attitude=attitude;if(attitude!==was||['grudge','bond','amends','forgave'].includes(change))entry.response=heldResponse(entry,attitude);
  entry.memories=[...entry.memories,String(text).slice(0,300)].slice(-12);
  let next={...game,npcMemory:{...game.npcMemory,[id]:entry}};
  // Someone who now hates the player will not travel with them.
  if(entry.grudge&&next.followers?.[id]&&next.followers[id].status!=='dismissed'){next.followers={...next.followers,[id]:{...next.followers[id],status:'dismissed',reason:'Left the party: '+entry.grudge.slice(0,380)}};delete entry.allegiance;lines.push(name+' leaves your party.');}
- if((change==='grudge'&&!before?.grudge)||(change==='bond'&&!before?.bond))next.journal=appendJournal(journalForGame(next),'encounter',(change==='grudge'?'A grudge: ':'A debt: ')+name,String(text).slice(0,300));
+ if((change==='grudge'&&!before?.grudge)||(change==='bond'&&!before?.bond&&!forgiven))next.journal=appendJournal(journalForGame(next),'encounter',(change==='grudge'?'A grudge: ':'A debt: ')+name,String(text).slice(0,300));
+ if(forgiven)next.journal=appendJournal(journalForGame(next),'encounter','A grudge forgiven: '+name,String(text).slice(0,300));
  return {game:next,lines};
 }
 // What this turn did to the people in the story, found by comparing the game before and after: a killing, a
@@ -54,7 +91,7 @@ export function recordDeed(game,id,change,text){
 // word gets around.
 export function recordConsequences(before,after){
  let game=after;const lines=[],ids=npcIdsOf(after);
- const apply=(id,change,text)=>{const r=recordDeed(game,id,change,text);game=r.game;lines.push(...r.lines);};
+ const apply=(id,change,text,options)=>{const r=recordDeed(game,id,change,text,options);game=r.game;lines.push(...r.lines);};
  const max=id=>npcProfile(after,id).maximumHP,hp=(g,id)=>g.npcHP?.[id]??max(id);
  for(const id of ids){
   const name=npcName(after,id),killed=after.npcFate?.[id]==='dead'&&before.npcFate?.[id]!=='dead',knocked=after.npcFate?.[id]==='unconscious'&&before.npcFate?.[id]!=='unconscious'&&hp(before,id)>0,saved=hp(before,id)===0&&hp(after,id)>0&&after.npcFate?.[id]!=='dead';
@@ -64,7 +101,7 @@ export function recordConsequences(before,after){
    const tie=tieBetween(after,other,id);if(!tie)continue;
    const mine=tie==='beloved'?'my beloved':'my '+tie;
    if(killed){
-    if(mattersDeeply(tie))apply(other,'grudge','The player killed '+name+', '+mine+'.');
+    if(mattersDeeply(tie))apply(other,'grudge','The player killed '+name+', '+mine+'.',{weight:bloodTie(tie)?'blood':'grave'});
     else if(['ally','acquaintance'].includes(tie))apply(other,-2,'The player killed '+name+'.');
     else apply(other,tie==='enemy'?1:0,'The player killed '+name+(tie==='enemy'?', whom I despised.':', my rival.'));
    }
@@ -81,7 +118,7 @@ export function recordConsequences(before,after){
   const foe=after.story.foe,slain=after.foeFate==='slain';
   for(const id of ids){
    const t=foeTie(after,id);
-   if(['kin','beloved'].includes(t))apply(id,slain?'grudge':1,slain?'The player killed '+foe+', '+(t==='kin'?'my own kin':'whom I loved')+'.':'The player spared '+foe+', '+(t==='kin'?'my own kin':'whom I loved')+'.');
+   if(['kin','beloved'].includes(t))apply(id,slain?'grudge':1,slain?'The player killed '+foe+', '+(t==='kin'?'my own kin':'whom I loved')+'.':'The player spared '+foe+', '+(t==='kin'?'my own kin':'whom I loved')+'.',{weight:'blood'});
    else if(t==='ally')apply(id,slain?-2:-1,'The player '+(slain?'killed':'defeated')+' '+foe+', my ally.');
    else if(t==='enemy')apply(id,1,'The player '+(slain?'killed':'defeated')+' the '+foe+' that threatened us.');
   }
@@ -143,14 +180,24 @@ export function regardMemory(r){
 // How a character's standing reads on screen, and its tone (for colour).
 export function attitudeLabel(n){
  if(n?.fate==='dead')return {label:'Dead',tone:'dead'};
- if(n?.grudge)return {label:'Sworn enemy · will never forgive you',tone:'bad'};
+ if(n?.grudge){const f=n.forgiveness;return {label:'Sworn enemy · '+(f?.canForgive?'might forgive you':f?.amends?'amends '+f.amends+' of '+f.needed:'holds a grudge'),tone:'bad'};}
+ if(n?.forgave&&!n.bond&&['hostile','unfriendly','indifferent'].includes(n.attitude))return {label:'Forgave you · trust is thin',tone:'warn'};
  if(n?.attitude==='devoted'||n?.bond)return {label:'Devoted · owes you a debt',tone:'best'};
  return {hostile:{label:'Hostile · remembers what happened',tone:'bad'},unfriendly:{label:'Wary',tone:'warn'},friendly:{label:'Friendly',tone:'good'}}[n?.attitude]??{label:'Listening',tone:'calm'};
 }
-// The Dungeon Master's record of how a deed touched someone ("grateful", "angered", a bond or a grudge).
+// The Dungeon Master's record of how a deed touched someone ("grateful", "angered", a bond or a grudge, amends or
+// forgiveness). Amends are only for someone the player has wronged; forgiveness of a grudge only once enough amends
+// and time have gone by (or this very deed is the last amends needed, the time having passed), and for someone cold
+// without a grudge, when they let a lesser wrong go.
+export function deedAllowed(game,d){
+ const m=game.npcMemory?.[d.npcId],cold=['hostile','unfriendly'].includes(m?.attitude);
+ if(d.change==='amends')return !!m?.grudge||cold;
+ if(d.change==='forgave'){if(!m?.grudge)return cold;const f=forgivenessOf(game,d.npcId);return !!f&&(f.canForgive||(f.amendsToGo<=1&&f.daysToGo===0));}
+ return true;
+}
 export function validDeeds(list,game){
  const known=npcIdsOf(game);
- return Array.isArray(list)&&list.length<=2&&new Set(list.map(d=>d?.npcId)).size===list.length&&list.every(d=>d&&known.includes(d.npcId)&&game.npcFate?.[d.npcId]!=='dead'&&Object.hasOwn(deedChanges,d.change)&&typeof d.memory==='string'&&d.memory.trim().length>=3&&d.memory.length<=200);
+ return Array.isArray(list)&&list.length<=2&&new Set(list.map(d=>d?.npcId)).size===list.length&&list.every(d=>d&&known.includes(d.npcId)&&game.npcFate?.[d.npcId]!=='dead'&&Object.hasOwn(deedChanges,d.change)&&typeof d.memory==='string'&&d.memory.trim().length>=3&&d.memory.length<=200&&deedAllowed(game,d));
 }
 export function applyDeeds(game,list){
  let next=game;const lines=[];
@@ -197,7 +244,7 @@ export function introducePerson(game,sketch,hero=null){
  const lines=[];
  // Word has reached them: someone dear to them died by the player's hand.
  const lost=s.tie&&game.npcFate?.[s.tie.to]==='dead'&&mattersDeeply(s.tie.kind);
- if(lost){const r=recordDeed(next,id,'grudge','The player killed '+npcName(game,s.tie.to)+', '+(s.tie.kind==='beloved'?'my beloved':'my '+s.tie.kind)+'.');next=r.game;lines.push(...r.lines);}
+ if(lost){const r=recordDeed(next,id,'grudge','The player killed '+npcName(game,s.tie.to)+', '+(s.tie.kind==='beloved'?'my beloved':'my '+s.tie.kind)+'.',{weight:bloodTie(s.tie.kind)?'blood':'grave'});next=r.game;lines.push(...r.lines);}
  next.journal=appendJournal(journalForGame(next),'encounter','Met: '+name,name+', '+person.role.replace(/[.\s]+$/,'')+'.'+(s.tie?' '+name+' is '+npcName(game,s.tie.to)+'\'s '+s.tie.kind+'.':''));
  return {game:next,id,lines};
 }

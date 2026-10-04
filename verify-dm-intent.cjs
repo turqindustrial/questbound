@@ -6,7 +6,7 @@ const {generate,sceneFor,turnEffort}=require('./dm-server.cjs');
 const places=[{id:'inn',name:'Caravan Camp'},{id:'bridge',name:'Overgrown Roadside'},{id:'tower',name:'Lookout Rock'},{id:'p1',name:'Tern Ferry'},{id:'p2',name:'Old Ferry Road'}];
 const base={stage:'inn',enemyHP:16,foeFate:null,story:{foe:'Bandit Cutthroat'},world:{current:{id:'inn',name:'Caravan Camp'},knownPlaces:places,canDiscover:true},
  choices:[{id:'travel-bridge',label:'Travel to Overgrown Roadside'},{id:'travel-tower',label:'Travel to Lookout Rock'},{id:'travel-p1',label:'Travel to Tern Ferry'},{id:'long-rest',label:'Rest'},{id:'short-rest',label:'Short rest'},{id:'potion',label:'Drink a healing draught'}]};
-const quiet={narration:'The camp is quiet.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null};
+const quiet={narration:'The camp is quiet.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,suggestions:[]};
 const look=(input,reply=quiet,context=base)=>secondLook({input,context},reply,{canDiscover:!!context.world?.canDiscover});
 // What is true now, in plain sentences.
 let now=situation(base);
