@@ -25,9 +25,11 @@ function markdownNotes(file){
 }
 // Every note, oldest first: the records, plus readable entries with no record (matched by ref, else by minute).
 function allNotes(dir){
- const records=readLines(path.join(dir,'.questbound-feedback.jsonl')).filter(r=>typeof r.at==='string');
+ // On the host's PC the files are playtest-feedback.md and .questbound-feedback.jsonl; in a hosted data folder
+ // (serve.cjs, --dir) they are feedback.md and feedback.jsonl.
+ const records=[...readLines(path.join(dir,'.questbound-feedback.jsonl')),...readLines(path.join(dir,'feedback.jsonl'))].filter(r=>typeof r.at==='string');
  const refs=new Set(records.map(r=>r.ref)),minutes=new Set(records.map(r=>r.at.slice(0,16)));
- const older=markdownNotes(path.join(dir,'playtest-feedback.md')).filter(n=>n.ref?!refs.has(n.ref):!minutes.has(n.at.slice(0,16)));
+ const older=[...markdownNotes(path.join(dir,'playtest-feedback.md')),...markdownNotes(path.join(dir,'feedback.md'))].filter(n=>n.ref?!refs.has(n.ref):!minutes.has(n.at.slice(0,16)));
  return [...records,...older].sort((a,b)=>a.at.localeCompare(b.at));
 }
 const readMarker=dir=>{try{const t=fs.readFileSync(path.join(dir,'.questbound-feedback-seen'),'utf8').trim();return Number.isNaN(Date.parse(t))?null:t;}catch{return null;}};

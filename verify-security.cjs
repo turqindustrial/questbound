@@ -82,11 +82,14 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
  }finally{await close(named.server);}
 
  // The desktop page: the same headers, and a policy that lets the game reach only its own services on this PC.
- const desk=createDesktopServer({root,port:0}),dp=await listen(desk);
+ const desk=createDesktopServer({root,port:0,feedbackFile:path.join(tmp,'desk-feedback.md')}),dp=await listen(desk);
  try{
   const r=await call(dp,'/',{headers:{Host:'localhost:0'}});assert.equal(r.status,200);
   const csp=r.headers['content-security-policy'];assert.ok(csp.includes(hashOf(script))&&csp.includes("connect-src 'self' http://localhost:8084 http://localhost:8083 http://localhost:8086"),csp);
   assert.equal(r.headers['x-frame-options'],'DENY');assert.equal(r.headers['cross-origin-opener-policy'],'same-origin');assert.equal((await call(dp,'/',{headers:{Host:'evil.example'}})).status,403);
+  // The host's own feedback form: the Host check comes first, then this page's own origin, so no other site can write notes.
+  assert.equal((await call(dp,'/api/feedback',{method:'POST',headers:{Host:'evil.example',Origin:'http://localhost:0','Content-Type':'application/json'},body:'{"text":"hello"}'})).status,403);
+  assert.equal((await call(dp,'/api/feedback',{method:'POST',headers:{Host:'localhost:0',Origin:'https://evil.example','Content-Type':'application/json'},body:'{"text":"hello"}'})).status,403);assert.ok(!fs.existsSync(path.join(tmp,'desk-feedback.md')));
  }finally{await close(desk);}
 
  // The table and the Dungeon Master answer only to this PC's own names: a site pointed at this PC (DNS rebinding) is
