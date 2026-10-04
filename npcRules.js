@@ -125,7 +125,8 @@ export function npcScene(game){
   const p=npcProfile(game,id),person=game.people?.[id];
   // Followers go where the player goes; people met on the road stay where they live, and step aside from a fight.
   const present=game.followers?.[id]?game.followers[id].status==='following'||game.followers[id].location===location:person?person.home===location&&!['combat','dying','dead'].includes(game.stage)&&!game.dungeon?.active:game.stage==='inn'&&!game.dungeon?.active;
-  return {id,...p,fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,forgave:game.npcMemory?.[id]?.forgave??null,forgiveness:forgivenessOf(game,id),present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
+  const f=game.followers?.[id]?.status,standing=f==='following'?'companion':f==='waiting'?'waiting companion':game.npcMemory?.[id]?.allegiance==='player'?'ally':null;
+  return {id,...p,standing,fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,forgave:game.npcMemory?.[id]?.forgave??null,forgiveness:forgivenessOf(game,id),present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
  });
 }
 export function recordNpcAggression(before,after,target,kind){

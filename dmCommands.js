@@ -54,14 +54,14 @@ export const withAttackIntent=(game,text)=>subdueIntent(text)?{...game,subdue:tr
 export function followerCommand(game,text){
   const said=String(text??'').trim();
   if(!said||game.stage==='combat'||game.npcCombat?.active||game.pendingSpell||['dying','dead'].includes(game.stage))return null;
-  if(/^(?:why|how|what|who|when|where|did|does|do|is|was|were|has|have)/i.test(said)||/(?:don'?t|do not|never|no longer)/i.test(said))return null;
+  if(/^(?:why|how|what|who|when|where|did|does|do|is|was|were|has|have)\b/i.test(said)||/\b(?:don'?t|do not|never|no longer)\b/i.test(said))return null;
   const scene=npcScene(game),nameOf=id=>npcLore(game,id)?.name??scene.find(n=>n.id===id)?.name??id;
   const companions=Object.entries(game.followers??{}).filter(([,f])=>['following','waiting'].includes(f?.status)).map(([id,f])=>({id,status:f.status,present:!!scene.find(n=>n.id===id)?.present}));
   const named=ids=>ids.filter(id=>mentionsName(said,nameOf(id)));
-  const everyone=/(?:everyone|everybody|all of you|you all|both of you|the (?:others|rest of you)|my (?:companions|friends))/i.test(said);
+  const everyone=/\b(?:everyone|everybody|all of you|you all|both of you|the (?:others|rest of you)|my (?:companions|friends))\b/i.test(said);
   // Taking up an offer: the one who offered is named (or is the only one), and the words say yes.
   const offers=standingOffers(game);
-  if(offers.length&&/(?:yes|gladly|welcome|very well|all right|alright|of course|come (?:along|with)|join (?:me|us)|you can come|i accept|accept your offer|take you (?:up|along|with))/i.test(said)){
+  if(offers.length&&/\b(?:yes|gladly|welcome|very well|all right|alright|of course|come (?:along|with)|join (?:me|us)|you can come|i accept|accept your offer|take you (?:up|along|with))\b/i.test(said)){
     const who=named(offers);
     if(who.length===1||(!who.length&&offers.length===1&&!companions.some(c=>mentionsName(said,nameOf(c.id)))))return {action:{type:'accept-offer',id:who[0]??offers[0]}};
   }
@@ -69,13 +69,13 @@ export function followerCommand(game,text){
   const addressed=everyone?companions:companions.filter(c=>mentionsName(said,nameOf(c.id)));
   if(!addressed.length)return null;
   const order=(o,list)=>list.length?{action:list.length===1?{type:'follower',id:list[0].id,order:o}:{type:'follower',ids:list.map(c=>c.id),order:o}}:null;
-  if(/part (?:ways|company)/i.test(said))return order('dismiss',addressed);
-  if(/(?:send (?:word|for)|call (?:for|back)|summon|fetch)/i.test(said)){const away=addressed.filter(c=>c.status==='waiting');return order('call',away);}
-  if(/(?:follow me|come (?:with me|along|on)|let'?s go|with me|fall in|rejoin|join me again|stay (?:with|close to|beside|by) (?:me|us)|catch up)/i.test(said))return order('resume',addressed.filter(c=>c.status==='waiting'&&c.present));
-  if(/(?:wait|stay|remain|keep watch|hold (?:here|this place|the (?:door|gate|line|fort)))/i.test(said)){
+  if(/\bpart (?:ways|company)\b/i.test(said))return order('dismiss',addressed);
+  if(/\b(?:send (?:word|for)|call (?:for|back)|summon|fetch)\b/i.test(said)){const away=addressed.filter(c=>c.status==='waiting');return order('call',away);}
+  if(/\b(?:follow me|come (?:with me|along|on)|let'?s go|with me|fall in|rejoin|join me again|stay (?:with|close to|beside|by) (?:me|us)|catch up)\b/i.test(said))return order('resume',addressed.filter(c=>c.status==='waiting'&&c.present));
+  if(/\b(?:wait|stay|remain|keep watch|hold (?:here|this place|the (?:door|gate|line|fort)))\b/i.test(said)){
     // "Wait for me at the inn" while elsewhere is a wish the engine cannot carry out: the Dungeon Master answers it.
-    const at=said.match(/(?:at|in) (?:the )?([A-Za-z' -]{3,40})/i);
-    if(at&&!/^(?:here|this|camp|my|our)/i.test(at[1])&&!mentionsName(said,String(placeNameHere(game))))return null;
+    const at=said.match(/\b(?:at|in) (?:the )?([A-Za-z' -]{3,40})/i);
+    if(at&&!/^(?:here|this|camp|my|our)\b/i.test(at[1])&&!mentionsName(said,String(placeNameHere(game))))return null;
     return order('wait',addressed.filter(c=>c.status==='following'));
   }
   return null;
