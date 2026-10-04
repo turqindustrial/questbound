@@ -15,7 +15,7 @@ assert.ok(sync.includes('cloudLimit=200')&&text(privacyPolicy).includes('200 mos
 assert.ok(accounts.includes('tokenDays=180')&&text(privacyPolicy).includes('180 days'),'sign-ins last 180 days');
 assert.ok(accounts.includes("crypto.scrypt(")&&text(privacyPolicy).includes('salted hash of your password'));
 assert.ok(accounts.includes("createHash('sha256').update('questbound-account-v1:'+email)")&&text(privacyPolicy).includes('hash of your email address'));
-assert.ok(fs.readFileSync('Feedback.js','utf8').includes('device:deviceLabel()')&&text(privacyPolicy).includes('description of your device'));
+assert.ok(fs.readFileSync('Feedback.js','utf8').includes('device:deviceLabel()')&&text(privacyPolicy).includes('description of your device')&&text(privacyPolicy).includes('last two turns')&&text(privacyPolicy).includes('any errors the game showed you')&&fs.readFileSync('feedbackRules.js','utf8').includes('recent:')&&fs.readFileSync('Feedback.js','utf8').includes('Include what happened'),'the policy names what a feedback note carries');
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("recordUsage('turn'")&&text(privacyPolicy).includes('never the words themselves'));
 // Typefaces come from the host, so no third party sees a page load; the policy no longer names Google Fonts.
 for(const file of ['webTheme.js','public/index.html','phone-server.cjs'])assert.ok(!fs.readFileSync(file,'utf8').includes('fonts.googleapis.com'),file+' loads no fonts from Google');

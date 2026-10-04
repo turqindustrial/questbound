@@ -1,6 +1,6 @@
 # Questbound: Privacy policy
 
-_Last updated 3 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 4 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Privacy policy
 
@@ -18,9 +18,9 @@ On the phone and tester links the game also sets one cookie that marks your brow
 
 - Your adventure, as a saved copy: under your recovery code (stored only as a hash of the code) and, if you have an account, under your account. The latest save replaces the one before. It is kept until you or the host delete it. You can turn the recovery-code copy off under Settings → Recovery code.
 - Your account, if you make one: a hash of your email address, a salted hash of your password, hashes of your sign-in tokens and when you last saved. The email address itself and your password are never written down, and the host cannot read or recover them. Nothing is ever sent to your email address; it is only a name to sign in with.
-- Feedback you send from the game: your note, the star rating, the name you use at the shared table if any, your hero's name, where you are in the game and a short description of your device (such as "Android phone"). The host reads these notes to improve the game.
+- Feedback you send from the game: your note, the star rating, the name you use at the shared table if any, your hero's name, class, level and spells, where you are in the game, your last two turns (what you wrote, the Dungeon Master's words and the dice and rulings), any errors the game showed you, the game's version, and a short description of your device and how the game ran on it (such as "Android phone", the screen size, how long the game took to load, and your sound and display settings). You can leave out your turns and the errors by turning off "Include what happened" before you send. A note sent from a phone or the tester link is kept with that browser's label (see Service records), so the host can match it to the game's own record of what went wrong. Nothing is sent until you send a note. The host reads these notes to fix problems and improve the game.
 - Play together: the shared adventure, the names players choose and when each was last seen.
-- Service records: how many words the AI used for each request (never the words themselves) and, for a request from a phone or the tester link, a label for the browser that asked (a scrambled form of its pairing, never your name), so that players can be kept within the host's daily allowance for the AI; a note of any reply the game refused (which fields were wrong, never story text) and whether the Dungeon Master had to be asked twice. To stop guessing and flooding, the services also count requests, wrong pairing codes and wrong passwords by paired browser and by network address for up to an hour, in memory only.
+- Service records: how many words the AI used for each request (never the words themselves) and, for a request from a phone or the tester link, a label for the browser that asked (a scrambled form of its pairing, never your name), so that players can be kept within the host's daily allowance for the AI; a note of any reply the game refused (which fields were wrong, never story text, with the same browser label) and whether the Dungeon Master had to be asked twice. To stop guessing and flooding, the services also count requests, wrong pairing codes and wrong passwords by paired browser and by network address for up to an hour, in memory only.
 - The pairing or invite code you enter is checked and not stored; your browser's paired state is kept as a hash.
 ### What goes to other companies
 
