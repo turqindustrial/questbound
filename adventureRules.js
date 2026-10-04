@@ -280,6 +280,28 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     };
     if (action?.type === 'npc-attack') {
       const victim = npcScene(game).find(n => n.id === action.target && n.present);
+      // The subclass's own action turned on a person (`feat`): a Tangle-Bolt, a Rattling Jest, a Feint... as against a
+      // creature, with the person's own defences (spellRules.js personDefenses). It may begin a brawl, like a blow.
+      if (action.feat) {
+        const sub = subclassAction(hero);
+        if (!sub || !(sub.effect.mark || sub.effect.vex || sub.effect.strike)) return {game, health, error: 'That is not something you can turn on a person.'};
+        if (!victim || game.npcFate?.[victim.id] === 'dead') return {game, health, error: 'That person is not here.'};
+        if (victim.hp <= 0) return {game, health, error: `${victim.name} already lies senseless.`};
+        if (hp.current <= 0 || game.castingConditions?.incapacitated) return {game, health, error: 'You cannot do that in your current condition.'};
+        if (subclassUsesLeft(hero, game) <= 0) return {game, health, error: 'No uses of ' + sub.name + ' remain until you rest.'};
+        if (sub.bonus && game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
+        const used = resolveClassAction(hero, game, hp, stats.hp, sub.id, random, {...personDefenses(game, victim.id), key: victim.id, called: victim.name});
+        if (!used) return {game, health, error: 'That is not available right now.'};
+        next = {...(used.game ?? next), resources: used.resources};
+        entries.push(...used.logs);
+        if (used.damage > 0) {
+          const left = Math.max(0, victim.hp - used.damage);
+          next.npcHP = {...game.npcHP, [victim.id]: left};
+          if (left === 0) { next.npcFate = {...game.npcFate, [victim.id]: 'dead'}; entries.push(`${victim.name} is dead.`); }
+        }
+        next.log = [...entries, ...game.log].slice(0, 40);
+        return {game: next, events: entries, health: hp, ...(sub.bonus ? {bonus: true} : {})};
+      }
       const carried = attackOptions(hero).find(w => w.name === action.weapon);
       if (action.thrown && carried && !canThrow(carried)) return {game, health, error: `A ${carried.name} is not made for throwing. Daggers, handaxes, javelins and spears are.`};
       // An Unarmed Strike may grapple or shove instead of striking.
@@ -1325,11 +1347,14 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  if((health?.current??stats.hp)<=0)return {game,health,error:'You are down and cannot act.'};
  // A bonus action in a brawl (2024 rules): a healing draught, Second Wind or Lay on Hands. It is taken before the
  // action (the action ends the turn here), once a turn, and the people fighting do not answer it.
- if(active&&(['potion','class:wind','class:hands'].includes(action)||typeof action==='string'&&action.startsWith('drink:'))){
+ // The subclass's own bonus action that heals or shields the hero (a Field Tonic, a Briar Mantle) is taken the same way.
+ const ownFeat=subclassAction(hero),selfFeat=!!ownFeat&&ownFeat.bonus&&!!(ownFeat.effect.heal||ownFeat.effect.temp)&&action==='class:'+ownFeat.id;
+ if(active&&(['potion','class:wind','class:hands'].includes(action)||selfFeat||typeof action==='string'&&action.startsWith('drink:'))){
   if(game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
   if(game.bonusUsed)return {game,health,error:'Your bonus action is already used this turn.'};
   let hp={current:health?.current??stats.hp,temp:health?.temp??0},next={...game},line;
-  if(hp.current>=stats.hp)return {game,health,error:'You are already at full health.'};
+  if(selfFeat&&subclassUsesLeft(hero,game)<=0)return {game,health,error:'No uses of '+ownFeat.name+' remain until you rest.'};
+  if(hp.current>=stats.hp&&!(selfFeat&&ownFeat.effect.temp))return {game,health,error:'You are already at full health.'};
   if(action==='potion'){
    if((game.potions??0)<=0)return {game,health,error:'You have no healing draughts left.'};
    const dose=potionHealing(random),healed=updateHealth(hp,stats.hp,'heal',dose.total);

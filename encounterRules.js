@@ -6,6 +6,7 @@ import {worldPlace,worldPlaces,placeName} from './mapRules';
 import {modifier} from './characterRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {magicSaveBonus} from './lootRules';
+import {subclassWardRoll} from './subclassRules';
 // Fights away from the story's own foe: a creature met at a place found while exploring (a lair, or an ambush on
 // arrival), and what every kind of monster can do beyond a plain attack. Companions who travel with the hero fight
 // beside them, and can be knocked down in turn.
@@ -207,11 +208,13 @@ export function partyTargets(game){
 // of one (less when well below the party's level), one without a class a quarter. A hero fighting alone meets exactly
 // what they always did. The strength is kept for the fight (game.foeScale {f, key}): it grows when someone joins
 // mid-fight and never shrinks as the side falls. Tuned with balance-check.cjs (--companion, --party).
-export const foeScaling={companion:0.5,untrained:0.25,hp:1,offense:0.85,maxGroup:8,maxSwings:4,most:6};
+// A companion's share of a hero by their class (sturdy fighters stand in front and soak blows; casters less so).
+export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6};
+export const sideWeightOf=cls=>foeScaling.companion[cls]??0.5;
 const sideHeroLevel=character=>{try{const h=JSON.parse(character);return Number.isInteger(h?.level)?h.level:1;}catch{return 1;}};
 function sideCompanionWeight(game,id,mean){
  const t=game?.npcClasses?.[id];
- return t?foeScaling.companion*Math.max(0.3,Math.min(1.2,t.level/mean)):foeScaling.untrained;
+ return t?sideWeightOf(t.class)*Math.max(0.3,Math.min(1.2,t.level/mean)):foeScaling.untrained;
 }
 // `ids`: the people fighting beside the hero (fightingCompanions in a creature fight, the allies in a brawl).
 function sideOf(game,hero,ids){
@@ -262,12 +265,20 @@ export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs ${name}’s AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),total=Math.max(1,damage.total),was=member.health?.current??most,now=Math.max(0,was-total);
+ const damage=rollDamage(foe,attack.critical,random);let total=Math.max(1,damage.total);
+ // Their subclass's Reaction may blunt the blow (subclassRules.js), once a round while their reaction is free: the
+ // round it was spent is kept on them (`reacted`), and its use counts against their own uses.
+ const them=(()=>{try{return JSON.parse(member.character);}catch{return null;}})(),round=game.turnOrder?.round??game.round??0;
+ const ward=them&&member.reacted!==round?subclassWardRoll(them,{resources:member.hero?.resources??{}},total,random):null;
+ let warded=member;
+ if(ward){total=ward.total;warded={...member,reacted:round,hero:{...(member.hero??{}),resources:ward.game.resources}};lines.push(ward.line);}
+ if(total<=0){lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} − ${ward.reduced} ${ward.name} = 0 ${foe.type} damage to ${name}. No damage gets through.`);return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:warded}}},lines};}
+ const was=member.health?.current??most,now=Math.max(0,was-total);
  const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300);
- let next={...member,health:{current:now,temp:0}},fell='';
+ let next={...warded,health:{current:now,temp:0}},fell='';
  if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
  else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
- lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${total} ${foe.type} damage to ${name}.`+fell);
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${ward?' − '+ward.reduced+' '+ward.name:''} = ${total} ${foe.type} damage to ${name}.`+fell);
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }
 const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};

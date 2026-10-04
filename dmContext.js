@@ -69,8 +69,19 @@ function brawlBonusChoices(hero,game,health){
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
   if(hurt)for(const d of carriedDraughts(game))list.push(['drink:'+d.magic.id,'Drink a '+d.name+' (bonus action)']);
+  // The subclass's own bonus action that heals or shields the hero (subclassRules.js).
+  const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(used.feat??0):0;
+  if(sub?.bonus&&left>0&&((sub.effect.heal&&hurt)||(sub.effect.temp&&(health?.temp??0)<subclassTempFloor(hero,sub))))list.push(['class:'+sub.id,sub.name+' (bonus action, '+left+' left)']);
   for(const g of potionGifts(game))list.push([g.id,g.name+' (bonus action)',g.action]);
   return list;
+}
+// The subclass's own action turned on someone fighting in a brawl (a Tangle-Bolt, a Rattling Jest, a Feint), while
+// it has uses: one choice for each person still standing against the hero.
+function brawlFeatChoices(hero,game){
+  if(!game.npcCombat?.active||game.pendingSpell)return [];
+  const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(game.resources?.feat??0):0;
+  if(!sub||left<=0||!(sub.effect.mark||sub.effect.vex||sub.effect.strike)||(sub.bonus&&game.bonusUsed))return [];
+  return game.npcCombat.order.filter(n=>n.side==='enemy'&&(game.npcHP?.[n.id]??npcMaxHP(n.id,game))>0).map(n=>{const name=npcLore(game,n.id)?.name??n.id;return ['npc-feat:'+n.id,sub.name+' at '+name+' ('+(sub.bonus?'bonus action, ':'')+left+' left)',{type:'npc-attack',target:n.id,feat:true}];});
 }
 // The subclass's own action that takes the action (a Tangle-Bolt, a Field Engine), while it has uses.
 function featChoices(hero,game){
@@ -87,7 +98,8 @@ function restWouldHelp(hero,game,health){
   if(hero.class==='Fighter'&&(game.resources?.surge??0)>0)return true;
   if(hero.class==='Warlock'&&((game.spellSlotsUsed??[]).some(n=>n>0)||(game.resources?.slots??0)>0))return true;
   if(subclassShortRecharge(hero,game))return true;
-  return npcScene(game).some(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.fate!=='dead'&&n.hp>0&&n.hp<npcMaxHP(n.id,game));
+  // A companion knocked down (0 HP, not dead) comes round with a rest, so a rest is worth it for them too.
+  return npcScene(game).some(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.fate!=='dead'&&n.hp<npcMaxHP(n.id,game));
 }
 const canShortRest=(hero,game,health=null)=>['inn','bridge','tower','wild','victory'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&shortRestsLeft(hero,game)>0&&restWouldHelp(hero,game,health);
 // Companions out of a fight: taking up someone's offer to come along (a chip), and orders the Dungeon Master may
@@ -136,7 +148,7 @@ export function dmChoices(hero,game,health=null) {
    for(const m of partyOthers(game))if(m.status!=='dead'&&(m.status==='down'||m.hp<m.maxHp))add('give-potion:party:'+m.id,'Give '+m.name+' a healing draught',{type:'give-potion',target:'party:'+m.id});}};
   if(game.story){
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
-    if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);return choices;}
+    if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);return choices;}
     if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
     else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
       // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
@@ -154,6 +166,7 @@ export function dmChoices(hero,game,health=null) {
   if(game.npcCombat?.active){
     for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id[0].toUpperCase()+id.slice(1));
     for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);
+    for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);
     return choices;
   }
   if(game.concentration)add('end-concentration','End concentration',{type:'end-concentration'});
