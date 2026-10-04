@@ -36,14 +36,18 @@ assert.ok(notice.includes('This work includes material taken from the System Ref
 assert.ok(notice.includes('not affiliated with')&&notice.includes('compatible with fifth edition'));
 // Playable content is the System Reference Documents' plus the Artificer and the Goblin in the game's own words; subclasses offered before stay valid for old heroes.
 const rules={};vm.createContext(rules);
-vm.runInContext(['subclassOptions.js','equipmentRules.js','characterRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n;this.out={classes,legacyClasses,species,legacySpecies,subclassOptions,legacySubclassOptions,validPlannedSubclass,buildError};',rules);
+vm.runInContext(['subclassOptions.js','equipmentRules.js','characterRules.js','subclassRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n;this.out={classes,legacyClasses,species,legacySpecies,subclassOptions,legacySubclassOptions,validPlannedSubclass,buildError};',rules);
 const r=rules.out;
 assert.deepEqual(JSON.parse(JSON.stringify(r.classes)),['Artificer','Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard']);
 assert.deepEqual(JSON.parse(JSON.stringify(r.species)),['Dragonborn','Dwarf','Elf','Dark Elf','Gnome','Goblin','Goliath','Half-Elf','Halfling','Human','Orc','Tiefling']);
-assert.ok(notice.includes('the Artificer class, its four specialities and the Goblin species'),'the notice says which options go beyond the SRD');
+assert.ok(notice.includes('the Artificer class and its five specialities, three further subclasses for every other class, marked Questbound, and the Goblin species'),'the notice says which options go beyond the SRD');
 const srdSubclasses={Barbarian:'Path of the Berserker',Bard:'College of Lore',Cleric:'Life Domain',Druid:'Circle of the Land',Fighter:'Champion',Monk:'Warrior of the Open Hand',Paladin:'Oath of Devotion',Ranger:'Hunter',Rogue:'Thief',Sorcerer:'Draconic Sorcery',Warlock:'Fiend Patron',Wizard:'Evoker'};
-for(const [cls,sub] of Object.entries(srdSubclasses))assert.deepEqual(Object.keys(r.subclassOptions[cls]),[sub],cls);
-assert.deepEqual(Object.keys(r.subclassOptions.Artificer),['Alchemist','Armorer','Artillerist','Battle Smith']);
+// The SRD's own subclass comes first, then three of Questbound's own (subclassRules.js plays them; verify-subclasses.cjs
+// checks their names against the books' and their features against the catalog).
+for(const [cls,sub] of Object.entries(srdSubclasses)){const keys=Object.keys(r.subclassOptions[cls]);assert.equal(keys[0],sub,cls);assert.equal(keys.length,4,cls+' offers four paths');}
+assert.deepEqual(Object.keys(r.subclassOptions.Artificer),['Alchemist','Armorer','Artillerist','Battle Smith','Snarewright']);
+{const catalog=JSON.parse(fs.readFileSync('classFeatureCatalog.json','utf8')),srd=new Set(Object.values(srdSubclasses));
+ for(const f of catalog.filter(f=>f.subclass))assert.equal(f.source,srd.has(f.subclass)?'SRD 5.2':'Questbound',f.subclass+' '+f.name+' is marked with where it comes from');}
 assert.ok(Object.values(JSON.parse(JSON.stringify(r.legacySubclassOptions))).flat().length>=50,'what was offered before is still accepted for saved heroes');
 assert.equal(r.validPlannedSubclass({class:'Barbarian',plannedSubclass:'Path of the Zealot'}),true);
 assert.equal(r.validPlannedSubclass({class:'Barbarian',plannedSubclass:'Path of the Moon'}),false);

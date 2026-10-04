@@ -1,13 +1,15 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const catalog=JSON.parse(fs.readFileSync('spellCatalog.json','utf8'));
-const source='const catalog='+JSON.stringify(catalog)+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','spellOptions.js','campaignRules.js','mapRules.js','journalRules.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source='const catalog='+JSON.stringify(catalog)+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','spellOptions.js','campaignRules.js','mapRules.js','journalRules.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({spellDefense,subclassOptions,validPlannedSubclass,classes,combatBasics,weaponAttacks,attacksPerAction,rollAttack,equipmentFor,newAdventure,requestSpell,resolveSpellRuling,adventureStep,castError,spellSlots,slotUsed,spellCostOptions,spellMode,automaticSpells,concentrationAfterDamage,validAdventure,adventureSnapshot,spellSelectionError,makeCharacter,blankBuild})');
 const scores={Strength:16,Dexterity:16,Constitution:14,Intelligence:18,Wisdom:16,Charisma:18};
 const hero=(name,level=1,spells=[])=>{const h={name:'QA',class:name,race:'Human',species:'Human',level,scores,spells};h.equipment=r.equipmentFor(h);return h;};
 for(const name of r.classes){
- // One subclass a class, exactly the one the SRD 5.2 licenses; the Artificer (a Questbound option beyond the SRD) has four of its own.
- assert.equal(Object.keys(r.subclassOptions[name]).length,name==='Artificer'?4:1,name+' offers its SRD subclass');
- for(const [sub,description] of Object.entries(r.subclassOptions[name])){assert.ok(description.length>35);assert.equal(r.validPlannedSubclass({class:name,plannedSubclass:sub}),true);}
+ // The subclass the SRD 5.2 licenses first, then three of Questbound's own; the Artificer (a Questbound option beyond the
+ // SRD) has five specialities of its own. Every one of them makes a valid hero and adventure at every level from 3.
+ assert.equal(Object.keys(r.subclassOptions[name]).length,name==='Artificer'?5:4,name+' offers four paths (the Artificer five)');
+ for(const [sub,description] of Object.entries(r.subclassOptions[name])){assert.ok(description.length>35);assert.equal(r.validPlannedSubclass({class:name,plannedSubclass:sub}),true);
+  for(let level=3;level<=20;level++){const h={...hero(name,level),plannedSubclass:sub},stats=r.combatBasics(h);assert.ok(stats.available&&stats.hp>0&&stats.ac>0,sub+' '+level);assert.equal(r.validAdventure(r.adventureSnapshot(h,r.newAdventure(h),null,true),h),true,sub+' at level '+level);}}
  for(let level=1;level<=20;level++){const h=hero(name,level),stats=r.combatBasics(h);assert.ok(stats.available);assert.equal(stats.proficiency,2+Math.floor((level-1)/4));assert.ok(stats.hp>0);if(level>1)assert.ok(stats.hp>r.combatBasics(hero(name,level-1)).hp);assert.equal(r.validAdventure(r.adventureSnapshot(h,r.newAdventure(h),null,true),h),true);}
 }
 assert.equal(r.validPlannedSubclass({class:'Artificer',plannedSubclass:'Cartographer'}),true);
@@ -23,8 +25,9 @@ assert.equal(r.weaponAttacks({...champion,level:15})[0].criticalThreshold,18);
 assert.equal(r.attacksPerAction(hero('Fighter',20)),4);
 assert.equal(r.attacksPerAction(hero('Fighter',4)),1);
 assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Alchemist'}),1);
-// Subclasses outside the SRD give no features any more (the game plays out licensed content only).
-assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Battle Smith'}),1);assert.equal(r.attacksPerAction({...hero('Wizard',6),plannedSubclass:'Bladesinger'}),1);
+// Legacy subclasses give no new features (a Bladesinger makes one attack); the Battle Smith and the Armorer, Artificer
+// specialities in Questbound's own words, attack twice from level 5 (subclassRules.js), as Steel Verses Bards do from 6.
+assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Battle Smith'}),2);assert.equal(r.attacksPerAction({...hero('Artificer',4),plannedSubclass:'Battle Smith'}),1);assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Armorer'}),2);assert.equal(r.attacksPerAction({...hero('Wizard',6),plannedSubclass:'Bladesinger'}),1);
 const dragon={...hero('Sorcerer',3),plannedSubclass:'Draconic Sorcery'};
 assert.equal(r.combatBasics(dragon).hp-r.combatBasics({...dragon,plannedSubclass:''}).hp,3);
 assert.equal(r.combatBasics(dragon).ac,17);
@@ -74,7 +77,7 @@ assert.equal(r.concentrationAfterDamage(h,concentration,10,()=>0).game.concentra
 assert.ok(r.concentrationAfterDamage(h,concentration,10,()=>0.99).game.concentration);
 assert.equal(r.concentrationAfterDamage(h,concentration,0,()=>0).game,concentration);
 // SPELL-COVERAGE.json is written by verify-spell-routes.cjs, which replays every spell through the real routes.
-console.log('Passed: exactly 4 subclasses × 13 classes; level 1–20 stats; passive subclass gates; all 339 casting routes, costs and save states; scaling, concentration and slot limits. Full spell/subclass automation remains incomplete.');
+console.log('Passed: four subclasses for each class (five for the Artificer), each valid from level 3 to 20; level 1–20 stats; passive subclass gates; all 339 casting routes, costs and save states; scaling, concentration and slot limits. Full spell/subclass automation remains incomplete.');
 const low = {'acid-splash':4,'sacred-flame':4,'vicious-mockery':4,shock:0,blast:0,'fire-bolt':0,'poison-spray':0,'chill-touch':0,'ray-of-frost':0,'burning-hands':3,fireball:8,'lightning-bolt':8,'chain-lightning':10,'circle-of-death':8,'scorching-ray':0,'inflict-wounds':2,missile:6};
 const high = {'acid-splash':0,'sacred-flame':0,'vicious-mockery':0,shock:64,blast:80,'fire-bolt':80,'poison-spray':96,'chill-touch':80,'ray-of-frost':64,'burning-hands':9,fireball:24,'lightning-bolt':24,'chain-lightning':40,'circle-of-death':32,'scorching-ray':72,'inflict-wounds':10,missile:15};
 for(const [id,expected] of Object.entries(low)){

@@ -6,9 +6,11 @@ import Icon from './Icon';
 import featureCatalog from './classFeatureCatalog.json';
 import {subclassOptions} from './subclassOptions';
 
-const automaticNames=['Second Wind','Lay on Hands','Extra Attack','Improved Critical','Superior Critical','Draconic Resilience','Disciple of Life','Supreme Healing','Dark One\'s Blessing','Life Domain Spells','Oath of Devotion Spells','Draconic Spells','Fiend Spells'];
+// Features the game plays out itself: these names, and every catalog entry marked automation 'engine' (subclassRules.js).
+const automaticNames=['Second Wind','Lay on Hands','Extra Attack','Improved Critical','Superior Critical','Potent Cantrip','Remarkable Athlete','Draconic Resilience','Disciple of Life','Supreme Healing','Dark One\'s Blessing','Life Domain Spells','Oath of Devotion Spells','Draconic Spells','Fiend Spells'];
 export default function FeaturePanel({hero}) {
   const [open,setOpen]=useState(null);
+  const applied=feature=>feature.automation==='engine'||automaticNames.includes(feature.name);
   const features=featureCatalog.filter(f=>f.class===hero.class && f.level<=hero.level && (!f.subclass || f.subclass===hero.plannedSubclass));
   return <View>
     <Section icon="crown" title={'Abilities at level '+hero.level}/>
@@ -16,7 +18,7 @@ export default function FeaturePanel({hero}) {
     {!features.length && <Text style={s.caption}>Your level, hit points, proficiency and spell slots are all tracked for you.</Text>}
     {features.map((feature,index)=><View key={`${feature.name}-${feature.level}`} style={s.card}>
       <Pressable accessibilityRole="button" accessibilityState={{expanded:open===index}} onPress={()=>setOpen(open===index?null:index)} style={s.button}><View style={s.featureRow}><Text style={[s.name,{flex:1}]}>{feature.name}</Text><Text style={s.lvl}>Lv {feature.level}</Text><Icon name="forward" size={14} color={colors.gold} style={{transform:open===index?'rotate(-90deg)':'rotate(90deg)'}}/></View></Pressable>
-      <Text style={[s.caption,automaticNames.includes(feature.name)&&{color:colors.gold}]}>{automaticNames.includes(feature.name)?'✦ Applied automatically in combat':'Played through the Dungeon Master: describe using it in your action.'}</Text>
+      <Text style={[s.caption,applied(feature)&&{color:colors.gold}]}>{applied(feature)?'✦ Applied automatically by the game':'Played through the Dungeon Master: describe using it in your action.'}</Text>
       {open===index&&<Text style={s.text}>{feature.description.replace(/[*_]/g,'')}</Text>}
     </View>)}
     {hero.level>=3 && !features.some(f=>f.subclass) && <Text style={s.caption}>Your subclass is recorded on your sheet. Describe its powers to the Dungeon Master when you use them.</Text>}

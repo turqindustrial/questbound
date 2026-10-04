@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const source=['equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=['equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({weaponAttacks,rollAttack,rollDamage,equipmentFor,classes})');
 const base={species:'Goliath',class:'Artificer',level:1,background:'Wayfarer',scores:{Strength:15,Dexterity:16,Constitution:13,Intelligence:12,Wisdom:11,Charisma:8}};
 function list(patch={}){const h={...base,...patch};h.equipment=r.equipmentFor(h);return r.weaponAttacks(h);}

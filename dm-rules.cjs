@@ -1,6 +1,9 @@
 // Reviewed baseline: revised 2024 rules / SRD 5.2. This is runtime grounding,
 // not model fine-tuning. Catalog text is licensed with the existing SRD notices.
 const spells=require('./spellCatalog.json');
+// The running Dungeon Master reloads this file on every request; the catalog is reloaded with it, so new feature text
+// (subclasses) is live without a restart.
+delete require.cache[require.resolve('./classFeatureCatalog.json')];
 const features=require('./classFeatureCatalog.json');
 const actionRules=[
  {name:'Attack',rule:'Use weapon attack rolls versus AC, or the exact Unarmed Strike rules. Extra Attack modifies the Attack action, not arbitrary spells.',implementation:'Only supplied weapon/class action choices. Inn NPC aggression starts an initiative encounter; authored witnesses can defend either side. The engine resolves their turns, attacks, Help and damage.'},

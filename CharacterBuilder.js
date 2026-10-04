@@ -1,6 +1,7 @@
 import {characterDraftContext,validateCharacterDraft} from './characterDraft';
 import {findDmEndpoint,askDm} from './dmConnection';
 import {subclassOptions} from './subclassOptions';
+import {subclassFirstFeatures} from './subclassRules';
 import SpellSelector from './SpellSelector';
 import {spellsForClass,spellSelectionError} from './spellOptions';
 import { equipmentFor, instruments } from './equipmentRules';
@@ -63,6 +64,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       return <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: chosen}} onPress={() => {if(!chosen)playSound('select');onSelect(option);}} dataSet={{qb:'card',selected:String(chosen)}} style={({pressed}) => [s.option, chosen && s.selected, pressed && {opacity: 0.85}]}>
         <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option === 'Dark Elf' ? 'Dark Elf (Drow)' : option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
         <Text style={s.text}>{detail.description}</Text>
+        {(detail.features??[]).map(f=><Text key={f.name} style={s.detail}>✦ {f.name}: {f.brief}</Text>)}
         {!!detail.ability && <Text style={s.detail}>Key abilities: {detail.ability}</Text>}
         {!!detail.note && value === option && <Text style={s.detail}>{detail.note}</Text>}
       </Pressable>;
@@ -113,10 +115,10 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {page === 2 && optionCards('Class', classes, form.class, value => change(value===form.class ? {} : {class:value,level:1,advancements:[],arcanum:{},spells:[],spellbook:[],plannedSubclass:''}), classDetails)}
     {page === 3 && <>
       <Text style={s.note}>Planned subclass · Unlocks at level 3</Text>
-      {!!form.plannedSubclass && !Object.hasOwn(subclassOptions[form.class]??{},form.plannedSubclass) && <Text style={s.note}>Saved path: {form.plannedSubclass}. You may keep it or choose one of the four paths below.</Text>}
+      {!!form.plannedSubclass && !Object.hasOwn(subclassOptions[form.class]??{},form.plannedSubclass) && <Text style={s.note}>Saved path: {form.plannedSubclass}. You may keep it or choose one of the paths below.</Text>}
       {choices('Subclass decision', ['Decide later'], form.plannedSubclass ? '' : 'Decide later', () => change({plannedSubclass:''}))}
-      {optionCards('Subclass', Object.keys(subclassOptions[form.class]??{}), form.plannedSubclass??'', value=>change({plannedSubclass:value}), Object.fromEntries(Object.entries(subclassOptions[form.class]??{}).map(([name,description])=>[name,{description}])))}
-      <Text style={s.detail}>Four community favorites, ordered by a March 2026 player poll. Powers unlock at level 3.</Text>
+      {optionCards('Subclass', Object.keys(subclassOptions[form.class]??{}), form.plannedSubclass??'', value=>change({plannedSubclass:value}), Object.fromEntries(Object.entries(subclassOptions[form.class]??{}).map(([name,description])=>[name,{description,features:subclassFirstFeatures(name)}])))}
+      <Text style={s.detail}>{form.class==='Artificer'?'Five specialities, each described in Questbound’s own words.':'The first path is the System Reference Document’s own; the other three are Questbound’s.'} Powers unlock at level 3.</Text>
     </>}
     {page === 4 && <>
       <Text style={s.detail}>16 backgrounds · Select one to see its ability choices and starting feat.</Text>

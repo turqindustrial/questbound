@@ -69,7 +69,7 @@ export function validAdventure(value,hero) {
     && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z '’-]{2,58}(?: \+[1-3])?$/.test(g.wield)))
     && (g.openingAttackAvailable===undefined || typeof g.openingAttackAvailable==='boolean')
     && (g.encounterInitiative===undefined || (g.encounterInitiative&&integerBetween(g.encounterInitiative.player,-10,50)&&integerBetween(g.encounterInitiative.foe,-10,50)))
-    && (g.resources===undefined || (g.resources!==null && typeof g.resources==='object' && !Array.isArray(g.resources) && Object.entries(g.resources).every(([key,n])=>['slots','wind','hands','surge'].includes(key) && integerBetween(n,0,key==='hands'?5*hero.level:key==='surge'?2:4))))
+    && (g.resources===undefined || (g.resources!==null && typeof g.resources==='object' && !Array.isArray(g.resources) && Object.entries(g.resources).every(([key,n])=>['slots','wind','hands','surge','feat'].includes(key) && integerBetween(n,0,key==='hands'?5*hero.level:key==='surge'?2:key==='feat'?20:4))))
     && (g.journal===undefined || validJournal(g.journal))
     && (g.dmChecks===undefined || (Array.isArray(g.dmChecks)&&g.dmChecks.length<=2&&new Set(g.dmChecks).size===g.dmChecks.length&&g.dmChecks.every(id=>['persuade-keeper','investigate-signal'].includes(id))))
     && (g.worldFacts===undefined||(Array.isArray(g.worldFacts)&&g.worldFacts.length<=60&&g.worldFacts.every(t=>typeof t==='string'&&t.length>0&&t.length<=800)))

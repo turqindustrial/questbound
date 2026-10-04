@@ -3,6 +3,7 @@ import {View,Text,Pressable,StyleSheet} from 'react-native';
 import {fonts,colors,tint} from './theme';
 import {abilities,advancementLevels,finalScores,buildError,makeCharacter} from './characterRules';
 import {subclassOptions} from './subclassOptions';
+import {subclassFirstFeatures} from './subclassRules';
 import {spellLimits,spellSelectionError,spellLibrary} from './spellOptions';
 import {combatBasics} from './combatRules';
 import SpellSelector from './SpellSelector';
@@ -38,7 +39,7 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
     <Text style={s.text}>You have earned a new level. Review your choices, then return to your adventure rested. You remain a {hero.class}. Hit points rise by your class’s fixed average.</Text>
     {nextLevel>=3 && (!hero.plannedSubclass || hero.level<3) && <>
       <Text style={s.heading}>Choose your subclass</Text>
-      {Object.entries(subclassOptions[hero.class]).map(([name,description])=><View key={name}>{button(name,()=>setDraft({...draft,plannedSubclass:name}),draft.plannedSubclass===name)}<Text style={s.caption}>{description}</Text></View>)}
+      {Object.entries(subclassOptions[hero.class]).map(([name,description])=><View key={name}>{button(name,()=>setDraft({...draft,plannedSubclass:name}),draft.plannedSubclass===name)}<Text style={s.caption}>{description}</Text>{subclassFirstFeatures(name).map(f=><Text key={f.name} style={s.feature}>✦ {f.name}: {f.brief}</Text>)}</View>)}
     </>}
     {improve&&<><Text style={s.heading}>Ability score improvement</Text><Text style={s.caption}>Choose twice: +2 to one ability or +1 to two abilities, up to 20.</Text>{[[first,setFirst],[second,setSecond]].map(([chosen,setChosen],index)=><View key={index}><Text style={s.text}>Improvement {index+1}</Text><View style={s.row}>{abilities.map(a=>button(a,()=>setChosen(a),chosen===a))}</View></View>)}</>}
     {!!spellLimits(form)&&<><Text style={s.heading}>Review your spells</Text><SpellSelector form={form} onChange={patch=>setDraft(previous=>({...previous,...patch}))}/></>}
@@ -55,4 +56,4 @@ export default function Advancement({hero,onSave,onCancel,saving,error}) {
 const s=StyleSheet.create({levelCard:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:16,padding:18,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),marginBottom:14},
  newLevel:{alignItems:'center'},newLevelLabel:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:colors.goldMid,textTransform:'uppercase'},newLevelValue:{fontFamily:fonts.logo,fontSize:48,lineHeight:56,fontWeight:'900',color:colors.gold},
  gains:{flexGrow:1,gap:6,minWidth:180},gain:{flexDirection:'row',alignItems:'center',gap:8},gainText:{fontFamily:fonts.ui,fontSize:14,color:tint('#e2dde1')},gainUp:{fontWeight:'800',color:colors.goldBright},buttonRow:{flexDirection:'row',alignItems:'center',gap:8},
- heading:{fontFamily:fonts.display,fontSize:20,color:colors.gold,fontWeight:'700',letterSpacing:1.2,marginTop:22,marginBottom:8,textTransform:'uppercase'},text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:15,lineHeight:24},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:22,marginVertical:10},button:{backgroundColor:tint('#271e29'),borderColor:tint('rgba(178,34,58,.35)'),borderWidth:1,borderRadius:22,paddingVertical:10,paddingHorizontal:16,minHeight:44,marginTop:8,justifyContent:'center'},active:{borderColor:tint('rgba(224,74,92,.7)'),backgroundColor:tint('rgba(48,26,78,.92)')},row:{flexDirection:'row',flexWrap:'wrap',gap:8},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});
+ heading:{fontFamily:fonts.display,fontSize:20,color:colors.gold,fontWeight:'700',letterSpacing:1.2,marginTop:22,marginBottom:8,textTransform:'uppercase'},text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:15,lineHeight:24},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:22,marginVertical:10},feature:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20,marginTop:-4,marginBottom:8,paddingLeft:6},button:{backgroundColor:tint('#271e29'),borderColor:tint('rgba(178,34,58,.35)'),borderWidth:1,borderRadius:22,paddingVertical:10,paddingHorizontal:16,minHeight:44,marginTop:8,justifyContent:'center'},active:{borderColor:tint('rgba(224,74,92,.7)'),backgroundColor:tint('rgba(48,26,78,.92)')},row:{flexDirection:'row',flexWrap:'wrap',gap:8},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});

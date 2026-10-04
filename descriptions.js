@@ -2,6 +2,7 @@ import {weapons,attackOptions,attacksPerAction,canThrow} from './weaponRules';
 import {masteryOf,masteryText,unarmedDC} from './masteryRules';
 import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
+import {subclassAction,subclassUses,subclassUsesLeft,subclassScaled} from './subclassRules';
 import {knownSpells} from './spellRules';
 import {placeName,travelRoute,mapLocation,distanceText,durationText} from './mapRules';
 import {magicItems,packMagic} from './lootRules';
@@ -130,6 +131,7 @@ export function actionDescription(action,hero,game){
  if(key==='class:hands')return 'Lay on Hands: heal your own wounds from a pool of '+5*level+' hit points that returns after a long rest. A bonus action.';
  if(key==='class:strike')return 'Martial Arts: follow up with one unarmed strike. A bonus action.';
  if(key==='class:surge')return 'Action Surge: push past your limits and take one more action this turn (an attack, a Dodge, anything but casting a spell). Free; once a turn, and '+(hero?.level>=17?'twice':'once')+' between rests: a short or long rest brings it back.';
+ {const feat=subclassAction(hero);if(feat&&key==='class:'+feat.id){const limit=subclassUses(hero,feat.uses),back=subclassScaled(feat.recharge,level,'long')==='short'?'a short or long rest':'a long rest';return feat.description+' '+subclassUsesLeft(hero,game??{})+' of '+limit+' uses left; they return after '+back+'.';}}
  if(key==='short-rest')return 'Rest for an hour: you and each companion regain half your hit points, and a Fighter’s Second Wind and Action Surge and a Warlock’s spell slots return. '+shortRestLimit(hero)+' short rests between long rests.';
  if(key==='long-rest')return 'Sleep the night somewhere safe: all hit points, spell slots, abilities and short rests return.';
  if(key==='death-save')return 'Roll a d20. Ten or more is a success: three successes and you live, three failures and you die. A 20 puts you back on your feet with 1 hit point; a 1 counts as two failures.';
@@ -145,6 +147,8 @@ export function actionCost(action,game){
  const key=String(action?.key??'');
  if(game.stage!=='combat'&&!game.npcCombat?.active)return null;
  if(['potion','class:wind','class:hands','class:strike'].includes(key)||key.startsWith('drink:'))return 'Bonus action';
+ // A subclass's own action: its chip says Bonus when it costs the bonus action.
+ if(key.startsWith('class:'))return /^Bonus\b/.test(action.detail??'')?'Bonus action':'Action';
  if(key.startsWith('offhand:'))return action.detail==='Nick'?null:'Bonus action';
  if(key.startsWith('spell:'))return action.detail?.includes('Bonus')?'Bonus action':'Action';
  if(key.startsWith('give-potion:'))return 'Bonus action';

@@ -1,4 +1,5 @@
 import {abilities, modifier, validLevel, proficiencyBonus, subclassActive} from './characterRules';
+import {subclassPassive} from './subclassRules';
 
 export const hitDice = {Artificer:8,Barbarian:12,Bard:8,Cleric:8,Druid:8,Fighter:10,Monk:8,Paladin:10,Ranger:10,Rogue:8,Sorcerer:6,Warlock:8,Wizard:6};
 export const signed = number => number >= 0 ? `+${number}` : `${number}`;
@@ -10,13 +11,16 @@ export function combatBasics(hero) {
   const dwarfBonus = (hero.species ?? hero.race) === 'Dwarf' ? 1 : 0;
   const toughBonus = hero.originFeat === 'Tough' ? 2 : 0;
   const draconicBonus = subclassActive(hero,'Draconic Sorcery') ? hero.level : 0;
+  // What the hero's subclass adds (subclassRules.js): hit points per level, initiative, armour class, critical range.
+  const sub = subclassPassive(hero), subHP = sub.hp*hero.level;
   const laterHP = Math.max(1,Math.floor(hitDice[hero.class]/2)+1+mods.Constitution);
-  const hp = Math.max(1,hitDice[hero.class] + mods.Constitution) + (hero.level-1)*laterHP + hero.level*(dwarfBonus+toughBonus) + draconicBonus;
-  const hpFormula = `${hitDice[hero.class]} (${hero.class}) ${signed(mods.Constitution)} Constitution${dwarfBonus ? ' +1 Dwarven Toughness' : ''}${toughBonus ? ' +2 Tough' : ''}${hero.level>1 ? ` + ${hero.level-1} × (${laterHP+dwarfBonus+toughBonus}) later levels` : ''}${draconicBonus ? ` +${draconicBonus} Draconic Resilience` : ''}`;
+  const hp = Math.max(1,hitDice[hero.class] + mods.Constitution) + (hero.level-1)*laterHP + hero.level*(dwarfBonus+toughBonus) + draconicBonus + subHP;
+  const hpFormula = `${hitDice[hero.class]} (${hero.class}) ${signed(mods.Constitution)} Constitution${dwarfBonus ? ' +1 Dwarven Toughness' : ''}${toughBonus ? ' +2 Tough' : ''}${hero.level>1 ? ` + ${hero.level-1} × (${laterHP+dwarfBonus+toughBonus}) later levels` : ''}${draconicBonus ? ` +${draconicBonus} Draconic Resilience` : ''}${subHP ? ` +${subHP} ${sub.hpName}` : ''}`;
   const alertBonus = hero.originFeat === 'Alert' ? proficiency : 0;
   const gloomBonus=subclassActive(hero,'Gloom Stalker') ? mods.Wisdom : 0;
-  const initiative = mods.Dexterity + alertBonus + gloomBonus;
-  const initiativeFormula = `${signed(mods.Dexterity)} Dexterity${alertBonus ? ` +${proficiency} Alert` : ''}${gloomBonus ? ` ${signed(gloomBonus)} Dread Ambusher` : ''}`;
+  const subInitiative = sub.initiative.reduce((n,i)=>n+mods[i.ability],0);
+  const initiative = mods.Dexterity + alertBonus + gloomBonus + subInitiative;
+  const initiativeFormula = `${signed(mods.Dexterity)} Dexterity${alertBonus ? ` +${proficiency} Alert` : ''}${gloomBonus ? ` ${signed(gloomBonus)} Dread Ambusher` : ''}${sub.initiative.map(i=>` ${signed(mods[i.ability])} ${i.name}`).join('')}`;
   let ac = null, defense = 'Save your starter equipment to calculate armor class.', acFormula = '', armorNote = '';
   if (hero.equipment?.items) {
     const has = name => hero.equipment.items.some(i => i.name === name && i.quantity > 0);
@@ -38,13 +42,17 @@ export function combatBasics(hero) {
       const dragon = subclassActive(hero,'Draconic Sorcery') ? 10+mods.Dexterity+mods.Charisma : 0;
       const dance = !shield && subclassActive(hero,'College of Dance') ? 10+mods.Dexterity+mods.Charisma : 0;
       if(Math.max(dragon,dance)>ac){ac=Math.max(dragon,dance);defense=dragon>=dance?'Draconic Resilience':'Dazzling Footwork';acFormula=`10 ${signed(mods.Dexterity)} Dexterity ${signed(mods.Charisma)} Charisma`;}
+      const woven = sub.acBase ? 10+mods.Dexterity+mods[sub.acBase] : 0;
+      if(woven>ac){ac=woven;defense=sub.acBaseName;acFormula=`10 ${signed(mods.Dexterity)} Dexterity ${signed(mods[sub.acBase])} ${sub.acBase}`;}
     }
     if (shield) {ac += shield; defense += ' + Shield'; acFormula += ' +2 Shield';}
+    const armored = hero.equipment.items.some(i=>i.quantity>0 && /Armor|Chain Mail|Chain Shirt/.test(i.name));
+    for (const b of sub.acBonus) if (b.when==='any' || (b.when==='armor' && armored) || (b.when==='unarmored' && !armored && !shield)) {ac += b.n; acFormula += ` +${b.n} ${b.name}`;}
     // Magic worn or carried (a geared hero's equipment.magic: +N armour or shield, protection, bracers).
     const magic = hero.equipment.magic;
     if (magic?.ac > 0) {ac += magic.ac; acFormula += ' ' + magic.acText.join(' ');}
   }
-  return {available:true,hp,hpFormula,hitDie:`1d${hitDice[hero.class]}`,ac,defense,acFormula,armorNote,initiative,initiativeFormula,proficiency,initiativeAdvantage:subclassActive(hero,'Champion') || (hero.class==='Barbarian' && hero.level>=7),criticalThreshold:subclassActive(hero,'Champion') ? (hero.level>=15?18:19) : 20};
+  return {available:true,hp,hpFormula,hitDie:`1d${hitDice[hero.class]}`,ac,defense,acFormula,armorNote,initiative,initiativeFormula,proficiency,initiativeAdvantage:subclassActive(hero,'Champion') || (hero.class==='Barbarian' && hero.level>=7) || sub.initiativeAdvantage,criticalThreshold:Math.min(sub.crit,subclassActive(hero,'Champion') ? (hero.level>=15?18:19) : 20)};
 }
 
 export function rollResultText(text){

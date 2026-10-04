@@ -1,5 +1,6 @@
 import {modifier,proficiencyBonus} from './characterRules';
 import {weapons,weaponAttacks} from './weaponRules';
+import {subclassPassive} from './subclassRules';
 // Weapon Mastery, two-weapon fighting, and grappling and shoving: the 2024 rules (SRD 5.2) in Questbound's own words.
 // Each weapon kind has one mastery property (weaponRules.js); a hero uses it only for kinds they have mastered, and only
 // Barbarians, Fighters, Paladins, Rangers and Rogues master weapons. What a mastery or a grapple leaves on a creature
@@ -75,7 +76,7 @@ export function creatureSize(game,key){
 }
 // A grapple or shove works only on a creature no more than one size larger than the hero.
 export const withinGrip=(hero,size)=>sizes.indexOf(size)<=sizes.indexOf(heroSize(hero))+1;
-export const unarmedDC=hero=>8+modifier(hero.scores?.Strength??10)+proficiencyBonus(hero.level??1);
+export const unarmedDC=hero=>8+modifier(hero.scores?.Strength??10)+proficiencyBonus(hero.level??1)+subclassPassive(hero).grappleDC;
 // The target resists with Strength or Dexterity, whichever is better for it.
 export function unarmedSave(saves,random){
  const str=saves?.Strength??0,dex=saves?.Dexterity??0,ability=dex>str?'Dexterity':'Strength',bonus=Math.max(str,dex),die=1+Math.floor(random()*20);
@@ -146,13 +147,13 @@ export const sapSpent=(game,key)=>markOf(game,key).sapped?withMark(game,key,{sap
 export function sapsEnd(game){let next=game;for(const key of Object.keys(game.marks??{}))next=sapSpent(next,key);return next;}
 // The end of the hero's own turn: what lasts only for a turn goes, and Vex lasts one more turn of theirs.
 export function endHeroTurn(next){
- delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;delete next.lastHit;delete next.surged;
+ delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;delete next.lastHit;delete next.surged;delete next.featTurn;
  if(next.vex){if(next.vex.fresh)next.vex={target:next.vex.target};else delete next.vex;}
  return next;
 }
 // Nothing of a fight outlasts it.
 export function fightOver(game){
- const lasting=['marks','vex','lightAttack','nickUsed','cleaveUsed','lastHit','hurtBy','shieldUp','surged'];
+ const lasting=['marks','vex','lightAttack','nickUsed','cleaveUsed','lastHit','hurtBy','shieldUp','surged','featTurn'];
  if(!lasting.some(k=>game[k]!==undefined))return game;
  const next={...game};for(const k of lasting)delete next[k];return next;
 }
@@ -165,6 +166,8 @@ export function validMarks(g){
   &&(g.vex===undefined||(!!g.vex&&keys.test(String(g.vex.target))&&(g.vex.fresh===undefined||g.vex.fresh===true)))
   &&(g.lightAttack===undefined||(!!g.lightAttack&&typeof g.lightAttack.weapon==='string'&&g.lightAttack.weapon.length<=30&&keys.test(String(g.lightAttack.target))))
   &&(g.nickUsed===undefined||g.nickUsed===true)&&(g.cleaveUsed===undefined||g.cleaveUsed===true)
+  // A subclass's once-a-turn extra on a hit (subclassRules.js) has been used this turn.
+  &&(g.featTurn===undefined||g.featTurn===true)
   // After a melee hit (Divine Smite), after being hurt (Hellish Rebuke), and Shield raised until the hero's next turn.
   &&(g.lastHit===undefined||(!!g.lastHit&&keys.test(String(g.lastHit.target))&&(g.lastHit.critical===undefined||g.lastHit.critical===true)))
   &&(g.hurtBy===undefined||keys.test(String(g.hurtBy)))&&(g.shieldUp===undefined||g.shieldUp===true);
