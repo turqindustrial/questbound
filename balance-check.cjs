@@ -6,7 +6,7 @@
 const fs=require('fs'),vm=require('vm');
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics,surgeReady})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 // A written story's main foe, alongside the creature templates.
 const storyFoe={key:'story',foe:'Story Foe',species:'Unknown',type:'Slashing',appearance:'The main foe of a written story.',story:true};
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
@@ -26,6 +26,8 @@ function choose(hero,g,h,max){
  // (the turn waits for a bonus action), anything not worth using is skipped with End turn.
  if(!g.bonusUsed&&low&&(g.potions??0)>0)return 'potion';
  if(!g.bonusUsed&&low&&hero.class==='Fighter'&&(g.resources?.wind??0)<(hero.level>=10?4:hero.level>=4?3:2))return 'class:wind';
+ // A Fighter's Action Surge, while it is ready: one more action this turn.
+ if(g.actionUsed&&r.surgeReady(hero,g))return 'class:surge';
  if(g.actionUsed)return 'end-turn';
  if(hero.class==='Cleric'){if(low){const heal=cast('I cast Cure Wounds on myself');if(heal)return heal;}return cast('I cast Inflict Wounds on the '+foe)??cast('I cast Sacred Flame at the '+foe)??weapon();}
  if(hero.class==='Wizard')return cast('I cast Magic Missile at the '+foe)??cast('I cast Fire Bolt at the '+foe)??weapon();

@@ -833,6 +833,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         usedBonus = true;
       } else if (action === 'item:wand-of-magic-missiles') {
         // A Wand of Magic Missiles: an action, three darts of force that never miss, at the foe or the one beside it.
+        // Activating a magic item is the Magic action, which Action Surge's extra action cannot be.
+        if (game.surged) return {game, health, error: 'The extra action from Action Surge cannot be used to work magic: attack, dodge or retreat.'};
         const wand = packMagic(next, 'wand-of-magic-missiles');
         if (!wand) return {game, health, error: 'Your wand has no charges left.'};
         const darts = [0, 1, 2].map(() => 1 + Math.floor(random() * 4)), total = darts.reduce((a, b) => a + b, 0) + 3, charges = wand.magic.charges - 1;
