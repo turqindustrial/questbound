@@ -19,6 +19,8 @@ export const deedList=[
  {id:'good-company',title:'Good Company',icon:'party',line:'Someone joined you on the road.',earned:({log})=>log.some(e=>e.kind==='person'&&/ joined you\.$/.test(e.text))},
  {id:'full-purse',title:'Full Purse',icon:'coin',line:'Carried a hundred gold.',earned:({game,hero})=>packOf(game,hero).gold>=100},
  {id:'pack-rat',title:'Pack Rat',icon:'bag',line:'Carried eight different things.',earned:({game})=>(game.pack?.items??[]).filter(i=>i.name!=='Arrow'&&(i.qty??1)>0).length>=8},
+ // A magic item carried off (lootRules.js: a fallen foe's hoard, or an errand's reward).
+ {id:'treasure-hunter',title:'Treasure Hunter',icon:'gem',line:'Carried off a magic item.',earned:({game})=>(game.pack?.items??[]).some(i=>i.magic&&i.kind!=='potion')},
  {id:'well-rested',title:'Well Rested',icon:'rest',line:'Took three long rests.',earned:({log})=>countLines(log,e=>e.kind==='rest'&&/long rest/.test(e.text))>=3},
  {id:'page-turner',title:'Page Turner',icon:'scroll',line:'Finished a chapter of a long tale.',earned:({log})=>log.some(e=>e.kind==='quest'&&/^Finished chapter/.test(e.text))},
  {id:'storyteller',title:'Storyteller',icon:'book',line:'Saw a tale through to its end.',earned:({log})=>log.some(e=>e.kind==='quest'&&/^Adventure complete/.test(e.text))},

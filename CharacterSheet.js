@@ -22,7 +22,8 @@ import {fonts,colors,type,tint} from './theme';
 export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame}) {
   const [tab,setTab]=useState('Overview');
   const [showCalculations,setShowCalculations] = useState(false);
-  const stats = combatBasics(hero);
+  // Armor class with magic worn counted; hit points and scores are the hero's own.
+  const stats = combatBasics(game ? gearedHero(hero, game) : hero);
   const hp=health?.current??stats.hp;
   const {width}=useWindowDimensions(),narrow=width<520,longest=Math.max(6,...String(hero.name).split(/\s+/).map(w=>w.length));
   const nameSize=Math.max(18,Math.min(28,Math.floor((width-150)/(longest*.7))));

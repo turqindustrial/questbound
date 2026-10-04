@@ -31,6 +31,8 @@ import {campaignState,earnedGold} from './campaignRules';
 import {mapState,mapLocation,placeDescription,placeName} from './mapRules';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
+import {gearedHero} from './inventoryRules';
+import {attuneItem} from './lootRules';
 import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
 import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
 import {rememberTurn} from './turnMemory';
@@ -50,7 +52,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // New turns (yours, the table's or a scene moment) bring a phone player back to the story.
  const lastTurn=game.playback?.at(-1)?.id??0;
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
- const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
+ // Armor class with the hero's magic counted (a ring, a cloak, magic armour); hit points are the hero's own.
+ const stats=combatBasics(gearedHero(hero,game)),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
  const [inConversation,setInConversation]=useState(false);
  const [sideTab,setSideTab]=useState('quest');
  // The share sheet (the tale card), and a narrator silenced when the play screen is left.
@@ -152,7 +155,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'btn'}} style={s.shareButton}><Icon name="send" size={14} color={colors.gold}/><PlainText style={s.shareText}>Share your tale</PlainText></Pressable>
  </View>;
  // What you wear, wield and carry; a carried weapon can be taken in hand from here.
- const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>setGame({...game,wield:name})}/>;
+ const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>setGame({...game,wield:name})} onAttune={name=>{const done=attuneItem(game,hero,name);if(done.game)setGame({...done.game,log:[...done.lines,...(done.game.log??[])].slice(0,40)});}}/>;
  const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}

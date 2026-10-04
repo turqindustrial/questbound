@@ -122,6 +122,16 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
    <View style={s.dmgIcon}><Icon name="check" size={18} color={colors.goldBright}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>Lead seen through</PlainText><Text style={s.cardTitle}>{view.title}</Text></View>
   </>,[s.card,s.taleCard],{qb:'feed-roll'});
+  // Spoils: the search, what it found, and any magic item among it (lootRules.js).
+  case 'search':return wrap(<><Icon name="bag" size={13} color={colors.gold}/><Text style={s.overText}>You search {view.title}</Text></>,s.overRow);
+  case 'found':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="coin" size={18} color={colors.coin}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>Found</PlainText><Text style={s.cardOutcome}>{view.items.length?view.items.join(' · '):'Nothing of value.'}</Text></View>
+  </>,[s.card,s.taleCard],{qb:'feed-roll'});
+  case 'treasure':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="gem" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>Magic item · {view.rarity}</PlainText><Text style={s.cardTitle}>{view.name}</Text><Text style={s.cardOutcome}>{view.text}</Text></View>
+  </>,[s.card,s.taleCard],{qb:'feed-roll'});
   case 'level':return wrap(<>
    <View style={s.dmgIcon}><Icon name="starFill" size={18} color={colors.goldBright}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>A level earned</PlainText><PlainText style={s.cardOutcome}>Take it when you are ready, out of a fight.</PlainText></View>

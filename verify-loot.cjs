@@ -6,7 +6,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // draughts, the periapt). Saves stay valid, old ones still load, and a party's spoils are shared but its packs are not.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','descriptions.js','chronicleRules.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,freshStoryGame,adventureStep,commitDmTurn,dmCommand,dmContext,dmChoices,quickActions,validAdventure,adventureSnapshot,combatBasics,gearedHero,attackOptions,applyLoot,magicItems,magicItemIds,spoilsHere,takeSpoils,makeMagicItem,magicSuits,bossItem,attuneItem,withSpoils,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,skillCheckBonus,itemDescription,actionDescription,actionCost,describeEvent,spoilNotes,masteryOf,foeHitExtras,deathSave,lootTier})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,freshStoryGame,adventureStep,commitDmTurn,dmCommand,dmContext,dmChoices,quickActions,validAdventure,adventureSnapshot,combatBasics,gearedHero,attackOptions,applyLoot,magicItems,magicItemIds,spoilsHere,takeSpoils,makeMagicItem,magicSuits,bossItem,attuneItem,withSpoils,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,skillCheckBonus,itemDescription,actionDescription,actionCost,describeEvent,deedList,spoilNotes,masteryOf,foeHitExtras,deathSave,lootTier})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const plain=v=>JSON.parse(JSON.stringify(v));
 const seq=list=>{let i=0;return ()=>list[i++%list.length];};
@@ -194,6 +194,14 @@ assert.equal(saved.game.stage,'inn');assert.equal(saved.health.current,1);assert
 // A death save gains the cloak's +1 (a natural 1 is still two failures).
 same(r.deathSave({stage:'dying',dying:{successes:0,failures:0,place:'inn'}},null,()=>0.42,{bonus:1}).events,['Death saving throw: d20 [9] + 1 = 10 vs DC 10. Success. Successes 1, failures 0.']);
 
+// The feed reads the engine's own lines: the attack with its magic, the search, what was found, a magic item.
+{const kindOf=t=>/initiative|turn order/i.test(t)?'initiative':/d20|\bd\d+\b|save |damage|\bHP\b/i.test(t)?'roll':'action',card=t=>r.describeEvent({text:t,kind:kindOf(t)});
+ const swing=card(line);assert.equal(swing.type,'roll');assert.equal(swing.verdict,'hit');assert.match(swing.math,/\+ 1 magic = /);
+ assert.equal(card(dmg).type,'damage');same([card(lw.events[0]).type,card(lw.events[1]).type],['search','found']);assert.ok(card(lw.events[1]).items.includes('Spider silk (worth 6 gold)'));
+ const gem=card(bl.events.find(t=>t.startsWith('Among the hoard: ')));assert.equal(gem.type,'treasure');assert.equal(gem.rarity,'uncommon');
+ same(card(drunk.events.find(t=>/Greater healing draught/.test(t))),{type:'heal',title:'Greater healing draught',amount:8});}
+// A deed for carrying off a magic item.
+assert.ok(r.deedList.some(d=>d.id==='treasure-hunter'&&d.earned({game:bl.game,hero:kara,log:[]})),'Treasure Hunter: a magic item carried off');
 // ---- 7. Validators ----
 const bad=items=>!valid(kara,withItems(camp(kara),items));
 assert.ok(bad([1,2,3,4].map(n=>({...r.makeMagicItem('cloak-of-protection',kara),name:'Cloak '+n,attuned:true}))),'four attuned items are refused');
