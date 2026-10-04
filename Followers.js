@@ -38,7 +38,7 @@ export default function Followers({hero,game,setGame,onBack}){
  {!!groups.waiting.length&&<PlainText accessibilityRole="header" style={s.section}>Waiting</PlainText>}
  {groups.waiting.map(c=>card(c,{status:'Waiting at '+c.place,icon:'camp',body:agreement(c.follower),actions:[c.present?['Rejoin',()=>manage(c.id,'resume'),'travel','secondary',travelling>=maxFollowing]:['Send for them',()=>manage(c.id,'call'),'travel','secondary',travelling>=maxFollowing||c.hp<=0],['Part ways',()=>manage(c.id,'dismiss'),'close','danger']]}))}
  {!!offers.length&&<PlainText accessibilityRole="header" style={s.section}>Offering to come along</PlainText>}
- {offers.map(id=>{const n=scene.find(x=>x.id===id),c={id,name:nameOf(id),role:npcLore(game,id)?.role??null,trained:null,hp:n.hp,maximumHP:n.maximumHP};return card(c,{status:'Here, and willing to come',icon:'party',body:agreement(game.joinOffers[id]),actions:[['Take them along',()=>apply(acceptOffer(hero,game,id)),'travel','primary',!hero||travelling>=maxFollowing]]});})}
+ {offers.map(id=>{const n=scene.find(x=>x.id===id),c={id,name:nameOf(id),role:npcLore(game,id)?.role??null,trained:game.npcClasses?.[id]??null,hp:n.hp,maximumHP:n.maximumHP};return card(c,{status:'Here, and willing to come',icon:'party',body:agreement(game.joinOffers[id]),actions:[['Take them along',()=>apply(acceptOffer(hero,game,id)),'travel','primary',!hero||travelling>=maxFollowing]]});})}
  {!!groups.allies.length&&<PlainText accessibilityRole="header" style={s.section}>Allies</PlainText>}
  {!!groups.allies.length&&<PlainText style={s.note}>Allies stand with you where they live. Ask them to come along to bring them with you.</PlainText>}
  {groups.allies.map(c=>card(c,{status:'At '+c.place,icon:'shield'}))}
