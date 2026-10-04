@@ -651,7 +651,7 @@ function castBuff(hero,game,hp,spell,effect,{mod,request,foeType}){
 // Shield, cast for the hero as a reaction when a blow would otherwise land: +5 AC until the start of their next turn.
 // Returns null when it cannot or would not help (a critical hit, a blow that hits anyway, no reaction or slot left).
 export function shieldReaction(hero,game,attackTotal,ac,critical){
-  if(critical||attackTotal<ac||attackTotal>=ac+5||game.reactionUsed||game.shieldUp||game.autoShield===false)return null;
+  if(critical||attackTotal<ac||attackTotal>=ac+5||game.reactionUsed||game.shieldUp)return null;
   const spell=knownSpells(hero).find(s=>s.id==='shield');if(!spell)return null;
   const slot=slotChoices(hero,game,spell)[0];if(typeof slot!=='number')return null;
   const next=spendSpell(hero,game,spell,slot);if(game.slotSpentThisTurn)next.slotSpentThisTurn=true;else delete next.slotSpentThisTurn;
