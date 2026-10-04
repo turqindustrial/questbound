@@ -135,6 +135,7 @@ const check={ability:'Strength',skill:'Athletics',dc:10,mode:'normal',reason:'Ki
  assert.ok(valid(vet,hit.game,hit.health));
  assert.match(r.dmContext(vet,hit.game,hit.health).turnResources.left,/only their bonus action \(the action is spent\); Action Surge/);
  const surge=ok(r.adventureStep(hit.game,hit.health,vet,r.dmCommand(vet,hit.game,'I use Action Surge',hit.health).action,()=>0.5));
+ {const chip=r.quickActions(vet,hit.game,hit.health).find(a=>a.key==='class:surge');ok(r.commitDmTurn(vet,hit.game,hit.health,chip.action,talk(chip.question),()=>0.5),'the Action Surge chip through the Dungeon Master');}
  assert.equal(surge.game.actionUsed,undefined);assert.equal(surge.game.surged,true);assert.equal(surge.game.resources.surge,1);
  assert.ok(valid(vet,surge.game,surge.health));
  assert.match(r.adventureStep(surge.game,surge.health,vet,'class:surge').error,/once a turn/);
