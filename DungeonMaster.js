@@ -317,8 +317,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const extraChips=[...effects.map(line=><View key={'effect:'+line} style={[s.effectChip,{height:chipH-4}]}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
     ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={[s.personChip,{height:chipH}]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.chipAvatar,tight&&s.chipAvatarTight]} compact/><PlainText numberOfLines={1} style={[s.chipName,tight&&{fontSize:13}]}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/>{!tight&&<PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText>}</View></Pressable>)];
   const picker=spellsOpen||attackOpen||!!waitRow;
-  const chipRows=chipLayout(viewWidth,viewHeight,{picker}).rows;
-  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} rowHeight={chipH} gap={fit.gap} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen} label="Quick actions" dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
+  const {rows:chipRows,openRows}=chipLayout(viewWidth,viewHeight,{picker});
+  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH} gap={fit.gap} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen} label="Quick actions" dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
   // The Actions | Suggestions tabs sit just above the message box. A suggestion is a short thing to say in the hero's
   // own voice; a tap writes it into the box (it never sends), so the player can change it first. The suggestions wrap
   // onto a second line rather than scrolling sideways.

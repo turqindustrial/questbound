@@ -69,15 +69,16 @@ export function Segmented({options,value,onChange,style}){
 // A row of chips that wraps onto at most `rows` lines; when more would be needed, a More chip shows the rest in place
 // (and Less folds them away again; `resetKey` folds them on a new turn). Nothing in the game scrolls sideways
 // (verify-presentation.cjs). Every chip sits in a cell of the row's height, so a line held back is never half shown, and
-// a chip wider than the row is cut to it (its words end in an ellipsis).
+// a chip wider than the row is cut to it (its words end in an ellipsis). Opened, it grows to `openRows` lines at most
+// and scrolls up and down beyond that, so a long list never pushes the message box off a small phone.
 const rowItems=children=>React.Children.toArray(children).flatMap(child=>child?.type===React.Fragment?rowItems(child.props.children):[child]);
-export function WrapRow({rows=2,rowHeight=36,gap=6,resetKey,children,style,label,moreLabel='More',dataSet,accessibilityRole}){
+export function WrapRow({rows=2,openRows=0,rowHeight=36,gap=6,resetKey,children,style,label,moreLabel='More',dataSet,accessibilityRole}){
  const [natural,setNatural]=useState(0),[open,setOpen]=useState(false);
  useEffect(()=>{setOpen(false);},[resetKey]);
- const items=rowItems(children),limit=wrapLimit(rows,rowHeight,gap),over=wrapOverflows(natural,limit);
+ const items=rowItems(children),limit=wrapLimit(rows,rowHeight,gap),over=wrapOverflows(natural,limit),openLimit=openRows>rows?wrapLimit(openRows,rowHeight,gap):0;
  if(!items.length)return null;
  return <View accessibilityLabel={label} dataSet={dataSet??{qb:'wrap-row'}} style={[s.wrapRow,{gap},style]}>
-  <View accessibilityRole={accessibilityRole} style={[s.wrapClip,over&&!open&&{maxHeight:limit}]}>
+  <View accessibilityRole={accessibilityRole} style={[s.wrapClip,over&&!open&&{maxHeight:limit},over&&open&&openLimit>0&&wrapOverflows(natural,openLimit)&&{maxHeight:openLimit,overflowY:'auto'}]}>
    <View onLayout={e=>setNatural(Math.round(e.nativeEvent.layout.height))} style={[s.wrapFlow,{gap}]}>{items.map(item=><View key={item.key} style={[s.wrapCell,{height:rowHeight}]}>{item}</View>)}</View>
   </View>
   {over&&<Pressable accessibilityRole="button" accessibilityState={{expanded:open}} accessibilityLabel={open?'Show fewer':'Show all'} onPress={()=>{playSound('click');setOpen(v=>!v);}} dataSet={{qb:'chip',keepfocus:'true'}} style={[s.more,{height:rowHeight,borderRadius:rowHeight/2}]}><Icon name={open?'close':'dots'} size={14} color={colors.gold}/><Text style={s.moreText}>{open?'Less':moreLabel}</Text></Pressable>}

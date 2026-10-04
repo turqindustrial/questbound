@@ -39,7 +39,7 @@ assert.ok(!read('webLayout.js').includes("addEventListener('wheel'"),'no wheel-t
 const ui=read('ui.js'),dm=read('DungeonMaster.js'),map=read('AdventureMap.js'),party=read('PartyPanel.js');
 assert.ok(ui.includes('export function WrapRow(')&&ui.includes('wrapLimit(rows,rowHeight,gap)')&&ui.includes("accessibilityLabel={open?'Show fewer':'Show all'}")&&ui.includes('useEffect(()=>{setOpen(false);},[resetKey]);'));
 assert.ok(/wrapCell:\{maxWidth:'100%'/.test(ui),'a chip wider than the row is cut to it');
-assert.ok(dm.includes('<WrapRow key={key} rows={rows} rowHeight={chipH}')&&!dm.includes('ScrollView')&&!dm.includes('actionScroll'),'the action rows wrap');
+assert.ok(dm.includes('<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH}')&&!dm.includes('ScrollView')&&!dm.includes('actionScroll'),'the action rows wrap');
 assert.ok(dm.includes("resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen}"),'More folds away on a new turn or picker');
 assert.ok(/actionTight:\{[^}]*maxWidth:'100%'/.test(dm),'a long story chip takes a row at most on a phone');
 assert.ok(map.includes('<WrapRow rows={1} rowHeight={34}')&&/regionTab:\{[^}]*height:34/.test(map),'the row of lands is one line with More');
@@ -52,6 +52,8 @@ const rows=(w,h,o)=>chipLayout(w,h,o).rows;
 assert.equal(rows(1400,860),3);assert.equal(rows(1366,680),2);assert.equal(rows(375,812),2);assert.equal(rows(320,568),2);assert.equal(rows(812,375),1);
 assert.equal(rows(1400,860,{picker:true}),3);assert.equal(rows(375,812,{picker:true}),3);assert.equal(rows(812,375,{picker:true}),2);
 assert.equal(chipLayout(375,812).rowHeight,36);assert.equal(chipLayout(1400,860).rowHeight,40);assert.equal(chipLayout(812,375).rowHeight,36);
+assert.equal(chipLayout(320,568).openRows,3);assert.equal(rows(320,568,{picker:true}),2);assert.equal(chipLayout(375,667).openRows,4);assert.equal(chipLayout(375,812).openRows,6);assert.equal(chipLayout(1400,960).openRows,8);assert.equal(chipLayout(812,375).openRows,3);
+assert.ok(ui.includes("over&&open&&openLimit>0&&wrapOverflows(natural,openLimit)&&{maxHeight:openLimit,overflowY:'auto'}"),'an opened row grows only so far, then scrolls up and down');
 assert.equal(wrapLimit(2,36,6),78);assert.equal(wrapLimit(1,34,6),34);assert.equal(wrapOverflows(78,78),false);assert.equal(wrapOverflows(120,78),true);
 
 // 3. The title: the valley painting, simply framed.
