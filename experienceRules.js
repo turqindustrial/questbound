@@ -10,16 +10,19 @@ import {dungeonRooms} from './dungeonRules';
 export const xpThresholds=[0,300,900,2700,6500,14000,23000,34000,48000,64000,85000,100000,120000,140000,165000,195000,225000,265000,305000,355000];
 export const xpForLevel=level=>xpThresholds[Math.max(1,Math.min(20,Math.floor(level)||1))-1];
 export function levelForXp(xp){let level=1;while(level<20&&xp>=xpThresholds[level])level++;return level;}
-// How fast a level comes: a multiplier on every share. It never rises from level 2 on.
+// How fast a level comes: a multiplier on every share. It never rises from level 2 on. Tuned (verify-experience.cjs
+// simulates it) so that a player meeting about 1.3 fights, a chapter and a few places an hour reaches level 2 after
+// the first two fights (about 12 minutes), level 3 at about 35 minutes, 4 at 1.5 h, 5 at 3 h, 10 at 14 h, 15 at 28 h
+// and 20 at about 45 h.
 export function xpPace(level){
  if(level>=20)return 0;
  if(level<=1)return 8;
- if(level===2)return 2.6;
- if(level===3)return 1.45;
+ if(level===2)return 2.2;
+ if(level===3)return 1.6;
  if(level===4)return 0.95;
- if(level<=9)return 0.62;
- if(level<=14)return 0.5;
- return 0.4;
+ if(level<=9)return 0.69;
+ if(level<=14)return 0.55;
+ return 0.45;
 }
 // What each thing is worth, as a share of the current level's gap (before the pace).
 export const xpAwards={creature:.07,lairMul:1.5,manyMul:1.25,boss:.35,brawlFoe:.04,brawlMax:2,chapter:.35,lead:.12,tale:.25,place:.015,land:.05};
