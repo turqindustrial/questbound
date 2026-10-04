@@ -1269,6 +1269,8 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
 // own turn (`dodging`) is harder to hit.
 function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
  let next={...game,npcCombat:{...game.npcCombat}},hp={...health},downed=null;const stats=combatBasics(hero),logs=[];
+ // Who last hurt the hero this round (Hellish Rebuke answers them); Shield drops as the round of blows begins anew.
+ delete next.hurtBy;delete next.shieldUp;
  const who=id=>npcProfile(next,id),alive=id=>(next.npcHP?.[id]??who(id).maximumHP)>0;
  const enemies=()=>next.npcCombat.order.filter(n=>n.side==='enemy'&&alive(n.id));
  const dodgeLead=party?(party.dodging??[]).includes(next.party?.lead):dodge;
@@ -1306,7 +1308,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(shield)logs.push(shield.line);
   logs.push(`${who(actor.id).name} attacks ${allied?who(victim.id).name:'you'}: d20 [${attack.dice.join(', ')}] (${attack.mode}${helped?', Help':''}${!allied&&dodgeLead?', Dodge':''}${defense.disadvantage?', Blur':''}${why.length?', '+why.join(', '):''}) + 2 =${attack.total} vs AC ${defense.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} Bludgeoning damage${damageRoll?' ('+damageRoll.dice.length+'d4 ['+damageRoll.dice.join(', ')+'] + 0)':''}.`);
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
-  else if(damage){const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
+  else if(damage){if(!party)next.hurtBy=actor.id;const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
  // Felled in a brawl, the hero is left dying where they lie and the defenders stand back (in a party, the others
  // fight on).

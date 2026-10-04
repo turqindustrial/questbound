@@ -146,16 +146,21 @@ export function spellCostOptions(hero,game,spell) {
   if(speciesSpells(hero).includes(spell.id)&&spell.level>0&&(game.speciesUsed?.[spell.id]??0)<speciesUseLimit(hero,spell.id))choices.unshift('species');
   return choices;
 }
+// In a fight a spell must be quick: one that takes a minute or more waits for a calmer moment, and a reaction is cast
+// when its moment comes (Shield when a blow would land, Hellish Rebuke right after you are hurt), not as your action.
+export function fightTimingError(spell,game,reaction=false){
+  if(!(game.stage==='combat'||game.npcCombat?.active))return '';
+  if(!['Action','Bonus Action','Reaction'].includes(spell.castingTime))return `${spell.name} takes ${spell.castingTime.toLowerCase()} to cast: not in the middle of a fight.`;
+  if(spell.castingTime==='Reaction'&&!reaction)return spell.id==='shield'?'Shield is a reaction: the game raises it for you when a blow would otherwise land.':`${spell.name} is cast as a reaction, when its moment comes, not as your action.`;
+  return '';
+}
 export function castError(hero,game,request) {
   const spell=knownSpells(hero).find(s=>s.id===request?.id);
   if(!spell)return 'That spell is not prepared or granted to this character.';
   if(!castingStages.includes(game.stage))return game.stage==='dying'?'You are dying: only a death save now.':game.stage==='dead'?'The dead cast no spells.':'You cannot cast a spell right now.';
   if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
-  // In a fight a spell must be quick: one that takes a minute or more waits for a calmer moment, and a reaction is
-  // cast when its moment comes (Shield when a blow would land, Hellish Rebuke right after you are hurt), not as your action.
-  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
-  if(fighting&&!['Action','Bonus Action','Reaction'].includes(spell.castingTime))return `${spell.name} takes ${spell.castingTime.toLowerCase()} to cast: not in the middle of a fight.`;
-  if(fighting&&spell.castingTime==='Reaction'&&!request.reaction)return spell.id==='shield'?'Shield is a reaction: the game raises it for you when a blow would otherwise land.':`${spell.name} is cast as a reaction, when its moment comes, not as your action.`;
+  const fighting=game.stage==='combat'||!!game.npcCombat?.active,timing=fightTimingError(spell,game,request.reaction);
+  if(timing)return timing;
   const flags=game.castingConditions??{},components=spell.components??'';
   if(flags.incapacitated)return 'You cannot cast while incapacitated.';
   if(components.includes('V')&&flags.silenced)return 'This spell needs spoken words, but you are silenced.';
@@ -355,7 +360,10 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       damage+=dealt;logs.push(`The shard bursts: ${save.text}: ${save.success?'success; no':'failure; '+dealt} ${t.type} damage${save.success?'':` (${dice.length}d${t.die} [${dice.join(', ')}])`}.`);
     }
   }
-  if(damage>0&&!effect.inflict)next=breakOnDamage(next,key);
+  if(damage>0&&!effect.inflict){
+    const broke=spellCondsOf(next,key).filter(c=>breakable.includes(c));
+    if(broke.length){next=breakOnDamage(next,key);logs.push(brokenLine(called.charAt(0).toUpperCase()+called.slice(1),broke));}
+  }
   return {game:next,health:hp,logs,damage,bonus:spell.castingTime==='Bonus Action'&&!effect.asAction,reaction:spell.castingTime==='Reaction',enemyDisadvantage};
 }
 // A target's resistance, immunity or vulnerability to a damage type.
@@ -515,9 +523,11 @@ export function banedAttack(game,key,attack,random=Math.random){
 // Bless on this hero: 1d4 on an attack roll or a saving throw.
 export function attackBoost(game,random=Math.random){return game.concentration?.id==='bless'?{amount:1+Math.floor(random()*4)}:{amount:0};}
 // Harm breaks a magical sleep, a trance and a charm.
+const breakable=['asleep','entranced','charmed'];
+const brokenLine=(name,conds)=>`${name} is hurt, and ${conds.map(c=>c==='charmed'?'the charm breaks':c==='asleep'?'wakes':'snaps out of the trance').join(' and ')}.`;
 export function breakOnDamage(game,key){
-  const list=spellMarksOf(game,key);if(!list.some(m=>['asleep','entranced','charmed'].includes(m.cond)))return game;
-  return setSpellMarks(game,key,list.filter(m=>!['asleep','entranced','charmed'].includes(m.cond)));
+  const list=spellMarksOf(game,key);if(!list.some(m=>breakable.includes(m.cond)))return game;
+  return setSpellMarks(game,key,list.filter(m=>!breakable.includes(m.cond)));
 }
 // Wakes anyone whose hit points fell between two states of the game (any blow, from anyone); returns the lines.
 export function wokenByHarm(before,after,name=k=>k){
@@ -526,9 +536,9 @@ export function wokenByHarm(before,after,name=k=>k){
   for(const key of Object.keys(after.marks??{})){
     const was=hpOf(before,key),now=hpOf(after,key);
     if(typeof was!=='number'||typeof now!=='number'||now>=was)continue;
-    const broke=spellMarksOf(after,key).filter(m=>['asleep','entranced','charmed'].includes(m.cond));
+    const broke=spellMarksOf(after,key).filter(m=>breakable.includes(m.cond));
     if(!broke.length)continue;
-    game=breakOnDamage(game,key);if(now>0)lines.push(`${name(key)} is hurt, and ${broke.map(m=>m.cond==='charmed'?'the charm breaks':m.cond==='asleep'?'wakes':'snaps out of the trance').join(' and ')}.`);
+    game=breakOnDamage(game,key);if(now>0)lines.push(brokenLine(name(key),broke.map(m=>m.cond)));
   }
   return {game,lines};
 }
@@ -684,7 +694,9 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
   const settled=!!effect?.narrated||(!!effect?.smite&&!!game.lastHit)||(!!effect?.rider&&!!request.npcTarget);
   if(!settled&&!(self?(onSelf||healPerson):onWisp))reasons.push('This target or area needs a DM ruling.');
   if(!effect?.narrated&&!(spell.castingTime==='Reaction'&&request.reaction)&&(!['Action','Bonus Action'].includes(spell.castingTime)||(request.slot==='ritual'&&!effect?.detection)))reasons.push('Casting time, reaction trigger, or ritual completion needs a DM ruling.');
-  const material=spell.material??'',special=/\b(?:gp|sp|cp|pp|worth|consum\w*)\b/i.test(material+' '+spell.description);
+  // A priced component the hero plainly carries (Bless's holy symbol, from a Cleric's or Paladin's kit) needs no check.
+  const material=spell.material??'',carried=/^a Holy Symbol worth \d+\+ GP$/i.test(material)&&items.some(i=>i.quantity>0&&/Holy Symbol/i.test(i.name));
+  const special=!carried&&/\b(?:gp|sp|cp|pp|worth|consum\w*)\b/i.test(material+' '+spell.description);
   if(components.includes('M')){
     const focusByClass={Wizard:/Arcane Focus/i,Sorcerer:/Arcane Focus/i,Warlock:/Arcane Focus/i,Cleric:/Holy Symbol/i,Paladin:/Holy Symbol/i,Druid:/Druidic Focus/i,Ranger:/Druidic Focus/i,Bard:/Lute|Flute|Drum/i,Artificer:/Tools/i};
     const focus=items.some(i=>i.quantity>0&&(/Component Pouch/i.test(i.name)||focusByClass[hero.class]?.test(i.name)));

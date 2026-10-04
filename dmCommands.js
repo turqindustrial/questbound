@@ -4,7 +4,7 @@ import {offhandWeapons} from './masteryRules';
 import {npcScene,npcIdsOf,npcLore} from './npcRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError} from './spellRules';
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
 // feet (or no weapon at all) make an Unarmed Strike, and "shoot" reaches for a bow.
 const VERBS='attack|strike|stab|slash|hit|punch|kick|swing at|smash|bash|cut down|cut|hack at|hack|chop at|chop|lunge at|charge at|charge|shoot at|shoot|headbutt|kill|slay|murder|finish off|cleave|club|bludgeon|thrust at|jab|knock out';
@@ -161,13 +161,15 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(!spell)return {error:'Name one of your prepared spells, for example: I cast Cure Wounds on myself.',soft:true};
   if(/\b(and|then) (?:I |cast |attack |move |go |flip )/i.test(detail))return {error:'Send one action at a time, including one spell and one target.',soft:true};
   const effect=automaticEffects[spell.id],fighting=game.stage==='combat'||!!game.npcCombat?.active;
+  // A spell the fight does not allow is refused before anything else is asked.
+  const timing=fightTimingError(spell,game,spell.id==='hellish-rebuke'&&!!game.hurtBy);if(timing)return {error:timing};
   // A slot level said any common way: "level 2 slot", "at 2nd level", "using a 3rd-level slot", "at level 3".
   const upcast=/\b(?:using |with )?(?:a |my )?(?:level (\d) slot|(\d)(?:st|nd|rd|th)[- ]level slot|at (?:level (\d)|(\d)(?:st|nd|rd|th) level))\b/i,level=detail.match(upcast),named=level?Number(level[1]??level[2]??level[3]??level[4]):null;
   const said=detail.replace(upcast,'').replace(/\s{2,}/g,' ');
   const bare=!/\b(on|at|targeting|toward|towards)\s+\S/i.test(said);
-  // Spells that need no one named: sensing and everyday magic, buffs on yourself, Divine Smite after a hit, and (in a
-  // creature fight) anything aimed at the creature you are fighting.
-  const untargeted=spell.range==='Self'||!!effect?.narrated||!!effect?.buff||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider));
+  // Spells that need no one named: sensing and everyday magic, buffs on yourself, Divine Smite after a hit, spells the
+  // Dungeon Master rules on (it asks if it needs to know), and (in a creature fight) anything aimed at the creature.
+  const untargeted=spell.range==='Self'||!effect||!!effect?.narrated||!!effect?.buff||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider));
   if(bare&&!untargeted)return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`,soft:true};
   const costs=spellCostOptions(hero,game,spell);
   // A free casting from the hero's species comes first, then (out of a fight) a ritual, which needs no slot, then a slot.
