@@ -789,6 +789,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         // An attempt the Dungeon Master ruled as a check (commitWorldCheck): its roll is already told; it spends the action.
       } else if (action === 'class:surge') {
         // Action Surge: one more action this turn (not the Magic action), once a turn, once per short or long rest.
+        if (game.surged) return {game, health, error: 'Action Surge works once a turn.'};
         if (!game.actionUsed) return {game, health, error: 'Take your action first: Action Surge then gives you one more.'};
         if (!surgeReady(hero, game)) return {game, health, error: game.surged ? 'Action Surge works once a turn.' : 'Action Surge is spent until you rest.'};
         next.resources = {...game.resources, surge: (game.resources?.surge ?? 0) + 1};

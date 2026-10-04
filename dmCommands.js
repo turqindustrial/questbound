@@ -150,6 +150,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(game.stage==='combat'){
     if(/^(?:I )?(?:end|finish|pass|skip) (?:my |the |this )?turn\b|^(?:end turn|pass|done|I(?:'m| am) done)[.!]?$/i.test(text))return {action:'end-turn'};
     if(hero.class==='Fighter'&&/\bsecond wind\b/i.test(text))return {action:'class:wind'};
+    if(hero.class==='Fighter'&&/\baction surge\b/i.test(text))return {action:'class:surge'};
+    if(/^(?:I )?(?:dodge|take the dodge(?: action)?)[.!]?$/i.test(text))return {action:'dodge'};
     if(hero.class==='Paladin'&&/\blay(?:ing)? (?:on )?hands\b/i.test(text))return {action:'class:hands'};
   }
   const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara|n\d{1,2})\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara|n\d{1,2}))/i);

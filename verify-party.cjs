@@ -56,7 +56,7 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  const save=r.adventureStep(downA.game,downA.health,kara,'death-save',()=>0.6);assert.equal(save.game.stage,'dying');
  const afterSave={...downA,game:save.game,health:save.health};assert.equal(r.settleParty(afterSave).world.stage,'combat','a death save does not move the party');assert.equal(r.settleParty(afterSave).members.A.hero.dying.successes,1);
  assert.equal(r.partyView(afterSave,'B').game.stage,'combat');
- // Jo revives Kara with a draught (it costs Jo's turn).
+ // Jo revives Kara with a draught (a bonus action, 2024 rules).
  const viewB2=r.partyView(afterSave,'B');const revived=r.adventureStep(viewB2.game,viewB2.health,ilyra,{type:'give-potion',target:'party:A'},()=>0.5);
  assert.ok(!revived.error,revived.error);assert.equal(revived.game.potions,viewB2.game.potions-1);const back0=revived.game.party.members.A;assert.ok(back0.status==='up'||new RegExp('attacks '+kara.name).test((revived.events??[]).join(' ')),'revived (unless the foe struck her down again at once)');
  // Out of a fight the draught is all that happens.
