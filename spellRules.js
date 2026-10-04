@@ -1,6 +1,6 @@
 import {spellLibrary,automaticSpells,speciesSpells,speciesUseLimit,slotChoices,slotUsed} from './spellOptions';
 import {modifier,proficiencyBonus,subclassActive} from './characterRules';
-import {rollAttack} from './weaponRules';
+import {rollAttack,rollDamage,attackOptions} from './weaponRules';
 import {npcProfile,npcScene,npcIdsOf} from './npcRules';
 import {heroIdOf,markOf,withMark,edgeMode} from './masteryRules';
 
@@ -298,6 +298,26 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     damage=sum(dice);
     logs.push(`Divine Smite: ${dice.length}d8 [${dice.join(', ')}] = ${damage} Radiant damage${extra?' (more against '+(nature.undead?'the undead':'a fiend')+')':''}${hit?.critical?', doubled by the critical hit':''}.`);
     delete next.lastHit;
+  } else if(effect.trueStrike){
+    // True Strike: one attack with the hero's own weapon, guided by their spellcasting ability; Radiant if they say so,
+    // and more radiant damage from level 5.
+    const options=attackOptions(hero),w=options.find(x=>!x.unarmed&&!x.ranged&&!x.blocked)??options.find(x=>!x.blocked)??options[0];
+    if(!w)return {error:'True Strike needs a weapon in your hand.'};
+    const struck={...w,bonus:mod,attackBonus:bonus,ability:castingAbility(hero)};
+    const nearbyThreat=!game.openingAttackAvailable&&(game.castingConditions?.targetDistance??target.distance??5)<=5;
+    const edge=spellEdge(next,key,!!w.ranged),rolled=rollAttack(struck,edgeMode(w.ranged&&nearbyThreat?'disadvantage':'normal',edge),random),bless=attackBoost(next,random);
+    const attack={...rolled,total:rolled.total+bless.amount},hit=!attack.miss&&(attack.critical||attack.total>=target.ac),critical=attack.critical||(hit&&!w.ranged&&helpless(next,key));
+    if(edge.adv.includes('Guiding Bolt'))next=spendGuidance(next,key);
+    const radiant=/\bradiant\b/i.test(request.intent??''),kind=radiant?'Radiant':w.type;
+    let line=`True Strike with your ${w.name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${mod} ${castingAbility(hero)} + ${proficiencyBonus(hero.level)} proficiency${bless.amount?' + '+bless.amount+' Bless':''} = ${attack.total} vs AC ${target.ac}. ${critical?'Critical hit':hit?'Hit':'Miss'}`;
+    if(hit){
+      const blow=rollDamage(struck,critical,random),extra=roll((hero.level>=17?3:hero.level>=11?2:hero.level>=5?1:0)*(critical?2:1),6);
+      damage=defended(target,kind,blow.total)+defended(target,'Radiant',extra.reduce((a,b)=>a+b,0));
+      line+=`; ${blow.total} ${kind} damage (${blow.dice.join(' + ')} + ${mod})${extra.length?' and '+extra.reduce((a,b)=>a+b,0)+' Radiant ('+extra.length+'d6 ['+extra.join(', ')+'])':''}.`;
+      const rider=riderDamage(hero,next,key,critical,random,{weapon:true});next=rider.game;damage+=defended(target,rider.type,rider.amount);
+      logs.push(line,...rider.lines);
+      if(!w.ranged)next={...next,lastHit:{target:key,...(critical?{critical:true}:{})}};
+    } else logs.push(line+'.');
   } else if(effect.missile){const die=roll(1,4)[0];damage=(2+level)*(die+1);logs.push(`Magic Missile: ${2+level} darts × (${die}+1) = ${damage} Force damage.`);}
   else if(effect.inflict){
     // A spell that lays a condition on a creature (it saves to shake it off): kept in game.marks for the fight.
@@ -309,7 +329,7 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       if(!save.success){
         const cond=spell.id==='command'&&/\bgrovel/i.test(request.intent??'')?'groveling':how.cond;
         next=withSpellMark(next,key,{id:spell.id,cond,by:heroIdOf(next),dc,save:how.repeatWith??how.save,...(how.turns?{rounds:how.turns}:spell.concentration?{}:{rounds:durationRounds(spell.duration)?Math.min(100,durationRounds(spell.duration)):10})});
-        if(['laughing','groveling'].includes(cond))next=withMark(next,key,{prone:true});
+        if(cond==='laughing')next=withMark(next,key,{prone:true});
       }
     }
   } else if(effect.save){
@@ -391,7 +411,7 @@ export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.r
   const replaced=concentrationReplaced(clean,spell);if(replaced)calculatedLogs.push(replaced);
   // A spell the game can work out against a person (damage, a condition) is rolled here, against their own defences.
   let marks=null;
-  if(request.npcTarget&&effect&&(effect.attack||effect.save||effect.missile||effect.inflict)){
+  if(request.npcTarget&&effect&&(effect.attack||effect.save||effect.missile||effect.inflict||effect.trueStrike)){
     const defenses=personDefenses(clean,request.npcTarget),{name,save}=defenses;
     // A reaction (Hellish Rebuke) the Dungeon Master allowed answers this person.
     const reacting=spell.castingTime==='Reaction'?{hurtBy:request.npcTarget}:{};
@@ -464,7 +484,7 @@ Object.assign(automaticEffects,{
   hex:{rider:{die:6,type:'Necrotic'}},'hunters-mark':{rider:{die:6,type:'Force'}},
   bless:{buff:'bless'},heroism:{buff:'heroism'},guidance:{buff:'guidance'},resistance:{buff:'resistance'},
   'mage-armor':{buff:'mage-armor'},barkskin:{buff:'barkskin'},'divine-favor':{buff:'divine-favor'},shillelagh:{buff:'shillelagh'},
-  'divine-smite':{smite:true,type:'Radiant'},
+  'divine-smite':{smite:true,type:'Radiant'},'true-strike':{trueStrike:true,type:'Radiant'},
   shield:{shield:true},
 });
 const conditionLines={
@@ -559,7 +579,8 @@ export function spellTurnStarts(game,key,name){
   const conds=spellCondsOf(game,key),lines=[];
   const still=conds.find(c=>['paralyzed','asleep','entranced','laughing','commanded','groveling'].includes(c));
   if(still)lines.push(`${name} ${({paralyzed:'is paralyzed and cannot act.',asleep:'sleeps on.',entranced:'stands entranced.',laughing:'is helpless with laughter.',commanded:'obeys your command and loses its turn.',groveling:'grovels and loses its turn.'})[still]}`);
-  return {skip:!!still,lines};
+  // Commanded to grovel, it throws itself down: it lies prone until its next turn.
+  return {skip:!!still,lines,game:still==='groveling'?withMark(game,key,{prone:true}):game};
 }
 // At the end of a creature's turn: it tries again to shake off a spell that allows it, and short spells run out.
 export function spellTurnEnds(game,key,name,saves,random=Math.random){
@@ -681,7 +702,7 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
   if(flags.incapacitated)return {error:'You cannot cast while incapacitated.'};
   if(components.includes('V')&&flags.silenced)return {error:'This spell needs spoken words, but you are silenced.'};
   if((components.includes('S')||components.includes('M'))&&flags.handsBound)return {error:'This spell needs an available hand, but your hands are bound.'};
-  const effect=automaticEffects[spell.id],self=!!effect&&(effect.heal||effect.temp||effect.protection||effect.detection||effect.buff),onSelf=['me','myself','self'].includes(target),onWisp=(game.dungeon?.active?['enemy','the enemy',...(game.dungeon.room===6?['lantern warden','the lantern warden']:['stone sentinel','the stone sentinel'])]:game.story?.foe?[game.story.foe.toLowerCase(),'the '+game.story.foe.toLowerCase(),'enemy','the enemy','creature','the creature']:['wisp','the wisp','lantern wisp','the lantern wisp','enemy','the enemy']).includes(target)&&game.stage==='combat'||storyFoeNamed(game,target)||(!!request.aim&&game.stage==='combat');
+  const effect=automaticEffects[spell.id],self=!!effect&&(effect.heal||effect.temp||effect.protection||effect.detection||effect.buff),onSelf=/^(?:me|myself|self)\b/.test(target??''),onWisp=(game.dungeon?.active?['enemy','the enemy',...(game.dungeon.room===6?['lantern warden','the lantern warden']:['stone sentinel','the stone sentinel'])]:game.story?.foe?[game.story.foe.toLowerCase(),'the '+game.story.foe.toLowerCase(),'enemy','the enemy','creature','the creature']:['wisp','the wisp','lantern wisp','the lantern wisp','enemy','the enemy']).includes(target)&&game.stage==='combat'||storyFoeNamed(game,target)||(!!request.aim&&game.stage==='combat');
   if(onWisp&&flags.clearPath===false)return {error:'The target is behind an obstruction. Get a clear path before casting.'};
   const distance=onSelf?0:onWisp?(flags.targetDistance??5):null;
   const range=spell.id==='burning-hands'?15:spell.range==='Touch'?5:spell.range.match(/^(\d+) feet$/)?.[1];
@@ -694,8 +715,9 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
   const settled=!!effect?.narrated||(!!effect?.smite&&!!game.lastHit)||(!!effect?.rider&&!!request.npcTarget);
   if(!settled&&!(self?(onSelf||healPerson):onWisp))reasons.push('This target or area needs a DM ruling.');
   if(!effect?.narrated&&!(spell.castingTime==='Reaction'&&request.reaction)&&(!['Action','Bonus Action'].includes(spell.castingTime)||(request.slot==='ritual'&&!effect?.detection)))reasons.push('Casting time, reaction trigger, or ritual completion needs a DM ruling.');
-  // A priced component the hero plainly carries (Bless's holy symbol, from a Cleric's or Paladin's kit) needs no check.
-  const material=spell.material??'',carried=/^a Holy Symbol worth \d+\+ GP$/i.test(material)&&items.some(i=>i.quantity>0&&/Holy Symbol/i.test(i.name));
+  // A priced component the hero plainly carries needs no check: Bless's holy symbol (a Cleric's or Paladin's kit), or
+  // the weapon True Strike is cast through.
+  const material=spell.material??'',carried=(/^a Holy Symbol worth \d+\+ GP$/i.test(material)&&items.some(i=>i.quantity>0&&/Holy Symbol/i.test(i.name)))||(/^a weapon with which you have proficiency/i.test(material)&&attackOptions(hero).some(w=>!w.unarmed&&w.proficient&&!w.blocked));
   const special=!carried&&/\b(?:gp|sp|cp|pp|worth|consum\w*)\b/i.test(material+' '+spell.description);
   if(components.includes('M')){
     const focusByClass={Wizard:/Arcane Focus/i,Sorcerer:/Arcane Focus/i,Warlock:/Arcane Focus/i,Cleric:/Holy Symbol/i,Paladin:/Holy Symbol/i,Druid:/Druidic Focus/i,Ranger:/Druidic Focus/i,Bard:/Lute|Flute|Drum/i,Artificer:/Tools/i};

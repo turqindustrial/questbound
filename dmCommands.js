@@ -169,13 +169,13 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   const bare=!/\b(on|at|targeting|toward|towards)\s+\S/i.test(said);
   // Spells that need no one named: sensing and everyday magic, buffs on yourself, Divine Smite after a hit, spells the
   // Dungeon Master rules on (it asks if it needs to know), and (in a creature fight) anything aimed at the creature.
-  const untargeted=spell.range==='Self'||!effect||!!effect?.narrated||!!effect?.buff||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider));
+  const untargeted=spell.range==='Self'||!effect||!!effect?.narrated||!!effect?.buff||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider||effect.trueStrike));
   if(bare&&!untargeted)return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`,soft:true};
   const costs=spellCostOptions(hero,game,spell);
   // A free casting from the hero's species comes first, then (out of a fight) a ritual, which needs no slot, then a slot.
   const slot=/\bas a ritual\b/i.test(detail)?'ritual':/\barcanum\b/i.test(detail)?'arcanum':named!==null?named:costs.includes('species')&&!/\bslot\b/i.test(detail)?'species':!fighting&&costs.includes('ritual')?'ritual':costs.find(c=>typeof c==='number')??costs[0];
   if(!costs.includes(slot))return {error:named!==null&&named<spell.level?`${spell.name} needs a slot of level ${spell.level} or higher.`:'That casting resource is unavailable. Choose an available slot or rest first.'};
-  const target=said.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:,|\s+using\b|\s+with\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(spell.range==='Self'||effect?.buff?'myself':effect?.smite?'the creature i struck':game.stage==='combat'&&effect&&!effect.narrated?'the enemy':'the scene');
+  const target=said.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:[,:;]|\s+using\b|\s+with\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(spell.range==='Self'||effect?.buff?'myself':effect?.smite?'the creature i struck':game.stage==='combat'&&effect&&!effect.narrated?'the enemy':'the scene');
   if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.',soft:true};
   const request={id:spell.id,slot,intent:text.slice(0,500),componentsConfirmed:true};
   // Hellish Rebuke answers the creature that has just hurt you (a reaction); Divine Smite follows your last hit.

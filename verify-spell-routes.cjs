@@ -321,5 +321,54 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  assert.equal(r.markOf(r.endSpellMarks(r.partyView(lost,'B').game),'foe').spells,undefined,'gone once A no longer concentrates, from B\'s device too');
 }
 console.log('Passed: Detect Magic for the Dark Elf Warlock everywhere; concentration replaced and kept; long castings and reactions in fights; Hellish Rebuke and Shield as reactions; the Dungeon Master\'s damage held to the dice; upcasting, rituals, pact magic and Mystic Arcanum; 20 rolled damage spells within their dice; people\'s own defences; Sleep, Hold Person, Hex, Divine Smite, Bless and Mage Armor; species spells; old saves; the shared table.');
+// More conditions, curses and blessings, each through a cast and the turn that follows it.
+{
+ const wiz=hero('Wizard',5,['fire-bolt','light','mage-hand','true-strike','hold-person','blindnessdeafness','fear','web'],{scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:18,Wisdom:10,Charisma:10}}),sc=scenes(wiz);
+ const ts=cast(wiz,sc.fight,'I cast True Strike at the enemy with radiant light.',()=>0.99);
+ assert.equal(ts.error,undefined,ts.error);assert.match(lines(ts),/True Strike with your .*Intelligence.*Radiant/);assert.ok(ts.game.enemyHP<sc.fight.enemyHP,'True Strike lands');
+ const blind=cast(wiz,sc.fight,'I cast Blindness/Deafness at the enemy.',()=>0);assert.equal(blind.error,undefined,blind.error);
+ assert.match(lines(blind),/is blinded/);assert.match(lines(blind),/\(disadvantage.*blinded|blinded.*disadvantage/,'a blinded foe attacks with disadvantage');
+ const fear=cast(wiz,sc.fight,'I cast Fear at the enemy.',()=>0);assert.match(lines(fear),/frightened/);
+ const web=cast(wiz,sc.fight,'I cast Web at the enemy.',()=>0);assert.equal(r.markOf(web.game,'foe').spells[0].cond,'restrained');
+ // Each creature tries again at the end of its turn: a high roll frees it.
+ const freed=r.adventureStep({...web.game,actionUsed:undefined,bonusUsed:false},null,wiz,'dodge',()=>0.99);assert.match(lines(freed),/breaks free of Web/);assert.equal(r.markOf(freed.game,'foe').spells,undefined);
+ const cler=hero('Cleric',1,['guidance','light','sacred-flame','command','bane','bless','cure']),cs=scenes(cler);
+ const grovel=cast(cler,cs.fight,'I cast Command at the enemy: grovel!',()=>0);assert.equal(grovel.error,undefined,grovel.error);assert.match(lines(grovel),/grovels and loses its turn/);assert.ok(r.markOf(grovel.game,'foe').prone,'it lies prone');
+ const baned=cast(cler,cs.fight,'I cast Bane at the enemy.',()=>0);assert.equal(r.markOf(baned.game,'foe').spells[0].cond,'baned');
+ const banedTurn=r.adventureStep({...baned.game,actionUsed:undefined,bonusUsed:false},null,cler,'dodge',()=>0.5);assert.match(lines(banedTurn),/− \d Bane/,'Bane takes 1d4 off its attack');
+ // Guidance: 1d4 on the next check, then it is spent.
+ const guided=cast(cler,cs.inn,'I cast Guidance on me.');assert.equal(guided.game.concentration.id,'guidance');
+ const check=r.commitDmTurn(cler,guided.game,null,{type:'ai-check',check:{ability:'Wisdom',skill:'Perception',dc:12,mode:'normal',reason:'Search the cellar',success:'You find it.',failure:'Nothing.',damageCount:0,damageDie:6,damageOn:'none'}},{question:'I search the cellar.',narration:'You look.'},()=>0.5);
+ assert.equal(check.error,undefined,check.error);assert.match(check.game.log[0],/\+ \d Guidance/);assert.equal(check.game.concentration,undefined,'Guidance is spent');
+ // Charm Person: the charmed foe will not strike the one who charmed it, until harmed.
+ const bard=hero('Bard',1,['vicious-mockery','light','charm-person','heroism','cure']),bs=scenes(bard);
+ const charmed=cast(bard,bs.wild,'I cast Charm Person at the bandit.',()=>0);assert.equal(charmed.error,undefined,charmed.error);assert.match(lines(charmed),/will not raise a hand against you/);
+ // Heroism: temporary hit points at the start of each turn.
+ const hero2=cast(bard,bs.inn,'I cast Heroism on me.');assert.equal(hero2.game.concentration.id,'heroism');assert.ok(hero2.health.temp>=3);
+ const brave=r.adventureStep({...bs.fight,concentration:hero2.game.concentration},{current:5,temp:0},bard,'end-turn',()=>0.01);assert.match(lines(brave),/Heroism: \d temporary HP/);
+ // Faerie Fire gives advantage on attacks at the creature.
+ const druid=hero('Druid',3,['druidcraft','guidance','faerie-fire','entangle','barkskin','shillelagh','resistance'],{scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:10,Wisdom:18,Charisma:10}});
+ const ds=scenes(druid),lit=cast(druid,ds.fight,'I cast Faerie Fire at the enemy.',()=>0);assert.equal(r.markOf(lit.game,'foe').spells[0].cond,'outlined');
+ const entangled=cast(druid,ds.fight,'I cast Entangle at the enemy.',()=>0);assert.match(lines(entangled),/held fast/);
+ const bark=cast(druid,ds.inn,'I cast Barkskin on me.');assert.equal(r.spellDefense(bark.game,12).ac,17,'Barkskin: AC at least 17');
+ // Shillelagh: the quarterstaff strikes with Wisdom and a d8.
+ const staff=druid.equipment.items.some(i=>/Quarterstaff/.test(i.name))?druid:{...druid,equipment:{...druid.equipment,items:[...druid.equipment.items,{name:'Quarterstaff',quantity:1}]}};
+ const shil=cast(staff,ds.inn,'I cast Shillelagh on me.');assert.equal(shil.error,undefined,shil.error);assert.equal(shil.waiting,undefined,'Shillelagh needs no ruling');
+ const swing=r.dmChoices(staff,{...ds.fight,buffs:shil.game.buffs},null).find(c=>/^attack:.*Quarterstaff/.test(c.id));assert.ok(swing,'the quarterstaff can be swung');
+ assert.match(lines(r.adventureStep({...ds.fight,buffs:shil.game.buffs},null,staff,swing.action,()=>0.99)),/Wisdom/,'it strikes with Wisdom');
+ // Resistance: the chosen kind of damage is reduced.
+ const res=cast(druid,ds.inn,'I cast Resistance on me against necrotic.');assert.equal(res.game.concentration.damageType,'Necrotic');
+ let reduced=false;for(const v of [0.6,0.7,0.8,0.9]){if(/Resistance takes \d off the necrotic damage/.test(lines(r.adventureStep({...ds.fight,concentration:res.game.concentration},null,druid,'end-turn',()=>v))))reduced=true;}
+ assert.ok(reduced,'Resistance takes 1d4 off necrotic blows');
+ // Hunter's Mark and Divine Favor add to weapon hits.
+ const ranger=hero('Ranger',2,['hunters-mark','cure']),rs=scenes(ranger),marked=cast(ranger,rs.fight,'I cast Hunter\'s Mark at the enemy.');
+ assert.equal(marked.error,undefined,marked.error);assert.equal(marked.game.concentration.target,'foe');
+ const bow=r.dmChoices(ranger,{...marked.game,actionUsed:undefined,bonusUsed:false},null).find(c=>/^attack:/.test(c.id));
+ assert.match(lines(r.adventureStep({...marked.game,actionUsed:undefined,bonusUsed:false},null,ranger,bow.action,()=>0.95)),/Hunter.s Mark: \+\d+ Force damage/);
+ const pal=hero('Paladin',2,['divine-favor','bless','cure']),ps=scenes(pal),favour=cast(pal,ps.fight,'I cast Divine Favor on me.');assert.ok(favour.game.buffs['divine-favor']);
+ const blade=r.dmChoices(pal,{...favour.game,actionUsed:undefined,bonusUsed:false},null).find(c=>/^attack:/.test(c.id)&&!/Javelin/.test(c.id));
+ assert.match(lines(r.adventureStep({...favour.game,actionUsed:undefined,bonusUsed:false},null,pal,blade.action,()=>0.95)),/Divine Favor: \+\d+ Radiant damage/);
+}
+console.log('Passed: True Strike, Blindness, Fear, Web (and breaking free), Command, Bane, Guidance, Charm Person, Heroism, Faerie Fire, Entangle, Barkskin, Shillelagh, Resistance, Hunter\'s Mark and Divine Favor work in play.');
 fs.writeFileSync('SPELL-COVERAGE.json',JSON.stringify({catalogCount:r.spellLibrary.length,narrated:Object.values(coverage).filter(c=>c.mode==='narrated').length,automatic:Object.values(coverage).filter(c=>c.mode==='automatic').length,dmRuled:Object.values(coverage).filter(c=>c.mode==='dm').length,scope:'Written by verify-spell-routes.cjs: every spell typed and aimed by its first class in seven places of a written story (inn, landmark, after a won fight, after victory, the story fight, a fight in the wilds, a brawl). "automatic" is resolved by the game, "narrated" is spent by the game and described by the Dungeon Master, "ruling" waits for a Dungeon Master ruling the game then applies; a refusal is listed with its reason.',spells:Object.values(coverage)},null,1)+'\n');
 

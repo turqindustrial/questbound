@@ -1,8 +1,8 @@
 {
  "catalogCount": 339,
  "narrated": 57,
- "automatic": 73,
- "dmRuled": 209,
+ "automatic": 74,
+ "dmRuled": 208,
  "scope": "Written by verify-spell-routes.cjs: every spell typed and aimed by its first class in seven places of a written story (inn, landmark, after a won fight, after victory, the story fight, a fight in the wilds, a brawl). \"automatic\" is resolved by the game, \"narrated\" is spent by the game and described by the Dungeon Master, \"ruling\" waits for a Dungeon Master ruling the game then applies; a refusal is listed with its reason.",
  "spells": [
   {
@@ -4779,7 +4779,7 @@
    "id": "true-strike",
    "name": "True Strike",
    "level": 0,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",

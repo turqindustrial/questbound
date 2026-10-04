@@ -136,7 +136,8 @@ export function foeEdge(game,key,target,health){
 export function creatureTurnStarts(game,key,name,health){
  let next=game;const lines=[],mark=markOf(game,key);
  if(mark.grappled&&!grappledBy(game,key,health))next=withMark(next,key,{grappled:undefined});
- if(mark.prone){if(grappledBy(next,key,health))lines.push(name+' is held down and cannot get up.');else{next=withMark(next,key,{prone:undefined});lines.push(name+' gets back to its feet.');}}
+ // Helpless with laughter (Hideous Laughter, spellRules.js) it cannot get up either.
+ if(mark.prone){if(grappledBy(next,key,health))lines.push(name+' is held down and cannot get up.');else if(!(mark.spells??[]).some(m=>m.cond==='laughing')){next=withMark(next,key,{prone:undefined});lines.push(name+' gets back to its feet.');}}
  return {game:next,lines};
 }
 // A Sap is spent on the creature's first attack roll, and ends before the hero's next turn anyway.

@@ -1002,6 +1002,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         let downedBy = null, overflow = 0;
         // A creature a spell holds (asleep, paralyzed, entranced, commanded) does nothing this turn.
         const foeName = 'The ' + foe.name.replace(/^the /i, ''), held = spellTurnStarts(next, 'foe', foeName);
+        next = held.game;
         entries.push(...held.lines);
         for (let member = 1; member <= attackers && fightOn() && !held.skip; member++) {
         const who = attackers > 1 ? `${foe.name} ${member}` : foe.name;
@@ -1055,7 +1056,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         for (const ally of livingAllies(next)) {
           if (!fightOn()) break;
           const a = allyStats(next, ally.index, hero.level ?? 1), still = spellTurnStarts(next, 'ally:' + ally.index, 'The ' + a.name);
-          if (still.skip) { entries.push(...still.lines); continue; }
+          if (still.skip) { next = still.game; entries.push(...still.lines); continue; }
           const target = foeTarget(), why = heldOff('ally:' + ally.index, target), mode = dodgingNow(target) || blurNow(target) || why.length > 0 ? 'disadvantage' : 'normal';
           if (target) { const struck = foeHitsCompanion(next, a, a.name, target, mode, random); next = sapSpent(struck.game, 'ally:' + ally.index); entries.push(...struck.lines); continue; }
           if (charmedBy(next, 'ally:' + ally.index, heroIdOf(next))) { entries.push(`The ${a.name} will not raise a hand against you.`); continue; }
@@ -1157,7 +1158,7 @@ function creatureCombatStep(game,health,hero,action,random,opts={}){
   if(action.target!==undefined){if(aimedAlly(game,action.target)===null)return {game,health,error:'That creature is not in this fight.'};scene={...scene,aim:action.target};}
  }
  const spell=command?.type==='spell'?automaticEffects[command.request.id]:command?.type==='spell-ruling'?automaticEffects[scene.pendingSpell?.id]:null;
- const hostile=typeof command==='string'&&(command.startsWith('attack:')||command.startsWith('throw:')||['grapple','shove'].includes(command))||spell&&(spell.attack||spell.save||spell.missile)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
+ const hostile=typeof command==='string'&&(command.startsWith('attack:')||command.startsWith('throw:')||['grapple','shove'].includes(command))||spell&&(spell.attack||spell.save||spell.missile||spell.inflict||spell.trueStrike||spell.smite)||command?.type==='spell-ruling'&&(command.ruling?.damage??0)>0;
  if(scene.stage==='combat'&&scene.openingAttackAvailable&&hostile){
   const opening=adventureStepCore(scene,health,hero,command,random,{suppressEnemy:true,opening:true});
   if(opening.error||opening.waiting||opening.game===scene)return opening.error?{...opening,game,health}:opening;
@@ -1188,7 +1189,7 @@ function creatureCombatStep(game,health,hero,action,random,opts={}){
 function adventureStepEngine(game,health,hero,action,random=Math.random,opts={}){
  const stats=combatBasics(hero),pending=action?.type==='spell-ruling'?game.pendingSpell:null;
  const effect=pending?automaticEffects[pending.id]:null;
- const target=action?.type==='npc-attack'?action.target:pending?.npcTarget&&((effect&&(effect.attack||effect.save||effect.missile))||(action.ruling?.damage??0)>0)?pending.npcTarget:null;
+ const target=action?.type==='npc-attack'?action.target:pending?.npcTarget&&((effect&&(effect.attack||effect.save||effect.missile||effect.trueStrike))||(action.ruling?.damage??0)>0)?pending.npcTarget:null;
  const active=game.npcCombat?.active;
  if(!active&&!target)return creatureCombatStep(game,health,hero,action,random,opts);
  if(!stats.available||stats.ac===null)return {game,health,error:'Complete your combat statistics first.'};
@@ -1285,7 +1286,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(next.marks&&!allied){const begun=creatureTurnStarts(next,actor.id,who(actor.id).name,hp);next=begun.game;logs.push(...begun.lines);}
   // Held by a spell (asleep, paralyzed, entranced, commanded), they do nothing but try to shake it off; charmed by
   // the hero, they will not strike them.
-  if(!allied&&next.marks?.[actor.id]?.spells){const held=spellTurnStarts(next,actor.id,who(actor.id).name),ended=spellTurnEnds(next,actor.id,who(actor.id).name,personDefenses(next,actor.id).saves,random);if(held.skip){logs.push(...held.lines);next=ended.game;logs.push(...ended.lines);continue;}if(charmedBy(next,actor.id,heroIdOf(next))&&!party){logs.push(who(actor.id).name+' will not raise a hand against you.');next=ended.game;logs.push(...ended.lines);continue;}next=ended.game;logs.push(...ended.lines);}
+  if(!allied&&next.marks?.[actor.id]?.spells){const held=spellTurnStarts(next,actor.id,who(actor.id).name);next=held.game;const ended=spellTurnEnds(next,actor.id,who(actor.id).name,personDefenses(next,actor.id).saves,random);if(held.skip){logs.push(...held.lines);next=ended.game;logs.push(...ended.lines);continue;}if(charmedBy(next,actor.id,heroIdOf(next))&&!party){logs.push(who(actor.id).name+' will not raise a hand against you.');next=ended.game;logs.push(...ended.lines);continue;}next=ended.game;logs.push(...ended.lines);}
   // In a party any standing hero may be the one struck.
   if(party&&!allied){
    const pool=[...(hp.current>0?[null]:[]),...partyTargets(next)],pick=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))];
