@@ -14,8 +14,8 @@ import {Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import {playSound} from './audio';
-import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError} from './characterRules';
-import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions} from './characterOptions';
+import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages} from './characterRules';
+import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions, lineageDetails} from './characterOptions';
 
 const basePages = [
   {title: 'Name & appearance', intro: 'Start with the person you want to play. Give them a name, then describe any appearance, personality, or story details you have in mind. You can return and change these before saving.'},
@@ -104,7 +104,12 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       <Text style={s.label}>Appearance & personality (optional)</Text><TextInput accessibilityLabel="Appearance and personality" multiline style={[s.input, {minHeight:120,textAlignVertical:'top'}]} value={form.description ?? ''} onChangeText={description => change({description})} maxLength={1500} placeholder="A green-skinned inventor with copper goggles and an endless list of questions…" placeholderTextColor={tint('#b6aeb4')}/>
       {['age','backstory'].map(key=><View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><TextInput accessibilityLabel={'Character '+key} value={form[key]??''} onChangeText={value=>change({[key]:value})} maxLength={key==='age'?60:2000} multiline={key!=='age'} editable={!generating} style={[s.input,key!=='age'&&{minHeight:80}]} /></View>)}
     </>}
-    {page === 1 && optionCards('Species', species, form.species, value => change({species:value}), speciesDetails)}
+    {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:value!=='Dark Elf'&&speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null}), speciesDetails)}
+    {page === 1 && form.species !== 'Dark Elf' && !!speciesLineages[form.species] && <>
+      <Text style={s.label}>{form.species === 'Tiefling' ? 'Fiendish legacy' : 'Lineage'}</Text>
+      {form.species === 'Tiefling' && <Text style={s.detail}>Every Tiefling knows Thaumaturgy.</Text>}
+      {optionCards('Lineage', speciesLineages[form.species], form.lineage, value => change({lineage:value}), lineageDetails)}
+    </>}
     {page === 2 && optionCards('Class', classes, form.class, value => change(value===form.class ? {} : {class:value,level:1,advancements:[],arcanum:{},spells:[],spellbook:[],plannedSubclass:''}), classDetails)}
     {page === 3 && <>
       <Text style={s.note}>Planned subclass · Unlocks at level 3</Text>
@@ -143,7 +148,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {page === reviewPage && <>
       {reviewRow('Name', form.name, 0)}
       {!!form.description && <Text style={s.intro}>{form.description}</Text>}{['age','backstory'].map(key=>form[key]?<View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{form[key]}</Text></View>:null)}
-      {reviewRow('Species', form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : form.species, 1)}
+      {reviewRow('Species', form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species, 1)}
       {reviewRow('Class', form.class, 2)}
       {reviewRow('Planned subclass', form.plannedSubclass || 'Decide at level 3', 3)}
       {reviewRow('Background', form.background, 4)}

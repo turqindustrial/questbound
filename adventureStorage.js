@@ -114,8 +114,16 @@ function validSpellState(g) {
     && (g.slotSpentThisTurn===undefined || typeof g.slotSpentThisTurn==='boolean')
     && (g.reactionUsed===undefined || typeof g.reactionUsed==='boolean')
     && (g.arcanumUsed===undefined || (Array.isArray(g.arcanumUsed) && new Set(g.arcanumUsed).size===g.arcanumUsed.length && g.arcanumUsed.every(n=>integerBetween(n,6,9))))
-    && (g.concentration===undefined || (spellTime(g.concentration) && text(g.concentration.duration,150) && (g.concentration.automaticProtection===undefined || (g.concentration.automaticProtection===true && ['blur','shield-of-faith'].includes(g.concentration.id) && integerBetween(g.concentration.remaining,1,g.concentration.id==='blur'?10:100)))))
+    && (g.concentration===undefined || (spellTime(g.concentration) && text(g.concentration.duration,150) && (g.concentration.automaticProtection===undefined || (g.concentration.automaticProtection===true && ['blur','shield-of-faith'].includes(g.concentration.id) && integerBetween(g.concentration.remaining,1,g.concentration.id==='blur'?10:100)))
+      // Hex or Hunter's Mark on a creature or person; Resistance's damage type and its once-a-turn use (spellRules.js).
+      && (g.concentration.target===undefined || /^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(g.concentration.target)))
+      && (g.concentration.damageType===undefined || ['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'].includes(g.concentration.damageType))
+      && (g.concentration.used===undefined || g.concentration.used===true)))
+    // Spells that last on the hero without concentration (Mage Armor, Barkskin, Divine Favor, Shillelagh), and the free
+    // castings their species gives (once a long rest each).
+    && (g.buffs===undefined || (!!g.buffs && typeof g.buffs==='object' && !Array.isArray(g.buffs) && Object.entries(g.buffs).every(([id,b])=>['mage-armor','barkskin','divine-favor','shillelagh'].includes(id) && b && typeof b==='object' && integerBetween(b.remaining,1,4800) && (b.ac===undefined||integerBetween(b.ac,10,20)) && (b.ability===undefined||['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(b.ability)))))
+    && (g.speciesUsed===undefined || (!!g.speciesUsed && typeof g.speciesUsed==='object' && !Array.isArray(g.speciesUsed) && Object.entries(g.speciesUsed).every(([id,n])=>text(id,100) && integerBetween(n,1,6))))
     && (g.temporarySpell===undefined || spellTime(g.temporarySpell))
     && (g.enemyEffects===undefined || (g.enemyEffects && typeof g.enemyEffects==='object' && !Array.isArray(g.enemyEffects) && Object.entries(g.enemyEffects).every(([name,n])=>['No opportunity attacks','Cannot regain HP','Speed reduced by 10 feet'].includes(name) && integerBetween(n,1,2))))
-    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget))&&(pending.aim===undefined||/^ally:[01]$/.test(pending.aim)) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum'].includes(pending.slot))));
+    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget))&&(pending.aim===undefined||/^ally:[01]$/.test(pending.aim)) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum','species'].includes(pending.slot))));
 }

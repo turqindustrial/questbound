@@ -1,4 +1,4 @@
-import {requestSpell,knownSpells,automaticEffects} from './spellRules';
+import {requestSpell,knownSpells,automaticEffects,spellCostOptions} from './spellRules';
 import {modifier,validLevel,martialDie,proficiencyBonus} from './characterRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {spellLibrary,slotChoices} from './spellOptions';
@@ -10,7 +10,7 @@ export function classActions(hero,game) {
   const used=game.resources??{},actions=[];
   const add=(id,name,description,resource,limit,bonus=false)=>actions.push({id,name,description,resource,limit,bonus,remaining:resource?Math.max(0,limit-(used[resource]??0)):null,disabled:!!((resource&&(used[resource]??0)>=limit)||(bonus&&game.bonusUsed))});
   // Compatibility for older action callers; the on-screen spell panel uses the same resolver.
-  for(const spell of knownSpells(hero).filter(s=>automaticEffects[s.id]))actions.push({id:spell.id,name:spell.name,description:spell.description,remaining:null,disabled:!slotChoices(hero,game,spell).length,bonus:spell.castingTime==='Bonus Action'});
+  for(const spell of knownSpells(hero).filter(s=>automaticEffects[s.id]&&!automaticEffects[s.id].narrated))actions.push({id:spell.id,name:spell.name,description:spell.description,remaining:null,disabled:!slotChoices(hero,game,spell).length,bonus:spell.castingTime==='Bonus Action'});
   if(hero.class==='Fighter')add('wind','Second Wind','Bonus action · Heal 1d10 plus your Fighter level. You can still take your main action.','wind',windLimit(hero),true);
   if(hero.class==='Paladin')add('hands','Lay on Hands','Bonus action · Spend your remaining healing pool on yourself, up to missing HP.','hands',5*hero.level,true);
   if(hero.class==='Monk')add('strike','Martial Arts strike','Bonus action · An unarmed attack using your Martial Arts die plus Strength or Dexterity.',null,null,true);
@@ -34,8 +34,8 @@ export function bonusOptions(hero,game,health,maximum){
   if(hero.class==='Monk')options.push({id:'class:strike',name:'Martial Arts strike'});
   if(hurt&&(game.potions??0)>0)options.push({id:'potion',name:'Healing draught'});
   for(const spell of knownSpells(hero).filter(s=>s.castingTime==='Bonus Action')){
-    const effect=automaticEffects[spell.id],costs=slotChoices(hero,game,spell).filter(cost=>cost===0||!game.slotSpentThisTurn);
-    if(!costs.length||(effect?.heal&&!hurt)||game.concentration?.id===spell.id)continue;
+    const effect=automaticEffects[spell.id],costs=spellCostOptions(hero,game,spell).filter(cost=>cost!=='ritual'&&(cost===0||cost==='species'||!game.slotSpentThisTurn));
+    if(!costs.length||(effect?.heal&&!hurt)||game.concentration?.id===spell.id||(effect?.smite&&!game.lastHit)||spell.castingTime==='Reaction')continue;
     options.push({id:'spell:'+spell.id,name:spell.name,spell:spell.id,automatic:!!effect});
   }
   return options;

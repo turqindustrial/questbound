@@ -1,5 +1,5 @@
 import {dmChoices,shortRestsLeft} from './dmContext';
-import {knownSpells,automaticEffects} from './spellRules';
+import {knownSpells,automaticEffects,castingStages,spellCostOptions} from './spellRules';
 import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 import {combatBasics} from './combatRules';
@@ -62,9 +62,9 @@ export function quickActions(hero,game,health=null){
  // Attack…: every weapon, melee and ranged, at whoever can be attacked now (attackActions). In a fight it sits beside
   // the main weapon; elsewhere it waits with the other actions.
  if(!game.actionUsed&&attackTargets(hero,game,health).length){const chip={key:'attack-menu',glyph:'⚔',icon:'swords',label:'Attack…'};const at=primary.findIndex(a=>a.weapon);if(at>=0)primary.splice(at+1,0,chip);else if(fighting)primary.push(chip);else rest.push(chip);}
- // Once the action is spent, only bonus-action spells can still be cast.
- const castable=knownSpells(hero).filter(s=>!game.actionUsed||s.castingTime==='Bonus Action');
- if(!game.pendingSpell&&!['dying','dead'].includes(game.stage)&&castable.length&&!(game.actionUsed&&game.bonusUsed))primary.push({key:'cast',glyph:'✧',icon:'spell',label:'Cast…',prefill:'I cast '});
+ // Cast… opens the spells that can be cast right now (spellActions): none while dying, and once the action is spent
+ // only bonus-action spells.
+ if(!game.pendingSpell&&castingStages.includes(game.stage)&&(health?.current??1)>0&&!(game.actionUsed&&game.bonusUsed)&&spellActions(hero,game).length)primary.push({key:'cast',glyph:'✧',icon:'spell',label:'Cast…',prefill:'I cast '});
  return [...primary,...rest,...backup,...last];
 }
 // Who can be attacked right now, each with the weapons that can reach them (drawn from the engine's own choices, so
@@ -112,15 +112,37 @@ export function attackActions(hero,game,health=null,targetKey=null){
 // healing, protection and detection on yourself; attacks and blasts at the enemy during a fight. Anything else starts
 // the sentence so the player says how and at whom. The words are parsed exactly like typed casting.
 export function spellActions(hero,game){
- const fighting=game.stage==='combat',foe=game.story||game.dungeon?.active?'the enemy':'the wisp';
+ if(!castingStages.includes(game.stage)||game.pendingSpell)return [];
+ const creatures=game.stage==='combat',fighting=creatures||!!game.npcCombat?.active,foe=game.story||game.dungeon?.active?'the enemy':'the wisp';
  // In a party, healing reaches the other heroes too: a chip for each one who is hurt or down.
  const hurtFriends=partyMembers(game).filter(m=>!m.lead&&m.status!=='dead'&&(m.status==='down'||(m.hp!=null&&m.maxHp!=null&&m.hp<m.maxHp)));
- return knownSpells(hero).filter(spell=>!fighting||(game.actionUsed?spell.castingTime==='Bonus Action':['Action','Bonus Action'].includes(spell.castingTime))).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).flatMap(spell=>{
-  const effect=automaticEffects[spell.id],self=!!(effect&&(effect.heal||effect.temp||effect.protection||effect.detection));
-  const base={key:'spell:'+spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp?'shield':effect?.detection?'eye':spellIcon(effect?.type),label:spell.name,detail:(spell.level?'Level '+spell.level:'Cantrip')+(fighting&&spell.castingTime==='Bonus Action'?' · Bonus':'')};
+ const held=game.concentration?.id,heldName=held?knownSpells(hero).find(s=>s.id===held)?.name??null:null;
+ // What can be cast now: in a fight only spells of an action or a bonus action (only the bonus ones once the action
+ // is spent), Hellish Rebuke right after being hurt, and Divine Smite right after a melee hit; Shield is raised for
+ // you. Out of a fight, anything but a reaction that waits for its moment.
+ const now=spell=>{
+  const effect=automaticEffects[spell.id];
+  if(effect?.smite)return !!game.lastHit&&!game.bonusUsed;
+  if(spell.castingTime==='Reaction')return fighting?spell.id==='hellish-rebuke'&&!!game.hurtBy&&!game.reactionUsed:!!effect?.narrated;
+  if(!fighting)return true;
+  if(game.actionUsed)return spell.castingTime==='Bonus Action'&&!effect?.asAction&&!game.bonusUsed;
+  return ['Action','Bonus Action'].includes(spell.castingTime)&&!(spell.castingTime==='Bonus Action'&&!effect?.asAction&&game.bonusUsed);
+ };
+ return knownSpells(hero).filter(spell=>now(spell)&&spellCostOptions(hero,game,spell).length>0).sort((a,b)=>a.level-b.level||a.name.localeCompare(b.name)).flatMap(spell=>{
+  const effect=automaticEffects[spell.id],self=!!(effect&&(effect.heal||effect.temp||effect.protection||effect.detection||effect.buff));
+  // The chip says what the cast costs when that is not a plain slot, and what it ends.
+  const costs=spellCostOptions(hero,game,spell),how=costs.includes('species')?'Free':!fighting&&costs.includes('ritual')?'Ritual · 10 min':null;
+  const ends=spell.concentration&&held&&held!==spell.id&&heldName?'ends '+heldName:null;
+  const timing=fighting&&spell.castingTime==='Bonus Action'&&!effect?.asAction?'Bonus':fighting&&spell.castingTime==='Reaction'?'Reaction':null;
+  const base={key:'spell:'+spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp||effect?.buff?'shield':effect?.detection||effect?.narrated?'eye':spellIcon(effect?.type),label:spell.name,detail:[spell.level?'Level '+spell.level:'Cantrip',timing,how,ends].filter(Boolean).join(' · ')};
   const friends=effect?.heal&&!spell.id.startsWith('mass-')?hurtFriends.map(m=>({...base,key:base.key+':party:'+m.id,label:spell.name,detail:'on '+m.name.split(' ')[0]+(m.status==='down'?' · down':''),question:'I cast '+spell.name+' on '+m.name+'.'})):[];
+  // A spell already held needs no second chip on yourself.
+  if(self&&spell.concentration&&held===spell.id)return friends;
   if(self)return [{...base,question:'I cast '+spell.name+' on me.'},...friends];
-  if(effect&&fighting)return [{...base,question:'I cast '+spell.name+' at '+foe+'.'}];
+  if(effect?.smite)return [{...base,question:'I cast '+spell.name+'.'}];
+  if(effect?.narrated&&!effect.object)return [{...base,question:'I cast '+spell.name+'.'}];
+  if(effect?.rider&&held===spell.id)return [];
+  if(effect&&creatures&&!effect.narrated)return [{...base,question:'I cast '+spell.name+' at '+foe+'.'}];
   return [{...base,prefill:'I cast '+spell.name+' '+(spell.range==='Self'?'':'on ')}];
  });
 }

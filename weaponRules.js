@@ -32,10 +32,12 @@ export function weaponAttacks(hero) {
     const weapon = weapons[name];
     if (!weapon) return [];
     const monk = hero.class === 'Monk' && !armored && !has('Shield') && !weapon.ranged && (!weapon.martial || weapon.finesse);
-    const ability = weapon.ranged || ((weapon.finesse || monk) && hero.scores.Dexterity > hero.scores.Strength) ? 'Dexterity' : 'Strength';
+    // Shillelagh (spellRules.js): a club or quarterstaff strikes with the caster's spellcasting ability when that is better.
+    const staff = !!hero.shillelagh && ['Club', 'Quarterstaff'].includes(name) && (hero.scores[hero.shillelagh] ?? 0) > hero.scores.Strength;
+    const ability = staff ? hero.shillelagh : weapon.ranged || ((weapon.finesse || monk) && hero.scores.Dexterity > hero.scores.Strength) ? 'Dexterity' : 'Strength';
     const bonus = modifier(hero.scores[ability]);
     const proficient = subclassActive(hero,'College of Valor') || (hero.class==='Artificer' && subclassActive(hero,'Battle Smith')) || !weapon.martial || ['Barbarian','Fighter','Paladin','Ranger'].includes(hero.class) || (['Rogue','Monk'].includes(hero.class) && weapon.finesse);
-    const die = monk ? Math.max(martialDie(hero.level),weapon.die) : weapon.die;
+    const die = hero.shillelagh && ['Club', 'Quarterstaff'].includes(name) ? Math.max(weapon.die, hero.level >= 11 ? 12 : hero.level >= 5 ? 10 : 8) : monk ? Math.max(martialDie(hero.level),weapon.die) : weapon.die;
     const heavyDisadvantage = !!weapon.heavy && hero.scores[weapon.ranged ? 'Dexterity' : 'Strength'] < 13;
     return [{...weapon,name,die,count:weapon.count ?? 1,ability,bonus,attackBonus:bonus+(proficient?proficiencyBonus(hero.level):0),proficient,monk,heavyDisadvantage,
       criticalThreshold:combatBasics(hero).criticalThreshold,blocked:weapon.twoHands && has('Shield') ? 'This weapon needs two free hands. Shield changes are not available yet.' : weapon.ranged && !has('Arrow') ? 'No arrows available.' : ''}];

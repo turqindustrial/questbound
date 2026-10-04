@@ -35,14 +35,16 @@ const report=[];
 for(const spell of catalog){
  const name=spell.classes.find(c=>c!=='Artificer' && c!=='Warlock')??spell.classes[0];
  const h=hero(name,20,[spell.id]);if(name==='Warlock'&&spell.level>=6)h.arcanum={[spell.level]:spell.id};
- const game={...r.newAdventure(h),stage:'combat',map:undefined},maximum=r.combatBasics(h).hp,hp={current:1,temp:0};
+ // Spells of an action or a bonus action are tried in a fight (after a melee hit, for Divine Smite); longer castings
+ // and reactions out of one, since a fight refuses them (verify-spell-routes.cjs checks those refusals).
+ const quick=['Action','Bonus Action'].includes(spell.castingTime),game={...r.newAdventure(h),stage:quick?'combat':'inn',...(quick?{lastHit:{target:'foe'}}:{}),map:undefined},maximum=r.combatBasics(h).hp,hp={current:1,temp:0};
  const cost=r.spellCostOptions(h,game,spell).find(x=>x!=='ritual');assert.notEqual(cost,undefined,spell.name+' must have a casting route');
  const request={id:spell.id,slot:cost,intent:'DM verifies a legal target and completed casting requirements.',componentsConfirmed:true};
  const original=JSON.stringify({game,hp});
  let result=r.requestSpell(h,game,hp,maximum,request,()=>0.5);
  assert.equal(result.error,undefined,spell.name);assert.equal(JSON.stringify({game,hp}),original,spell.name+' must not mutate input');
- if(r.spellMode(spell.id)==='dm'){
-   assert.equal(result.waiting,true,spell.name);assert.equal(r.slotUsed(result.game,typeof cost==='number'?cost:1),0);
+ if(r.spellMode(spell.id)==='dm')assert.equal(result.waiting,true,spell.name);
+ if(result.waiting){assert.equal(r.slotUsed(result.game,typeof cost==='number'?cost:1),0);
    assert.equal(r.validAdventure(r.adventureSnapshot(h,result.game,hp,true),h),true,spell.name+' pending save');
    const reloaded=JSON.parse(JSON.stringify(result.game));
    assert.ok(r.resolveSpellRuling(h,reloaded,hp,maximum,{note:'',damage:0,healing:0,temporaryHP:0}).error);
@@ -52,7 +54,7 @@ for(const spell of catalog){
  if(typeof cost==='number'&&cost>0)assert.equal(r.slotUsed(result.game,cost),1,spell.name+' correct slot');
  if(cost==='arcanum')assert.ok(result.game.arcanumUsed.includes(spell.level));
  assert.equal(r.validAdventure(r.adventureSnapshot(h,result.game,result.health,true),h),true,spell.name+' resolved save');
- report.push({id:spell.id,name:spell.name,level:spell.level,mode:r.spellMode(spell.id),castingRoute:'passed',effectsVerified:r.spellMode(spell.id)==='automatic'?'supported single-encounter effect only':'DM adjudication; spell-specific mechanics not automated'});
+ report.push({id:spell.id,mode:r.spellMode(spell.id)});
 }
 // Independent expected outcomes at scaling and resource boundaries.
 const h=hero('Wizard',17,['shock','missile','false-life']),g={...r.newAdventure(h),stage:'combat',map:undefined},hp={current:20,temp:0};
@@ -67,11 +69,11 @@ assert.equal(r.castError(h,g,{id:'wish',slot:9,intent:'Wish.',componentsConfirme
 const life={...hero('Cleric',3,['cure']),plannedSubclass:'Life Domain'};
 const healed=r.requestSpell(life,{...r.newAdventure(life),stage:'combat',map:undefined},{current:1,temp:0},100,{id:'cure',slot:2,intent:'Heal yourself.',componentsConfirmed:true},()=>0);
 assert.equal(healed.health.current,12); // 4d8 minimum + WIS 3 + Disciple 4 + initial 1.
-const concentration={...g,concentration:{id:'bless',remaining:10,duration:'1 minute'}};
+const concentration={...g,concentration:{id:'hold-person',remaining:10,duration:'1 minute'}};
 assert.equal(r.concentrationAfterDamage(h,concentration,10,()=>0).game.concentration,undefined);
 assert.ok(r.concentrationAfterDamage(h,concentration,10,()=>0.99).game.concentration);
 assert.equal(r.concentrationAfterDamage(h,concentration,0,()=>0).game,concentration);
-fs.writeFileSync('SPELL-COVERAGE.json',JSON.stringify({catalogCount:catalog.length,automaticCount:report.filter(x=>x.mode==='automatic').length,dmCount:report.filter(x=>x.mode==='dm').length,fullRulesAutomation:false,scope:'Casting routes, cost accounting, save/restore and selected effect boundaries. A passing DM route is not a passing automated spell implementation.',spells:report},null,2));
+// SPELL-COVERAGE.json is written by verify-spell-routes.cjs, which replays every spell through the real routes.
 console.log('Passed: exactly 4 subclasses × 13 classes; level 1–20 stats; passive subclass gates; all 339 casting routes, costs and save states; scaling, concentration and slot limits. Full spell/subclass automation remains incomplete.');
 const low = {'acid-splash':4,'sacred-flame':4,'vicious-mockery':4,shock:0,blast:0,'fire-bolt':0,'poison-spray':0,'chill-touch':0,'ray-of-frost':0,'burning-hands':3,fireball:8,'lightning-bolt':8,'chain-lightning':10,'circle-of-death':8,'scorching-ray':0,'inflict-wounds':2,missile:6};
 const high = {'acid-splash':0,'sacred-flame':0,'vicious-mockery':0,shock:64,blast:80,'fire-bolt':80,'poison-spray':96,'chill-touch':80,'ray-of-frost':64,'burning-hands':9,fireball:24,'lightning-bolt':24,'chain-lightning':40,'circle-of-death':32,'scorching-ray':72,'inflict-wounds':10,missile:15};
