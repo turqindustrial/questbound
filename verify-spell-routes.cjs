@@ -372,5 +372,50 @@ console.log('Passed: Detect Magic for the Dark Elf Warlock everywhere; concentra
  assert.match(lines(r.adventureStep({...favour.game,actionUsed:undefined,bonusUsed:false},null,pal,blade.action,()=>0.95)),/Divine Favor: \+\d+ Radiant damage/);
 }
 console.log('Passed: True Strike, Blindness, Fear, Web (and breaking free), Command, Bane, Guidance, Charm Person, Heroism, Faerie Fire, Entangle, Barkskin, Shillelagh, Resistance, Hunter\'s Mark and Divine Favor work in play.');
+// Spells that go on working and spells for friends, through the chips: every "use again" and "move" chip the game
+// offers is a move the rules accept, preview and commit alike, in the story's fight and in the wilds beside a second
+// creature; Bless and Aid from the chips' sentence reach friends at the table; Shield follows the device's choice.
+{
+ const casters=[['Cleric',3,'spiritual-weapon','I cast Spiritual Weapon at the enemy.'],['Druid',3,'heat-metal','I cast Heat Metal on Vessa the Dry Hand.'],['Druid',3,'flaming-sphere','I cast Flaming Sphere at the enemy.'],['Druid',3,'moonbeam','I cast Moonbeam at the enemy.'],['Druid',5,'call-lightning','I cast Call Lightning at the enemy.'],['Wizard',5,'vampiric-touch','I cast Vampiric Touch at the enemy.']];
+ let offered=0;
+ for(const [cls,level,id,text] of casters){
+  const h=hero(cls,level,[id]),sc=scenes(h);
+  for(const where of ['fight','wild']){
+   const cast0=r.dmCommand(h,sc[where],text.replace('Vessa the Dry Hand',where==='wild'?'the Salt Bandit':'Vessa the Dry Hand'),null);assert.equal(cast0.error,undefined,id+' '+where+': '+cast0.error);
+   const first=r.adventureStep(sc[where],null,h,cast0.action,()=>0.5);assert.equal(first.error,undefined,id+' '+where+': '+first.error);
+   if(first.game.stage!=='combat'||first.waiting)continue;
+   // On the next turn (or after the bonus action the casting left), the chips offer the spell again.
+   let game=first.game,health=first.health;
+   if(game.actionUsed||game.bonusUsed||game.concentration?.fresh){const end=r.adventureStep(game,health,h,'end-turn',()=>0.5);assert.equal(end.error,undefined,id+' ends the turn: '+end.error);game=end.game;health=end.health;}
+   if(game.stage!=='combat')continue;
+   const chips=r.quickActions(h,{...game,potions:0},health).filter(c=>/^(again|move-mark):/.test(c.key));
+   assert.ok(chips.length>0,id+' '+where+': a chip to use it again');
+   for(const chip of chips){
+    offered++;
+    const preview=r.adventureStep(game,health,h,chip.action,()=>0.4),commit=r.commitDmTurn(h,game,health,chip.action,{question:chip.question,narration:'Your action is resolved below.'},()=>0.4);
+    assert.equal(preview.error,undefined,id+' '+chip.key+': '+preview.error);assert.equal(commit.error,undefined,id+' '+chip.key+': '+commit.error);
+    assert.equal(commit.game.enemyHP,preview.game.enemyHP,id+' '+chip.key+': commit is the preview');
+    assert.ok(saved(h,commit),id+' '+chip.key+' saves');
+    assert.ok(r.dmChoices(h,game,health).some(c=>c.id===chip.key),id+' '+chip.key+' is a choice the Dungeon Master can make');
+   }
+  }
+ }
+ assert.ok(offered>=10,'chips offered: '+offered);
+ // Bless and Aid cast from the Cast… chip's sentence at the shared table reach Bram; the DM's ruling is never needed.
+ const cleric=hero('Cleric',3,['guidance','sacred-flame','bless','aid']),bram=hero('Fighter',3,[],{name:'Bram Ironfist'});
+ const fight=r.hostileEncounterGame(cleric,r.newAdventure(cleric),()=>0.5),hosted=r.startParty(r.adventureSnapshot(cleric,fight,{current:r.combatBasics(cleric).hp,temp:0},true),'A','Sam');
+ const view=r.partyView(r.joinParty(hosted,'B',{character:JSON.stringify(bram),game:r.newAdventure(bram),health:null,name:'Jo'}).snapshot,'A');
+ for(const text of ['I cast Bless on me and Bram.','I cast Aid on Bram.']){
+  const asked=r.dmCommand(cleric,{...view.game,openingAttackAvailable:false},text,view.health);assert.equal(asked.error,undefined,text+': '+asked.error);assert.equal(asked.action.request.forceDM,false,text+' needs no ruling');
+  const done=r.commitDmTurn(cleric,{...view.game,openingAttackAvailable:false},view.health,asked.action,{question:text,narration:'x'},()=>0.5);
+  assert.equal(done.error,undefined,text+': '+done.error);assert.ok(r.validAdventure(clone({...view,game:done.game,health:done.health}),cleric),text+' saves');
+ }
+ // Shield: on by default, off when the device says so (storyPreferences.js autoShield, Adventure.js rulesHero).
+ const wiz=hero('Wizard',1,['fire-bolt','light','mage-hand','shield']),wf={...scenes(wiz).fight,openingAttackAvailable:false,potions:0},ac=r.combatBasics(wiz).ac;
+ const blows=[0.5,0.5,0.5];for(let n=0;n<12;n++)blows.push((ac-4-1+0.5)/20,0.5,0.5,0.5,0.5);
+ const on=r.adventureStep(wf,null,wiz,'dodge',seq([0.01,...blows])),off=r.adventureStep(wf,null,{...wiz,autoShield:false},'dodge',seq([0.01,...blows]));
+ assert.ok(!/Shield \(reaction/.test(lines(off)),'no Shield when the player turned it off');
+}
+console.log('Passed: every "use again" and "move" chip for a lasting spell is accepted, preview and commit alike, and is a choice the Dungeon Master can make; Bless and Aid reach friends at the table with no ruling; Shield follows the device\'s choice.');
 fs.writeFileSync('SPELL-COVERAGE.json',JSON.stringify({catalogCount:r.spellLibrary.length,narrated:Object.values(coverage).filter(c=>c.mode==='narrated').length,automatic:Object.values(coverage).filter(c=>c.mode==='automatic').length,dmRuled:Object.values(coverage).filter(c=>c.mode==='dm').length,scope:'Written by verify-spell-routes.cjs: every spell typed and aimed by its first class in seven places of a written story (inn, landmark, after a won fight, after victory, the story fight, a fight in the wilds, a brawl). "automatic" is resolved by the game, "narrated" is spent by the game and described by the Dungeon Master, "ruling" waits for a Dungeon Master ruling the game then applies; a refusal is listed with its reason.',spells:Object.values(coverage)},null,1)+'\n');
 

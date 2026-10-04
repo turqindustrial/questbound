@@ -196,6 +196,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     if (action?.type === 'npc-attack' || harmfulSpell) {
       const beforeAggression=result.game;
       result.game = recordNpcAggression(game, result.game, action.type === 'npc-attack' ? action.target : resolvedSpell.npcTarget, action.type === 'npc-attack' ? 'weapon-attack' : 'harmful-spell');
+      // Others an area or a many-target spell caught remember it too.
+      if (harmfulSpell) for (const id of npcIdsOf(game)) if (id !== resolvedSpell.npcTarget && (result.game.npcHP?.[id] ?? npcProfile(result.game, id)?.maximumHP ?? 0) < (game.npcHP?.[id] ?? npcProfile(game, id)?.maximumHP ?? 0)) result.game = recordNpcAggression(game, result.game, id, 'harmful-spell');
       result.events.push(...stepLogEntries(beforeAggression.log,result.game.log));
     }
     const map = mapState(result.game),
@@ -1454,6 +1456,8 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  result.game={...result.game,...(result.game.npcCombat?{npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1}}:{}),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
  // The hero's turn is over (Vex reaches into the next), and any Sap not yet spent has run out.
  result.game=sapsEnd(endHeroTurn(result.game));
+ // A lasting spell cast this turn can be used again from the next (spellRules.js lastingSpells).
+ if(result.game.concentration?.fresh){result.game.concentration={...result.game.concentration};delete result.game.concentration.fresh;}
  if(result.game.concentration?.remaining!=null){result.game.concentration={...result.game.concentration,remaining:result.game.concentration.remaining-1};if(result.game.concentration.remaining<=0)delete result.game.concentration;}
  result.game={...result.game,journal:appendJournal(result.game.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',events.join('\n').slice(0,3000))};
  return result;
