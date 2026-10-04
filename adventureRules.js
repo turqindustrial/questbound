@@ -15,7 +15,7 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
-import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,companionBrawlWeapon,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions} from "./encounterRules";
+import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,companionBrawlWeapon,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions,sideStrength,brawlStrength,foeScaleKey,foeScaleOf,scaledFoe,foeOffense} from "./encounterRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
 import {proficiencyBonus} from "./characterRules";
@@ -46,7 +46,23 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       Wisdom: 0
     }
   };
+  // The foe as it fights: its own numbers, scaled to the side it faces (encounterRules.js scaledFoe; a hero alone is
+  // never scaled).
   export function encounterFoe(hero, game) {
+    return scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game));
+  }
+  // A fight under way against a bigger side than it was written for: the foe's scale is set (or raised, when someone
+  // joins) and its hit points (and any creature at its side) grow in proportion. Never lowered mid-fight.
+  export function withFoeScale(game, hero) {
+    if (game?.stage !== 'combat' || game.npcCombat?.active || !(game.enemyHP > 0)) return game;
+    const f = sideStrength(game, hero), key = foeScaleKey(game), cur = game.foeScale?.key === key ? game.foeScale.f : 1;
+    if (!(f > cur + 0.001)) return game;
+    const base = baseEncounterFoe(hero, game), was = scaledFoe(base, cur).maximum, now = scaledFoe(base, f).maximum, grow = now / was;
+    const next = {...game, foeScale: {f, key}, enemyHP: Math.min(now, Math.max(1, Math.round(game.enemyHP * grow)))};
+    if (Array.isArray(game.foeAllies)) next.foeAllies = game.foeAllies.map(a => { const maximum = Math.min(500, Math.round(a.maximum * f / cur)); return {...a, maximum, hp: Math.min(maximum, Math.round(a.hp * maximum / a.maximum))}; });
+    return next;
+  }
+  function baseEncounterFoe(hero, game) {
     if (game?.dungeon?.active && game.stage === 'combat') {
       const boss = game.dungeon.room === 6;
       return {
@@ -1093,7 +1109,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         const foeName = 'The ' + foe.name.replace(/^the /i, ''), held = spellTurnStarts(next, 'foe', foeName);
         next = held.game;
         entries.push(...held.lines);
-        for (let member = 1; member <= attackers && fightOn() && !held.skip; member++) {
+        // A lone foe facing a bigger side strikes more than once (encounterRules.js scaledFoe); a pack by its members.
+        const swings = foe.group || attackers < 1 ? attackers : Math.max(1, foe.swings ?? 1);
+        for (let member = 1; member <= swings && fightOn() && !held.skip; member++) {
         const who = attackers > 1 ? `${foe.name} ${member}` : foe.name;
         // Sometimes the creature goes for a companion beside you instead (or, in a party, another hero).
         const target = foeTarget(), why = member === 1 ? heldOff('foe', target) : [];
@@ -1419,13 +1437,19 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(!alive(actor.id))continue;
   const allied=actor.side==='ally',victim=allied?enemies()[0]:null;
   if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(who(actor.id).name+' distracts the opposition to help a defender.');continue;}
-  const weapon=allied?companionBrawlWeapon(next,actor.id):{attackBonus:2,count:1,die:4,bonus:0};
+  let weapon=allied?companionBrawlWeapon(next,actor.id):{attackBonus:2,count:1,die:4,bonus:0};
   const helped=next.npcCombat.help===actor.side;
   // Lying prone, they get up first (unless held down); prone, a Sap, or a grapple spoils their blow (masteryRules.js).
   if(next.marks&&!allied){const begun=creatureTurnStarts(next,actor.id,who(actor.id).name,hp);next=begun.game;logs.push(...begun.lines);}
   // Held by a spell (asleep, paralyzed, entranced, commanded), they do nothing but try to shake it off; charmed by
   // the hero, they will not strike them.
   if(!allied&&next.marks?.[actor.id]?.spells){const held=spellTurnStarts(next,actor.id,who(actor.id).name);next=held.game;const ended=spellTurnEnds(next,actor.id,who(actor.id).name,personDefenses(next,actor.id).saves,random);if(held.skip){logs.push(...held.lines);next=ended.game;logs.push(...ended.lines);continue;}if(charmedBy(next,actor.id,heroIdOf(next))&&!party){logs.push(who(actor.id).name+' will not raise a hand against you.');next=ended.game;logs.push(...ended.lines);continue;}next=ended.game;logs.push(...ended.lines);}
+  // Facing a bigger side (other heroes, allies fighting beside the hero), each opponent strikes more often and a
+  // little harder (encounterRules.js foeOffense); against a hero alone, once as always.
+  const press=allied?{swings:1,mult:1}:foeOffense(brawlStrength(next,hero)),avg=(weapon.count??1)*((weapon.die??4)+1)/2;
+  if(press.mult!==1)weapon={...weapon,bonus:Math.max(0,Math.round((avg+(weapon.bonus??0))*press.mult-avg))};
+  for(let swing=0;swing<press.swings;swing++){
+  if(swing>0&&(!(hp.current>0||party&&partyTargets(next).length)||!alive(actor.id)))break;
   // In a party any standing hero may be the one struck.
   if(party&&!allied){
    const pool=[...(hp.current>0?[null]:[]),...partyTargets(next)],pick=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))];
@@ -1452,6 +1476,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(ward){next=ward.game;damage=ward.total;logs.push(ward.line);}
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
   else if(damage){if(!party)next.hurtBy=actor.id;const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
+  }
  }
  // Felled in a brawl, the hero is left dying where they lie and the defenders stand back (in a party, the others
  // fight on).
@@ -1473,8 +1498,12 @@ function stepLogEntries(before=[],after=[]){
 export function adventureStep(game,health,hero,action,random=Math.random){
  // Two moves in one message (dmCommands.js twoMoves): played one after the other while the turn allows.
  if(action?.type==='turn')return wholeTurn(game,health,hero,action,random);
+ // A foe facing more than one hero (companions, allies, a party) is scaled to the side, before and after the move
+ // (a fight may begin, or someone join it, in this step).
+ const scaled=withFoeScale(game,hero);
  // A party at the shared table takes its fights in turns.
- const result=isPartyGame(game)?partyStep(game,health,hero,action,random):heroStep(game,health,hero,action,random);
+ const played=isPartyGame(scaled)?partyStep(scaled,health,hero,action,random):heroStep(scaled,health,hero,action,random);
+ const result=played.error||played.waiting||!played.game||played.game===scaled?{...played,game:played.game===scaled?game:played.game}:{...played,game:withFoeScale(played.game,hero)};
  // Whatever fell in this step (a creature, a lair's owner, the tale's foe, a person) can be searched afterwards.
  return withSpoils(game,result,hero);
 }
