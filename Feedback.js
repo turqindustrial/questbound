@@ -63,6 +63,6 @@ const s=StyleSheet.create({
  overline:{...type.label,textAlign:'center'},title:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
  text:{fontFamily:fonts.ui,color:tint('#d4ced2'),fontSize:14,lineHeight:22},label:{...type.label,marginTop:4},small:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,textAlign:'center'},
  stars:{flexDirection:'row',gap:6},star:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center'},starText:{fontSize:30,color:tint('#7f767c')},
- input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:4,padding:12,fontSize:17,lineHeight:24,textAlignVertical:'top'},
+ input:{fontFamily:fonts.story,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:4,padding:12,fontSize:17,lineHeight:24,textAlignVertical:'top'},
  error:{fontFamily:fonts.ui,color:colors.danger,fontSize:13,lineHeight:20},
 });

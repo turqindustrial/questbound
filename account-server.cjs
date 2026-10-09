@@ -1,0 +1,74 @@
+// Private account/campaign service. Browser callers use their same-origin gateway.
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {createAccounts}=require('./accounts.cjs'),{loopbackHost}=require('./security-headers.cjs');
+const {createLimiter}=require('./rate-limit.cjs'),{createCampaigns,validSnapshot}=require('./campaigns.cjs'),{createOperations,atomic}=require('./operations.cjs'),{createMailer}=require('./mailer.cjs');
+const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
+const accountRoutes=['register','login','verify','save','load','status','logout','logout-all','password','delete'];
+const campaignRoutes=['create','join','list','invite','turn','edit'];
+const routes=new Set(['poll','save','leave','cloud-save','cloud-load','usage','ops-status','ops-verify-backups',...accountRoutes.map(x=>'account-'+x),...campaignRoutes.map(x=>'campaign-'+x)]);
+const cookieToken=req=>req.headers.cookie?.match(/(?:^|;\s*)questbound_account=([a-f0-9]{64})(?:;|$)/)?.[1]??'';
+const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');return /^[A-Z0-9]{12}$/.test(c)?crypto.createHash('sha256').update('questbound-cloud-v1:'+c).digest('hex'):null;};
+function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={}}={}){
+ const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
+ const accounts=createAccounts({...accountOptions,dir:accountsDir,now,validSnapshot,mailer:mail,backup:ops.backup,audit:ops.audit});
+ const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,guest:'account-'+user.id}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
+ const campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl});
+ const quota={poll:[1200,600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],other:[300,600000],...limits};
+ const routeLimits=new Map([...routes].map(route=>{const [max,span]=quota[route]??quota.other;return [route,createLimiter(max,span,{now})];}));
+ const server=http.createServer(async(req,res)=>{
+  const origin=req.headers.origin,send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store',...(allowedOrigins.has(origin)?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Credentials':'true','Vary':'Origin'}:{})});res.end(JSON.stringify(data));};
+  const setSession=token=>res.setHeader('Set-Cookie','questbound_account='+token+'; HttpOnly; SameSite=Strict; Path=/; Max-Age='+(token?7*86400:0)+(req.headers['x-questbound-secure']==='1'?'; Secure':''));
+  const loginResult=result=>{if(result.token){setSession(result.token);const {token,...publicResult}=result;return publicResult;}return result;};
+  if(!loopbackHost(req))return send(403,{error:'Use the Questbound game on this PC.'});
+  if(origin&&!allowedOrigins.has(origin))return send(403,{error:'Origin not allowed.'});
+  if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':allowedOrigins.has(origin)?origin:'http://localhost:8081','Access-Control-Allow-Credentials':'true','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'});return res.end();}
+  let route='',caller='';
+  try{
+   if(req.url==='/health'&&req.method==='GET')return send(200,{ready:true,table:true,verifiedAccounts:true,mailConfigured:mail.configured()});
+   if(req.method!=='POST'||!req.headers['content-type']?.startsWith('application/json'))return send(404,{error:'Not found.'});
+   if(!allowedOrigins.has(origin))return send(403,{error:'Use the Questbound game to reach the table.'});
+   route=req.url.slice(1);if(!routes.has(route))return send(404,{error:'Not found.'});
+   caller=String(req.headers['x-questbound-client']??'this-pc').slice(0,80);
+   const seconds=routeLimits.get(route)(caller);if(seconds){ops.audit('rate-denied',{route,status:429});res.setHeader('Retry-After',String(seconds));return send(429,{error:'Too many tries. Wait a few minutes and try again.'});}
+   let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>2500000)return send(413,{error:'This adventure is too large.'});}
+   let b;try{b=JSON.parse(raw);}catch{return send(400,{error:'Invalid request.'});}
+   if(!b||typeof b!=='object'||Array.isArray(b))return send(400,{error:'Invalid request.'});
+   if(Object.hasOwn(b,'token'))return send(400,{error:'This version uses a protected sign-in cookie. Reload and sign in again.'});
+   const token=cookieToken(req);
+   if(route==='account-register'||route==='account-login'||route==='account-verify'){
+    if(route!=='account-verify'&&(b.termsVersion!=='8 October 2026'||b.ageConfirmed!==true))return send(400,{error:'Confirm your age and accept the current terms and privacy policy.'});
+    ops.consume(caller,'account-attempts',100);
+    const result=route==='account-register'?await accounts.register(b.email,b.password,caller,b.recoveryCode,b.termsVersion):route==='account-login'?await accounts.login(b.email,b.password,caller,b.termsVersion):await accounts.verify(b.email,b.challenge,b.code,caller);
+    return send(200,loginResult(result));
+   }
+   if(route==='account-logout'){if(b.expectedAccountId&&accounts.identity(token).id!==b.expectedAccountId)return send(409,{error:'Another account signed in on this browser. Reload before continuing.'});await accounts.logout(token);setSession('');return send(200,{signedOut:true});}
+   const user=accounts.identity(token);user.active=()=>accounts.identity(token);
+   if(b.expectedAccountId&&b.expectedAccountId!==user.id)return send(409,{error:'Another account signed in on this browser. Reload before continuing.'});
+   if(route==='account-status')return send(200,await accounts.status(token));
+   if(route==='account-save')return send(200,await accounts.save(token,b.snapshot));
+   if(route==='account-load')return send(200,await accounts.load(token));
+   if(route==='account-logout-all'){const result=await accounts.logoutAll(token);setSession('');return send(200,result);}
+   if(route==='account-password')return send(200,await accounts.changePassword(token,b.password,b.newPassword,caller));
+   if(route==='account-delete'){const result=await accounts.remove(token,b.password,caller);campaigns.removeAccount(user.id);setSession('');return send(200,result);}
+   if(route==='save')return send(403,{error:'Whole-adventure writes are disabled. Send an action to the campaign.'});
+   if(route==='poll'||route==='leave')return send(200,campaigns[route](user,b));
+   if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](user,b);return send(result.conflict?409:200,result);}
+   if(route==='usage'){ops.consume(user.id,b.kind==='art'?'illustration-requests':'dm-requests',b.kind==='art'?1500:300);return send(200,{allowed:true,id:user.id});}
+   if(route==='ops-status'||route==='ops-verify-backups'){
+    if(req.headers['x-questbound-local']!=='1')return send(403,{error:'Host diagnostics are available only on the desktop.'});
+    return send(200,route==='ops-status'?ops.status():ops.backup.verify());
+   }
+   if(route==='cloud-save'||route==='cloud-load'){
+    const key=cloudKey(b.code);if(!key)return send(400,{error:'That recovery code is not valid.'});const file=path.join(cloudDir,key+'.json');
+    if(route==='cloud-load'){let saved;try{saved=JSON.parse(fs.readFileSync(file,'utf8'));}catch{return send(404,{error:'No adventure was found for that recovery code.'});}return send(200,saved);}
+    if(!validSnapshot(b.snapshot))return send(400,{error:'That adventure could not be saved.'});fs.mkdirSync(cloudDir,{recursive:true});
+    if(!fs.existsSync(file)&&fs.readdirSync(cloudDir).filter(f=>/^[a-f0-9]{64}\.json$/.test(f)).length>=cloudLimit)return send(507,{error:'Recovery storage is full. Existing saves are safe.'});
+    const savedAt=new Date(now()).toISOString(),record={savedAt,snapshot:b.snapshot};ops.backup.put('cloud-'+key,record);atomic(file,record);return send(200,{saved:true,savedAt});
+   }
+   return send(404,{error:'Not found.'});
+  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.'});}
+ });
+ server.requestTimeout=20000;server.headersTimeout=10000;
+ return {server,accounts,campaigns,operations:ops};
+}
+module.exports={createSyncServer,routes,cookieToken};

@@ -35,9 +35,9 @@ const s=StyleSheet.create({
  card:{flexGrow:1,flexBasis:260,padding:16,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('#211822'),gap:10},confirm:{borderColor:colors.gold},
  top:{flexDirection:'row',gap:14,alignItems:'center'},
  role:{...type.label,fontSize:9,marginBottom:2},name:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:19,letterSpacing:.6},
- line:{fontFamily:fonts.ui,color:colors.gold,fontSize:12,marginTop:2},tagline:{fontFamily:fonts.story,fontStyle:'italic',color:'#d2c7c3',fontSize:15.5,lineHeight:21},
+ line:{fontFamily:fonts.ui,color:colors.gold,fontSize:12,marginTop:2},tagline:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#d2c7c3'),fontSize:15.5,lineHeight:21},
  stats:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.15)')},
  stat:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:8,paddingVertical:3,borderRadius:11,borderWidth:1,borderColor:tint('rgba(178,34,58,.22)'),backgroundColor:'rgba(0,0,0,.2)'},
- statText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',color:'#ddd5c2'},
+ statText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',color:tint('#ddd5c2')},
  play:{marginLeft:'auto',flexDirection:'row',alignItems:'center',gap:4},playText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.8,color:colors.gold,textTransform:'uppercase'},
 });

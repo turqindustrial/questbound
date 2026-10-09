@@ -2,7 +2,7 @@ import {validPlannedSubclass} from './subclassOptions';
 import {spellSelectionError} from './spellOptions';
 import { validEquipment } from './equipmentRules';
 import { buildError, finalScores, backgrounds } from './characterRules';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './playerStorage';
 
 const KEY = 'questbound.character.v1';
 export function isValidCharacter(value) {

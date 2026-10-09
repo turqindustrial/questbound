@@ -1,21 +1,22 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,Pressable,StyleSheet,useWindowDimensions} from 'react-native';
-import {Section} from './ui';
+import {Section,Toggle} from './ui';
 import Icon from './Icon';
 import {themeChoices,themeSwatches} from './themeRules';
-import {fonts,colors,tint,currentTheme,subscribeTheme,setTheme} from './theme';
+import {fonts,colors,tint,currentTheme,currentMode,subscribeTheme,setTheme,setMode} from './theme';
 import {playSound} from './audio';
 // Settings → Theme: the colour of the whole game on this device. Each choice shows its own colours (its main colour
 // with a pip of its accent), whatever theme is on, and choosing one repaints the game at once.
 export function ThemeSettings(){
- const [theme,setChosen]=useState(currentTheme);
- useEffect(()=>{setChosen(currentTheme());return subscribeTheme(setChosen);},[]);
+ const [theme,setChosen]=useState(currentTheme),[mode,setAppearance]=useState(currentMode);
+ useEffect(()=>{const refresh=()=>{setChosen(currentTheme());setAppearance(currentMode());};refresh();return subscribeTheme(refresh);},[]);
  const chosen=themeChoices.find(choice=>choice.id===theme)??themeChoices[0];
  // Three to a row, or two on a phone, so every name fits beside its dot.
  const narrow=useWindowDimensions().width<520;
  return <View dataSet={{qb:'plate'}} style={s.panel}>
   <Section icon="palette" title="Theme" style={{marginTop:0,marginBottom:2}}/>
   <Text style={s.caption}>The colour of the game on this device: buttons, frames, lettering and glows. It changes at once.</Text>
+  <Toggle value={mode==='dark'} onChange={on=>setMode(on?'dark':'light')} label="Dark mode" description={mode==='dark'?'Dark surfaces and light lettering. Turn off for a light theme.':'Light surfaces and dark lettering. Your chosen palette stays the same.'}/>
   <View accessibilityRole="radiogroup" accessibilityLabel="Theme colour" style={s.row}>
    {themeChoices.map(choice=>{
     const on=choice.id===theme,swatch=themeSwatches(choice.id);

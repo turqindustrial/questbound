@@ -22,7 +22,7 @@ export default function ActionGuide({visible,onClose,actions,hero,game,onRun,dis
       return <View key={a.key} dataSet={{qb:'card'}} style={s.row}>
        <View style={[s.mark,a.primary&&{borderColor:colors.goldBright}]}><Icon name={a.icon??'star'} size={18} color={colors.goldBright}/></View>
        <View style={{flex:1,minWidth:0}}>
-        <View style={s.nameRow}><Text style={s.name}>{a.label.replace(/…$/,'')}</Text>{!!cost&&<View style={[s.cost,cost==='Bonus action'&&s.costBonus]}><Text style={[s.costText,cost==='Bonus action'&&{color:'#a8ddd4'}]}>{cost}</Text></View>}</View>
+        <View style={s.nameRow}><Text style={s.name}>{a.label.replace(/…$/,'')}</Text>{!!cost&&<View style={[s.cost,cost==='Bonus action'&&s.costBonus]}><Text style={[s.costText,cost==='Bonus action'&&{color:tint('#a8ddd4')}]}>{cost}</Text></View>}</View>
         {!!spell&&<Text style={s.facts}>{spellFacts(spell)}</Text>}
         <Text style={s.text}>{actionDescription(a,hero,game)}</Text>
        </View>
@@ -45,7 +45,7 @@ const s=StyleSheet.create({
  nameRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},name:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},
  cost:{paddingHorizontal:8,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)')},costBonus:{borderColor:'rgba(111,208,196,.5)'},costText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',letterSpacing:.4,color:colors.gold,textTransform:'uppercase'},
  facts:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b8aeb5'),marginTop:3},
- text:{fontFamily:fonts.story,fontSize:15.5,lineHeight:22,color:'#ded2cd',marginTop:4},
+ text:{fontFamily:fonts.story,fontSize:15.5,lineHeight:22,color:tint('#ded2cd'),marginTop:4},
  use:{alignSelf:'center',minHeight:38,minWidth:54,paddingHorizontal:12,borderRadius:19,borderWidth:1,borderColor:tint('rgba(178,34,58,.5)'),backgroundColor:tint('rgba(31,24,32,.92)'),alignItems:'center',justifyContent:'center'},useText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
  tip:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12},tipText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:19,color:colors.muted},
 });

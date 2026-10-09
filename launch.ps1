@@ -11,7 +11,7 @@
 #   -SetupTunnel     remember a permanent link for -Share from your own free Cloudflare account (a named tunnel's token,
 #                    stored encrypted to your Windows account, and its public hostname)
 #   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
-#   -TrustNetwork    mark the Wi-Fi this PC is on as your home network, so phone access runs on it (it runs only at home)
+#   -TrustNetwork    retained for compatibility; remote HTTP play is disabled
 param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -81,7 +81,7 @@ if ($Models) {
   Say "  Saved: $summary. A running Dungeon Master uses them from its next reply; no restart is needed." 'Green'
   return
 }
-if ($TrustNetwork) { & node (Join-Path $root 'phone-server.cjs') --trust-network; return }
+if ($TrustNetwork) { Say 'Use Questbound-Share.cmd for encrypted phone play.' 'Yellow'; return }
 if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }
 # A permanent link: in the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, give it a public
 # hostname that points to http://127.0.0.1:8087, and paste its token here. The token never touches disk in plain text.
@@ -186,28 +186,15 @@ else {
   if (Wait-Up 'http://localhost:8081/' $wait) { Say '  Desktop game      started' 'Green' } else { Say '  The desktop game did not start. See .questbound-logs\desktop.err.log' 'Red' }
 }
 
-# 5. Phone access on this Wi-Fi. A fresh pairing code is issued when the old one is close to expiring.
+# 5. Remote play now requires the encrypted link, including on home Wi-Fi.
 $session = $null
-if (Test-Path $sessionFile) { try { $session = Get-Content $sessionFile -Raw | ConvertFrom-Json } catch {} }
-$gatewayAlive = $session -and (Get-Process -Id $session.pid -ErrorAction SilentlyContinue)
-$fresh = $gatewayAlive -and ([datetime]$session.expiresAt).ToUniversalTime() -gt (Get-Date).ToUniversalTime().AddHours(2)
-if ($gatewayAlive -and $fresh) { Say '  Phone access      already running' 'DarkGray' }
-else {
-  if ($gatewayAlive) { & taskkill.exe /PID $session.pid /T /F | Out-Null }
-  $before = if (Test-Path $sessionFile) { (Get-Item $sessionFile).LastWriteTime } else { [datetime]::MinValue }
-  Start-Hidden 'phone' 'node' 'phone-server.cjs' | Out-Null
-  for ($i = 0; $i -lt 20 -and -not ((Test-Path $sessionFile) -and (Get-Item $sessionFile).LastWriteTime -gt $before); $i++) { Start-Sleep -Milliseconds 500 }
-  if ((Test-Path $sessionFile) -and (Get-Item $sessionFile).LastWriteTime -gt $before) { $session = Get-Content $sessionFile -Raw | ConvertFrom-Json; Say '  Phone access      started' 'Green' }
-  else {
-    $session = $null; $why = Get-Content (Join-Path $logs 'phone.err.log') -Tail 1 -ErrorAction SilentlyContinue
-    if ($why) { Say "  $why" 'Yellow' } else { Say '  Phone access did not start (is the PC on Wi-Fi?). See .questbound-logs\phone.err.log' 'Yellow' }
-  }
-}
+Say '  Phone access      uses the HTTPS playtest link (Questbound-Share.cmd)' 'DarkGray'
 
 # 6. Sharing with playtesters over the internet (only with -Share): a Cloudflare tunnel to a loopback-only gateway
 #    that asks for an invite code. A quick tunnel's link lasts as long as the tunnel; a permanent link (-SetupTunnel)
 #    never changes, and its invite code survives restarts. The invite code lasts a week.
 $shared = $null
+if (-not $Share -and (Test-Path $shareFile)) { try { $candidateShare = Get-Content $shareFile -Raw | ConvertFrom-Json; if (Get-Process -Id $candidateShare.pid -ErrorAction SilentlyContinue) { $shared = $candidateShare } } catch {} }
 $named = (Test-Path $tunnelTokenFile) -and (Test-Path $tunnelHostFile)
 if ($Share) {
   if (Test-Path $shareFile) { try { $shared = Get-Content $shareFile -Raw | ConvertFrom-Json } catch {} }
@@ -263,7 +250,7 @@ if ($session) {
 }
 if ($shared) {
   Say ''
-  Say "  Playtest link:  $($shared.link)" 'Yellow'
+  Say "  Phone / playtest link:  $($shared.link)" 'Yellow'
   Say "  Invite code:    $($shared.inviteCode)   (valid until $(([datetime]$shared.expiresAt).ToLocalTime().ToString('ddd MMM d, h:mm tt')))" 'Yellow'
   Say '  Send both to your testers. Their play uses your OpenAI key; keep this PC awake while they play.' 'DarkGray'
   if ($named) { Say '  This link stays the same, and so does the invite code until it expires.' 'DarkGray' }

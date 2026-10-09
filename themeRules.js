@@ -67,23 +67,34 @@ const colourPattern=/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])|rgba?\(\s*(
 const hexOf=(r,g,b)=>[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 // Every family colour written in a piece of text (a single colour, a shadow, a whole style sheet) is handed to
 // `replace(colour)`, where colour is {key, r, g, b, alpha, hex}; what it returns is written in its place.
-export function mapColours(text,replace){
+export function mapColours(text,replace,all=false){
  return String(text).replace(colourPattern,(whole,hex,r,g,b,alpha)=>{
   if(hex){const full=hex.length===3?hex.split('').map(c=>c+c).join(''):hex;r=parseInt(full.slice(0,2),16);g=parseInt(full.slice(2,4),16);b=parseInt(full.slice(4,6),16);}
   else{r=+r;g=+g;b=+b;}
-  if(r>255||g>255||b>255||!colourFamily(r,g,b))return whole;
+  if(r>255||g>255||b>255||(!all&&!colourFamily(r,g,b)))return whole;
   const a=alpha===undefined?1:Math.max(0,Math.min(1,Number(alpha)));
   return replace({key:hexOf(r,g,b)+(a<1?'-'+String(Math.round(a*1000)).padStart(3,'0'):''),r,g,b,alpha:a,hex:!!hex,alphaText:alpha})??whole;
  });
 }
 // The same colour written out for a theme, in the form it was written in.
-export function writtenColour(colour,themeId){
- const [r,g,b]=themedRgb(colour.r,colour.g,colour.b,themeId);
+export function appearanceRgb(r,g,b,themeId,mode='dark'){
+ const rgb=themedRgb(r,g,b,themeId);if(mode!=='light')return rgb;
+ const [L,C,h]=rgbToOklch(...rgb),family=colourFamily(r,g,b);
+ // Keep true black shadows black; surfaces acquire a pale tint of their palette.
+ if(r===0&&g===0&&b===0)return rgb;
+ if(family==='neutral'||C<.035)return oklchToRgb(L<.48?.985-L*.12:.26+(1-L)*.42,Math.min(C,.025),h);
+ if(family==='main'||family==='accent')return oklchToRgb(L<.55?.90:Math.min(.47,.36+(1-L)*.24),Math.min(C,L<.55?.055:.18),h);
+ // Warm reading text and semantic labels retain their hue, with ink-dark contrast.
+ if(L>.6)return oklchToRgb(.40,Math.min(C,.14),h);
+ return rgb;
+}
+export function writtenColour(colour,themeId,mode='dark'){
+ const [r,g,b]=appearanceRgb(colour.r,colour.g,colour.b,themeId,mode);
  return colour.alpha<1||!colour.hex?(colour.alphaText===undefined?'rgb('+r+','+g+','+b+')':'rgba('+r+','+g+','+b+','+colour.alphaText+')'):'#'+hexOf(r,g,b);
 }
 // A piece of text with every family colour written out for a theme (used where a style variable cannot reach: inside
 // pictures written as text, and on devices without style variables).
-export const themedText=(text,themeId)=>themeId===defaultTheme?String(text):mapColours(text,colour=>writtenColour(colour,themeId));
+export const themedText=(text,themeId,mode='dark')=>themeId===defaultTheme&&mode==='dark'?String(text):mapColours(text,colour=>writtenColour(colour,themeId,mode),mode==='light');
 // The colour dots shown for a theme in Settings: its main colour and its accent.
 export function themeSwatches(themeId){
  const show=(r,g,b)=>'#'+hexOf(...themedRgb(r,g,b,themeId));

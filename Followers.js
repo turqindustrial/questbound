@@ -10,9 +10,9 @@ import DynamicArt from './DynamicArt';
 import {GameButton,StatBar,ScreenTitle} from './ui';
 import Icon from './Icon';
 import {fonts,colors,type,tint} from './theme';
-export default function Followers({game,setGame,onBack}){
+export default function Followers({game,setGame,onBack,onManage}){
  const [error,setError]=useState(''),followers=Object.entries(game.followers??{}).filter(([,f])=>f.status!=='dismissed'),locked=game.npcCombat?.active||game.stage==='combat'||!!game.pendingSpell;
- function manage(id,action){const result=manageFollower(game,id,action);if(result.error){setError(result.error);return;}setGame(result.game);setError('');}
+ async function manage(id,action){if(onManage){try{await onManage(id,action);setError('');}catch(e){setError(e.message);}return;}const result=manageFollower(game,id,action);if(result.error){setError(result.error);return;}setGame(result.game);setError('');}
  const place=id=>id.startsWith('dungeon:')?dungeonRooms[Number(id.split(':')[1])]?.name:game.story?.locations[id]?.name??({inn:'Crossroads Inn',bridge:'Old Stone Bridge',tower:'Abandoned Watchtower'})[id];
  return <View><ScreenTitle eyebrow="Your party" icon="party" title="Companions" sub="Invite people through the Dungeon Master. Their goals, trust and responsibilities shape whether they join you."/>
  {!followers.length&&<View dataSet={{qb:'plate'}} style={s.empty}><View style={s.emptyMark}><Icon name="party" size={30} color={colors.gold}/></View><PlainText style={s.emptyTitle}>No companions yet</PlainText><PlainText style={s.body}>Start a conversation and ask someone to join your adventure.</PlainText></View>}
@@ -24,7 +24,7 @@ const s=StyleSheet.create({
  card:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginVertical:8},row:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:18,marginBottom:6},portrait:{width:100,height:124,borderRadius:4},
  name:{fontFamily:fonts.display,color:colors.parchment,fontWeight:'700',letterSpacing:.8,fontSize:22},status:{flexDirection:'row',alignItems:'center',gap:6},statusText:{fontFamily:fonts.ui,color:colors.gold,fontSize:13,fontWeight:'600'},
  hpRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'},hpText:{fontFamily:fonts.display,color:colors.parchment,fontSize:14,fontWeight:'700'},
- body:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:16.5,lineHeight:26,marginVertical:8},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:20,marginBottom:6,textTransform:'none'},
+ body:{fontFamily:fonts.story,color:tint('#e6dfcd'),fontSize:16.5,lineHeight:26,marginVertical:8},note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:20,marginBottom:6,textTransform:'none'},
  actions:{flexDirection:'row',flexWrap:'wrap',gap:8},error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:22},
  empty:{alignItems:'center',padding:28,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),marginVertical:8,gap:6},
  emptyMark:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',marginBottom:6,backgroundColor:tint('rgba(48,26,78,.35)')},

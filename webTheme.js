@@ -13,10 +13,13 @@ const grain=svg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220
 const bezelMarkup=(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='#c4344e'><circle cx='100' cy='100' r='96' stroke-opacity='.35' stroke-width='.8'/><circle cx='100' cy='100' r='88' stroke-opacity='.2' stroke-width='.6'/>${Array.from({length:48},(_,i)=>{const a=i*7.5*Math.PI/180,long=i%4===0,r1=long?86:90,r2=95,x1=100+r1*Math.sin(a),y1=100-r1*Math.cos(a),x2=100+r2*Math.sin(a),y2=100-r2*Math.cos(a);return `<path d='M${x1.toFixed(2)} ${y1.toFixed(2)}L${x2.toFixed(2)} ${y2.toFixed(2)}' stroke-opacity='${long?.9:.45}' stroke-width='${long?1.2:.7}'/>`;}).join('')}${[0,90,180,270].map(d=>`<path transform='rotate(${d} 100 100)' d='M100 0.5 103.5 4 100 7.5 96.5 4Z' fill='#be96ff' stroke='none'/>`).join('')}</svg>`);
 // A picture written as text cannot read a style variable, so these are written out afresh for each theme.
 const bezel='var(--qb-bezel)';
-themeVariables(theme=>({...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme))])),'--qb-bezel':svg(themedText(bezelMarkup,theme))}));
+themeVariables((theme,mode)=>({...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme,mode))])),'--qb-bezel':svg(themedText(bezelMarkup,theme,mode))}));
 const css=tint(`
+html[data-appearance=light] [data-qb=rays],html[data-appearance=light] [data-qb=grain]{opacity:.12!important;}
+html[data-appearance=light] [data-qb=gold],html[data-appearance=light] [data-qb=logo]{filter:none!important;text-shadow:none!important;}
+
 :root{--qb-gold:#e04a5c;--qb-gold-mid:#b2223a;--qb-ink:#0a070b;--qb-ease:cubic-bezier(.2,.8,.2,1);}
-html,body{background:#0a070b;color-scheme:dark;}
+html,body{background:#0a070b;color-scheme:inherit;}
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;}
 ::selection{background:rgba(176,140,245,.38);color:#fff;}
 *{scrollbar-width:thin;scrollbar-color:#4a2c78 transparent;}
@@ -287,7 +290,8 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 @keyframes qb-candle{0%,100%{opacity:.85;}45%{opacity:1;}70%{opacity:.9;}}
 [data-qb=launch-ring]{box-shadow:0 0 0 1px rgba(0,0,0,.8),0 0 40px rgba(230,48,82,.35),inset 0 0 30px rgba(230,48,82,.18);background:radial-gradient(circle at 50% 40%,rgba(48,26,78,.55),rgba(14,10,14,.9) 70%) !important;}
 [data-qb=bezel]{background:${bezel} center/contain no-repeat;animation:qb-spin 90s linear infinite;opacity:.85;}
-[data-qb=bezel][data-dir=back]{animation-direction:reverse;animation-duration:140s;opacity:.4;transform:scale(1.12);}
+[data-qb=bezel][data-dir=back]{animation-name:qb-spin-scaled;animation-direction:reverse;animation-duration:140s;opacity:.4;transform:scale(1.12);}
+@keyframes qb-spin-scaled{from{transform:scale(1.12) rotate(0deg);}to{transform:scale(1.12) rotate(360deg);}}
 [data-qb=launch-prompt]{animation:qb-pulse 2.2s ease-in-out infinite;}
 @keyframes qb-pulse{0%,100%{opacity:.45;letter-spacing:4px;}50%{opacity:1;letter-spacing:5px;}}
 /* Game HUD and phone tab bar: frosted, always on top of the scene. */

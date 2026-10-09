@@ -1,50 +1,34 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const create=vm.runInNewContext(fs.readFileSync('sharedTableSync.js','utf8').replace(/export /g,'')+'\ncreateSharedTableSync');
-const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
-const settle=()=>new Promise(resolve=>setImmediate(resolve));
-const snap=turn=>({version:1,character:'hero',game:{turn},health:null,chosen:true});
+const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no});return {resolve,reject,promise};};
+const settle=()=>new Promise(r=>setImmediate(r));
 function fixture(){
- let state={version:1,snapshot:snap('original'),players:[]},pollGate=null,saveGate=null,applyError=null,failSave=null,inside=0,maxInside=0;
- const calls=[],applied=[],versions=[],notices=[],status=[];
- const sync=create({
-  pollTable:async known=>{calls.push({kind:'poll',known});inside++;maxInside=Math.max(maxInside,inside);try{if(pollGate){const gate=pollGate;pollGate=null;await gate.promise;}return {...state,...(known===state.version?{snapshot:undefined}:{})};}finally{inside--; }},
-  saveTable:async(snapshot,baseVersion,force)=>{calls.push({kind:'save',snapshot,baseVersion,force});inside++;maxInside=Math.max(maxInside,inside);try{if(saveGate){const gate=saveGate;saveGate=null;await gate.promise;}if(failSave==='before'){failSave=null;throw Error('Disconnected');}if(!force&&baseVersion!==state.version)return {...state,conflict:true};state={...state,version:state.version+1,snapshot};if(failSave==='after'){failSave=null;throw Error('Receipt lost');}return {...state,snapshot:undefined};}finally{inside--; }},
-  applyRemote:async snapshot=>{if(applyError)throw applyError;applied.push(snapshot);},
-  onStatus:s=>status.push(s),onVersion:v=>versions.push(v),onConflict:()=>notices.push('conflict'),leaveTable:async()=>calls.push({kind:'leave'}),
- });
- return {sync,calls,applied,versions,notices,status,get state(){return state;},get maxInside(){return maxInside;},remote:turn=>{state={...state,version:state.version+1,snapshot:snap(turn)};},empty:()=>{state={...state,version:0,snapshot:null};},delayPoll:()=>pollGate=deferred(),delaySave:()=>saveGate=deferred(),badApply:value=>applyError=value,fail:value=>failSave=value};
+ let slots=[],index=0,pendingEffects=[],timers=[],membership={joined:true,name:'Alice',campaignId:'test'},serverVersion=1,gate=null,applyGate=null,fail=false;
+ const calls=[],applied=[];
+ const state=()=>({campaignId:'test',version:serverVersion,role:'owner',players:[],snapshot:{game:{version:serverVersion},health:null}});
+ const useRef=v=>{const i=index++;return slots[i]??(slots[i]={current:v});};
+ const useState=v=>{const i=index++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return [slots[i],n=>slots[i]=typeof n==='function'?n(slots[i]):n];};
+ const useEffect=(fn,deps)=>{const i=index++;if(!slots[i]||deps.some((d,j)=>d!==slots[i].deps[j])){slots[i]?.cleanup?.();slots[i]={deps};pendingEffects.push(()=>slots[i].cleanup=fn());}};
+ const source=fs.readFileSync('useSharedTable.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'');
+ const use=vm.runInNewContext(source+'\nuseSharedTable',{useRef,useState,useEffect,useCallback:f=>f,tableMembership:()=>membership,setTableMembership:c=>membership={...membership,...c},deviceId:()=> 'alice',crypto:require('node:crypto').webcrypto,
+  setInterval:f=>{timers.push(f);return f},clearInterval:f=>timers=timers.filter(x=>x!==f),adventureSnapshot:()=>({}),
+  campaignCall:async(route,body)=>{calls.push({route,body});if(route==='poll'){const s=state();if(gate){const g=gate;gate=null;await g.promise;}return s;}if(route==='campaign-turn'){if(fail){fail=false;throw Error('Lost connection');}serverVersion++;return state();}if(route==='campaign-edit'){serverVersion++;return state();}return {};}});
+ const render=()=>{index=0;const value=use({ready:true,hero:{},game:{},health:null,characterChosen:true,applyRemote:async(s,current)=>{if(applyGate){const g=applyGate;applyGate=null;await g.promise;}if(current())applied.push(s.game.version);}});for(const fn of pendingEffects.splice(0))fn();return value;};
+ return {render,calls,applied,poll:()=>timers[0](),delayPoll:()=>gate=deferred(),delayApply:()=>applyGate=deferred(),remote:()=>serverVersion++,failOnce:()=>fail=true};
 }
 (async()=>{
- // Original regression: a stale autosave queued behind a slow poll must never
- // acquire the incoming version number and overwrite the newer remote turn.
- let f=fixture();await f.sync.start(1);const oldPoint=f.sync.checkpoint();
- const gate=f.delayPoll(),poll=f.sync.poll();await settle();
- const oldSave=f.sync.submit(snap('stale local'),oldPoint);f.remote('new remote');gate.resolve();await Promise.all([poll,oldSave]);
- assert.equal(f.state.snapshot.game.turn,'new remote');assert.equal(f.calls.filter(c=>c.kind==='save').length,0);assert.ok(f.notices.length);
- await f.sync.submit(snap('late scene preparation'),oldPoint);assert.equal(f.state.snapshot.game.turn,'new remote');
- // Same stored version on reload still needs the full snapshot before saving.
- f=fixture();const initial=f.delayPoll(),starting=f.sync.start(1);await settle();await f.sync.submit(snap('old browser save'));initial.resolve();await starting;
- assert.equal(f.calls[0].known,-1);assert.equal(f.applied[0].game.turn,'original');assert.equal(f.calls.filter(c=>c.kind==='save').length,0);
- // Rapid local updates follow our own acknowledgements, with no concurrent I/O.
- f=fixture();await f.sync.start();const saveGate=f.delaySave(),one=f.sync.submit(snap('one'));await settle();
- const two=f.sync.submit(snap('two')),three=f.sync.submit(snap('three')),during=f.sync.poll();saveGate.resolve();await Promise.all([one,two,three,during]);
-  const writes=f.calls.filter(c=>c.kind==='save');assert.equal(writes.length,2);assert.equal(writes[1].snapshot.game.turn,'three');assert.equal(writes[1].baseVersion,2);assert.equal(f.state.snapshot.game.turn,'three');assert.equal(f.maxInside,1);
- // A local undo during an in-flight save must itself be saved after that write.
- f=fixture();await f.sync.start();const undoGate=f.delaySave(),change=f.sync.submit(snap('temporary change'));await settle();const undo=f.sync.submit(snap('original'));undoGate.resolve();await Promise.all([change,undo]);assert.equal(f.state.snapshot.game.turn,'original');assert.equal(f.calls.filter(c=>c.kind==='save').length,2);
- // The server wins a genuine concurrent write; the discarded local branch stays discarded.
- f=fixture();await f.sync.start();f.remote('other player won');await f.sync.submit(snap('losing turn'));assert.equal(f.state.snapshot.game.turn,'other player won');assert.equal(f.applied.at(-1).game.turn,'other player won');assert.equal(f.notices.length,1);
- // Leaving invalidates queued work and ignores an old poll response.
- f=fixture();await f.sync.start();const leaveGate=f.delayPoll(),oldPoll=f.sync.poll();await settle();const queued=f.sync.submit(snap('after leave')),left=f.sync.leave();f.remote('while leaving');leaveGate.resolve();await Promise.all([oldPoll,queued,left]);
- assert.equal(f.applied.length,1);assert.equal(f.calls.filter(c=>c.kind==='save').length,0);assert.equal(f.calls.at(-1).kind,'leave');
- // Unmount/stop also cancels responses, and rejoining starts a new session.
- f=fixture();const stopGate=f.delayPoll(),oldStart=f.sync.start();await settle();f.sync.stop();stopGate.resolve();await oldStart;assert.equal(f.applied.length,0);await f.sync.start();assert.equal(f.applied.length,1);
- // Invalid remote saves do not advance the version or publish our old state.
- f=fixture();await f.sync.start();f.badApply(Error('Invalid saved adventure'));f.remote('invalid');await assert.rejects(f.sync.poll(),/Invalid/);await f.sync.submit(snap('must not replace invalid'));assert.equal(f.versions.at(-1),1);assert.equal(f.calls.filter(c=>c.kind==='save').length,0);f.badApply(null);await f.sync.poll();assert.equal(f.versions.at(-1),2);
- // Failed writes retry after polling; a lost success receipt never duplicates a turn.
- f=fixture();await f.sync.start();f.fail('before');await assert.rejects(f.sync.submit(snap('retry me')),/Disconnected/);await f.sync.poll();await settle();assert.equal(f.state.snapshot.game.turn,'retry me');assert.equal(f.state.version,2);
- f=fixture();await f.sync.start();f.fail('after');await assert.rejects(f.sync.submit(snap('already saved')),/Receipt/);await f.sync.poll();await settle();assert.equal(f.state.version,2);assert.equal(f.calls.filter(c=>c.kind==='save').length,1);assert.equal(f.applied.at(-1).game.turn,'already saved');
- // Two devices discovering an empty table must not force-replace each other.
- f=fixture();f.empty();const joinGate=f.delaySave(),joining=f.sync.join(snap('my adventure'));await settle();f.remote('first host');joinGate.resolve();assert.equal(await joining,true);assert.equal(f.calls.find(c=>c.kind==='save').force,false);assert.equal(f.state.snapshot.game.turn,'first host');assert.equal(f.applied.at(-1).game.turn,'first host');
- f=fixture();await f.sync.join(snap('explicit replacement'),true);assert.equal(f.calls.find(c=>c.kind==='save').force,true);assert.equal(f.state.snapshot.game.turn,'explicit replacement');
- console.log('Passed: slow-poll stale-save regression, delayed actions, reload reconciliation, ordered/coalesced writes, real conflicts, leave/unmount cancellation, rejoin, invalid saves, offline retry, lost receipts and competing first hosts.');
-})().catch(error=>{console.error(error);process.exitCode=1;});
+ let f=fixture(),table=f.render();await settle();assert.deepEqual(f.applied,[1]);
+ const gate=f.delayPoll(),poll=f.poll();await settle();const turn=await table.turn('Attack');gate.resolve();await poll;
+ assert.equal(turn.game.version,2);assert.deepEqual(f.applied,[1,2],'slow old polls cannot overwrite an acknowledged turn');
+ assert.equal(f.calls.find(c=>c.route==='campaign-turn').body.snapshot,undefined,'no whole-state writes');
+ // Even a poll already preparing its artwork is invalidated by a new action.
+ f.remote();const art=f.delayApply(),preparing=f.poll();await settle();await table.turn('Look around');art.resolve();await preparing;assert.deepEqual(f.applied,[1,2,4]);
+ // A disconnected retry carries the same identity and base version.
+ f.failOnce();await assert.rejects(table.turn('Repeat safely'),/Lost connection/);await table.turn('Repeat safely');
+ const turns=f.calls.filter(c=>c.route==='campaign-turn');assert.equal(turns.at(-1).body.requestId,turns.at(-2).body.requestId);
+ const leaving=f.delayPoll(),old=f.poll();await settle();await table.leave();leaving.resolve();await old;assert.equal(f.applied.at(-1),5);
+ // Account-local storage captures the owner before delayed writes.
+ const values=new Map(),source=fs.readFileSync('playerStorage.js','utf8').replace(/^import .*;\r?\n/gm,'').replace('export default','const storage=').replace(/export /g,'');
+ const p=vm.runInNewContext(source+'\n({storage,selectProfile,currentProfile})',{AsyncStorage:{getItem:async k=>values.get(k)??null,setItem:async(k,v)=>values.set(k,v),removeItem:async k=>values.delete(k)}});
+ p.selectProfile('a'.repeat(64));const own=p.storage.scope();p.selectProfile('b'.repeat(64));await own.setItem('hero','Alice');assert.equal(await p.storage.getItem('hero'),null);await p.storage.setItem('hero','Bob');p.selectProfile('a'.repeat(64));assert.equal(await p.storage.getItem('hero'),'Alice');
+ console.log('Campaign client: slow polls, delayed artwork, retry identity, leave cancellation and account-local save isolation.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

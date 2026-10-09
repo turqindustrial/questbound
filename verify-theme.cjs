@@ -68,19 +68,22 @@ for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f)&&!/^(verify|qa-)
 });
 assert.deepEqual(stray,[],'colours written outside tint(): '+stray.slice(0,12).join('; '));assert.ok(wrapped>400);
 const web=fs.readFileSync('webTheme.js','utf8');
-assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMarkup(turn),theme)')&&web.includes("'--qb-bezel':svg(themedText(bezelMarkup,theme))"),'webTheme.js wraps its style sheet and writes its pictures per theme');
+assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMarkup(turn),theme,mode)')&&web.includes("'--qb-bezel':svg(themedText(bezelMarkup,theme,mode))"),'webTheme.js wraps its style sheet and writes its pictures per theme');
 const themeSource=fs.readFileSync('theme.js','utf8');
-assert.ok(themeSource.includes("const KEY='questbound.theme.v1'")&&themeSource.includes('export function setTheme')&&themeSource.includes("coin:'#e8c77b'"));
+assert.ok(themeSource.includes("const KEY='questbound.theme.v1'")&&themeSource.includes('export function setTheme')&&themeSource.includes("coin:tint('#e8c77b')"));
 // The Theme section is in Settings.
 const app=fs.readFileSync('App.js','utf8');assert.ok(app.includes("{screen === 'Settings' && <ThemeSettings/>}")&&app.includes("import {ThemeSettings} from './ThemeControls';"));
 const controls=fs.readFileSync('ThemeControls.js','utf8');assert.ok(controls.includes('themeChoices.map')&&controls.includes('setTheme(choice.id)')&&controls.includes('accessibilityRole="radio"'));
+// Body text and principal labels remain readable on each light page surface.
+const lightLuminance=hex=>{const rgb=hex.slice(1).match(/../g).map(h=>parseInt(h,16)/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
+for(const id of themeIds){const bg=lightLuminance(themedText('#08060a',id,'light'));for(const color of ['#ddd6db','#a99fa7','#e04a5c','#b08cf5','#ffb3ac']){const ink=lightLuminance(themedText(color,id,'light'));assert.ok((Math.max(bg,ink)+.05)/(Math.min(bg,ink)+.05)>=4.5,id+' light '+color);}}
 // The loading card (shown before the game script runs) reads the saved theme itself: its colours are written as
 // var(--bN, <the Red colour>), and a small script sets the variables from a table that must match themeRules.js.
 const pagePath='public/index.html',page=fs.readFileSync(pagePath,'utf8');
 const card=[...page.matchAll(/var\(--b(\d+), ([^()]*(?:\([^()]*\))?[^()]*)\)/g)].reduce((list,m)=>{list[+m[1]]=m[2].trim();return list;},[]);
 assert.ok(card.length>=14&&card.every(Boolean),'the loading card names its colours --b0, --b1, ... with none missing');
-const table=Object.fromEntries(themeIds.filter(id=>id!=='red').map(id=>[id,card.map(colour=>themedText(colour,id))]));
-const script="<script>(function(){try{var t=JSON.parse(localStorage.getItem('questbound.theme.v1')||'{}').theme,c="+JSON.stringify(table)+"[t];if(c){var s=document.documentElement.style;for(var i=0;i<c.length;i++)s.setProperty('--b'+i,c[i]);}}catch(e){}})();</script>";
+const table=Object.fromEntries(themeIds.flatMap(id=>['dark','light'].map(mode=>[id+':'+mode,card.map(colour=>themedText(colour,id,mode))])));
+const script="<script>(function(){try{var p=JSON.parse(localStorage.getItem('questbound.theme.v1')||'{}'),t=p.theme||'red',m=p.mode==='light'?'light':'dark',c="+JSON.stringify(table)+"[t+':'+m];document.documentElement.setAttribute('data-appearance',m);if(c){var s=document.documentElement.style;for(var i=0;i<c.length;i++)s.setProperty('--b'+i,c[i]);}}catch(e){}})();</script>";
 const block=/(<!-- qb-theme-colours:start[^>]*-->\s*)([\s\S]*?)(\s*<!-- qb-theme-colours:end -->)/,found=page.match(block);
 assert.ok(found,'public/index.html has the qb-theme-colours block');
 if(process.argv.includes('--write')){fs.writeFileSync(pagePath,page.replace(block,(whole,start,old,end)=>start+script+end));console.log('Wrote the loading card colours for '+Object.keys(table).join(', ')+'.');}

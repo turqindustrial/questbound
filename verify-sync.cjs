@@ -1,47 +1,46 @@
-const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
-const {createSyncServer}=require('./sync-server.cjs'),{createPhoneServer}=require('./phone-server.cjs');
-const endpoint=vm.runInNewContext(fs.readFileSync('tableClient.js','utf8').replace(/export /g,'')+'\n tableEndpoint');
-assert.equal(endpoint({hostname:'localhost',port:'8081'}),'http://localhost:8086');assert.equal(endpoint({hostname:'10.0.0.169',port:'8085'}),'/api/sync');
-const dir=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-table-'));let clock=1e12;
-const {server}=createSyncServer({dir,now:()=>clock});
-const snap=n=>({version:1,character:JSON.stringify({name:'Hero '+n}),game:{stage:'inn',log:['turn '+n]},health:null,chosen:true});
-function request(port,route,{method='POST',headers={},body}={},host='127.0.0.1'){return new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port,path:route,method,headers:{Host:host+':'+port,'Content-Type':'application/json',...headers}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>{let j=null;try{j=JSON.parse(t);}catch{}resolve({status:res.statusCode,json:j,headers:res.headers});});});req.on('error',reject);req.end(body===undefined?undefined:typeof body==='string'?body:JSON.stringify(body));});}
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
+const {createSyncServer}=require('./account-server.cjs'),{rules}=require('./rules-engine.cjs');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'qb-campaigns-')),r=rules();let release,entered,calls=0;
+const fixture=require('./test-fixtures.cjs').fixtures(root,{randomImpl:()=>.65,ask:async()=>{calls++;if(entered)entered();if(release)await release.promise;return {narration:'The strike lands and the company prepares its next move.',actionId:null};}});
+let service=createSyncServer(fixture.options);
+const plain=x=>JSON.parse(JSON.stringify(x)),deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {resolve,promise};};
 (async()=>{
- await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port,call=(route,body,headers)=>request(port,route,{body,headers});
- try{
-  const A={playerId:'aaaaaaaa-1',name:'Sam'},B={playerId:'bbbbbbbb-2',name:'Riley'};
-  let r=await call('/poll',{...A,knownVersion:-1});assert.equal(r.status,200);assert.equal(r.json.version,0);assert.equal(r.json.snapshot,null);
-  r=await call('/save',{...A,snapshot:snap(1),baseVersion:0});assert.equal(r.status,200);assert.equal(r.json.version,1);
-  r=await call('/poll',{...B,knownVersion:0});assert.equal(r.json.version,1);assert.equal(r.json.snapshot.game.log[0],'turn 1');assert.equal(r.json.players.length,2);
-  r=await call('/poll',{...B,knownVersion:1});assert.equal(r.json.snapshot,undefined,'Unchanged tables send no snapshot');
-  // A stale write is refused and returns the newer table.
-  r=await call('/save',{...B,snapshot:snap(2),baseVersion:1});assert.equal(r.json.version,2);
-  r=await call('/save',{...A,snapshot:snap(3),baseVersion:1});assert.equal(r.status,409);assert.equal(r.json.conflict,true);assert.equal(r.json.snapshot.game.log[0],'turn 2');assert.equal(r.json.updatedBy,'Riley');
-  r=await call('/save',{...A,snapshot:snap(4),baseVersion:0,force:true});assert.equal(r.json.version,3,'Hosting replaces the table');
-  // Turn-taking flags and presence expiry.
-  r=await call('/poll',{...B,knownVersion:3,acting:true});assert.equal(r.json.players.find(p=>p.id===B.playerId).acting,true);
-  clock+=16000;r=await call('/poll',{...A,knownVersion:3});assert.equal(r.json.players.length,1,'Silent players leave the table');
-  // Guards.
-  assert.equal((await call('/save',{...A,snapshot:{bad:true},baseVersion:3})).status,400);
-  assert.equal((await call('/poll',{playerId:'x',name:'X'})).status,400);
-  assert.equal((await call('/poll',{...A},{Origin:'http://evil.test'})).status,403);
-  assert.equal((await call('/save',{...A,snapshot:{...snap(5),character:'x'.repeat(2600000)},baseVersion:3})).status,413);
-  assert.equal((await call('/poll',{...A,name:'<b>Sam</b>\u0000'.repeat(10),knownVersion:3})).json.players.find(p=>p.id===A.playerId).name.includes('<'),false);
-  // Persistence across restarts.
-  const again=createSyncServer({dir,now:()=>clock});assert.equal(again.table().version,3);assert.equal(again.table().snapshot.game.log[0],'turn 4');
-  // Phone gateway forwards paired, same-origin table calls to the loopback table.
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-root-'));fs.writeFileSync(path.join(root,'index.html'),'ok');
-  const phone=createPhoneServer({host:'127.0.0.1',port:0,root,code:'12345678',now:()=>clock,syncBackend:'http://127.0.0.1:'+port});
-  await new Promise(r=>phone.server.listen(0,'127.0.0.1',r));const pport=phone.server.address().port,origin='http://127.0.0.1:0';
-  const hostHeader={Host:'127.0.0.1:0'};
-  const p=(route,opts={})=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:pport,path:route,method:opts.method??'POST',headers:{...hostHeader,'Content-Type':'application/json',...(opts.headers??{})}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>{let j=null;try{j=JSON.parse(t);}catch{}resolve({status:res.statusCode,json:j,headers:res.headers});});});req.on('error',reject);req.end(opts.body?JSON.stringify(opts.body):undefined);});
-  try{
-   assert.equal((await p('/api/sync/poll',{headers:{Origin:origin},body:{...A,knownVersion:3}})).status,401,'Unpaired phones cannot reach the table');
-   const paired=await p('/pair',{headers:{Origin:origin},body:{code:'12345678'}});const cookie=paired.headers['set-cookie'][0].split(';')[0];
-   r=await p('/api/sync/poll',{headers:{Origin:origin,Cookie:cookie},body:{...B,knownVersion:-1}});assert.equal(r.status,200);assert.equal(r.json.version,3);
-   assert.equal((await p('/api/sync/poll',{headers:{Origin:'http://evil.test',Cookie:cookie},body:{...B}})).status,403);
-   assert.equal((await p('/api/sync/drop',{headers:{Origin:origin,Cookie:cookie},body:{}})).status,405);
-  }finally{await new Promise(r=>phone.server.close(r));fs.rmSync(root,{recursive:true,force:true});}
-  console.log('Passed: shared-table versioning, stale-write refusal with the newer table returned, hosting, turn-taking flags, presence expiry, validation, origin and size guards, name sanitising, persistence, and paired phone-gateway forwarding.');
- }finally{await new Promise(r=>server.close(r));fs.rmSync(dir,{recursive:true,force:true});}
-})().catch(e=>{console.error(e);process.exitCode=1;});
+ const a=await fixture.user(service.accounts,'alice@example.test'),b=await fixture.user(service.accounts,'bob@example.test');
+ const user=a=>({...service.accounts.identity(a.token),active:()=>service.accounts.identity(a.token)}),A=user(a),B=user(b),hero=r.readyHero('fighter');
+ const fight=r.hostileEncounterGame(hero,r.newAdventure(hero),()=> (r.hostileFoes.findIndex(f=>f.key==='bandit')+.5)/r.hostileFoes.length);
+ const created=service.campaigns.create(A,{snapshot:r.adventureSnapshot(hero,fight,null,true),name:'Alice',party:true});
+ const joined=service.campaigns.join(B,{invite:created.invite,snapshot:fixture.snapshot('wizard'),name:'Bob'}),campaignId=created.campaignId;
+ const before=plain(service.campaigns.poll(A,{campaignId}).snapshot),gate=deferred(),started=deferred();release=gate;entered=started.resolve;
+ const request={campaignId,question:'I attack with my greatsword.',action:'attack:Greatsword',baseVersion:joined.version,requestId:crypto.randomUUID()};
+ const pending=service.campaigns.turn(A,request);await started.promise;
+ await assert.rejects(service.campaigns.turn(B,{...request,requestId:crypto.randomUUID()}),e=>e.status===423);
+ assert.equal(service.campaigns.poll(A,{campaignId}).version,joined.version,'an unfinished reply cannot alter the world');
+ gate.resolve();const result=await pending;release=null;entered=null;
+ assert.equal(result.version,joined.version+1);assert.ok(result.snapshot.game.enemyHP<before.game.enemyHP,'server dice commit actual attack damage');
+ assert.ok(result.snapshot.game.turnOrder||result.snapshot.game.stage==='victory');
+ const bob=service.campaigns.poll(B,{campaignId});assert.equal(r.canonicalParty(bob.snapshot),r.canonicalParty(result.snapshot));
+ // Persistence and a lost receipt: retrying after restarting cannot roll or spend twice.
+ service=createSyncServer(fixture.options);const retry=await service.campaigns.turn(user(a),request);assert.equal(retry.replayed,true);assert.equal(calls,1);assert.equal(retry.version,result.version);
+ const outsider={id:'f'.repeat(64)};assert.throws(()=>service.campaigns.poll(outsider,{campaignId}),e=>e.status===403);
+ assert.throws(()=>service.campaigns.invite(user(b),{campaignId}),e=>e.status===403);
+ // Wielding and advancement are also authoritative; forged stats and gear are not adopted.
+ const base=fixture.snapshot();base.game.levelsOwed=1;
+ const growth=service.campaigns.create(user(a),{snapshot:base,name:'Alice'}),g=growth.campaignId;
+ assert.throws(()=>service.campaigns.edit(user(a),{campaignId:g,baseVersion:growth.version,kind:'wield',name:'Great'}),e=>e.status===400);
+ const wield=service.campaigns.edit(user(a),{campaignId:g,baseVersion:growth.version,kind:'wield',name:'Greatsword'});assert.equal(wield.snapshot.game.wield,'Greatsword');
+ const candidate=r.makeCharacter({...hero,level:2,advancementVersion:1});candidate.scores.Strength=99;
+ assert.throws(()=>service.campaigns.edit(user(a),{campaignId:g,baseVersion:wield.version,kind:'advance',character:{...candidate,level:20}}),e=>e.status===400);
+ const grown=service.campaigns.edit(user(a),{campaignId:g,baseVersion:wield.version,kind:'advance',character:candidate});assert.equal(JSON.parse(grown.snapshot.character).level,2);assert.equal(JSON.parse(grown.snapshot.character).scores.Strength,hero.scores.Strength);
+ assert.throws(()=>service.campaigns.edit(user(a),{campaignId:g,baseVersion:grown.version,kind:'advance',character:{...candidate,level:3}}),e=>e.status===400);
+ // Restore a historical snapshot into a separate campaign and load it through a restarted service.
+ const versions=fixture.operations.backup.list('campaign-'+campaignId),saved=fixture.operations.backup.read('campaign-'+campaignId,versions[0]);
+ const restoredId=crypto.randomBytes(16).toString('hex'),restored={...saved,id:restoredId};
+ fs.writeFileSync(path.join(root,'table','campaigns',restoredId+'.json'),JSON.stringify(restored));
+ const reopened=createSyncServer(fixture.options);assert.equal(r.canonicalParty(reopened.campaigns.poll(user(a),{campaignId:restoredId}).snapshot),r.canonicalParty(result.snapshot));
+ // Account deletion during another player's outstanding action cannot resurrect the campaign.
+ const waiting=deferred(),begun=deferred();release=waiting;entered=begun.resolve;
+ const delayed=service.campaigns.turn(user(b),{campaignId,question:'DM, pause a moment.',direct:true,requestId:crypto.randomUUID(),baseVersion:result.version});await begun.promise;
+ await service.accounts.remove(a.token,'lantern-wisp-71');service.campaigns.removeAccount(a.id);waiting.resolve();await assert.rejects(delayed,e=>e.status===404);
+ assert.throws(()=>service.campaigns.poll(user(b),{campaignId}),e=>e.status===404);
+ console.log('Campaigns: concurrent turns, committed attack damage, shared initiative, restart/retry safety, permissions, weapon/level validation, isolated restore and account deletion during a pending turn.');
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>fs.rmSync(root,{recursive:true,force:true}));
