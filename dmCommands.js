@@ -7,7 +7,7 @@ import {npcScene,npcIdsOf,npcLore,mentionsName} from './npcRules';
 import {standingOffers} from './followerRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError,lastingSpells,againError,sustainTargets,allySpell,alliesNamed,defaultAllies} from './spellRules';
 import {turnCost} from './classActions';
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
 // feet (or no weapon at all) make an Unarmed Strike, and "shoot" reaches for a bow.
@@ -119,6 +119,33 @@ export function followerCommand(game,text){
 }
 const placeNameHere=game=>{const id=game.dungeon?.active?null:game.wildFight?.place??(game.stage==='wild'?game.world?.at:game.stage);return id?(game.world?.places?.find(p=>p.id===id)?.name??game.story?.locations?.[id]?.name??id):'';};
 // Explicit casting commands are resolved locally so model prose cannot choose a target or spend a slot.
+// A held spell used again, or Hex or Hunter's Mark moved, in the player's own words: "I strike with my spiritual weapon
+// at the hound", "I heat the metal again", "I roll the sphere into the bandit", "I call down lightning", "I move my hex
+// to the hound". Null when the words are about something else.
+const againWords={
+  'spiritual-weapon':/\bspiritual weapon|spectral (?:weapon|mace|hammer|blade|sword)\b/i,'heat-metal':/\bheat(?:ed)? (?:the |its |his |her |their )?metal|\bred-hot\b|\bheat metal\b/i,
+  'flaming-sphere':/\b(?:flaming )?sphere\b|\bfire ?ball\b(?!.*cast)/i,moonbeam:/\bmoon ?beam\b|\bthe beam\b/i,'call-lightning':/\bcall(?:ing)? (?:down )?(?:the )?lightning\b|\blightning (?:again|down)\b/i,
+  'vampiric-touch':/\bvampiric touch\b|\bdrain\b|\bsiphon\b/i,
+};
+function heldSpellCommand(game,text){
+  const held=game.concentration;if(!held||/^(?:I )?cast\b/i.test(text))return null;
+  const targets=sustainTargets(game),said=(text.match(/\b(?:at|on|onto|into|to|toward|towards|against)\s+(.+?)[.!]?$/i)?.[1]??'').toLowerCase().replace(/^(?:the|that|this)\s+/,'');
+  const pick=fallback=>{
+    if(!said||/^(?:it|him|her|them|the enemy|enemy|foe)$/.test(said))return fallback;
+    const found=targets.find(t=>{const n=t.name.toLowerCase().replace(/^the /,'');return n===said||said.split(/[^a-z]+/).some(w=>w.length>=4&&n.split(/[^a-z]+/).some(x=>x.startsWith(w.replace(/s$/,''))||w.startsWith(x)&&x.length>=4));});
+    return found?.key??null;
+  };
+  // Moving Hex or Hunter's Mark.
+  if(automaticEffects[held.id]?.rider&&/\b(?:move|shift|switch|transfer|put|turn|pass)\b.*\b(?:hex|curse|mark|quarry)\b/i.test(text)){
+    if(!held.lost)return {error:(held.id==='hex'?'Hex':'Hunter’s Mark')+' moves only once the creature it is on has dropped.'};
+    const key=pick(targets[0]?.key??null);return key?{action:'move-mark:'+key}:{error:'Name a creature that is here.',soft:true};
+  }
+  const l=lastingSpells[held.id],words=againWords[held.id];
+  if(!l?.again||!words||!words.test(text))return null;
+  const error=againError(game);if(error)return {error};
+  const key=l.same&&held.target?held.target:pick(held.target&&targets.some(t=>t.key===held.target)?held.target:targets[0]?.key??null);
+  return key?{action:'again:'+key}:{error:'Name a creature that is here.',soft:true};
+}
 export function dmCommand(hero,game,message,health=null,currentTarget=null){
   hero=gearedHero(hero,game);
   let text=message.trim();
@@ -139,6 +166,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     const options=offhandWeapons(hero,game.lightAttack.weapon),named=options.find(w=>text.toLowerCase().includes(w.name.toLowerCase()))??options[0];
     return named?{action:'offhand:'+named.name}:{error:'Your other hand needs a second light weapon, and no shield, for that.'};
   }
+  // A held spell used again, or Hex moved (heldSpellCommand).
+  {const again=heldSpellCommand(game,text);if(again)return again;}
   // A short attack keeps the current conversation/combat target. Resolve it once
   // into an explicit command so preview and commit cannot choose different people.
   const short=text.match(new RegExp('^(?:I )?(?:'+VERBS+')(?: (?:them|him|her|it))?(?: out)?(?: (?:with|using) (?:my |the |a |an )?(.+?))?[.!]?$','i'));
@@ -258,13 +287,15 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   const bare=!/\b(on|at|targeting|toward|towards)\s+\S/i.test(said);
   // Spells that need no one named: sensing and everyday magic, buffs on yourself, Divine Smite after a hit, spells the
   // Dungeon Master rules on (it asks if it needs to know), and (in a creature fight) anything aimed at the creature.
-  const untargeted=spell.range==='Self'||!effect||!!effect?.narrated||!!effect?.buff||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider||effect.trueStrike));
+  // Mass healing goes to the caster and their friends with no one named.
+  const mass=!!effect?.heal&&spell.id.startsWith('mass-');
+  const untargeted=mass||spell.range==='Self'||!effect||!!effect?.narrated||!!effect?.buff||!!effect?.aid||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider||effect.trueStrike||effect.heat));
   if(bare&&!untargeted)return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`,soft:true};
   const costs=spellCostOptions(hero,game,spell);
   // A free casting from the hero's species comes first, then (out of a fight) a ritual, which needs no slot, then a slot.
   const slot=/\bas a ritual\b/i.test(detail)?'ritual':/\barcanum\b/i.test(detail)?'arcanum':named!==null?named:costs.includes('species')&&!/\bslot\b/i.test(detail)?'species':!fighting&&costs.includes('ritual')?'ritual':costs.find(c=>typeof c==='number')??costs[0];
   if(!costs.includes(slot))return {error:named!==null&&named<spell.level?`${spell.name} needs a slot of level ${spell.level} or higher.`:'That casting resource is unavailable. Choose an available slot or rest first.'};
-  const target=said.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:[,:;]|\s+using\b|\s+with\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(spell.range==='Self'||effect?.buff?'myself':effect?.smite?'the creature i struck':game.stage==='combat'&&effect&&!effect.narrated?'the enemy':'the scene');
+  const target=said.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:[,:;]|\s+using\b|\s+with\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(game.stage==='combat'&&!!effect&&!!(effect.save||effect.attack||effect.inflict)&&!effect.narrated&&spell.id!=='burning-hands'?'the enemy':spell.range==='Self'||effect?.buff||effect?.aid||mass?'myself':effect?.smite?'the creature i struck':game.stage==='combat'&&effect&&!effect.narrated?'the enemy':'the scene');
   if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.',soft:true};
   const request={id:spell.id,slot,intent:text.slice(0,500),componentsConfirmed:true};
   // Hellish Rebuke answers the creature that has just hurt you (a reaction); Divine Smite follows your last hit.
@@ -279,6 +310,12 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(!request.npcTarget&&target&&game.party?.members){
     const named=Object.keys(game.party.members).find(id=>{if(id===game.party.lead)return false;let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase();}catch{}const first=name.split(' ')[0];return !!name&&(target===name||target===first||target.startsWith(first+' '));});
     if(named){if(game.party.members[named].status==='dead')return {error:'They are dead. No spell you know can bring them back.'};request.partyTarget=named;}
+  }
+  // A spell for friends (Bless, Aid, Shield of Faith and the like): the friends named ("on me, Bram and Mara", "on the
+  // party"), or with no one named the caster (and for Bless and Aid everyone it reaches).
+  if(allySpell(spell.id)){
+    const lvl=typeof slot==='number'?slot:spell.level,allies=bare?defaultAllies(game,spell,lvl):alliesNamed(game,spell,target,lvl);
+    if(allies){request.allies=allies;delete request.npcTarget;delete request.partyTarget;}
   }
   const check=inspectSpellCast(hero,game,health,spell,request,target);if(check.error)return check;
   request.forceDM=check.manual;

@@ -1,8 +1,8 @@
 {
  "catalogCount": 339,
- "narrated": 57,
- "automatic": 74,
- "dmRuled": 208,
+ "narrated": 56,
+ "automatic": 84,
+ "dmRuled": 199,
  "scope": "Written by verify-spell-routes.cjs: every spell typed and aimed by its first class in seven places of a written story (inn, landmark, after a won fight, after victory, the story fight, a fight in the wilds, a brawl). \"automatic\" is resolved by the game, \"narrated\" is spent by the game and described by the Dungeon Master, \"ruling\" waits for a Dungeon Master ruling the game then applies; a refusal is listed with its reason.",
  "spells": [
   {
@@ -39,15 +39,15 @@
    "id": "aid",
    "name": "Aid",
    "level": 2,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
-    "inn": "ruling",
+    "inn": "automatic",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
     "fight": "ruling",
     "wild": "ruling",
-    "brawl": "ruling"
+    "brawl": "automatic"
    }
   },
   {
@@ -429,14 +429,14 @@
    "id": "black-tentacles",
    "name": "Black Tentacles",
    "level": 4,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -461,13 +461,13 @@
    "level": 1,
    "mode": "automatic",
    "routes": {
-    "inn": "ruling",
+    "inn": "automatic",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
     "fight": "ruling",
     "wild": "ruling",
-    "brawl": "ruling"
+    "brawl": "automatic"
    }
   },
   {
@@ -720,8 +720,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -810,8 +810,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -1020,9 +1020,9 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "refused: Counterspell is cast as a reaction, when its moment comes, not as your action.",
-    "wild": "refused: Counterspell is cast as a reaction, when its moment comes, not as your action.",
-    "brawl": "refused: Counterspell is cast as a reaction, when its moment comes, not as your action."
+    "fight": "refused: Counterspell interrupts a creature in the act of casting a spell. The creatures you meet here cast none, so there is nothing to counter.",
+    "wild": "refused: Counterspell interrupts a creature in the act of casting a spell. The creatures you meet here cast none, so there is nothing to counter.",
+    "brawl": "refused: Counterspell interrupts a creature in the act of casting a spell. The creatures you meet here cast none, so there is nothing to counter."
    }
   },
   {
@@ -1584,15 +1584,15 @@
    "id": "ensnaring-strike",
    "name": "Ensnaring Strike",
    "level": 1,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
-    "inn": "ruling",
-    "landmark": "ruling",
-    "won": "ruling",
-    "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
-    "brawl": "ruling"
+    "inn": "refused: Ensnaring Strike follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "landmark": "refused: Ensnaring Strike follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "won": "refused: Ensnaring Strike follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "victory": "refused: Ensnaring Strike follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "fight": "automatic",
+    "wild": "automatic",
+    "brawl": "refused: Ensnaring Strike follows a hit with a melee weapon or an unarmed strike: strike first."
    }
   },
   {
@@ -1740,8 +1740,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -1755,9 +1755,9 @@
     "landmark": "automatic",
     "won": "automatic",
     "victory": "automatic",
-    "fight": "refused: Feather Fall is cast as a reaction, when its moment comes, not as your action.",
-    "wild": "refused: Feather Fall is cast as a reaction, when its moment comes, not as your action.",
-    "brawl": "refused: Feather Fall is cast as a reaction, when its moment comes, not as your action."
+    "fight": "refused: Feather Fall is cast as a reaction when someone falls from a height. No one is falling, so there is nothing to slow.",
+    "wild": "refused: Feather Fall is cast as a reaction when someone falls from a height. No one is falling, so there is nothing to slow.",
+    "brawl": "refused: Feather Fall is cast as a reaction when someone falls from a height. No one is falling, so there is nothing to slow."
    }
   },
   {
@@ -2424,14 +2424,14 @@
    "id": "heat-metal",
    "name": "Heat Metal",
    "level": 2,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -2471,13 +2471,13 @@
    "level": 1,
    "mode": "automatic",
    "routes": {
-    "inn": "ruling",
+    "inn": "automatic",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
     "fight": "ruling",
     "wild": "ruling",
-    "brawl": "ruling"
+    "brawl": "automatic"
    }
   },
   {
@@ -2694,14 +2694,14 @@
    "id": "insect-plague",
    "name": "Insect Plague",
    "level": 5,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -2850,8 +2850,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -2904,14 +2904,14 @@
    "id": "longstrider",
    "name": "Longstrider",
    "level": 1,
-   "mode": "narrated",
+   "mode": "automatic",
    "routes": {
     "inn": "automatic",
-    "landmark": "automatic",
-    "won": "automatic",
-    "victory": "automatic",
-    "fight": "automatic",
-    "wild": "automatic",
+    "landmark": "ruling",
+    "won": "ruling",
+    "victory": "ruling",
+    "fight": "ruling",
+    "wild": "ruling",
     "brawl": "automatic"
    }
   },
@@ -3645,8 +3645,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -3699,7 +3699,7 @@
    "id": "protection-from-evil-and-good",
    "name": "Protection from Evil and Good",
    "level": 1,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",
@@ -3866,13 +3866,13 @@
    "level": 0,
    "mode": "automatic",
    "routes": {
-    "inn": "ruling",
+    "inn": "automatic",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
     "fight": "ruling",
     "wild": "ruling",
-    "brawl": "ruling"
+    "brawl": "automatic"
    }
   },
   {
@@ -3999,15 +3999,15 @@
    "id": "searing-smite",
    "name": "Searing Smite",
    "level": 1,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
-    "inn": "ruling",
-    "landmark": "ruling",
-    "won": "ruling",
-    "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
-    "brawl": "ruling"
+    "inn": "refused: Searing Smite follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "landmark": "refused: Searing Smite follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "won": "refused: Searing Smite follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "victory": "refused: Searing Smite follows a hit with a melee weapon or an unarmed strike: strike first.",
+    "fight": "automatic",
+    "wild": "automatic",
+    "brawl": "refused: Searing Smite follows a hit with a melee weapon or an unarmed strike: strike first."
    }
   },
   {
@@ -4125,9 +4125,9 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "refused: Shield is a reaction: the game raises it for you when a blow would otherwise land.",
-    "wild": "refused: Shield is a reaction: the game raises it for you when a blow would otherwise land.",
-    "brawl": "refused: Shield is a reaction: the game raises it for you when a blow would otherwise land."
+    "fight": "refused: Shield is a reaction: the game raises it for you when a blow would otherwise land (Settings → Story → Rules).",
+    "wild": "refused: Shield is a reaction: the game raises it for you when a blow would otherwise land (Settings → Story → Rules).",
+    "brawl": "refused: Shield is a reaction: the game raises it for you when a blow would otherwise land (Settings → Story → Rules)."
    }
   },
   {
@@ -4136,13 +4136,13 @@
    "level": 1,
    "mode": "automatic",
    "routes": {
-    "inn": "ruling",
+    "inn": "automatic",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
     "fight": "ruling",
     "wild": "ruling",
-    "brawl": "ruling"
+    "brawl": "automatic"
    }
   },
   {
@@ -4395,8 +4395,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -4650,8 +4650,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -4830,8 +4830,8 @@
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -4854,14 +4854,14 @@
    "id": "vitriolic-sphere",
    "name": "Vitriolic Sphere",
    "level": 4,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },
@@ -4869,14 +4869,14 @@
    "id": "wall-of-fire",
    "name": "Wall of Fire",
    "level": 4,
-   "mode": "dm",
+   "mode": "automatic",
    "routes": {
     "inn": "ruling",
     "landmark": "ruling",
     "won": "ruling",
     "victory": "ruling",
-    "fight": "ruling",
-    "wild": "ruling",
+    "fight": "automatic",
+    "wild": "automatic",
     "brawl": "ruling"
    }
   },

@@ -1,5 +1,5 @@
 import {dmChoices,shortRestsLeft} from './dmContext';
-import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow} from './spellRules';
+import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow,sustainTargets,lastingSpells} from './spellRules';
 import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 import {combatBasics} from './combatRules';
@@ -61,6 +61,9 @@ export function quickActions(hero,game,health=null){
   // Throws, and attacks with the other weapons, are in the Attack… picker.
   if(/^(throw|encounter-throw|ally-throw|npc-throw):/.test(id)||/^(grapple|shove)$|^(ally|npc)-(grapple|shove):/.test(id))continue;
   // Two-weapon fighting: after a Light weapon's attack, the other hand's (a bonus action, or with Nick part of the action).
+  // A lasting spell used again (Spiritual Weapon, Heat Metal, the Flaming Sphere, Moonbeam, Call Lightning, Vampiric
+  // Touch), and Hex or Hunter's Mark moved once its creature has dropped: a chip per creature it can reach.
+  if(id.startsWith('again:')||id.startsWith('move-mark:')){const move=id.startsWith('move-mark:'),key=id.slice(id.indexOf(':')+1),spellName=knownSpells(hero).find(sp=>sp.id===game.concentration?.id)?.name??'Spell',who=sustainTargets(game).find(t=>t.key===key)?.name??'them',bonus=move||lastingSpells[game.concentration?.id]?.again==='bonus',short=who.replace(/^the /i,'');primary.push({key:id,glyph:'✧',icon:move?'eldritch':'spell',label:spellName,detail:(bonus?'Bonus':'Action')+' · '+short.charAt(0).toUpperCase()+short.slice(1),question:move?'I move '+spellName+' to '+who+'.':'I use '+spellName+' on '+who+'.',action:c.action});continue;}
   if(id.startsWith('offhand:')){const weapon=id.slice(8),nick=/Nick/.test(c.label);primary.push({key:id,glyph:'⚔',icon:weaponIcon(weapon),label:weapon,detail:nick?'Nick':'Bonus',question:'I strike with the '+weapon.toLowerCase()+' in my other hand.',action:c.action,primary:true});continue;}
   // Bare hands get a chip only when there is no weapon to hand; otherwise "I punch him" still works when typed.
   if(/^(attack|encounter-attack):/.test(id)){const weapon=id.split(':').pop();if(weapon==='Unarmed Strike'&&armed)continue;const first=!primary.some(a=>a.weapon);if(!first)continue;(first?primary:backup).push({key:id,glyph:'⚔',icon:weapon==='Unarmed Strike'?'fist':weaponIcon(weapon),label:weapon==='Unarmed Strike'?'Unarmed':weapon,question:weapon==='Unarmed Strike'?'I attack with my bare hands.':'I attack with my '+weapon+'.',action:c.action,primary:first,weapon});continue;}

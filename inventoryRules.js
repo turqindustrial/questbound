@@ -19,7 +19,9 @@ export function arrowsLeft(game,hero){const p=packOf(game,hero),bought=p.items.f
 export const weaponBaseOf=it=>it?.kind==='weapon'?(weapons[it.base]?it.base:weapons[it.name]?it.name:null):null;
 export function gearedHero(base,game){
  // Shillelagh on the hero's club or quarterstaff (spellRules.js) changes how it strikes while it lasts.
- const hero=game?.buffs?.shillelagh&&base&&!base.shillelagh?{...base,shillelagh:game.buffs.shillelagh.ability}:base;
+ let hero=game?.buffs?.shillelagh&&base&&!base.shillelagh?{...base,shillelagh:game.buffs.shillelagh.ability}:base;
+ // Aid raises the hero's hit point maximum while it lasts (spellRules.js; combatBasics reads hero.aid).
+ if(hero&&game?.buffs?.aid?.amount>0&&!hero.aid)hero={...hero,aid:game.buffs.aid.amount};
  if((!game?.pack&&!game?.wield)||!hero?.equipment||hero.equipment.startingItems)return hero;
  const items=(hero.equipment.items??[]).filter(i=>i.name!=='Arrow').map(i=>({...i}));
  for(const it of game.pack?.items??[]){const base=weaponBaseOf(it);if(!base)continue;const plus=it.magic?.plus??0,have=items.find(i=>i.name===it.name);if(have)have.quantity+=it.qty;else items.push({name:it.name,quantity:it.qty,...(base!==it.name?{base}:{}),...(plus?{plus}:{})});}

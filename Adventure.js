@@ -7,7 +7,8 @@ import {quickActions} from './quickActions';
 import {recordedTurn} from './playbackRules';
 import {withSceneTrigger} from './sceneTriggers';
 import {dungeonRooms,dungeonState} from './dungeonRules';
-import React,{useState,useEffect,useRef} from 'react';
+import React,{useState,useEffect,useRef,useMemo} from 'react';
+import {storyPreferences,subscribeStoryPreferences,rulesHero} from './storyPreferences';
 import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensions} from 'react-native';
 import Icon from './Icon';
 import DynamicArt from './DynamicArt';
@@ -45,6 +46,11 @@ const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','In
 const taleIcon={travel:'travel',place:'map',person:'people',fight:'swords',victory:'star',flight:'retreat',fall:'heart',death:'skull',deed:'speak',loot:'coin',rest:'rest',level:'starFill',quest:'scroll'};
 const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:tint('#cba6ff'),level:tint('#cba6ff'),rest:'#6fbf8e',quest:tint('#cba6ff')};
 export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping}){
+ // The hero as the rules see them on this device: whether Shield is cast for them (Settings → Story → Rules) goes
+ // with every action and every preview of one.
+ const [autoShield,setAutoShield]=useState(()=>storyPreferences().autoShield!==false);
+ useEffect(()=>subscribeStoryPreferences(p=>setAutoShield(p.autoShield!==false)),[]);
+ const ruled=useMemo(()=>rulesHero(hero,{autoShield}),[hero,autoShield]);
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
  // While the player types on a phone, everything but the story and the message box steps aside.
@@ -66,7 +72,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
- const act=async(action,conversation,random=Math.random,options)=>{try{stopNarrator();}catch{}const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}const xp=withExperience(from.game,result.game,hero,{action});result={...result,game:xp.game,events:[...(result.events??[]),...xp.lines]};if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});const marked=withDeeds(result.game,hero);result.game=marked.game;if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
+ const act=async(action,conversation,random=Math.random,options)=>{try{stopNarrator();}catch{}const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(ruled,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,ruled,action,random);if(result.error){setError(storyText(game,result.error));return result;}const xp=withExperience(from.game,result.game,hero,{action});result={...result,game:xp.game,events:[...(result.events??[]),...xp.lines]};if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});const marked=withDeeds(result.game,hero);result.game=marked.game;if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
   // Deeds earned this turn are announced one after another, and the narrator reads the turn aloud when asked to.
   marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),1400+i*4400));
   // Experience from a move made without the Dungeon Master (its feed card shows the rest).
@@ -206,7 +212,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!!game.log.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showLog}} onPress={()=>setShowLog(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')}]}><PlainText style={s.logToggleText}>{showLog?'Hide the latest rolls':'Latest rolls and rulings'}</PlainText><Icon name={showLog?'close':'d20'} size={14} color={colors.gold}/></Pressable>}
   {showLog&&game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}
  </View>;
- const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
+ const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={ruled} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
  // With the keyboard up there is little height left: the side column, strips and tabs give it to the story.
  const cramped=typing&&(visibleHeight||windowHeight)<560;
  const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel}/>;
@@ -239,7 +245,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <StatBar value={game.enemyHP} maximum={foe.maximum} kind="enemy" height={12}/>
   <Text style={s.caption}>Your armor class: {spellDefense(game,stats.ac).ac}. Describe an attack, spell, dodge, potion or retreat to the Dungeon Master.</Text>
  </View>}
- <DungeonMaster hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>
+ <DungeonMaster hero={ruled} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>
  {!inConversation&&<>
  {game.npcCombat?.active&&<View dataSet={{qb:'plate'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Combat · Round {game.npcCombat.round}  ⚔</Text></View><Text style={s.label}>Turn order</Text><Text style={s.order}>{game.npcCombat.order.map(n=>(n.id==='player'?'You':npcLore(game,n.id)?.name??n.id)+(n.side==='enemy'?' ⚔':n.side==='ally'?' ⛨':'')).join('   ›   ')}</Text><Text style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</Text></View>}
  <View dataSet={{qb:'plate'}} style={s.quest}>

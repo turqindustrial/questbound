@@ -24,6 +24,7 @@ import SharedTable from './SharedTable';
 import Adventure from './Adventure';
 import {newAdventure} from './adventureRules';
 import CharacterSheet from './CharacterSheet';
+import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
 import CharacterBuilder from './CharacterBuilder';
 import { blankBuild, buildError, makeCharacter, abilities, modifier } from './characterRules';
@@ -98,7 +99,8 @@ function QuestboundApp() {
   const [hero, setHero] = useState(null);
   const [health, setHealth] = useState(null);
   const [game, setGame] = useState(newAdventure);
-  const heroStats = hero ? combatBasics(hero) : null;
+  // The hero as the adventure has them (Aid raises the hit point maximum while it lasts).
+  const heroStats = hero ? combatBasics(gearedHero(hero, game)) : null;
   const [characterChosen, setCharacterChosen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

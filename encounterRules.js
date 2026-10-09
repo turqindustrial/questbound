@@ -1,6 +1,6 @@
 import {hostileFoes,foeStatsFor} from './hostileEncounter';
 import {npcProfile,npcLore,npcScene,isAlly,npcWhereabouts} from './npcRules';
-import {withMark} from './masteryRules';
+import {withMark,boonOn,blessRoll,boonResisted} from './masteryRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {worldPlace,worldPlaces,placeName} from './mapRules';
 import {modifier} from './characterRules';
@@ -159,16 +159,19 @@ export function fightingCompanions(game){
 const npcLabel=(game,id)=>npcLore(game,id)?.name??id;
 // Each companion acts once after your turn: a weapon's attacks, a cantrip's attack or its save.
 // `bonus`: what the hero adds to their companions' attack rolls (a Marshal's Captain's Call).
+// Spells friends cast on a companion or another hero (masteryRules.js boons), if that file is loaded with this one.
+const boonHere=(g,k,id)=>typeof boonOn==='function'?boonOn(g,k,id):null;
+const resistHere=(g,k,t,a,r)=>typeof boonResisted==='function'?boonResisted(g,k,t,a,r):{amount:a,line:null};
 export function companionsAttack(game,foe,random,bonus=0){
  let next=game;const lines=[];
  for(const n of fightingCompanions(game)){
   if(next.enemyHP<=0)break;
   const name=npcLabel(game,n.id),t=game.npcClasses?.[n.id],plan=t?companionAttack(t.class,t.level):null;
   if(!plan){
-   const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},attack=rollAttack({attackBonus:2+bonus},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+   const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},blessed=typeof blessRoll==='function'?blessRoll(next,n.id,random):0,attack=rollAttack({attackBonus:2+bonus+blessed},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
    const damage=hit?rollDamage({count:1,die:w.die,bonus:0},attack.critical,random).total:0;
    next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
-   lines.push(`${name} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${2+bonus} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
+   lines.push(`${name} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${2+bonus}${blessed?' + '+blessed+' Bless':''} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
    continue;
   }
   if(plan.kind==='save'){
@@ -181,7 +184,7 @@ export function companionsAttack(game,foe,random,bonus=0){
   }
   let sneak=plan.sneak??0;
   for(let i=0;i<plan.attacks&&next.enemyHP>0;i++){
-   const aimed={...plan.weapon,attackBonus:plan.weapon.attackBonus+bonus},attack=rollAttack(aimed,'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+   const blessed=typeof blessRoll==='function'?blessRoll(next,n.id,random):0,aimed={...plan.weapon,attackBonus:plan.weapon.attackBonus+bonus+blessed},attack=rollAttack(aimed,'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
    let damage=hit?rollDamage(plan.weapon,attack.critical,random).total:0,note='';
    // A Rogue's first hit each turn finds a gap while the hero keeps the creature busy.
    if(hit&&sneak){const extra=rollDamage({count:sneak*(attack.critical?2:1),die:6,bonus:0},false,random).total;damage+=extra;note=', Sneak Attack';sneak=0;}
@@ -213,16 +216,16 @@ export function pickFoeTarget(game,random){
 // A blow aimed at another player's hero: their own armour and hit points; at 0 they fall and are dying (they roll
 // their death saves on their own turn), and damage past 0 of at least their maximum kills them outright.
 export function foeHitsPartyHero(game,foe,who,pid,mode,random){
- const member=game.party.members[pid],name=partyHeroName(member),ac=member.stats?.ac??10,most=member.stats?.hp??1;
+ const member=game.party.members[pid],name=partyHeroName(member),ac=(member.stats?.ac??10)+(boonHere(game,'h:'+pid,'shield-of-faith')?2:0),most=member.stats?.hp??1;
  const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs ${name}’s AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),total=Math.max(1,damage.total),was=member.health?.current??most,now=Math.max(0,was-total);
+ const damage=rollDamage(foe,attack.critical,random),resisted=resistHere(game,'h:'+pid,foe.type,Math.max(1,damage.total),random),total=resisted.amount,was=member.health?.current??most,now=Math.max(0,was-total);
  const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300);
  let next={...member,health:{current:now,temp:0}},fell='';
  if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
  else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
- lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${total} ${foe.type} damage to ${name}.`+fell);
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-total)+' Resistance':''} = ${total} ${foe.type} damage to ${name}.`+fell);
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }
 const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};
@@ -245,11 +248,11 @@ export function turnOrderView(game){
 export const partyHeroName=member=>{try{return JSON.parse(member.character).name||'your companion';}catch{return 'your companion';}};
 export function foeHitsCompanion(game,foe,who,id,mode,random){
  if(typeof id==='string'&&id.startsWith('party:'))return foeHitsPartyHero(game,foe,who,id.slice(6),mode,random);
- const npc=npcProfile(game,id),ac=npc.ac,attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
+ const npc=npcProfile(game,id),ac=npc.ac+(boonHere(game,id,'shield-of-faith')?2:0),attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${npcLabel(game,id)}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),was=game.npcHP?.[id]??npc.maximumHP,now=Math.max(0,was-Math.max(1,damage.total));
- lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${damage.total} ${foe.type} damage to ${npcLabel(game,id)}.`+(now===0?` ${npcLabel(game,id)} falls unconscious.`:''));
+ const damage=rollDamage(foe,attack.critical,random),resisted=resistHere(game,id,foe.type,Math.max(1,damage.total),random),was=game.npcHP?.[id]??npc.maximumHP,now=Math.max(0,was-resisted.amount);
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''} = ${resisted.line?resisted.amount:damage.total} ${foe.type} damage to ${npcLabel(game,id)}.`+(now===0?` ${npcLabel(game,id)} falls unconscious.`:''));
  return {game:{...game,npcHP:{...game.npcHP,[id]:now}},lines};
 }
 // A companion beside a dying hero tries to stop the bleeding first (Medicine, DC 10); a healer among them (a Cleric,

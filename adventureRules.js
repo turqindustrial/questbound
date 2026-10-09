@@ -1,6 +1,6 @@
 import {storyText,questState} from './storyRules';
-import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants} from "./npcRules";
-import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses} from "./spellRules";
+import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf} from "./npcRules";
+import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError} from "./spellRules";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
@@ -17,7 +17,7 @@ import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
 import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,companionBrawlWeapon,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions} from "./encounterRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
-import {masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
+import {boonKeyOf,masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
 import {proficiencyBonus} from "./characterRules";
 import {withSpoils,takeSpoils,magicItems,packMagic,rechargeWands} from "./lootRules";
 import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassWardRoll,subclassVictoryTemp,subclassPassive,subclassShortRecharge,subclassSpender} from "./subclassRules";
@@ -196,6 +196,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     if (action?.type === 'npc-attack' || harmfulSpell) {
       const beforeAggression=result.game;
       result.game = recordNpcAggression(game, result.game, action.type === 'npc-attack' ? action.target : resolvedSpell.npcTarget, action.type === 'npc-attack' ? 'weapon-attack' : 'harmful-spell');
+      // Others an area or a many-target spell caught remember it too.
+      if (harmfulSpell) for (const id of npcIdsOf(game)) if (id !== resolvedSpell.npcTarget && (result.game.npcHP?.[id] ?? npcProfile(result.game, id)?.maximumHP ?? 0) < (game.npcHP?.[id] ?? npcProfile(game, id)?.maximumHP ?? 0)) result.game = recordNpcAggression(game, result.game, id, 'harmful-spell');
       result.events.push(...stepLogEntries(beforeAggression.log,result.game.log));
     }
     const map = mapState(result.game),
@@ -622,11 +624,28 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       };
     }
     // An attack or spell aimed at the creature fighting beside the foe ("ally:0").
-    const aim = game.stage === 'combat' ? aimedAlly(game, action?.request?.aim ?? (action?.type === 'spell-ruling' ? game.pendingSpell?.aim : null) ?? game.aim) : null;
+    // A held spell used again on a person in a brawl, or Hex moved to a person: their own defences and hit points.
+    if (typeof action === 'string' && /^(again|move-mark):/.test(action) && game.stage !== 'combat') {
+      const id = action.slice(action.indexOf(':') + 1);
+      if (!npcIdsOf(game).includes(id) || !npcScene(game).some(n => n.id === id && n.present) || game.npcFate?.[id] === 'dead') return {game, health, error: 'They are not here.'};
+      const done = action.startsWith('again:') ? spellAgain(hero, game, hp, stats.hp, id, personDefenses(game, id), random) : {health: hp, ...moveMark(game, id, npcProfile(game, id).name)};
+      if (done.error) return {game, health, error: done.error};
+      let after = done.game;
+      const lines = [...done.logs];
+      if (done.damage) { const struck = harmCreature(after, id, done.damage); after = struck.game; if (struck.line) lines.push(struck.line); }
+      if (done.bonus && game.npcCombat?.active) after = {...after, bonusUsed: true};
+      return {game: {...after, log: [...lines, ...game.log].slice(0, 40)}, health: done.health ?? hp, events: lines, bonus: !!done.bonus};
+    }
+    // A held spell used again ("again:<creature>") or Hex moved ("move-mark:<creature>") names its creature.
+    const sustained = game.stage === 'combat' && typeof action === 'string' && /^(again|move-mark):/.test(action) ? action.slice(action.indexOf(':') + 1) : null;
+    const aim = game.stage === 'combat' ? aimedAlly(game, sustained ?? action?.request?.aim ?? (action?.type === 'spell-ruling' ? game.pendingSpell?.aim : null) ?? game.aim) : null;
+    if (sustained !== null && sustained !== 'foe' && aim === null) return {game, health, error: 'That creature is not in this fight.'};
     const aimedFoe = aim !== null ? allyStats(game, aim, hero.level ?? 1) : null;
     let spellResult = null;
     if (action?.type === 'spell' || action?.type === 'spell-ruling') {
-      spellResult = action.type === 'spell' ? requestSpell(hero, game, hp, stats.hp, action.request, random, aimedFoe ?? foe) : resolveSpellRuling(hero, game, hp, stats.hp, action.ruling, random);
+      // An area, or a spell with several targets, can reach the other creatures in the fight too.
+      const others = game.stage === 'combat' && game.enemyHP > 0 ? [{...foe, key: 'foe'}, ...livingAllies(game).map(a => ({...allyStats(game, a.index, hero.level ?? 1), key: 'ally:' + a.index}))] : [];
+      spellResult = action.type === 'spell' ? requestSpell(hero, game, hp, stats.hp, action.request, random, {...(aimedFoe ?? foe), others}) : resolveSpellRuling(hero, game, hp, stats.hp, action.ruling, random);
       if (spellResult.error) return {
         game,
         health,
@@ -640,6 +659,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           log: [...spellResult.logs, ...game.log].slice(0, 40)
         }
       };
+    }
+    // A lasting spell used again (Spiritual Weapon, Heat Metal, the Flaming Sphere, Moonbeam, Call Lightning, Vampiric
+    // Touch), or Hex or Hunter's Mark moved to a new creature once its own has dropped: played like a spell's result.
+    if (sustained !== null) {
+      const struck = aim !== null ? 'ally:' + aim : 'foe', called = aimedFoe ? 'the ' + aimedFoe.name : foe.group ? 'the ' + foe.group.plural : 'the ' + foe.name.replace(/^the /i, '');
+      spellResult = action.startsWith('again:') ? spellAgain(hero, game, hp, stats.hp, struck, aimedFoe ?? foe, random) : {health: hp, ...moveMark(game, struck, called)};
+      if (spellResult.error) return {game, health, error: spellResult.error};
     }
     // A short rest, as in Baldur's Gate 3: two between long rests (three for a Bard with Song of Rest), anywhere
     // out of a fight. It restores half the hero's hit points, and half of each companion's, and what returns on a
@@ -688,7 +714,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     // adventure stays exactly as it was: the places found, the people met, the pack, the story so far.
     if (action === 'long-rest' && game.stage === 'inn') {
       const rested = {...game, round: 1, potions: Math.max(1, game.potions ?? 1), map: mapState(game), campaign: campaignState(game)};
-      for (const key of ['resources', 'spellSlotsUsed', 'arcanumUsed', 'speciesUsed', 'buffs', 'shieldUp', 'hurtBy', 'lastHit', 'shortRests', 'concentration', 'temporarySpell', 'enemyEffects', 'bonusUsed', 'slotSpentThisTurn', 'reactionUsed', 'actionUsed', 'surged', 'dodging', 'castingConditions', 'heroCondition', 'foeTricks', 'pendingSpell']) delete rested[key];
+      for (const key of ['resources', 'spellSlotsUsed', 'arcanumUsed', 'speciesUsed', 'buffs', 'boons', 'aided', 'shieldUp', 'hurtBy', 'lastHit', 'shortRests', 'concentration', 'temporarySpell', 'enemyEffects', 'bonusUsed', 'slotSpentThisTurn', 'reactionUsed', 'actionUsed', 'surged', 'dodging', 'castingConditions', 'heroCondition', 'foeTricks', 'pendingSpell']) delete rested[key];
       const lines = ['You finish a long rest. HP and casting resources are restored.'];
       // Companions who are with you sleep it off too (one knocked senseless wakes whole).
       for (const n of npcScene(game)) {
@@ -766,15 +792,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           next = struck.game;
           if (struck.line) entries.push(struck.line);
         } else next.enemyHP = Math.max(0, next.enemyHP - (spellResult.damage ?? 0));
+        // The other creatures an area or a many-target spell caught.
+        for (const s of spellResult.splash ?? []) {
+          if (s.key === 'foe') next.enemyHP = Math.max(0, next.enemyHP - s.damage);
+          else { const i = aimedAlly(next, s.key); if (i === null) continue; const struck = hurtAlly(next, i, s.damage); next = struck.game; if (struck.line) entries.push(struck.line); }
+        }
         bonusAction = spellResult.bonus || spellResult.reaction;
         if (spellResult.reaction) next.reactionUsed = true;
-        if (spellResult.manualRounds) {
-          next.round += spellResult.manualRounds;
-          next.bonusUsed = false;
-          next.slotSpentThisTurn = false;
-          next.reactionUsed = false;
-          entries.push(`The DM resolved ${spellResult.manualRounds} rounds of casting and intervening events.`);
-        }
         dodge = !!spellResult.enemyDisadvantage;
         if (spellResult.bonus) { next.bonusUsed = true; usedBonus = true; }
         if (hp.current === 0) {
@@ -1016,7 +1040,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       // After the action, a hero who still has a bonus action worth using gets the chance: the turn waits for it, or
       // for End turn. A bonus action taken after the action ends the turn by itself.
       const acted = !bonusAction && !ending && !turnOptions.enemyOnly;
-      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && !spellResult?.manualRounds && (bonusOptions(hero, next, hp, stats.hp).length > 0 || surgeReady(hero, next));
+      const paused = acted && next.stage === 'combat' && !turnOptions.suppressEnemy && hp.current > 0 && (bonusOptions(hero, next, hp, stats.hp).length > 0 || surgeReady(hero, next));
       if (paused) {
         next.actionUsed = true;
         // A Dodge (or a foe thrown off by a spell) still counts when the turn ends.
@@ -1079,6 +1103,10 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         // A party fights on while anyone stands: once this hero is down the foe turns to the others.
         const fightOn = () => hp.current > 0 || turnOptions.partyFoe && partyTargets(next).length > 0;
         const foeTarget = () => { const t = pickFoeTarget(next, random); if (t !== null || hp.current > 0 || !turnOptions.partyFoe) return t; const others = partyTargets(next); return 'party:' + others[Math.min(others.length - 1, Math.floor(random() * others.length))]; };
+        // As its turn begins, what burns or grips it hurts it (Searing Smite, Ensnaring Strike, burning webs).
+        const foeBegins = lastingTurn(next, 'foe', 'start', {...foe, name: 'The ' + foe.name.replace(/^the /i, '')}, random);
+        next = foeBegins.game;
+        entries.push(...foeBegins.lines);
         // Each standing member of a group attacks in turn.
         const attackers = foeStanding(foe, next.enemyHP), fallen = foeStanding(foe, game.enemyHP) - attackers;
         if (foe.group && fallen > 0) entries.push(`${fallen === 1 ? 'One of the' : fallen} ${foe.group.plural} ${fallen === 1 ? 'falls' : 'fall'} ${game.subdue ? 'senseless' : 'dead'} — ${attackers} still standing.`);
@@ -1096,7 +1124,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         for (let member = 1; member <= attackers && fightOn() && !held.skip; member++) {
         const who = attackers > 1 ? `${foe.name} ${member}` : foe.name;
         // Sometimes the creature goes for a companion beside you instead (or, in a party, another hero).
-        const target = foeTarget(), why = member === 1 ? heldOff('foe', target) : [];
+        // Protection from Evil and Good on whoever it goes for spoils every blow it aims at them.
+        const target = foeTarget(), why = [...(member === 1 ? heldOff('foe', target) : []), ...wardEdge(next, 'foe', boonKeyOf(next, target))];
         const mode = foeAttackMode({...next, heroCondition: target !== null && turnOptions.partyFoe ? undefined : lingering ?? next.heroCondition}, foe, attackers, {dodge: dodgingNow(target), blur: blurNow(target) || why.length > 0});
         if (target) {
           const struck = foeHitsCompanion(next, foe, who, target, mode, random);
@@ -1149,9 +1178,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         let allyDowned = null;
         for (const ally of livingAllies(next)) {
           if (!fightOn()) break;
-          const a = allyStats(next, ally.index, hero.level ?? 1), still = spellTurnStarts(next, 'ally:' + ally.index, 'The ' + a.name);
+          const a = allyStats(next, ally.index, hero.level ?? 1), allyBegins = lastingTurn(next, 'ally:' + ally.index, 'start', {...a, name: 'The ' + a.name}, random);
+          next = allyBegins.game;
+          entries.push(...allyBegins.lines);
+          if (!(next.foeAllies?.[ally.index]?.hp > 0)) continue;
+          const still = spellTurnStarts(next, 'ally:' + ally.index, 'The ' + a.name);
           if (still.skip) { next = still.game; entries.push(...still.lines); continue; }
-          const target = foeTarget(), why = heldOff('ally:' + ally.index, target), mode = dodgingNow(target) || blurNow(target) || why.length > 0 ? 'disadvantage' : 'normal';
+          const target = foeTarget(), why = [...heldOff('ally:' + ally.index, target), ...wardEdge(next, 'ally:' + ally.index, boonKeyOf(next, target))], mode = dodgingNow(target) || blurNow(target) || why.length > 0 ? 'disadvantage' : 'normal';
           if (target) { const struck = foeHitsCompanion(next, a, a.name, target, mode, random); next = sapSpent(struck.game, 'ally:' + ally.index); entries.push(...struck.lines); continue; }
           if (charmedBy(next, 'ally:' + ally.index, heroIdOf(next))) { entries.push(`The ${a.name} will not raise a hand against you.`); continue; }
           const baned = banedAttack(next, 'ally:' + ally.index, rollAttack(a, mode, random), random), attack = baned.attack, ac = spellDefense(next, stats.ac, a).ac;
@@ -1195,7 +1228,17 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         if (!turnOptions.enemyOnly) endHeroTurn(next);
         // At the end of their turns the creatures try again to shake off what spells hold them; then the hero's turn
         // begins: Shield drops, Heroism steadies them, and a creature that just hurt them can be answered (Hellish Rebuke).
-        for (const k of ['foe', ...livingAllies(next).map(a => 'ally:' + a.index)]) { const st = k === 'foe' ? foe : allyStats(next, Number(k.slice(5)), hero.level ?? 1), ended = spellTurnEnds(next, k, 'The ' + st.name.replace(/^the /i, ''), st.saves, random); next = ended.game; entries.push(...ended.lines); }
+        // As their turns end, the areas heroes hold (Moonbeam, Spirit Guardians and the rest) and acid left on them burn.
+        for (const k of ['foe', ...livingAllies(next).map(a => 'ally:' + a.index)]) {
+          const st = k === 'foe' ? foe : allyStats(next, Number(k.slice(5)), hero.level ?? 1);
+          if (k === 'foe' ? next.enemyHP <= 0 : !(next.foeAllies?.[Number(k.slice(5))]?.hp > 0)) continue;
+          const burnt = lastingTurn(next, k, 'end', {...st, name: 'The ' + st.name.replace(/^the /i, '')}, random);
+          next = burnt.game;
+          entries.push(...burnt.lines);
+          const ended = spellTurnEnds(next, k, 'The ' + st.name.replace(/^the /i, ''), st.saves, random);
+          next = ended.game;
+          entries.push(...ended.lines);
+        }
         if (hurtByNow && hp.current > 0 && !turnOptions.partyFoe) next.hurtBy = hurtByNow; else delete next.hurtBy;
         const begins = heroTurnBegins(hero, next, hp);
         next = begins.game;
@@ -1203,6 +1246,17 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         entries.push(...begins.lines);
         if (next.enemyEffects) next.enemyEffects = Object.fromEntries(Object.entries(next.enemyEffects).filter(([, rounds]) => rounds > 1).map(([key, rounds]) => [key, rounds - 1]));
         if (hp.current === 0) delete next.concentration;
+      }
+      // The foe dropped on its own turn by a lasting spell (burning, a held area).
+      if (next.stage === 'combat' && next.enemyHP === 0) {
+        const fortitude = undeadFortitude(next, foe, random);
+        next = fortitude.game;
+        if (fortitude.line) entries.push(fortitude.line);
+        if (next.enemyHP === 0) {
+          next.foeFate = 'slain';
+          next.stage = 'victory';
+          entries.push('The wisp settles into the lantern. You have restored the crossing!');
+        }
       }
       if (next.stage !== 'combat') { delete next.actionUsed; delete next.surged; delete next.dodging; }
     } else return {
@@ -1230,6 +1284,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
 // A hero's own spells count down at the end of each of their turns: concentration, and temporary hit points from a
 // spell such as False Life.
 function tickHeroSpells(next, hp) {
+  if (next.concentration?.fresh) { next.concentration = {...next.concentration}; delete next.concentration.fresh; }
   if (next.concentration?.remaining !== null && next.concentration?.remaining !== undefined) {
     next.concentration = {...next.concentration, remaining: next.concentration.remaining - 1};
     if (next.concentration.remaining <= 0) delete next.concentration;
@@ -1327,7 +1382,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
   const events=[line,'You still have your action: attack, cast, dodge, wait, surrender or flee.'];
   return {game:{...next,bonusUsed:true,log:[...events,...game.log].slice(0,40)},health:hp,events};
  }
- if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)||action?.type==='travel'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
+ if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)&&!/^(again|move-mark):/.test(action)||action?.type==='travel'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
  if(active&&['npc-flee','npc-surrender'].includes(action)){
   if(game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
   const away=game.stage==='inn'?'bridge':game.stage==='wild'?worldPlace(game,game.world?.at)?.from??'inn':'inn';
@@ -1401,6 +1456,8 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
  result.game={...result.game,...(result.game.npcCombat?{npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1}}:{}),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
  // The hero's turn is over (Vex reaches into the next), and any Sap not yet spent has run out.
  result.game=sapsEnd(endHeroTurn(result.game));
+ // A lasting spell cast this turn can be used again from the next (spellRules.js lastingSpells).
+ if(result.game.concentration?.fresh){result.game.concentration={...result.game.concentration};delete result.game.concentration.fresh;}
  if(result.game.concentration?.remaining!=null){result.game.concentration={...result.game.concentration,remaining:result.game.concentration.remaining-1};if(result.game.concentration.remaining<=0)delete result.game.concentration;}
  result.game={...result.game,journal:appendJournal(result.game.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',events.join('\n').slice(0,3000))};
  return result;
@@ -1414,10 +1471,16 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
  const who=id=>npcProfile(next,id),alive=id=>(next.npcHP?.[id]??who(id).maximumHP)>0;
  const enemies=()=>next.npcCombat.order.filter(n=>n.side==='enemy'&&alive(n.id));
  const dodgeLead=party?(party.dodging??[]).includes(next.party?.lead):dodge;
+ // Lasting spells on the people fighting (spellRules.js lastingTurn): what burns them as their turn begins, and the
+ // areas heroes hold and acid left on them as it ends (played as the next one's turn begins, or after the last).
+ let ending=null;
+ const turnEnds=id=>{if(!alive(id))return;const r=lastingTurn(next,id,'end',{...personDefenses(next,id),name:who(id).name},random);next=r.game;logs.push(...r.lines);};
  for(const actor of turns){
+  if(ending){turnEnds(ending);ending=null;}
   if(!(hp.current>0||party&&partyTargets(next).length)||!enemies().length)break;
   if(!alive(actor.id))continue;
   const allied=actor.side==='ally',victim=allied?enemies()[0]:null;
+  if(!allied){const begun=lastingTurn(next,actor.id,'start',{...personDefenses(next,actor.id),name:who(actor.id).name},random);next=begun.game;logs.push(...begun.lines);if(!alive(actor.id))continue;ending=actor.id;}
   if(actor.role==='help'&&next.npcCombat.order.some(n=>n.side===actor.side&&n.id!==actor.id&&alive(n.id))){next.npcCombat.help=actor.side;logs.push(who(actor.id).name+' distracts the opposition to help a defender.');continue;}
   const weapon=allied?companionBrawlWeapon(next,actor.id):{attackBonus:2,count:1,die:4,bonus:0};
   const helped=next.npcCombat.help===actor.side;
@@ -1453,6 +1516,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   if(damage&&allied)next.npcHP={...next.npcHP,[victim.id]:Math.max(0,(next.npcHP?.[victim.id]??who(victim.id).maximumHP)-damage)};
   else if(damage){if(!party)next.hurtBy=actor.id;const hurt=updateHealth(hp,stats.hp,'damage',damage);if(hurt.current===0)downed={by:who(actor.id).name,overflow:overflowOf(hurt.previous,damage)};hp={current:hurt.current,temp:hurt.temp};const concentration=concentrationAfterDamage(hero,next,damage,random);next=concentration.game;logs.push(...concentration.logs);}
  }
+ if(ending)turnEnds(ending);
  // Felled in a brawl, the hero is left dying where they lie and the defenders stand back (in a party, the others
  // fight on).
  if(hp.current<=0&&health.current>0||hp.current<=0&&!party){const brawl=next.npcCombat,fell=fall(next,'npc',downed?.overflow??0,stats.hp,downed?'Struck down by '+downed.by:null);next=fell.game;logs.push(...fell.entries);if(party&&brawl?.active&&partyTargets(next).length)next.npcCombat=brawl;}
@@ -1673,7 +1737,8 @@ function heroStep(game,health,hero,action,random,opts={}){
  // Once no fight is on, weapons thrown in it are gathered up again, and nothing of the fight (a grip, a creature lying
  // prone, Vex) outlasts it.
  // A concentration spell's marks end with it (a failed concentration save, a fall, a new spell).
- if(result.game&&!result.error&&result.game.marks)result.game=endSpellMarks(result.game);
+ // What it left on friends ends with it too; Hex or Hunter's Mark whose creature dropped waits to be moved.
+ if(result.game&&!result.error){if(result.game.marks||result.game.boons)result.game=endSpellMarks(result.game);result.game=markGone(result.game);}
  if(result.game&&!result.error&&result.game.stage!=='combat'&&!result.game.npcCombat?.active){result.game=fightOver(result.game);const gathered=gatherThrown(result.game);if(gathered){result.game={...gathered.game,log:[gathered.line,...(gathered.game.log??[])].slice(0,40)};result.events=[...(result.events??[]),gathered.line];}}
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
  if(result.game&&result.game!==game&&(result.game.subdue!==undefined||result.game.aim!==undefined)){result.game={...result.game};delete result.game.subdue;delete result.game.aim;}
@@ -1732,7 +1797,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  if(action?.type==='lead-done')return finishLead(game,health,action.id);
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','class:surge','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  const ownFeat=subclassAction(hero);if(ownFeat)allowed.push('class:'+ownFeat.id);
- if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
+ if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item|again|move-mark):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
  const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};

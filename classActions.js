@@ -1,4 +1,4 @@
-import {requestSpell,knownSpells,automaticEffects,spellCostOptions} from './spellRules';
+import {requestSpell,knownSpells,automaticEffects,spellCostOptions,lastingSpells,sustainOptions} from './spellRules';
 import {modifier,validLevel,martialDie,proficiencyBonus} from './characterRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {spellLibrary,slotChoices} from './spellOptions';
@@ -35,6 +35,10 @@ export function turnCost(hero,game,action){
   if(typeof action==='string'&&action.startsWith('offhand:')){const w=offhandWeapons(hero,game.lightAttack?.weapon).find(o=>o.name===action.slice(8));return w&&masteryOf(hero,w)==='Nick'&&!game.nickUsed?'free':'bonus';}
   if(['potion','class:wind','class:hands','class:strike'].includes(action)||typeof action==='string'&&action.startsWith('drink:'))return fight?'bonus':'action';
   if(action?.type==='give-potion')return fight?'bonus':'action';
+  // A lasting spell used again: Spiritual Weapon, Heat Metal and the Flaming Sphere take a bonus action, Moonbeam, Call
+  // Lightning and Vampiric Touch the action; moving Hex or Hunter's Mark is a bonus action.
+  if(typeof action==='string'&&action.startsWith('again:'))return lastingSpells[game.concentration?.id]?.again==='bonus'?'bonus':'action';
+  if(typeof action==='string'&&action.startsWith('move-mark:'))return fight?'bonus':'action';
   {const sub=subclassAction(hero);if(sub?.bonus&&action==='class:'+sub.id)return fight?'bonus':'action';}
   if(action?.type==='spell'){const spell=knownSpells(hero).find(s=>s.id===action.request?.id);if(!spell)return 'action';if(spell.castingTime==='Reaction')return 'free';return spell.castingTime==='Bonus Action'&&!automaticEffects[spell.id]?.asAction?'bonus':'action';}
   return 'action';
@@ -64,6 +68,8 @@ export function bonusOptions(hero,game,health,maximum){
   if(game.lightAttack&&!game.nickUsed)for(const w of offhandWeapons(hero,game.lightAttack.weapon)){const nick=masteryOf(hero,w)==='Nick'&&!game.nickUsed;if(nick||!game.bonusUsed)offhand.push({id:'offhand:'+w.name,name:'Off-hand '+w.name,nick});}
   if(game.bonusUsed)return offhand;
   const hurt=(health?.current??maximum)<maximum,used=game.resources??{},options=[...offhand];
+  // A lasting spell's bonus action (Spiritual Weapon's strike, Heat Metal, the Flaming Sphere), or moving Hex.
+  for(const [id,name,,kind] of sustainOptions(game))if(kind==='bonus'&&!options.some(o=>o.id.split(':')[0]===id.split(':')[0]))options.push({id,name});
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))options.push({id:'class:wind',name:'Second Wind'});
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)options.push({id:'class:hands',name:'Lay on Hands'});
   if(hero.class==='Monk')options.push({id:'class:strike',name:'Martial Arts strike'});

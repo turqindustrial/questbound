@@ -25,6 +25,7 @@ import {fonts,colors,type,tint} from './theme';
 import {playSound} from './audio';
 import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemory';
 import {touchKeyboard} from './webLayout';
+import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
 import {greeting,shouldGreet,replyIdeas} from './greetings';
@@ -97,7 +98,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
   const [draft,setDraft]=useState('');
   // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
-  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(hero).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(gearedHero(hero,scene)).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -144,7 +145,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const [tips,setTips]=useState(()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}});
   // A player who read the primer while their tale was written needs only a reminder; the Skirmish teaches as it goes.
   const [primed]=useState(()=>{try{return !!globalThis.localStorage?.getItem('questbound.primer.v1');}catch{return false;}});
-  const lesson=tips?skirmishHint(game,health,combatBasics(hero).hp):null;
+  const lesson=tips?skirmishHint(game,health,combatBasics(gearedHero(hero,game)).hp):null;
   const dismissTips=()=>{setTips(false);try{globalThis.localStorage?.setItem('questbound.tips.v1','seen');}catch{}};
   useEffect(()=>{if(tips&&lastTurnId>=3)dismissTips();},[lastTurnId]);
   useEffect(()=>{setSpellsOpen(false);closeAttack();},[lastTurnId]);

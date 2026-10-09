@@ -14,14 +14,18 @@ export const narrators=[
  {id:'bard',name:'Sable the Bard',short:'Sable',icon:'lute',description:'A travelling bard who loves a grand moment: warm, theatrical, quick to cheer a triumph and quick to mourn a loss.',sample:'A new name for my songs! Step into the light, friend, and let the tale begin.',voice:{rate:1.02,pitch:1.08}},
 ];
 export const narratorOf=id=>narrators.find(n=>n.id===id)??narrators[0];
-const defaults={brutality:'gritty',narrator:'chronicler'};
-function load(){try{const v=JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}');return {...defaults,...(brutalityLevels.some(l=>l.id===v?.brutality)?{brutality:v.brutality}:{}),...(narrators.some(n=>n.id===v?.narrator)?{narrator:v.narrator}:{})};}catch{return {...defaults};}}
+// autoShield: whether the game casts Shield for the hero when it turns a hit into a miss (Settings → Story → Rules).
+const defaults={brutality:'gritty',narrator:'chronicler',autoShield:true};
+function load(){try{const v=JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}');return {...defaults,...(brutalityLevels.some(l=>l.id===v?.brutality)?{brutality:v.brutality}:{}),...(narrators.some(n=>n.id===v?.narrator)?{narrator:v.narrator}:{}),...(typeof v?.autoShield==='boolean'?{autoShield:v.autoShield}:{})};}catch{return {...defaults};}}
 let prefs=load();const listeners=new Set();
 export const storyPreferences=()=>({...prefs});
 export function subscribeStoryPreferences(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 export function setStoryPreferences(changes){
  if(changes.brutality&&!brutalityLevels.some(l=>l.id===changes.brutality))return;
  if(changes.narrator&&!narrators.some(n=>n.id===changes.narrator))return;
+ if(changes.autoShield!==undefined&&typeof changes.autoShield!=='boolean')return;
  prefs={...prefs,...changes};try{globalThis.localStorage?.setItem(KEY,JSON.stringify(prefs));}catch{}
  listeners.forEach(fn=>fn(storyPreferences()));
 }
+// The hero as the rules see them on this device: the player's choices about reactions travel with every action.
+export const rulesHero=(hero,prefs=storyPreferences())=>hero&&prefs.autoShield===false?{...hero,autoShield:false}:hero;
