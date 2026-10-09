@@ -6,6 +6,7 @@ import {worldPlace,worldPlaces,placeName} from './mapRules';
 import {modifier} from './characterRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {magicSaveBonus} from './lootRules';
+import {subclassWardRoll} from './subclassRules';
 // Fights away from the story's own foe: a creature met at a place found while exploring (a lair, or an ambush on
 // arrival), and what every kind of monster can do beyond a plain attack. Companions who travel with the hero fight
 // beside them, and can be knocked down in turn.
@@ -59,19 +60,23 @@ export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return tr
 export function startWildFight(game,hero,foe,{place,from,hp=null}){
  const stats=wildFoeStats(foe.template,foe.name,hero.level??1),ally=foe.ally&&validAllySketch(foe.ally,foe.template)?makeAlly(foe.ally,hero.level??1):null;
  const next={...game,stage:'combat',enemyHP:hp??stats.maximum,round:1,openingAttackAvailable:true,
-  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
+  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(game.foeScale?{storyFoeScale:game.foeScale}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
   world:{...game.world,at:place}};
- delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;
+ delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;delete next.foeScale;
  if(ally)next.foeAllies=[ally];
  const many=stats.group?stats.group.size+' '+stats.group.plural:'A '+next.wildFight.name;
  return {game:next,entries:[`${many} ${stats.group?'burst':'bursts'} out at ${placeName(game,place)}${ally?', a '+ally.name+' at '+(stats.group?'their':'its')+' side':''}! ${stats.group||ally?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
 }
 // The fight is over: won (the creature is dead or beaten), fled (back the way you came) or fell (you lie dying).
 export function endWildFight(game,outcome){
- const w=game.wildFight,next={...game,enemyHP:w.storyFoeHP};
- delete next.wildFight;delete next.foeTricks;delete next.heroCondition;delete next.openingAttackAvailable;delete next.encounterInitiative;delete next.foeFate;delete next.foeAllies;
+ const w=game.wildFight,next={...game,enemyHP:w.storyFoeHP},f=foeScaleOf(game);
+ delete next.wildFight;delete next.foeTricks;delete next.heroCondition;delete next.openingAttackAvailable;delete next.encounterInitiative;delete next.foeFate;delete next.foeAllies;delete next.foeScale;
  if(w.storyFoeFate)next.foeFate=w.storyFoeFate;
- const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,game.enemyHP),...(w.ally?{ally:w.ally}:{})};return q;});
+ if(w.storyFoeScale)next.foeScale=w.storyFoeScale;
+ // A creature left behind keeps its wounds as a share of what it would have against one hero (it is scaled afresh
+ // to whoever comes back for it).
+ const leftHP=f>1?Math.max(1,Math.round(game.enemyHP*w.stats.maximum/scaledFoe(w.stats,f).maximum)):game.enemyHP;
+ const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,Math.min(w.stats.maximum,leftHP)),...(w.ally?{ally:w.ally}:{})};return q;});
  next.world={...game.world,places,at:outcome==='fled'?(worldPlace(game,w.from)?w.from:null):w.place};
  if(outcome==='won')next.stage='wild';
  if(outcome==='fled')next.stage=worldPlace(game,w.from)?'wild':w.from;
@@ -80,7 +85,7 @@ export function endWildFight(game,outcome){
 }
 export function validWildFight(g){
  const w=g.wildFight;if(w===undefined)return true;
- return !!w&&g.stage==='combat'&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=500&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
+ return !!w&&g.stage==='combat'&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=3000&&validFoeScale(w.storyFoeScale)&&(w.storyFoeScale===undefined||w.storyFoeScale.key==='story')&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
 }
 export function validCombatExtras(g){
  const t=g.foeTricks,c=g.heroCondition;
@@ -199,6 +204,51 @@ export function partyTargets(game){
  const party=game?.party;if(!party?.members||typeof party.lead!=='string')return [];
  return Object.entries(party.members).filter(([id,m])=>id!==party.lead&&m?.status==='up').map(([id])=>id);
 }
+// ---------- A foe against a bigger side ----------
+// Creatures, the tale's foe and the vault's guardians are written for one hero. When more fight on the hero's side
+// (other heroes standing at the shared table, companions who follow and fight, allies who live where the fight is),
+// the foe is scaled by the side's strength f: the hero is 1, each other standing hero 1.15 (heroes at one table help
+// each other), a companion with a class their class's share (`foeScaling.companion`, less when well below the party's
+// level), one without a class a quarter. Against f the foe has f times the hit points and about f^0.9 times the blows
+// (foeOffense: more attacks a turn, each a little harder or softer); a pack gains members instead. A hero fighting
+// alone meets exactly what they always did. The strength is kept for the fight (game.foeScale {f, key}): it grows when someone joins
+// mid-fight and never shrinks as the side falls. Tuned with balance-check.cjs (--companion, --party).
+// A companion's share of a hero by their class (sturdy fighters stand in front and soak blows; casters less so).
+export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},hero:1.15,untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6};
+export const sideWeightOf=cls=>foeScaling.companion[cls]??0.5;
+const sideHeroLevel=character=>{try{const h=JSON.parse(character);return Number.isInteger(h?.level)?h.level:1;}catch{return 1;}};
+function sideCompanionWeight(game,id,mean){
+ const t=game?.npcClasses?.[id];
+ return t?sideWeightOf(t.class)*Math.max(0.3,Math.min(1.2,t.level/mean)):foeScaling.untrained;
+}
+// `ids`: the people fighting beside the hero (fightingCompanions in a creature fight, the allies in a brawl).
+function sideOf(game,hero,ids){
+ const party=game?.party?.members&&typeof game.party.lead==='string'?game.party:null,others=party?partyTargets(game):[];
+ const levels=[hero?.level??1,...others.map(id=>sideHeroLevel(party.members[id]?.character))],mean=Math.max(1,levels.reduce((a,b)=>a+b,0)/levels.length);
+ let f=1+others.length*foeScaling.hero;
+ for(const id of ids)f+=sideCompanionWeight(game,id,mean);
+ return Math.min(foeScaling.most,Math.round(f*100)/100);
+}
+export const sideStrength=(game,hero)=>sideOf(game,hero,fightingCompanions(game).map(n=>n.id));
+// In a brawl with people: the hero's allies in the fight who still stand.
+export const brawlStrength=(game,hero)=>sideOf(game,hero,(game?.npcCombat?.order??[]).filter(n=>n.side==='ally'&&(game.npcHP?.[n.id]??npcProfile(game,n.id).maximumHP)>0).map(n=>n.id));
+// Which foe a kept scale belongs to: a creature in the wilds, a vault's room, or the tale's own foe (or the Skirmish).
+export const foeScaleKey=game=>game?.wildFight?'wild':game?.dungeon?.active?'vault:'+game.dungeon.room:'story';
+export const foeScaleOf=game=>game?.foeScale&&game.foeScale.key===foeScaleKey(game)?game.foeScale.f:1;
+export function validFoeScale(s){return s===undefined||(!!s&&typeof s==='object'&&typeof s.f==='number'&&s.f>1&&s.f<=foeScaling.most&&typeof s.key==='string'&&/^(wild|story|vault:\d{1,2})$/.test(s.key));}
+// How hard the foe presses a side of strength f: more blows a turn (Multiattack), each a little harder or softer.
+export function foeOffense(f){
+ if(!(f>1))return {swings:1,mult:1};
+ const o=Math.pow(f,foeScaling.offense),swings=Math.max(1,Math.min(foeScaling.maxSwings,Math.floor(o+0.25)));
+ return {swings,mult:o/swings};
+}
+// The foe's numbers against a side of strength f: a pack gains members; a lone foe more hit points, more blows.
+export function scaledFoe(foe,f){
+ if(!foe||!(f>1))return foe;
+ if(foe.group){const size=Math.min(foeScaling.maxGroup,Math.max(foe.group.size,Math.round(foe.group.size*Math.pow(f,foeScaling.hp))));return {...foe,maximum:foe.group.memberHP*size,group:{...foe.group,size},scaled:f};}
+ const {swings,mult}=foeOffense(f),avg=(foe.count??1)*((foe.die??4)+1)/2;
+ return {...foe,maximum:Math.round(foe.maximum*Math.pow(f,foeScaling.hp)),swings,bonus:Math.max(0,Math.round((avg+(foe.bonus??0))*mult-avg)),scaled:f};
+}
 // Who the creature goes for: usually you, sometimes a companion beside you. In a party every standing hero is as
 // likely as you (companions draw a quarter of the blows when there are any).
 export function pickFoeTarget(game,random){
@@ -220,12 +270,20 @@ export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs ${name}’s AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),resisted=resistHere(game,'h:'+pid,foe.type,Math.max(1,damage.total),random),total=resisted.amount,was=member.health?.current??most,now=Math.max(0,was-total);
+ const damage=rollDamage(foe,attack.critical,random),resisted=resistHere(game,'h:'+pid,foe.type,Math.max(1,damage.total),random);let total=resisted.amount;
+ // Their subclass's Reaction may blunt the blow (subclassRules.js), once a round while their reaction is free: the
+ // round it was spent is kept on them (`reacted`), and its use counts against their own uses.
+ const them=(()=>{try{return JSON.parse(member.character);}catch{return null;}})(),round=game.turnOrder?.round??game.round??0;
+ const ward=them&&member.reacted!==round?subclassWardRoll(them,{resources:member.hero?.resources??{}},total,random):null;
+ let warded=member;
+ if(ward){total=ward.total;warded={...member,reacted:round,hero:{...(member.hero??{}),resources:ward.game.resources}};lines.push(ward.line);}
+ if(total<=0){lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''} − ${ward.reduced} ${ward.name} = 0 ${foe.type} damage to ${name}. No damage gets through.`);return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:warded}}},lines};}
+ const was=member.health?.current??most,now=Math.max(0,was-total);
  const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300);
- let next={...member,health:{current:now,temp:0}},fell='';
+ let next={...warded,health:{current:now,temp:0}},fell='';
  if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
  else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
- lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-total)+' Resistance':''} = ${total} ${foe.type} damage to ${name}.`+fell);
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''}${ward?' − '+ward.reduced+' '+ward.name:''} = ${total} ${foe.type} damage to ${name}.`+fell);
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }
 const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};

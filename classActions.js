@@ -147,7 +147,7 @@ function resolveSubclassAction(hero,game,hp,maximum,sub,random,target){
   } else if(e.mark){
     const words={sapped:'has disadvantage on its next attack',prone:'is knocked prone'}[e.mark];
     if(e.save){const s=save(e.save);logs.push(`${sub.name}: ${called} makes a ${s.text}: ${s.success?'success. It shrugs it off.':'failure. It '+words+'.'}`);if(!s.success)next=withMark(next,key,{[e.mark]:true});}
-    else{next=withMark(next,key,{[e.mark]:true});logs.push(`${sub.name}: you fade half out of sight. The next attack ${called} makes has disadvantage.`);}
+    else{next=withMark(next,key,{[e.mark]:true});logs.push(`${sub.name}: ${e.line??'you fade half out of sight.'} The next attack ${called} makes has disadvantage.`);}
   } else if(e.vex){
     next={...next,vex:{target:key,fresh:true}};logs.push(`${sub.name}: your next attack against ${called} has advantage.`);
   } else if(e.strike){

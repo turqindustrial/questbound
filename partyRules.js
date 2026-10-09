@@ -83,6 +83,9 @@ export function joinParty(snapshot,me,{character,game,health,name}){
 export function soloFromParty(snapshot,level=null){
  if(!isPartyGame(snapshot?.game))return snapshot;
  const game=omit(snapshot.game,['party','turnOrder']);if(snapshot.game.party.stage&&!['dying','dead'].includes(game.stage))game.stage=snapshot.game.party.stage;
+ // A foe scaled to the party (encounterRules.js foeScale) goes back to its numbers for one hero, wounds kept in proportion.
+ if(game.foeScale){if(game.enemyHP>0)game.enemyHP=Math.max(1,Math.round(game.enemyHP/game.foeScale.f));delete game.foeScale;}
+ if(game.wildFight?.storyFoeScale){const w={...game.wildFight};if(w.storyFoeHP>0)w.storyFoeHP=Math.max(1,Math.round(w.storyFoeHP/w.storyFoeScale.f));delete w.storyFoeScale;game.wildFight=w;}
  if(Number.isInteger(level)&&game.encounterLevel!==undefined&&game.encounterLevel!==level){
   game.encounterLevel=level;
   const most=Math.max(10+8*(level-1),game.dungeon?14+4*(level-1):0,game.story?.foeStats?.maximum??0,game.wildFight?.stats?.maximum??0);

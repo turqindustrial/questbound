@@ -133,7 +133,7 @@ assert.ok(r.trainedSkills(make('Rogue','Silvertongue')).includes('Persuasion'));
  const hurt=r.adventureStep({...g,enemyHP:g.enemyHP-3},hpOf(ranger),ranger,w,always(.9));assert.match(lines(hurt),/Hunter's Prey: 1d8/);}
 {// First Cut: the opening and the first round, not the second.
  const knife=make('Rogue','Quiet Knife'),g=fightFor(knife),w='attack:'+r.weaponAttacks(knife)[0].name;
- const opening=r.adventureStep({...g,openingAttackAvailable:true},hpOf(knife),knife,w,always(.9));assert.match(lines(opening),/First Cut: 2d6/,'the opening blow');
+ const opening=r.adventureStep({...g,openingAttackAvailable:true},hpOf(knife),knife,w,always(.9));assert.match(lines(opening),/First Cut: 1d6/,'the opening blow');
  assert.match(lines(r.adventureStep({...g,round:1},hpOf(knife),knife,w,always(.9))),/First Cut/,'round 1');
  assert.ok(!/First Cut/.test(lines(r.adventureStep({...g,round:2},hpOf(knife),knife,w,always(.9)))),'round 2 does not');}
 {// Running with the Pack: only with a companion fighting beside you.
@@ -142,8 +142,10 @@ assert.ok(r.trainedSkills(make('Rogue','Silvertongue')).includes('Persuasion'));
  const withFriend={...g,followers:{mara:{status:'following'}}};
  const pack=r.adventureStep(withFriend,hpOf(ranger),ranger,w,always(.9));assert.match(lines(pack),/Running with the Pack: 1d6/,'with a companion: '+lines(pack));}
 {// The Monk's bonus strike carries Serpent's Fang; Slip Behind opens the next attack (Vex).
- const serpent=make('Monk','Warrior of the Coiled Serpent'),g=fightFor(serpent);
- const strike=r.adventureStep(g,hpOf(serpent),serpent,'class:strike',always(.9));assert.ok(!strike.error,strike.error);assert.match(lines(strike),/Poison damage \(Serpent's Fang: 1d6/,'the bonus strike: '+lines(strike));
+ const serpent=make('Monk','Warrior of the Coiled Serpent'),fresh=fightFor(serpent),g={...fresh,enemyHP:fresh.enemyHP-1};
+ // Only on a creature already wounded.
+ assert.ok(!/Serpent's Fang/.test(lines(r.adventureStep(fresh,hpOf(serpent),serpent,'class:strike',always(.9)))),'not on an unhurt creature');
+ const strike=r.adventureStep(g,hpOf(serpent),serpent,'class:strike',always(.9));assert.ok(!strike.error,strike.error);assert.match(lines(strike),/Poison damage \(Serpent's Fang: 1d4/,'the bonus strike: '+lines(strike));
  assert.equal(strike.game.featTurn,true,'spent for this turn');valid(serpent,strike.game,strike.health);
  const after=r.adventureStep(strike.game,strike.health,serpent,'attack:Unarmed Strike',always(.9));assert.ok(!/Serpent's Fang/.test(lines(after)),'once a turn');
  const hidden=make('Monk','Warrior of the Hidden Step'),h=r.adventureStep(fightFor(hidden),hpOf(hidden),hidden,'class:strike',always(.9));
@@ -185,7 +187,7 @@ assert.ok(r.trainedSkills(make('Rogue','Silvertongue')).includes('Persuasion'));
  assert.match(lines(turn),/Cutting Words: the blow is reduced by \d+ \(1d6 \[\d\]\)\./,lines(turn));}
 
 // ---- 8. Class actions of the subclasses ----
-const actionCases=[['Bard','College of Borrowed Faces','jest'],['Bard','College of the Long Road','hearthsong'],['Druid','Circle of the Thornwall','briar'],['Rogue','Silvertongue','feint'],['Sorcerer','Veilborn Sorcery','veil'],['Warlock','Lantern-Keeper Patron','kindly'],['Artificer','Snarewright','tangle'],['Artificer','Alchemist','tonic'],['Artificer','Artillerist','engine']];
+const actionCases=[['Bard','College of Borrowed Faces','jest'],['Bard','College of the Long Road','hearthsong'],['Druid','Circle of the Thornwall','briar'],['Rogue','Silvertongue','feint'],['Sorcerer','Veilborn Sorcery','veil'],['Warlock','Lantern-Keeper Patron','kindly'],['Artificer','Snarewright','tangle'],['Artificer','Alchemist','tonic'],['Artificer','Artillerist','engine'],['Wizard','Fateweaver','thread']];
 for(const [cls,sub,id] of actionCases){
  const hero=make(cls,sub),spec=r.subclassEngine[sub].effects.find(e=>e.kind==='action'),limit=r.subclassUses(hero,spec.uses),healing=!!spec.effect.heal;
  const hurt={current:Math.max(1,r.combatBasics(hero).hp-6),temp:0};
@@ -211,7 +213,7 @@ for(const [cls,sub,id] of actionCases){
  assert.equal(j.game.actionUsed,undefined,'a bonus action leaves the action');
  const kindly=make('Warlock','Lantern-Keeper Patron'),full=r.adventureStep(fightFor(kindly),hpOf(kindly),kindly,'class:kindly',always(.5));assert.equal(full.error,'You are already at full health.');
  const healed=r.adventureStep(fightFor(kindly),{current:3,temp:0},kindly,'class:kindly',always(.5));assert.match(lines(healed),/Kindly Light: \[5\] \+ 3; restored 8 HP\./,lines(healed));
- const briar=make('Druid','Circle of the Thornwall'),b=r.adventureStep(fightFor(briar),hpOf(briar),briar,'class:briar',always(.5));assert.equal(b.health.temp,6,'twice the Druid level');
+ const briar=make('Druid','Circle of the Thornwall'),b=r.adventureStep(fightFor(briar),hpOf(briar),briar,'class:briar',always(.5));assert.equal(b.health.temp,3,'the Druid level');
  const tangle=make('Artificer','Snarewright'),t=r.adventureStep(fightFor(tangle),hpOf(tangle),tangle,'class:tangle',seq([0,.5,.5,.5,.5,.5,.5,.5,.5]));
  assert.match(lines(t),/Tangle-Bolt: the Bandit Cutthroat makes a Dexterity save d20 \[1\] .*failure\. \d+ Piercing damage \(2d6 \[\d, \d\]\); it is knocked prone\./,lines(t));
  const five={...tangle,level:5},t5=r.adventureStep(fightFor(five),hpOf(five),five,'class:tangle',always(.5));assert.match(lines(t5),/Piercing damage \(3d6/,'Barbed Lines');

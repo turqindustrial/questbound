@@ -225,6 +225,18 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     // The hero's subclass action by name or as it is usually said (subclassRules.js).
     const feat=subclassAction(hero);if(feat?.say.test(text))return {action:'class:'+feat.id};
   }
+  // In a brawl with people, the subclass action too: one that heals or shields the hero is theirs; one aimed at
+  // someone goes at the person named, or at the only one still fighting.
+  if(game.npcCombat?.active){
+    const feat=subclassAction(hero);
+    if(feat?.say.test(text)){
+      if(feat.effect.heal||feat.effect.temp)return {action:'class:'+feat.id};
+      const foes=game.npcCombat.order.filter(n=>n.side==='enemy'&&(game.npcHP?.[n.id]??1)>0).map(n=>n.id);
+      const named=foes.filter(id=>new RegExp('\\b'+id+'\\b','i').test(text)||mentionsName(text,npcLore(game,id)?.name??'-'));
+      const target=named.length===1?named[0]:foes.length===1?foes[0]:null;
+      if(target)return {action:{type:'npc-attack',target,feat:true}};
+    }
+  }
   const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara|n\d{1,2})\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara|n\d{1,2}))/i);
   if(gift)return {action:{type:'give-potion',target:(gift[1]??gift[2]).toLowerCase()}};
   if(game.story&&/^(?:I )?(?:go to|travel to|move to) /i.test(text)){const target=Object.entries(game.story.locations).find(([id,p])=>text.toLowerCase().includes(p.name.toLowerCase()));if(target)return {action:{type:'travel',destination:target[0]}};}

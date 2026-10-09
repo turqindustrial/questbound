@@ -451,7 +451,7 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       let damageDice=hit?roll(diceCount,effect.die):[];
       if(hit&&effect.explode){let extra=0;for(let j=0;j<damageDice.length&&extra<Math.max(1,mod);j++)if(damageDice[j]===effect.die){damageDice.push(roll(1,effect.die)[0]);extra++;}}
       let part=sum(damageDice)+(hit&&effect.addMod?mod:0),note='';
-      if(!hit && subclassActive(hero,'Evoker')){damageDice=roll(effect.beams?1:count,effect.die);part=Math.floor(sum(damageDice)/2);note='; halved by Potent Cantrip';}
+      if(!hit && subclassActive(hero,'Evoker') && spell.level===0){damageDice=roll(effect.beams?1:count,effect.die);part=Math.floor(sum(damageDice)/2);note='; halved by Potent Cantrip';}
       else if(!hit && effect.missHalf){damageDice=roll(count,effect.die);part=Math.floor(sum(damageDice)/2);note='; half on a miss';}
       const before=part;part=defended(target,type,part);
       logs.push(`${spell.name}${beams>1?` beam ${i+1}`:''}: d20 [${attack.dice.join(', ')}] (${attack.mode}${[...edge.adv,...edge.dis].length?', '+[...edge.adv,...edge.dis].join(', '):''}) + ${mod} ${castingAbility(hero)} + ${proficiencyBonus(hero.level)} proficiency${war?` + ${war} magic`:''}${bless.amount?' + '+bless.amount+' Bless':''} = ${attack.total} vs AC ${target.ac}. ${critical?'Critical hit':hit?'Hit':'Miss'}; ${before} ${type} damage${damageDice.length?' ('+damageDice.length+'d'+effect.die+' ['+damageDice.join(', ')+']'+(effect.addMod&&hit?' + '+mod:'')+note+')':''}.`);
@@ -480,8 +480,8 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   // Void, Marrow-Cold; subclassRules.js): only for spells of the hero's own class or subclass.
   if(damage>0&&(effect.save||effect.attack)&&(spell.classes?.includes(hero.class)||automaticSpells(hero).includes(spell.id))){
     // The first of the casting's damage types the gift names (Ice Knife's burst is Cold, its shard Piercing).
-    const gifted=[type,effect.also,effect.then?.type].filter(Boolean).find(k=>subclassSpellBonus(hero,'damage',{type:k}).amount>0);
-    const extra=gifted?subclassSpellBonus(hero,'damage',{type:gifted}):{amount:0},added=extra.amount?defended(target,gifted,extra.amount):0;
+    const cantrip=spell.level===0,gifted=[type,effect.also,effect.then?.type].filter(Boolean).find(k=>subclassSpellBonus(hero,'damage',{type:k,cantrip}).amount>0);
+    const extra=gifted?subclassSpellBonus(hero,'damage',{type:gifted,cantrip}):{amount:0},added=extra.amount?defended(target,gifted,extra.amount):0;
     if(added>0){damage+=added;logs.push(`${added} ${gifted} damage (${extra.label}).`);}
   }
   if(damage>0&&!effect.inflict){
