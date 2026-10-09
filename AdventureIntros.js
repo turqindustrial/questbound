@@ -41,7 +41,7 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {intros.map(intro=>{const chosen=selected===intro.id,hot=!!intro.local;return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>
  <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?'#ffb39e':colors.goldBright}/><View style={{flex:1,minWidth:0}}>
-  <View style={s.tags}><Text style={[s.tone,hot&&{color:'#ff9f86'}]}>{intro.tone.toUpperCase()}</Text>{intro.scale==='saga'&&<View style={s.tag}><Icon name="scroll" size={10} color={colors.gold}/><Text style={s.tagText}>LONG TALE</Text></View>}{intro.errand&&<View style={s.tag}><Icon name="flag" size={10} color={colors.gold}/><Text style={s.tagText}>CLEAR START</Text></View>}{hot&&<View style={[s.tag,s.tagHot]}><Icon name="bolt" size={10} color="#ffb39e"/><Text style={[s.tagText,{color:'#ffb39e'}]}>INSTANT</Text></View>}</View>
+  <View style={s.tags}><Text style={[s.tone,hot&&{color:tint('#ff9f86')}]}>{intro.tone.toUpperCase()}</Text>{intro.scale==='saga'&&<View style={s.tag}><Icon name="scroll" size={10} color={colors.gold}/><Text style={s.tagText}>LONG TALE</Text></View>}{intro.errand&&<View style={s.tag}><Icon name="flag" size={10} color={colors.gold}/><Text style={s.tagText}>CLEAR START</Text></View>}{hot&&<View style={[s.tag,s.tagHot]}><Icon name="bolt" size={10} color={tint('#ffb39e')}/><Text style={[s.tagText,{color:tint('#ffb39e')}]}>INSTANT</Text></View>}</View>
   <Text style={[s.title,narrow&&{fontSize:19}]}>{intro.title}</Text></View>{chosen&&<View style={[s.check,hot&&{backgroundColor:colors.bloodBright,borderColor:'#ffd2c2'}]}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
  <Text style={[s.setting,narrow&&{fontSize:16,lineHeight:23}]}>{intro.setting}</Text>
  {/* The chosen opening tells what is wrong, where the road leads and what is at stake. */}
@@ -64,7 +64,7 @@ const s=StyleSheet.create({
  tagHot:{borderColor:'rgba(240,106,79,.55)'},
  title:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:21,letterSpacing:.6},
  check:{width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
- setting:{fontFamily:fonts.story,fontStyle:'italic',color:'#ded1cb',fontSize:17,lineHeight:25,marginBottom:8},
+ setting:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#ded1cb'),fontSize:17,lineHeight:25,marginBottom:8},
  label:{...type.label,fontSize:9},facts:{gap:2,marginTop:2,marginBottom:2,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')},fact:{},factHead:{flexDirection:'row',alignItems:'center',gap:6,marginBottom:4},
  arrival:{fontFamily:fonts.story,color:tint('#de96a5'),fontSize:15.5,fontStyle:'italic'},
  begin:{marginTop:-4,marginBottom:16},

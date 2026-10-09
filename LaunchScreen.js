@@ -65,7 +65,7 @@ const s=StyleSheet.create({
  q:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,textAlign:'center'},
  eyebrow:{fontFamily:fonts.display,fontSize:11,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase',marginBottom:6},
  logo:{fontFamily:fonts.logo,fontWeight:'900',letterSpacing:5,color:colors.gold,textAlign:'center'},
- tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:19,color:'#decfc8',marginTop:4},
+ tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:19,color:tint('#decfc8'),marginTop:4},
  promptWrap:{alignItems:'center',marginTop:26,gap:8},prompt:{fontFamily:fonts.display,fontSize:13,fontWeight:'700',letterSpacing:4,color:colors.parchment,textTransform:'uppercase'},
  hint:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint,letterSpacing:.5},
 });

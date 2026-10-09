@@ -31,7 +31,7 @@ import { blankBuild, buildError, makeCharacter, abilities, modifier } from './ch
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { loadCharacter, saveCharacter, isValidCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
-import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, Platform, useWindowDimensions } from 'react-native';
 import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
 import {fonts,colors,type,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
@@ -52,6 +52,7 @@ import {AudioToggle,AudioSettings} from './AudioControls';
 import {FullscreenToggle,DisplaySettings} from './DisplayControls';
 import {StorySettings} from './StoryControls';
 import {ThemeSettings} from './ThemeControls';
+import DeveloperDiagnostics from './DeveloperDiagnostics';
 import Legal from './Legal';
 import {placeName,mapLocation} from './mapRules';
 import {displayState} from './fullscreen';
@@ -65,7 +66,8 @@ import HeroRoster from './HeroRoster';
 import {scheduleCloudSave} from './cloudRules';
 import {CloudSaveSettings} from './CloudSaveSettings';
 import {AccountSettings} from './AccountSettings';
-import {accountState} from './accountRules';
+import {accountState,bootstrapAccount} from './accountRules';
+import {currentProfile,subscribeProfile} from './playerStorage';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import {levelCompanions} from './followerRules';
@@ -81,7 +83,13 @@ import {useVisualViewport} from './webLayout';
 // The title painting: a valley at dusk, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
 const titlePainting=require('./assets/title/questbound-title.jpg');
 
-export default function App(){return <SceneTransitionProvider><QuestboundApp/></SceneTransitionProvider>;}
+export default function App(){
+ const [ready,setReady]=useState(false),[profile,setProfile]=useState(currentProfile);
+ useEffect(()=>{const off=subscribeProfile(setProfile);bootstrapAccount().finally(()=>{setProfile(currentProfile());setReady(true);});return off;},[]);
+ useEffect(()=>{const changed=e=>{if(e.key==='questbound.account.v2')globalThis.location?.reload();};globalThis.addEventListener?.('storage',changed);return()=>globalThis.removeEventListener?.('storage',changed);},[]);
+ if(!ready)return <View style={{flex:1,backgroundColor:colors.ink,padding:30}}><Text style={{color:colors.text}}>Opening your account…</Text></View>;
+ return <SceneTransitionProvider key={profile}><QuestboundApp/></SceneTransitionProvider>;
+}
 function QuestboundApp() {
   const {width:windowWidth,height:windowHeight}=useWindowDimensions(),compact=windowWidth<600;
   // Short, wide windows (a phone on its side, a small full-screen window) put the title beside the menu.
@@ -112,7 +120,7 @@ function QuestboundApp() {
   // Which legal page is open (privacy, terms or licences), and where it was opened from.
   const [legalTab,setLegalTab]=useState('privacy'),[legalFrom,setLegalFrom]=useState('Home');
   const openLegal=(tab,from)=>{setLegalTab(tab);setLegalFrom(from);setScreenState('Legal');scrollRef.current?.scrollTo({y:0,animated:false});};
-  useEffect(()=>{accountState().then(setAccount).catch(()=>{});},[]);
+  useEffect(()=>{accountState().then(a=>{setAccount(a);if(a?.hold)setScreenState('Settings');}).catch(()=>{});},[]);
   // The read-aloud narrator sounds like the chosen narrator (storyPreferences.js narrators).
   useEffect(()=>{const apply=p=>setNarratorStyle(narratorOf(p.narrator).voice);apply(storyPreferences());return subscribeStoryPreferences(apply);},[]);
   const [saveRetry,setSaveRetry] = useState(0);
@@ -145,21 +153,18 @@ function QuestboundApp() {
   const [error, setError] = useState('');
   // The shared table's adventure replaces this device's only after it passes the same checks as a local save.
   async function applyRemote(snapshot,isCurrent=()=>true){
+    await transition.prepare(sceneArtSubjects(snapshot.game));
     // A party: this device plays its own hero, joining with it the first time (partyRules.js).
     if(isPartyGame(snapshot?.game)){
       let view=partyView(snapshot,deviceId());
-      if(!view){
-        if(!hero)throw Error('Choose your hero first, then join the party.');
-        const joined=joinParty(snapshot,deviceId(),{character:JSON.stringify(hero),game:characterChosen?game:null,health:characterChosen?health:null,name:tableMembership().name});
-        if(joined.error)throw Error(joined.error);view=joined.snapshot;
-      }
+      if(!view)throw Error('This account has no hero in the campaign. Join with its campaign invite.');
       let mine;try{mine=JSON.parse(view.character);}catch{throw Error('The party could not be read.');}
       if(!isValidCharacter(mine)||!validAdventure(view,mine))throw Error('The party did not pass validation. This device kept its own save.');
       if(!isCurrent())return;
       backupLocalSave();
       if(view.character!==JSON.stringify(hero))await saveCharacter(mine);
       if(!isCurrent())return;
-      setHero(mine);setGame(view.game);setHealth(view.health);setCharacterChosen(true);setNewStoryRequested(false);
+      setHero(mine);setForm({...blankBuild(),...mine,species:mine.species??mine.race});setGame(view.game);setHealth(view.health);setCharacterChosen(true);setNewStoryRequested(false);
       return;
     }
     let remoteHero;try{remoteHero=JSON.parse(snapshot.character);}catch{throw Error('The shared adventure could not be read.');}
@@ -172,10 +177,13 @@ function QuestboundApp() {
     setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(false);
   }
   const table=useSharedTable({ready:!loading&&!storageError&&!adventureBlocked,hero,game,health,characterChosen,applyRemote});
+  useEffect(()=>{if(!loading&&!account?.verified&&['Adventure','Character Creation','Multiplayer','Adventure Opening','Level Up'].includes(screen)){setScreenState('Settings');setError('Sign in and verify your email before playing. Your earlier saves are kept.');}},[screen,account?.verified,loading]);
   // Leaving a party table: this device's adventure goes on alone from where the party stands.
   useEffect(()=>{if(!table.joined&&isPartyGame(game))setGame(g=>isPartyGame(g)?soloFromParty({game:g},hero?.level??null).game:g);},[table.joined,game,hero]);
   const party=partyMembers(game).filter(m=>!m.lead);
   async function setScreen(target){
+    if(table.joined&&['Character Selection','Character Creation','Adventure Opening'].includes(target)){setScreenState('Multiplayer');setError('Leave the shared table before changing your hero or starting a separate adventure.');return;}
+    if(['Adventure','Character Creation','Multiplayer','Adventure Opening'].includes(target)&&!account?.verified){setScreenState('Settings');setError('Sign in and verify your email before playing. Your existing guest saves are kept.');return;}
     try{if(['Adventure','Character Sheet','Campaign Journal','Followers'].includes(target)&&hero)await transition.prepare([...sceneArtSubjects(game),...(target==='Followers'?Object.keys(game.followers??{}).map(id=>npcArtSubject(game,id)):[])]);setScreenState(target);}
     catch(e){setError(e.message);}
   }
@@ -207,6 +215,7 @@ function QuestboundApp() {
   }
   // A hero brought over from another device by its recovery code; the current one is set aside first.
   async function restoreFromCloud(snapshot){
+    if(table.joined)throw Error('Leave the shared table before importing a different save.');
     let restored;try{restored=JSON.parse(snapshot?.character);}catch{throw Error('That save could not be read. Nothing was changed.');}
     if(!isValidCharacter(restored)||!validAdventure(snapshot,restored))throw Error('That save did not pass the game\'s checks. Nothing was changed.');
     if(hero&&JSON.stringify(hero)!==snapshot.character&&!await setCurrentAside())throw Error('Your company is full. Retire a hero under Heroes first.');
@@ -291,6 +300,8 @@ function QuestboundApp() {
   async function saveAdvancement(character) {
     if(saving || storageError || !hero || !levelUpReady(game,hero) || character.level!==hero.level+1 || character.class!==hero.class)return;
     setSaving(true);setError('');
+    // At a shared table the campaign server takes the level (campaign-advancement.cjs, the same rules as below).
+    if(table.joined){try{await table.edit({kind:'advance',character});setScreenState('Adventure');cue('levelup',{level:character.level,sub:character.name+' is now a level '+character.level+' '+character.class+'.'});}catch(e){setError(e.message);}finally{setSaving(false);}return;}
     // A level is taken where the hero stands, whatever earned the experience for it: rested as after a night's sleep,
     // everything else untouched (the party at a shared table too), and a main foe not yet met grows to match.
     try{
@@ -373,10 +384,10 @@ function QuestboundApp() {
   const storyCover=creatingStory&&(selectedIntro!=='hostile'||continuingNow),agreementShown=launched&&!agreed&&screen!=='Legal';
   useEffect(()=>{setCovered('story',storyCover);return()=>setCovered('story',false);},[storyCover]);
   useEffect(()=>{setCovered('agreement',agreementShown);return()=>setCovered('agreement',false);},[agreementShown]);
-  const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:'#ffd49a'}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
+  const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:tint('#ffd49a')}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
-    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:<Image source={titlePainting} dataSet={{qb:'backdrop',frame:homeShape.wide?'wide':'tall'}} resizeMode="cover" style={s.backdrop}/>}
+    {inGame?<DynamicArt subject={locationArtSubject(game)} style={StyleSheet.absoluteFillObject} quiet/>:home?<View dataSet={{qb:'launch-glow'}} style={StyleSheet.absoluteFillObject}/>:<Image source={titlePainting} dataSet={{qb:'backdrop',frame:homeShape.wide?'wide':'tall'}} resizeMode="cover" style={s.backdrop}/>}
     <View dataSet={{qb:inGame?'atmosphere-game':home?(wideHome?'atmosphere-home':'atmosphere-home-narrow'):'atmosphere'}} style={[StyleSheet.absoluteFillObject,{backgroundColor:inGame?tint('rgba(13,7,14,.35)'):home?tint('rgba(10,7,11,.45)'):tint('rgba(10,7,11,.72)')}]}/>
     {!inGame&&<View dataSet={{qb:'rays'}} style={StyleSheet.absoluteFillObject}/>}
     <View dataSet={{qb:'fog'}} style={StyleSheet.absoluteFillObject}/>
@@ -393,10 +404,10 @@ function QuestboundApp() {
     {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
-      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color="#9fe3d8"/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
+      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
-      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreenState('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
+      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreen('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
     </View>
   </View>:<View style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
@@ -409,12 +420,14 @@ function QuestboundApp() {
       onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
       onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackRequest(null);setFeedbackOpen(true);}}/>
     <FeedbackSheet visible={feedbackOpen} onClose={()=>{setFeedbackOpen(false);setFeedbackRequest(null);}} context={feedbackContext} problem={feedbackRequest?.problem??null} prefill={feedbackRequest?.prefill??''}/>
-  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
+    {/* Web scroll events include the browser bringing a focused field above the phone keyboard.
+        Dismissing on that scroll immediately blurs the field and closes the keyboard. */}
     <View key={screen} dataSet={{qb:'enter'}}>
     <Panel variant={inGame?'glass':'panel'} style={[s.card,compact&&{padding:14}]}>{loading && <Text style={s.note}>Loading saved character…</Text>}{!!storageError && <Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
-      {saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,compact&&{marginBottom:10},{color:'#ffd49a'}]}>{saveStatus}</Text>}
+      {saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,compact&&{marginBottom:10},{color:tint('#ffd49a')}]}>{saveStatus}</Text>}
       {saveStatus.startsWith('Adventure not saved') && button('Retry adventure save',()=>setSaveRetry(value=>value+1))}
-        {table.joined && <View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color="#9fe3d8"/><Text style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
+        {table.joined && <View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
       {!!titles[screen]&&<ScreenTitle eyebrow={titles[screen][0]} icon={titles[screen][2]} title={titles[screen][1]}/>}
       {screen === 'Character Selection' && <>
         {hero && heroFallen ? <>
@@ -459,9 +472,9 @@ function QuestboundApp() {
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
       {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
-      {screen === 'Character Sheet' && hero && <CharacterSheet setGame={setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      {screen === 'Followers' && hero && <Followers hero={hero} game={game} setGame={setGame} onBack={()=>setScreen('Adventure')}/>}
+      {screen === 'Character Sheet' && hero && <CharacterSheet setGame={table.joined?next=>table.edit({kind:'training',training:next.skillTraining}).catch(e=>setError(e.message)):setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
+      {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>table.joined?table.edit({kind:'note',text}).catch(e=>setError(e.message)):setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
+      {screen === 'Followers' && hero && <Followers hero={hero} game={game} setGame={setGame} onManage={table.joined?(id,action)=>table.edit(action==='accept'?{kind:'accept-offer',id}:{kind:'follower',id,action}):null} onBack={()=>setScreen('Adventure')}/>}
       {screen === 'Dice Roller' && <DiceRoller/>}
       {screen === 'Adventure' && <>
         {characterChosen && heroStats?.available && <View dataSet={{qb:'plate'}} style={s.hud}>
@@ -484,6 +497,7 @@ function QuestboundApp() {
       {screen === 'Settings' && <AccountSettings onRestore={restoreFromCloud} busy={saving||loading} onChange={setAccount} onLegal={tab=>openLegal(tab,'Settings')}/>}
       {screen === 'Settings' && <StorySettings/>}
       {screen === 'Settings' && <ThemeSettings/>}
+      {screen === 'Settings' && <DeveloperDiagnostics/>}
       {screen === 'Settings' && <DisplaySettings/>}
       {screen === 'Settings' && <AudioSettings/>}
       {screen === 'Settings' && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
@@ -519,7 +533,7 @@ const s = StyleSheet.create({
   heroEyebrow:{marginBottom:18,textAlign:'center'},
   logo:{fontFamily:fonts.logo,fontSize:76,fontWeight:'900',letterSpacing:6,color:colors.gold,textAlign:'center',lineHeight:92},
   heroRule:{width:'72%',maxWidth:380,alignSelf:'center',marginVertical:12},
-  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:'#decfc8',textAlign:'center',letterSpacing:.5},
+  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:tint('#decfc8'),textAlign:'center',letterSpacing:.5},
   header:{alignItems:'center',marginBottom:22},
     logoMedium:{fontFamily:fonts.logo,fontSize:40,fontWeight:'900',letterSpacing:4,color:colors.gold,textAlign:'center'},
   logoSmall:{fontFamily:fonts.logo,fontSize:24,fontWeight:'900',letterSpacing:3,color:colors.gold},
@@ -548,9 +562,9 @@ const s = StyleSheet.create({
   hudTemp:{fontSize:12,color:colors.arcane},
   quickTabs:{flexDirection:'row',gap:8,marginBottom:8,flexWrap:'wrap'},
   quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.9)'),justifyContent:'center'},
-  quickTabText:{fontFamily:fonts.display,color:'#dfcdc5',fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+  quickTabText:{fontFamily:fonts.display,color:tint('#dfcdc5'),fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
   quickGlyph:{color:colors.gold},
-  tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,208,196,.35)',marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:'#9fe3d8',fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:'#ffd49a',fontSize:13,lineHeight:19},
+  tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,208,196,.35)',marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:tint('#9fe3d8'),fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:tint('#ffd49a'),fontSize:13,lineHeight:19},
   saveStatus:{fontFamily:fonts.ui,color:colors.goldMid,fontSize:12,letterSpacing:.4,marginBottom:16},
   error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
   note:{fontFamily:fonts.ui,color:tint('#c9aab2'),fontSize:13,lineHeight:20,marginBottom:18},

@@ -1,56 +1,45 @@
 import {useEffect,useRef,useState,useCallback} from 'react';
 import {adventureSnapshot} from './adventureStorage';
-import {tableMembership,setTableMembership,pollTable,saveTable,leaveTable,deviceId} from './tableClient';
-import {createSharedTableSync} from './sharedTableSync';
-import {canonicalParty,startParty} from './partyRules';
+import {tableMembership,setTableMembership,deviceId} from './tableClient';
+import {campaignCall} from './campaignClient';
 import {noteProblem} from './problemLog';
-
+// The client sends intentions only. Account identity, dice and committed state live on the server.
 export function useSharedTable({ready,hero,game,health,characterChosen,applyRemote}){
- const [membership,setMembership]=useState(tableMembership),[notice,setNotice]=useState('');
- const [status,setStatus]=useState({players:[],online:false,synchronized:false,error:''});
+ const [membership,setMembership]=useState(tableMembership),[status,setStatus]=useState({players:[],online:false,synchronized:false,error:''}),[notice,setNotice]=useState(''),[invite,setInvite]=useState('');
  const apply=useRef(applyRemote);apply.current=applyRemote;
- const controller=useRef(null);
- if(!controller.current)controller.current=createSharedTableSync({
-  pollTable,saveTable,leaveTable,
-  applyRemote:(snapshot,isCurrent)=>apply.current(snapshot,isCurrent),
-  onStatus:change=>setStatus(previous=>({...previous,...change})),
-  onVersion:version=>setTableMembership({version}),
-  onConflict:()=>{noteProblem({kind:'table',error:'Another player acted first; the last change was not kept.'});setNotice('Another player acted first. The table was updated and your last change was not kept.');},
-  canonical:canonicalParty,
- });
- const sync=controller.current;
- useEffect(()=>{
-  if(!membership.joined||!ready)return;
-  void sync.start(tableMembership().version).catch(()=>{});
-  const timer=setInterval(()=>{void sync.poll().catch(()=>{});},2500);
-  return()=>{clearInterval(timer);sync.stop();};
- },[membership.joined,ready,sync]);
- useEffect(()=>()=>sync.stop(),[sync]);
- useEffect(()=>{
-  if(!membership.joined||!ready||!status.synchronized||!hero||!characterChosen)return;
-  const snapshot=adventureSnapshot(hero,game,health,characterChosen),point=sync.checkpoint();
-  // Capture the branch with the snapshot, not after a network wait.
-  const timer=setTimeout(()=>{void sync.submit(snapshot,point).catch(()=>{});},350);
-  return()=>clearTimeout(timer);
- },[membership.joined,ready,status.synchronized,hero,game,health,characterChosen,sync]);
- // The host may start a party (everyone brings their own hero) or share one hero, as before.
- async function join(name,host,{party=false}={}){
-  setTableMembership({name:name.trim().slice(0,40)});setNotice('');
-  const own=hero&&characterChosen?adventureSnapshot(hero,game,health,characterChosen):null;
-  const snapshot=own&&host&&party?startParty(own,deviceId(),name.trim().slice(0,40)):own;
-  if(await sync.join(snapshot,host)){
-   // A party the host has just started: this device takes it up before anything is saved, or its next save would
-   // write back its old adventure without the party.
-   if(host&&party&&snapshot!==own)await apply.current(snapshot,()=>true);
-   setTableMembership({joined:true});setMembership(tableMembership());
-  }
+ const version=useRef(-1),epoch=useRef(0),generation=useRef(0),busy=useRef(false),joined=useRef(membership.joined),retry=useRef(null);
+ const checkpoint=()=>({session:epoch.current,branch:version.current});
+ const isCurrent=p=>joined.current&&p?.session===epoch.current&&p?.branch===version.current;
+ async function adopt(data,at=epoch.current,stamp=generation.current){
+  const current=()=>at===epoch.current&&stamp===generation.current;
+  if(!current())return;
+  if(data.snapshot)await apply.current(data.snapshot,current);
+  if(!current())return;
+  version.current=data.version;setTableMembership({version:data.version,campaignId:data.campaignId});
+  setStatus({players:data.players??[],online:true,synchronized:true,error:'',role:data.role});
  }
- async function leave(){
-  // Cancel locally before waiting for a slow network response.
-  const left=sync.leave();setTableMembership({joined:false});setMembership(tableMembership());
-  setStatus({players:[],online:false,synchronized:false,error:''});await left;
+ useEffect(()=>{
+  if(!membership.joined||!ready)return;joined.current=true;const at=++epoch.current;let polling=false;
+  const poll=async()=>{if(polling||busy.current)return;polling=true;const before=version.current,stamp=generation.current;try{const data=await campaignCall('poll',{knownVersion:before});if(!busy.current&&before===version.current)await adopt(data,at,stamp);}catch(e){if(at===epoch.current)setStatus(s=>({...s,online:false,error:e.message}));}finally{polling=false;}};
+  poll();const timer=setInterval(poll,2500);return()=>{clearInterval(timer);epoch.current++;};
+ },[membership.joined,membership.campaignId,ready]);
+ async function join(name,host,{party=true,code='',campaignId=null}={}){
+  if(busy.current)return;busy.current=true;setNotice('');
+  try{const snapshot=hero&&characterChosen?adventureSnapshot(hero,game,health,characterChosen):null;
+   const data=campaignId?await campaignCall('poll',{campaignId,knownVersion:-1}):await campaignCall(host?'campaign-create':'campaign-join',{snapshot,name,party,invite:code.trim()});
+   setTableMembership({joined:true,name:name.trim().slice(0,40),campaignId:data.campaignId,version:data.version});joined.current=true;epoch.current++;await adopt(data);setInvite(data.invite??'');setMembership(tableMembership());
+  }finally{busy.current=false;}
  }
- const setActing=useCallback(value=>sync.setActing(value),[sync]);
+ async function leave(){epoch.current++;joined.current=false;setTableMembership({joined:false});setMembership(tableMembership());setStatus({players:[],online:false,synchronized:false,error:''});await campaignCall('leave').catch(()=>{});}
+ async function turn(question,{npcId=null,direct=false,action,oneOnOne=false,storyPreferences,autoShield=true}={}){
+  if(busy.current)throw Error('Wait for the current turn.');busy.current=true;generation.current++;const at=epoch.current;
+  const payload={question,npcId,direct,...(action===undefined?{}:{action}),...(oneOnOne?{oneOnOne:true}:{}),...(storyPreferences?{storyPreferences}:{}),...(autoShield===false?{autoShield:false}:{}),baseVersion:version.current};
+  const signature=JSON.stringify(payload);if(retry.current?.signature!==signature)retry.current={signature,id:globalThis.crypto.randomUUID()};
+  try{const data=await campaignCall('campaign-turn',{...payload,requestId:retry.current.id},300000);await adopt(data,at);if(data.conflict){retry.current=null;noteProblem({kind:'table',error:'Another player acted first; the turn was not kept.'});throw Error('Another player acted first. The campaign is updated; try your action again.');}retry.current=null;return {game:data.snapshot.game,health:data.snapshot.health,turn:data.turn,narration:data.narration,suggestions:data.suggestions??[],fault:data.fault===true,deeds:data.deeds??[],xp:data.xp??null};}
+  finally{busy.current=false;}
+ }
+ async function edit(change){if(busy.current)throw Error('Wait for the current turn.');busy.current=true;generation.current++;const at=epoch.current;try{const data=await campaignCall('campaign-edit',{...change,baseVersion:version.current});await adopt(data,at);if(data.conflict){noteProblem({kind:'table',error:'The campaign changed; an edit was not kept.'});throw Error('The campaign changed. Try that edit again.');}return data;}finally{busy.current=false;}}
  const me=deviceId(),others=status.players.filter(p=>p.id!==me);
- return {joined:membership.joined,name:membership.name,...status,others,otherActing:others.find(p=>p.acting)?.name??null,notice,clearNotice:()=>setNotice(''),join,leave,setActing,checkpoint:sync.checkpoint,isCurrent:sync.isCurrent,deviceId:me};
+ return {joined:membership.joined,name:membership.name,campaignId:membership.campaignId,...status,invite,others,otherActing:others.find(p=>p.acting)?.name??null,notice,clearNotice:()=>setNotice(''),join,leave,turn,edit,setActing:useCallback(()=>{},[]),checkpoint,isCurrent,deviceId:me,
+  newInvite:async()=>{const data=await campaignCall('campaign-invite');setInvite(data.invite);},listCampaigns:()=>campaignCall('campaign-list')};
 }

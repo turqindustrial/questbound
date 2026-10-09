@@ -10,9 +10,9 @@ const text=doc=>doc.sections.flatMap(s=>[s.heading,...s.paragraphs]).join('\n');
 const all=legalDocuments.map(text).join('\n');
 // What the words promise is what the code does.
 assert.match(legalUpdated,/^\d{1,2} [A-Z][a-z]+ 20\d\d$/);
-const sync=fs.readFileSync('sync-server.cjs','utf8'),accounts=fs.readFileSync('accounts.cjs','utf8');
-assert.ok(sync.includes('cloudLimit=200')&&text(privacyPolicy).includes('200 most recent'),'recovery-code copies kept: 200');
-assert.ok(accounts.includes('tokenDays=180')&&text(privacyPolicy).includes('180 days'),'sign-ins last 180 days');
+const sync=fs.readFileSync('account-server.cjs','utf8'),accounts=fs.readFileSync('accounts.cjs','utf8');
+assert.ok(sync.includes('cloudLimit=200')&&text(privacyPolicy).includes('up to 200 saves'),'recovery-code copies kept: 200');
+assert.ok(accounts.includes('tokenDays=7')&&text(privacyPolicy).includes('7 days'),'sign-ins last 7 days');
 assert.ok(accounts.includes("crypto.scrypt(")&&text(privacyPolicy).includes('salted hash of your password'));
 assert.ok(accounts.includes("createHash('sha256').update('questbound-account-v1:'+email)")&&text(privacyPolicy).includes('hash of your email address'));
 assert.ok(fs.readFileSync('Feedback.js','utf8').includes('device:deviceLabel()')&&text(privacyPolicy).includes('description of your device')&&text(privacyPolicy).includes('last two turns')&&text(privacyPolicy).includes('any errors the game showed you')&&fs.readFileSync('feedbackRules.js','utf8').includes('recent:')&&fs.readFileSync('Feedback.js','utf8').includes('Include what happened'),'the policy names what a feedback note carries');

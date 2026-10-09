@@ -12,15 +12,17 @@
 //                               else the last X-Forwarded-For entry, the one the nearest proxy added)
 const path=require('node:path'),fs=require('node:fs'),crypto=require('node:crypto');
 const number=(value,fallback)=>{const n=Number(value);return Number.isFinite(n)&&n>0?n:fallback;};
-async function startHosted({dataDir=process.env.QUESTBOUND_DATA||path.join(__dirname,'.questbound-data'),port=number(process.env.PORT,8080),publicOrigin=process.env.QUESTBOUND_PUBLIC_ORIGIN||null,inviteCode=process.env.QUESTBOUND_INVITE_CODE||null,root=path.join(__dirname,'dist-phone'),bind='0.0.0.0',dmPort=0,syncPort=0,dm={},log=console.log}={}){
+async function startHosted({dataDir=process.env.QUESTBOUND_DATA||path.join(__dirname,'.questbound-data'),port=number(process.env.PORT,8080),publicOrigin=process.env.QUESTBOUND_PUBLIC_ORIGIN||null,inviteCode=process.env.QUESTBOUND_INVITE_CODE||null,root=path.join(__dirname,'dist-phone'),bind='0.0.0.0',dmPort=0,syncPort=0,dm={},sync={},log=console.log}={}){
  if(!publicOrigin)throw Error('Set QUESTBOUND_PUBLIC_ORIGIN to the https address players will open (for example https://play.example.com).');
  if(!fs.existsSync(path.join(root,'index.html')))throw Error('Build the game first: npx expo export --platform web --output-dir dist-phone');
  fs.mkdirSync(dataDir,{recursive:true});process.env.QUESTBOUND_DATA=dataDir;
  const {createServer}=require('./dm-server.cjs'),{createSyncServer}=require('./sync-server.cjs'),{createPhoneServer}=require('./phone-server.cjs');
  const listen=(server,at,host)=>new Promise((resolve,reject)=>{server.once('error',reject);server.listen(at,host,()=>resolve(server.address().port));});
  // `dm` holds the Dungeon Master's own options (its provider fetch among them); the gateway reaches loopback with the real fetch.
- const dungeonMaster=createServer({...dm}),table=createSyncServer({dir:path.join(dataDir,'table'),cloudDir:path.join(dataDir,'cloud'),accountsDir:path.join(dataDir,'accounts')}).server;
- const dmAt=await listen(dungeonMaster,dmPort,'127.0.0.1'),syncAt=await listen(table,syncPort,'127.0.0.1');
+ const dungeonMaster=createServer({...dm});
+ const dmAt=await listen(dungeonMaster,dmPort,'127.0.0.1');
+ const table=createSyncServer({...sync,dmBackend:'http://127.0.0.1:'+dmAt,dir:path.join(dataDir,'table'),cloudDir:path.join(dataDir,'cloud'),accountsDir:path.join(dataDir,'accounts')}).server;
+ const syncAt=await listen(table,syncPort,'127.0.0.1');
  // The invite code: the host's, else made once and kept in the data folder so a restart never changes it.
  const codeFile=path.join(dataDir,'invite-code.txt');let code=/^\d{8}$/.test(inviteCode??'')?inviteCode:null;
  if(!code)try{const saved=fs.readFileSync(codeFile,'utf8').trim();if(/^\d{8}$/.test(saved))code=saved;}catch{}

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './playerStorage';
 import {isValidCharacter} from './characterStorage';
 import {validAdventure,adventureSnapshot} from './adventureStorage';
 import {placeName,mapLocation} from './mapRules';

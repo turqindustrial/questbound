@@ -2,7 +2,8 @@
 // Two modes: home Wi-Fi (the PC's LAN address) and a shared link (loopback only, reached through a secure tunnel
 // such as Cloudflare's, so friends elsewhere can play). Both require a pairing code before anything else is served.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
-const {setBaseHeaders,pagePolicy,filePolicies}=require('./security-headers.cjs');
+const {setBaseHeaders,pagePolicy,filePolicies,publicFile}=require('./security-headers.cjs');
+const {createLimiter}=require('./rate-limit.cjs');
 const {feedbackEntry,saveFeedback,FEEDBACK_BODY_LIMIT}=require('./feedback-notes.cjs');
 const privateIPv4=address=>/^10\./.test(address)||/^192\.168\./.test(address)||/^172\.(1[6-9]|2\d|3[01])\./.test(address);
 function phoneAddress(){return Object.values(os.networkInterfaces()).flat().find(n=>n.family==='IPv4'&&!n.internal&&privateIPv4(n.address))?.address;}
@@ -36,7 +37,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  // address: a limiter answers 0 when the request may go ahead, else the seconds to wait (sent as Retry-After). Turns are
  // the host's AI bill (per browser and for the gateway as a whole); illustration and story checks, the shared table,
  // sign-ups, sign-ins, recovery codes and passwords each have their own allowance; and a flood of anything is refused.
- const limiter=(max,span)=>{const hits=new Map();return key=>{if(!max)return 0;const t=now();let recent=hits.get(key);if(!recent){recent=[];hits.set(key,recent);}while(recent.length&&recent[0]<=t-span)recent.shift();if(hits.size>4000)for(const [k,v] of hits)if(!v.length)hits.delete(k);if(recent.length>=max)return Math.max(1,Math.ceil((recent[0]+span-t)/1000));recent.push(t);return 0;};};
+ const limiter=(max,span)=>createLimiter(max,span,{now});
  const wait=(res,seconds,error)=>json(res,429,{error},{'Retry-After':String(seconds)});
  const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),allTurns:limiter(dmTotal,600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),register:limiter(5,3600000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
  // Behind the tunnel every request arrives from loopback and the tunnel names the real visitor in CF-Connecting-IP; a
@@ -57,6 +58,8 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
   if(shared)res.setHeader('Strict-Transport-Security','max-age=15552000');
   if(req.headers.host!==expectedHost)return json(res,403,{error:shared?'Open the game from the link you were sent.':'Use the Phone link shown on your PC.'});
   if(req.headers.origin&&req.headers.origin!==origin)return json(res,403,{error:'Open Questbound directly to continue.'});
+  // Remote HTTP never carries a pairing cookie, password, save or game response.
+  if(!shared&&!loopback.includes(host))return json(res,426,{error:'Remote play requires HTTPS. Open the encrypted Phone link from the host.'});
   // A flood from one address is refused before any work (3000 requests in ten minutes is five a second).
   {const seconds=limits.every(String(client(req)??''));if(seconds)return wait(res,seconds,'Too many requests from your connection. Try again in a moment.');}
   try{
@@ -91,7 +94,11 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // protecting the host's AI bill; illustration and story progress checks are counted apart and more loosely (the
     // game simply waits a few seconds when told to). The request is passed on with this browser's guest label (whatever
     // label the browser sent itself is replaced).
-    let mode=null;try{const parsed=JSON.parse(raw);mode=parsed?.context?.mode??null;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){parsed.guest=guestLabel(token);raw=JSON.stringify(parsed);}}catch{}
+    let parsedBody;try{parsedBody=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
+    const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80)},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
+    const permitted=await allowance.json();if(!allowance.ok)return json(res,allowance.status,permitted);
+    if(permitted.allowed!==true||!/^[a-f0-9]{64}$/.test(permitted.id??''))return json(res,503,{error:'Account validation is unavailable.'});
+    let mode=null;try{const parsed=JSON.parse(raw);mode=parsed?.context?.mode??null;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){parsed.guest='account-'+permitted.id;raw=JSON.stringify(parsed);}}catch{}
     if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.');}
     else{const seconds=limits.turns(token)||limits.allTurns('all');if(seconds)return wait(res,seconds,'The Dungeon Master needs a short rest. Try again in a few minutes. Your adventure is unchanged.');}
     const url=await backend();if(!url)return json(res,503,{error:shared?'The host’s Dungeon Master is offline right now.':'Start the private Dungeon Master service on your PC.'});
@@ -105,17 +112,20 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     return json(res,response.status,await response.json());
    }
    // Shared table: the same paired, same-origin rules as the DM, forwarded to the loopback table service.
-   const syncRoute=pathname.match(/^\/api\/sync\/(poll|save|leave|cloud-save|cloud-load|account-(?:register|login|save|load|status|logout|password|delete))$/)?.[1];
+   const candidate=pathname.startsWith('/api/sync/')?pathname.slice(10):'';
+   const syncRoute=require('./account-server.cjs').routes.has(candidate)&&!candidate.startsWith('ops-')&&candidate!=='usage'?candidate:null;
    if(syncRoute&&req.method==='POST'){
     if(req.headers.origin!==origin||!req.headers['content-type']?.startsWith('application/json'))return json(res,403,{error:'Use the Questbound game to reach the shared table.'});
+    if(syncRoute.startsWith('account-')&&!shared&&!loopback.includes(host))return json(res,403,{error:'Use the encrypted HTTPS game link to sign in or access your account.'});
     // The table is polled every few seconds; sign-ups and sign-ins (per visitor), recovery codes and passwords (per browser) are rare.
     const visitor=String(client(req)??'');
     {const seconds=limits.sync(token)||(syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
      if(seconds)return wait(res,seconds,syncRoute.startsWith('account')||syncRoute==='cloud-load'?'Too many tries. Wait a few minutes and try again.':'The shared table is being asked too often. The game will catch up in a moment.');}
     const raw=await body(req,2500000);let response;
     // The table service is told who is asking (never trusted from the visitor), so wrong account passwords are counted per visitor.
-    try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json','X-Questbound-Client':visitor.slice(0,80)},body:raw,signal:AbortSignal.timeout(15000)});}
+    try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json','X-Questbound-Client':visitor.slice(0,80),Cookie:req.headers.cookie??'','X-Questbound-Secure':shared?'1':'0'},body:raw,signal:AbortSignal.timeout(syncRoute==='campaign-turn'?240000:20000)});}
     catch{return json(res,503,{error:'The shared table is not running on the PC.'});}
+    const accountCookie=response.headers.get('set-cookie');if(accountCookie)res.setHeader('Set-Cookie',accountCookie);
     return json(res,response.status,await response.json());
    }
    if(pathname==='/api/sync/health'&&req.method==='GET'){try{const r=await fetchImpl(syncBackend+'/health',{signal:AbortSignal.timeout(2500)});return json(res,r.status,await r.json());}catch{return json(res,503,{ready:false});}}
@@ -130,6 +140,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     const entry=feedbackEntry(note,{now:now(),guest:guestLabel(token)});if(entry.error)return json(res,400,{error:entry.error});
     try{saveFeedback(feedbackFile,entry);}catch{return json(res,500,{error:'The host’s PC could not save that note. Please try again.'});}
     recent.push(now());feedbackUse.set(token,recent);
+    require('./mailer.cjs').createMailer().feedback(entry.markdown).catch(()=>{});
     return json(res,200,{saved:true});
    }
    if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'Method not allowed.'});
@@ -137,6 +148,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
    const file=path.resolve(root,'.'+(relative==='/'?'/index.html':relative));
    if(!file.startsWith(root+path.sep))return json(res,403,{error:'Not available.'});
    const stat=await fs.promises.stat(file).catch(()=>null);if(!stat?.isFile())return json(res,404,{error:'Not found.'});
+   if(!await publicFile(root,file))return json(res,404,{error:'Not found.'});
    const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf'};
    const type=types[path.extname(file)]??'application/octet-stream';
    // Files named with a content hash never change, so the browser keeps them (private: the tunnel never caches them).
@@ -171,7 +183,7 @@ function networkProfiles(){
 }
 const interfaceOf=address=>Object.entries(os.networkInterfaces()).find(([,list])=>list.some(n=>n.address===address))?.[0]??null;
 function networkVerdict(profile,trusted=[]){
- if(!profile)return {ok:true,unknown:true};
+ if(!profile)return {ok:false,unknown:true,name:'an unverified network'};
  if(/^(Private|DomainAuthenticated)$/i.test(profile.category)||trusted.includes(profile.name))return {ok:true,name:profile.name};
  return {ok:false,name:profile.name};
 }
@@ -187,19 +199,7 @@ if(require.main===module){
   if(created){const {server,info}=created;server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Sharing is already running on port 8087.':e.message);process.exitCode=1;});server.listen(8087,'127.0.0.1',()=>{fs.writeFileSync(sessionFile,JSON.stringify({link:info.phone,inviteCode:info.pairingCode,expiresAt:info.expiresAt,pid:process.pid},null,2));console.log('Shared link: '+info.phone+'\nInvite code: '+info.pairingCode+'\nValid until '+info.expiresAt+'. Keep this PC, the tunnel and the Dungeon Master running.');});}
  }
  else{
-  const host=phoneAddress(),profile=host?(networkProfiles()??[]).find(p=>p.alias===interfaceOf(host))??null:null,verdict=networkVerdict(profile,trustedNetworks());
-  if(args.includes('--trust-network')){
-   if(!profile)console.log('Windows did not say which network this is, so there is nothing to mark.');
-   else{const list=trustedNetworks();if(!list.includes(profile.name))fs.writeFileSync(homeFile,[...list,profile.name].join('\n')+'\n');console.log('"'+profile.name+'" is marked as your home network. The Wi-Fi link will start on it. Undo by deleting .questbound-home-networks.');}
-  }
-  else if(!host){console.error('Connect the PC to Wi-Fi or a private local network first.');process.exitCode=1;}
-  else if(!verdict.ok){console.error('Phone access is off on "'+verdict.name+'": Windows calls it a public network and it is not marked as your home. The Wi-Fi link is not encrypted, so it only runs at home; use the shared link here. If this is your home network, run Questbound.cmd -TrustNetwork.');process.exitCode=1;}
-  // Home Wi-Fi: pairing lasts a week, paired phones stay paired across restarts (hashes only, as for sharing), and a
-   // restart on the same address keeps the code the phone already has until fewer than two hours are left.
-  else{if(verdict.unknown)console.error('Windows did not say which network this is; starting the Wi-Fi link anyway. Use it only at home.');
-   const sessionFile=path.join(__dirname,'.questbound-phone-session.json');let previous=null;
-    try{const saved=JSON.parse(fs.readFileSync(sessionFile,'utf8'));if(saved.phone==='http://'+host+':8085/'&&/^\d{8}$/.test(saved.pairingCode)&&Date.parse(saved.expiresAt)>Date.now()+2*3600000)previous=saved;}catch{}
-    const {server,info}=createPhoneServer({host,pairingHours:168,sessionHours:168,maxSessions:30,sessionStore:path.join(__dirname,'.questbound-phone-sessions.json'),feedbackFile:path.join(__dirname,'playtest-feedback.md'),...(previous?{code:previous.pairingCode,expiresAt:Date.now()+168*3600000}:{})});server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Phone access is already running on port 8085.':e.message);process.exitCode=1;});server.listen(8085,host,()=>{fs.writeFileSync(path.join(__dirname,'.questbound-phone-session.json'),JSON.stringify({...info,pid:process.pid},null,2));console.log('Desktop: '+info.desktop+'\nPhone: '+info.phone+'\nPairing code: '+info.pairingCode+'\nSame Wi-Fi required. Keep this process and the private DM service running. Pairing lasts a week.');});}
+  console.error('Remote HTTP play is disabled. Open Questbound-Share.cmd for an encrypted phone link.');process.exitCode=1;
  }
 }
 module.exports={createPhoneServer,phoneAddress,networkVerdict,networkProfiles,interfaceOf};

@@ -51,7 +51,7 @@ const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'cen
  panel:{width:'100%',maxWidth:440},content:{alignItems:'center',paddingVertical:8},
  ring:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),alignItems:'center',justifyContent:'center',marginBottom:16,backgroundColor:tint('rgba(20,10,12,.6)')},
  overline:{fontFamily:fonts.display,color:tint('#b2223a'),fontSize:10.5,fontWeight:'700',letterSpacing:4,textTransform:'uppercase',textAlign:'center'},
- title:{color:'#ecdfd9',fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.2,fontSize:26,lineHeight:33,textAlign:'center',marginTop:8},
+ title:{color:tint('#ecdfd9'),fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.2,fontSize:26,lineHeight:33,textAlign:'center',marginTop:8},
  rule:{flexDirection:'row',alignItems:'center',gap:8,width:'70%',marginVertical:16},ruleLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
  items:{alignSelf:'stretch',gap:8,marginBottom:18},item:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,paddingVertical:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.18)'),backgroundColor:tint('rgba(23,17,24,.7)')},
  itemName:{flex:1,fontFamily:fonts.story,fontSize:16,color:tint('#aba1a8')},

@@ -4,9 +4,9 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // hero; a hero who falls is dying and rolls on their own turn while the fight goes on for the others; a friend can be
 // revived with a draught; a victory earns every living hero a level; saves accept a party; the Dungeon Master is told
 // of the others but never speaks or acts for them.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','partyRules.js','sharedTableSync.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','partyRules.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,withExperience,advancedInPlace,heroXp,xpForLevel,levelUpReady,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty,createSharedTableSync})',{AsyncStorage:{}});
+const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,withExperience,advancedInPlace,heroXp,xpForLevel,levelUpReady,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty})',{AsyncStorage:{}});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const kara=r.readyHero('fighter'),ilyra=r.readyHero('wizard'),maxA=r.combatBasics(kara).hp,maxB=r.combatBasics(ilyra).hp;
 const valid=(view,hero)=>r.validAdventure(plain(view),hero);
@@ -29,12 +29,7 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  let full=viewB;for(const id of ['C','D'])full=r.joinParty(full,id,{character:JSON.stringify(r.readyHero('rogue')),game:null,health:null,name:id}).snapshot;
  assert.match(r.joinParty(full,'E',{character:JSON.stringify(r.readyHero('cleric')),game:null,health:null,name:'E'}).error,/four heroes at most/);
 
- // ---- The sync: a change of view is not sent; a real change is ----
- const saved=[];let table={version:1,snapshot:viewB};
- const sync=r.createSharedTableSync({pollTable:async()=>({version:table.version,snapshot:table.snapshot,players:[]}),saveTable:async(snapshot,base)=>{saved.push(snapshot);table={version:base+1,snapshot};return {version:table.version,players:[]};},leaveTable:async()=>({}),applyRemote:async()=>{},canonical:r.canonicalParty});
- await sync.start(0);await sync.submit(viewA);assert.equal(saved.length,0,'Sam\'s device seeing the table from Kara does not write to it');
- const moved=r.partyView(viewB,'A');moved.game={...moved.game,potions:moved.game.potions+1};await sync.submit(moved);assert.equal(saved.length,1,'a real change is written');
- assert.ok(saved[0].version===1&&typeof saved[0].character==='string'&&saved[0].game?.party,'the snapshot itself is written, not the form it is compared by');
+ // Shared transport and server-owned writes are checked in verify-table-client.cjs and verify-sync.cjs.
 
  // ---- Foes strike any standing hero ----
  assert.equal(JSON.stringify(r.partyTargets(viewB.game)),JSON.stringify(['A']));

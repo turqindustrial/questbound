@@ -45,7 +45,8 @@ assert.equal(n.narratorAvailable(),false,'no voices in this test world');
 // The screens: the setting under Sound, the turn read aloud from the play screen, silenced when a new turn is sent or the screen is left.
 const controls=fs.readFileSync('AudioControls.js','utf8'),play=fs.readFileSync('Adventure.js','utf8'),audio=fs.readFileSync('audio.js','utf8'),policy=fs.readFileSync('legalText.js','utf8');
 assert.ok(controls.includes('label="Narrator voice"')&&controls.includes('browser maker')&&controls.includes('sampleNarrator'));
-assert.ok(play.includes('try{speakTurn(result.turn);}catch{}')&&play.includes('=>{try{stopNarrator();}catch{}const from=')&&play.includes('useEffect(()=>()=>stopNarrator(),[])'));
+assert.ok(play.includes('try{speakTurn(result.turn);}catch{}')&&play.includes('try{stopNarrator();}catch{}const from=')&&play.includes('useEffect(()=>()=>stopNarrator(),[])'));
+const shared=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(shared.includes('speakTurn(game.playback.at(-1))')&&shared.includes('try{stopNarrator();}catch{}'),'shared turns retain optional narration');
 assert.ok(audio.includes('narrator:false,voice:null')&&audio.includes('export function narrating(on)'));
 assert.ok(policy.includes('narrator voice')&&policy.includes('browser maker'),'the privacy policy and the agreement say what the narrator does');
 console.log('Narrator: off by default, the turn\'s narration and spoken lines read a sentence or two at a time in a storyteller\'s voice, the score stepping back, silenced by a new turn, muting or the setting.');

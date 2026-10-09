@@ -27,7 +27,7 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
 
  // The Wi-Fi gateway: safe headers everywhere, the pairing page runs only its own script, the game page gets its policy.
  const notes=path.join(tmp,'notes.md');let seen=null;
- const gate=createPhoneServer({host:'127.0.0.1',port:0,root,code:'12345678',feedbackFile:notes,fetchImpl:async(url,options={})=>{if(!url.endsWith('/health'))seen=JSON.parse(options.body);return {ok:true,status:200,headers:{get:()=>'application/json'},json:async()=>url.endsWith('/health')?{ready:true}:{narration:'Hello.'}};}});
+ const gate=createPhoneServer({host:'127.0.0.1',port:0,root,code:'12345678',feedbackFile:notes,fetchImpl:async(url,options={})=>{if(url.endsWith('/usage'))return {ok:true,status:200,json:async()=>({allowed:true,id:'a'.repeat(64)})};if(!url.endsWith('/health'))seen=JSON.parse(options.body);return {ok:true,status:200,headers:{get:()=>'application/json'},json:async()=>url.endsWith('/health')?{ready:true}:{narration:'Hello.'}};}});
  const gp=await listen(gate.server),H={Host:'127.0.0.1:0'},O='http://127.0.0.1:0';
  try{
   let r=await call(gp,'/',{headers:H});assert.equal(r.status,200);assert.ok(r.text.includes('Pairing code'));
@@ -41,7 +41,7 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
   r=await call(gp,'/',{headers:{...H,Cookie:cookie}});assert.ok(r.headers['content-security-policy'].includes(hashOf(script)),'the game page runs its own inline script, by hash');
   // A guest's turn reaches the Dungeon Master labelled by the gateway (never by the browser), the label made from the session.
   r=await call(gp,'/api/dm',{method:'POST',headers:own,body:JSON.stringify({input:'Hi',guest:'ffffffffffffffffffffffffffffffff',context:{choices:[]}})});
-  assert.equal(r.status,200);assert.match(seen.guest,/^[a-f0-9]{32}$/);assert.notEqual(seen.guest,'ffffffffffffffffffffffffffffffff');assert.ok(!cookie.includes(seen.guest));
+  assert.equal(r.status,200);assert.match(seen.guest,/^account-[a-f0-9]{64}$/);assert.notEqual(seen.guest,'ffffffffffffffffffffffffffffffff');assert.ok(!cookie.includes(seen.guest));
   const label=seen.guest;await call(gp,'/api/dm',{method:'POST',headers:own,body:JSON.stringify({input:'Again',context:{choices:[]}})});assert.equal(seen.guest,label,'the same browser keeps its label');
   // Another website cannot ride on a paired browser's cookie.
   assert.equal((await call(gp,'/api/dm',{method:'POST',headers:{...own,Origin:'https://evil.example'},body:'{}'})).status,403);
@@ -110,8 +110,8 @@ const hashOf=text=>"'sha256-"+crypto.createHash('sha256').update(text).digest('b
  assert.equal(networkVerdict({name:'Cafe Free WiFi',category:'Public'},['TheHome']).ok,false,'not on public Wi-Fi');
  assert.equal(networkVerdict({name:'TheHome',category:'Public'},['TheHome']).ok,true,'a network the host marked as home');
  assert.equal(networkVerdict({name:'Office',category:'DomainAuthenticated'},[]).ok,true);assert.equal(networkVerdict({name:'Flat',category:'Private'},[]).ok,true);
- assert.equal(networkVerdict(null,[]).unknown,true,'when Windows cannot say, the link starts with a warning');
- const ps1=fs.readFileSync('launch.ps1','utf8');assert.ok(ps1.includes('[switch]$TrustNetwork')&&ps1.includes('--trust-network'),'the launcher can mark the home network');
+ assert.equal(networkVerdict(null,[]).unknown,true);assert.equal(networkVerdict(null,[]).ok,false,'an unknown network cannot expose the Wi-Fi server');
+ const ps1=fs.readFileSync('launch.ps1','utf8');assert.ok(ps1.includes('Questbound-Share.cmd')&&!ps1.includes("Start-Hidden 'phone'"),'the launcher directs phone players to HTTPS and no longer starts plaintext LAN play');
  // Passwords guessers try first are refused.
  for(const p of ['password123','Password1','12345678','qwertyuiop','aaaaaaaa','abcdefghij','my-questbound','iloveyou'])assert.ok(weakPassword(p),p);
  assert.ok(weakPassword('ada.lovelace99','ada.lovelace@example.com'),'the name before the @');

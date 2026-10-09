@@ -2,6 +2,7 @@ import React,{useState} from 'react';
 import {View,Text,TextInput,Pressable,Modal,StyleSheet} from 'react-native';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
+import DeveloperDiagnostics from './DeveloperDiagnostics';
 import {GameButton} from './ui';
 import {abilities,finalScores,modifier,validDevScores} from './characterRules';
 import {combatBasics} from './combatRules';
@@ -45,6 +46,7 @@ export default function DeveloperOptions({form,onChange}){
     <GameButton label="All scores 20" onPress={()=>onChange({devScores:Object.fromEntries(abilities.map(a=>[a,20])),devLevel:level})}/>
     <GameButton label="Back to the standard rules" onPress={()=>onChange({devScores:undefined,devLevel:undefined,level:1})} disabled={!custom&&level===1}/>
    </View>
+   <DeveloperDiagnostics/>
    <Text style={s.note}>{custom?'Custom scores are in use: the ability page’s choices are ignored for this hero.':'Scores still follow the ability page until you change one here.'}{level>1?' A hero above level 1 needs spells for that level: check the spells page before saving.':''}</Text>
   </View>}
  </View>;
@@ -64,6 +66,6 @@ const s=StyleSheet.create({
  sheet:{width:'100%',maxWidth:380,padding:22,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.98)'),gap:12},
  emblem:{alignSelf:'center',width:48,height:48,borderRadius:24,borderWidth:1,borderColor:tint('rgba(224,74,92,.6)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(48,26,78,.45)')},
  overline:{...type.label,textAlign:'center'},title:{fontFamily:fonts.display,fontSize:22,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
- input:{fontFamily:fonts.display,color:'#f5efe1',backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:4,padding:12,fontSize:22,letterSpacing:6,textAlign:'center'},
+ input:{fontFamily:fonts.display,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:4,padding:12,fontSize:22,letterSpacing:6,textAlign:'center'},
  error:{fontFamily:fonts.ui,color:colors.danger,fontSize:13,textAlign:'center'},
 });

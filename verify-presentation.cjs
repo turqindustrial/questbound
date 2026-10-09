@@ -85,7 +85,7 @@ assert.ok(web.includes("import {serpentMarkup} from './serpent';")&&web.includes
 assert.ok(web.includes('html[data-effects=light] [data-qb=serpent]{animation:none !important;}'),'still in the Light atmosphere');
 assert.ok(web.includes('@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;'),'still with reduced motion');
 assert.ok(!web.includes('bezel'),'the bezel is gone');
-for(const file of ['LaunchScreen.js','StoryLoading.js'])assert.ok(read(file).includes("qb:'serpent'")&&!read(file).includes("qb:'bezel'"),file);
+for(const file of ['LaunchScreen.js','StoryLoading.js','TitleEmblem.js'])assert.ok(read(file).includes("qb:'serpent'")&&!read(file).includes("qb:'bezel'"),file);
 const page=read('public/index.html'),mask='url("data:image/svg+xml,'+encodeURIComponent(plain).replace(/'/g,'%27')+'")';
 const block=page.match(/\/\* qb-serpent:start \*\/([\s\S]*?)\/\* qb-serpent:end \*\//);
 assert.ok(block&&block[1]==='-webkit-mask: '+mask+' center/contain no-repeat; mask: '+mask+' center/contain no-repeat;','the boot card shows the same serpent (node verify-theme.cjs --write)');

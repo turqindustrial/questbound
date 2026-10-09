@@ -16,7 +16,7 @@ assert.equal(endpoints({hostname:'example.test',port:''})[0],'/api');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-phone-')),index=path.join(root,'index.html');fs.writeFileSync(index,'<h1>Test game</h1>');
 fs.writeFileSync(path.join(root,'manifest.json'),'{"name":"Questbound"}');fs.mkdirSync(path.join(root,'icons'));fs.writeFileSync(path.join(root,'icons','icon-192.png'),'png');fs.mkdirSync(path.join(root,'_expo'));fs.writeFileSync(path.join(root,'_expo','app.js'),'secret-ish');
 let clock=Date.now(),online=true,calls=[];
-const fetchImpl=async(url,options={})=>{calls.push({url,options});if(!online)throw Error('Offline');return {ok:true,status:200,json:async()=>url.endsWith('/health')?{ready:true,actionProtocol:3}:{narration:'A phone reply.',input:JSON.parse(options.body).input}};};
+const fetchImpl=async(url,options={})=>{calls.push({url,options});if(!online)throw Error('Offline');if(url.endsWith('/usage'))return {ok:true,status:200,json:async()=>({allowed:true,id:'a'.repeat(64)})};return {ok:true,status:200,headers:{get:()=>null},json:async()=>url.endsWith('/health')?{ready:true,actionProtocol:3}:{narration:'A phone reply.',input:JSON.parse(options.body).input}};};
 const {server}=createPhoneServer({host:'127.0.0.1',port:0,root,code:'12345678',now:()=>clock,fetchImpl});
 const origin='http://127.0.0.1:0';
 function request(route,{method='GET',headers={},body}={}){return new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:server.address().port,path:route,method,headers:{Host:'127.0.0.1:0',...headers}},res=>{let text='';res.on('data',chunk=>text+=chunk);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text}));});req.on('error',reject);req.end(body);});}
@@ -67,7 +67,7 @@ async function sharedLink(){
  }finally{await new Promise(resolve=>share.server.close(resolve));}
  // A busy Dungeon Master (one reply at a time) is retried until it answers, and a restarted gateway keeps its invite's expiry.
  let busy=2,dmCalls=0;const until=Date.now()+3*86400000;
- const patient=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'13572468',expiresAt:until,dmLimit:5,fetchImpl:async(url,options={})=>{if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true})};dmCalls++;return busy-->0?{ok:false,status:429,json:async()=>({error:'Please wait before asking the DM again.'})}:{ok:true,status:200,json:async()=>({narration:'Your turn.'})};}});
+ const patient=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'13572468',expiresAt:until,dmLimit:5,fetchImpl:async(url,options={})=>{if(url.endsWith('/usage'))return {ok:true,status:200,json:async()=>({allowed:true,id:'a'.repeat(64)})};if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true})};dmCalls++;return busy-->0?{ok:false,status:429,json:async()=>({error:'Please wait before asking the DM again.'})}:{ok:true,status:200,json:async()=>({narration:'Your turn.'})};}});
  assert.equal(patient.info.expiresAt,new Date(until).toISOString());
  await new Promise(resolve=>patient.server.listen(0,'127.0.0.1',resolve));
  try{

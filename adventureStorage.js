@@ -14,7 +14,7 @@ import {validEarnedDeeds} from './deedRules';
 import {validMarks,validBoons} from './masteryRules';
 import {validSpoils} from './lootRules';
 import {validExperience} from './experienceRules';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './playerStorage';
 import {combatBasics} from './combatRules';
 
 const ADVENTURE_KEY = 'questbound.adventure.v1';
@@ -105,8 +105,8 @@ export async function loadAdventure(hero) {
 let adventureWrites=Promise.resolve();
 export function saveAdventure(value,hero) {
   if(!validAdventure(value,hero) || value.character!==JSON.stringify(hero)) return Promise.reject(new Error('Invalid adventure save'));
-  const raw=JSON.stringify(value);
-  const write=adventureWrites.catch(()=>{}).then(()=>AsyncStorage.setItem(ADVENTURE_KEY,raw));
+  const raw=JSON.stringify(value),store=AsyncStorage.scope?.()??AsyncStorage;
+  const write=adventureWrites.catch(()=>{}).then(()=>store.setItem(ADVENTURE_KEY,raw));
   adventureWrites=write;
   return write;
 }

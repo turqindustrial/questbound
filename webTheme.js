@@ -16,10 +16,13 @@ const serpent=serpentMarkup();
 // A picture written as text cannot read a style variable, so these are written out afresh for each theme.
 // Each theme's set is worked out once: theme.js repaints every extra whenever a colour is first used.
 const pictures={};
-themeVariables(theme=>pictures[theme]??={...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme))])),'--qb-serpent':svg(themedText(serpent,theme))});
+themeVariables((theme,mode)=>pictures[theme+':'+mode]??={...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme,mode))])),'--qb-serpent':svg(themedText(serpent,theme,mode))});
 const css=tint(`
+html[data-appearance=light] [data-qb=rays],html[data-appearance=light] [data-qb=grain]{opacity:.12!important;}
+html[data-appearance=light] [data-qb=gold],html[data-appearance=light] [data-qb=logo]{filter:none!important;text-shadow:none!important;}
+
 :root{--qb-gold:#e04a5c;--qb-gold-mid:#b2223a;--qb-ink:#0a070b;--qb-ease:cubic-bezier(.2,.8,.2,1);}
-html,body{background:#0a070b;color-scheme:dark;}
+html,body{background:#0a070b;color-scheme:inherit;}
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;}
 ::selection{background:rgba(176,140,245,.38);color:#fff;}
 *{scrollbar-width:thin;scrollbar-color:#4a2c78 transparent;}

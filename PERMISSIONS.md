@@ -1,6 +1,6 @@
 # Questbound: Permissions agreement
 
-_Last updated 4 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 8 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Permissions agreement
 
@@ -10,15 +10,17 @@ What you type, your hero and the state of your game are sent to the host's compu
 
 ### Saves in this browser
 
-Your hero, adventure, settings and a few small flags are kept in this browser's storage until you clear its site data. On a phone or tester link one cookie marks this browser as paired; it holds a random token and nothing about you.
+Your browser stores your characters, adventures, roster, settings, recovery code, account display information, campaign membership and acceptance of the current terms. Saves are separated by account; guest progress is kept separately and may be imported deliberately. Local saves are not encrypted against someone with access to your device. Clearing site data removes local copies.
+
+Account sign-in uses an HttpOnly cookie that game scripts cannot read. Remote game access also uses a pairing cookie. These are necessary service cookies, not advertising cookies. Old browser-readable account tokens are removed on startup.
 
 ### Copies on the host's computer
 
-When you use a recovery code, an account or the shared table, a copy of your adventure is kept on the host's computer under a hash of the code or of your email address. The host can delete it, and so can you (Settings → Recovery code, Settings → Your account).
+Verified accounts, recovery codes and shared campaigns keep saves on the host's computer, with up to 20 encrypted historical copies. Read the privacy policy for retention, access and deletion details.
 
 ### Feedback and service records
 
-A note you send carries your hero and spells, where you are, your last two turns and any errors (you can leave those out) and how the game ran on your device. The services count requests and wrong codes or passwords for up to an hour, in memory only, and record how many words the AI used (never the words).
+Feedback reaches the host and may be emailed to the dedicated game mailbox. A note carries your hero and spells, where you are, your last two turns and any errors the game showed you (you can leave those out) and how the game ran on your device. Verification mail proves you control your address. Security events and persistent daily usage counts help prevent misuse; no marketing email is authorized by this agreement.
 
 ### Sound and full screen
 

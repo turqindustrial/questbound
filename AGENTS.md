@@ -76,3 +76,10 @@
 - Edit source files with UTF-8-safe tools. Windows PowerShell 5.1 `Get-Content`/`Set-Content` round-trips corrupt non-ASCII characters; keep `launch.ps1` pure ASCII.
 
 The parent AGENTS.md still applies, including read-only `sources/` files.
+
+
+## Account/campaign security update (8 October 2026)
+
+This section replaces earlier descriptions of anonymous whole-table writes and browser-stored login tokens. Verified accounts use HttpOnly cookies via `/api/sync`; never restore token-bearing request bodies. `account-server.cjs` composes accounts, operations and campaigns. `campaigns.cjs` and `server-turn.cjs` own shared state and dice; `rules-engine.cjs` loads the existing trusted rules. `useSharedTable.js` sends intents with version and request identity, never autosaves client snapshots. The old `sharedTableSync.js` was removed. Local saves use `playerStorage.js` account namespaces. Keep delayed work bound to the profile and campaign generation that started it.
+
+Remote HTTP and the old LAN gateway are retired; give desktop and HTTPS phone links. `launch.ps1` uses the HTTPS sharing flow for phones. The dedicated game email is not configured yet; do not default to the user's personal mailbox. `Connect-Game-Email.cmd` supplies a hidden local prompt. Test with `test-fixtures.cjs` and synthetic mail, never real accounts or paid AI unless authorized. `verify-identity-campaigns.cjs`, `verify-sync.cjs` and `verify-table-client.cjs` cover the new contracts. Keep SECURITY.md accurate about mail, hosting, backup and legal-review limitations.

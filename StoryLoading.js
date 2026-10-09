@@ -87,7 +87,7 @@ const s=StyleSheet.create({
  seal:{width:104,height:104,borderRadius:52,borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},
  overline:{fontFamily:fonts.display,fontSize:11,letterSpacing:4.5,color:colors.goldMid,textTransform:'uppercase',textAlign:'center'},
  title:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',marginTop:8,letterSpacing:2.5},
- setting:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:26,color:'#ddcfca',textAlign:'center',marginTop:8},
+ setting:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:26,color:tint('#ddcfca'),textAlign:'center',marginTop:8},
  track:{width:'70%',maxWidth:320,height:2,borderRadius:1,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden',marginTop:22},fill:{width:'100%',height:'100%',backgroundColor:colors.gold},
  time:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:19,color:colors.muted,textAlign:'center',marginTop:12,maxWidth:420},
  tip:{flexDirection:'row',alignItems:'center',gap:10,marginTop:28,paddingVertical:12,paddingHorizontal:16,borderRadius:8,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(23,17,24,.75)'),maxWidth:480},

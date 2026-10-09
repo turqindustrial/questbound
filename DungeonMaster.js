@@ -23,6 +23,7 @@ import {View,Text as PlainText,TextInput,Pressable,StyleSheet,useWindowDimension
 import {dmContext,dmChoices,commitDmTurn} from './dmContext';
 import {fonts,colors,type,tint} from './theme';
 import {playSound} from './audio';
+import {speakTurn,stopNarrator} from './narrator';
 import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemory';
 import {touchKeyboard} from './webLayout';
 import {gearedHero} from './inventoryRules';
@@ -31,6 +32,8 @@ import ActionGuide from './ActionGuide';
 import {greeting,shouldGreet,replyIdeas} from './greetings';
 import {turnOrderView} from './encounterRules';
 import {noteProblem} from './problemLog';
+import {deedById} from './deedRules';
+import {cue} from './cinematics';
 import {openFeedback} from './Feedback';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
@@ -101,7 +104,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(gearedHero(hero,scene)).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
-    const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(!cue||busy||playing||lock.current||triedCue.current===attempt)return;
+    const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(table?.joined||!cue||busy||playing||lock.current||triedCue.current===attempt)return;
     // At a shared table only the device whose action caused the moment asks the NPCs to speak.
     if(cue.origin&&table?.joined&&cue.origin!==table.deviceId)return;
     const speaker=people.find(n=>n.id===cue.speakerId)??people[0],snapshot=fingerprint;triedCue.current=attempt;
@@ -121,7 +124,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     if(lock.current||busy||playing)return;
     if(!await openConversation(id))return;
     const speaker=conversationPeople(game).find(n=>n.id===id);
-    if(!speaker||waiting||tableSyncing||!shouldGreet(game,id))return;
+    if(!speaker||table?.joined||waiting||tableSyncing||!shouldGreet(game,id))return;
     const opening=greeting(game,id,hero),snapshot=fingerprint;
     lock.current=true;setBusy(true);setError('');setDraft('');
     try{
@@ -135,7 +138,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   };
   // Turns that arrive from other players at the table play out here too.
   const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
-  useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined)setAnimateId(lastTurnId);seenTurn.current=lastTurnId;},[lastTurnId]);
+  useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined){setAnimateId(lastTurnId);try{speakTurn(game.playback.at(-1));}catch{}}seenTurn.current=lastTurnId;},[lastTurnId]);
   // Each new turn brings the action row back to its first (main) action.
   const [spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false);
   // The Attack… picker, and the target chosen in it (null: the foe, or nobody yet when only people are here).
@@ -158,7 +161,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const [patience,setPatience]=useState('');
   useEffect(()=>{if(!turnKey)return;const timer=setTimeout(()=>setPatience(turnKey),90000);return()=>clearTimeout(timer);},[turnKey]);
   const awayFromTable=turnWait?.kind==='hero'&&!!table?.joined&&!(table.players??[]).some(p=>p.id===turnWait.id);
-  const canPass=turnWait?.kind==='hero'&&(awayFromTable||patience===turnKey);
+  const canPass=(!table?.joined||table.role==='owner')&&turnWait?.kind==='hero'&&(awayFromTable||patience===turnKey);
   // The turn has come round to this player: a sound, once a turn.
   const myTurnKey=turnsNow?.mine?turnsNow.round+':'+turnsNow.current?.id:'';
   useEffect(()=>{if(myTurnKey&&turnsNow.entries.filter(e=>e.kind==='hero').length>1)playSound('select');},[myTurnKey]);
@@ -169,6 +172,21 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const question=preset?.question??input.trim();
     const toDm=!preset&&(direct||toDungeonMaster(question));
     if(lock.current||playing||!question||waiting||tableSyncing||(game.stage==='dead'&&!toDm)||(turnWait&&!toDm&&preset?.action?.type!=='party-pass'))return;const priorReply=reply,snapshot=fingerprint;if(compact||touchKeyboard()){inputRef.current?.blur?.();Keyboard.dismiss();}lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');
+    if(table?.joined){
+      try{stopNarrator();}catch{}
+      // The campaign server resolves the turn with its own dice through the same rules (server-turn.cjs); this device
+      // sends its words, its view of the scene (just you two) and its own settings, and shows what comes back.
+      try{const target=conversationTarget(game,question,conversationId),prefs=storyPreferences(),said=toDm?withoutAddress(question)||question:question;
+       const result=await table.turn(question,{npcId:target,direct:toDm,...(preset?.action?{action:preset.action}:{}),oneOnOne:!!target&&target===conversationId&&alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
+       if(!alive.current)return;
+       const talking=!!target&&conversationPeople(result.game).some(n=>n.id===target);
+       keepIdeas(result.turn?.id,talking?target:null,result);
+       const fault=toDm&&result.fault?noteProblem({kind:'reported',said,answer:result.narration,stage:game.stage}):null;
+       setReply({narration:result.narration,fault:fault?{problem:fault,said}:null});setAnimateId(result.turn?.id??null);setConversationId(target);setInput('');setDirect(false);
+       (result.deeds??[]).forEach((id,i)=>setTimeout(()=>{const deed=deedById(id);if(deed)cue('deed',{deed});},1400+i*4400));}
+      catch(e){fail(e,{said:question,action:preset?.action??null});}
+      finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}return;
+    }
     // Speaking to the Dungeon Master directly: an answer out of character, and the last turn taken back when the
     // DM agrees it went wrong. Nothing else about the game changes.
     if(toDm){
@@ -395,11 +413,11 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
 const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:14},groupMember:{maxWidth:'100%',flexDirection:'row',alignItems:'center',gap:10,paddingVertical:7,paddingHorizontal:10,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),borderRadius:3,backgroundColor:tint('rgba(31,24,32,.9)')},groupActive:{borderColor:colors.gold},
  conversation:{borderColor:tint('rgba(224,74,92,.6)')},back:{paddingVertical:10,marginBottom:10,minHeight:44,alignSelf:'flex-start'},backText:{fontFamily:fonts.display,letterSpacing:1.4,color:colors.gold,fontSize:12,fontWeight:'700',textTransform:'uppercase'},
  portraitRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:22,marginBottom:22},portrait:{width:168,height:200,borderRadius:3},
- personName:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:30,letterSpacing:1,marginBottom:6},role:{fontFamily:fonts.story,fontStyle:'italic',color:'#c2b1ab',fontSize:17,lineHeight:24,marginBottom:10},
+ personName:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:30,letterSpacing:1,marginBottom:6},role:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#c2b1ab'),fontSize:17,lineHeight:24,marginBottom:10},
  attitude:{flexDirection:'row',alignItems:'center',gap:8},attitudeText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.4},
  dot:{width:8,height:8,borderRadius:4,boxShadow:'0 0 8px currentColor'},
  overline:{...type.label,marginBottom:6},
- effects:{padding:14,borderRadius:3,borderWidth:1,borderColor:'rgba(111,208,196,.35)',backgroundColor:'rgba(16,40,40,.55)',marginTop:14,marginBottom:6},effectText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:13,lineHeight:21},
+ effects:{padding:14,borderRadius:3,borderWidth:1,borderColor:'rgba(111,208,196,.35)',backgroundColor:'rgba(16,40,40,.55)',marginTop:14,marginBottom:6},effectText:{fontFamily:fonts.ui,color:tint('#bfe6de'),fontSize:13,lineHeight:21},
  people:{gap:8,marginTop:18},personButton:{flexDirection:'row',gap:12,alignItems:'center',paddingVertical:8,paddingHorizontal:10,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(31,24,32,.9)')},
  avatar:{width:40,height:40,borderRadius:20},chipText:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:13},
  chipName:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:14},chipRole:{fontFamily:fonts.ui,color:colors.muted,fontSize:11.5,marginTop:2},chipAction:{flexShrink:0,fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
@@ -408,8 +426,8 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  fill:{flex:1,minHeight:0,marginVertical:0,padding:16,paddingBottom:12},fillCompact:{padding:10,paddingBottom:8,borderLeftWidth:0,borderRightWidth:0,borderRadius:0},
  fillHeader:{flexDirection:'row',alignItems:'center',gap:12,paddingBottom:10,marginBottom:6,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.22)')},
  fillHeading:{fontSize:18},fillBack:{minWidth:36,minHeight:44,justifyContent:'center',alignItems:'center'},
- fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:'#c2b1ab',fontSize:14,marginBottom:3},
- effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:'#bfe6de',fontSize:12,flexShrink:1},
+ fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#c2b1ab'),fontSize:14,marginBottom:3},
+ effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:'rgba(111,208,196,.4)',backgroundColor:'rgba(16,40,40,.7)',maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:tint('#bfe6de'),fontSize:12,flexShrink:1},
  lesson:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:6,paddingHorizontal:4},lessonText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:tint('#c9bfc6')},
  ideaChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,maxWidth:'100%',paddingHorizontal:12,paddingVertical:6,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:tint('rgba(176,140,245,.5)'),backgroundColor:tint('rgba(20,15,21,.7)')},ideaText:{flexShrink:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:20,color:tint('#e2dde1')},
  ideaWrap:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},
@@ -429,14 +447,14 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  dmSwitchText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:colors.gold},
  inputDirect:{borderColor:colors.goldBright,backgroundColor:tint('rgba(34,18,52,.8)')},
  directNote:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingHorizontal:2},directText:{flex:1,fontFamily:fonts.ui,fontSize:12,lineHeight:17,color:tint('#d9808c')},
- draft:{flexDirection:'row',gap:10,alignItems:'flex-start',marginTop:8,paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},draftText:{flex:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:23,color:'#ded1cb'},
+ draft:{flexDirection:'row',gap:10,alignItems:'flex-start',marginTop:8,paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},draftText:{flex:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:23,color:tint('#ded1cb')},
  actionBar:{flexGrow:0,flexShrink:0,marginTop:8},
  action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(31,24,32,.92)'),maxWidth:340},
  actionTight:{minHeight:0,height:36,paddingHorizontal:10,gap:5,maxWidth:'100%'},actionTextTight:{fontSize:11,letterSpacing:.6},chipAvatarTight:{width:26,height:26,borderRadius:13},
  tips:{padding:14,paddingBottom:10,marginTop:4,marginBottom:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),gap:2},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
  tipsText:{flex:1,fontFamily:fonts.ui,color:tint('#dfd9dd'),fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,marginTop:8,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
  actionPrimary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},actionHeading:{minHeight:40,justifyContent:'center',paddingLeft:6,paddingRight:2},actionHeadingText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},actionHeadingStrong:{fontSize:12.5,color:colors.goldBright,letterSpacing:1.6},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
- actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:'#dfcdc5',textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:tint('#ffeef0')},
+ actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:tint('#dfcdc5'),textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:tint('#ffeef0')},
  fillInput:{flex:1,minHeight:48,maxHeight:130,paddingVertical:12,fontSize:17,lineHeight:24},
  fillSend:{minHeight:48,paddingHorizontal:18,justifyContent:'center',alignItems:'center'},
  header:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-end',gap:8,flexWrap:'wrap',marginBottom:14,paddingBottom:14,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.22)')},
@@ -445,7 +463,7 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  connection:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',letterSpacing:.4},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20,marginBottom:12},
  prompt:{fontFamily:fonts.display,color:colors.gold,fontSize:13,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:6,marginBottom:10},
- input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:3,padding:16,minHeight:92,textAlignVertical:'top',fontSize:18,lineHeight:26},
+ input:{fontFamily:fonts.story,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:3,padding:16,minHeight:92,textAlignVertical:'top',fontSize:18,lineHeight:26},
  toolbar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10,marginTop:12},hint:{fontFamily:fonts.ui,color:colors.faint,fontSize:11.5,flexShrink:1},
  button:{paddingVertical:13,paddingHorizontal:24,backgroundColor:tint('#9e1b32'),borderRadius:3,borderWidth:1,borderColor:tint('#f06e80'),minHeight:46,justifyContent:'center'},buttonText:{fontFamily:fonts.display,color:tint('#ffeef0'),fontSize:13,fontWeight:'800',letterSpacing:1.8,textTransform:'uppercase'},
  error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:22,marginTop:12}
