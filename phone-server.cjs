@@ -18,7 +18,7 @@ const pairingPolicy=[false,true].map(shared=>pagePolicy(pairingPage(shared)));
 // on a hosted machine the header its proxy sets, given by the host (trustProxy), else the last X-Forwarded-For entry,
 // the one the nearest proxy added (earlier entries are whatever the visitor sent, so they are never trusted).
 const proxyHeaderFor=(shared,trustProxy)=>typeof trustProxy==='string'&&/^[a-z0-9-]{2,40}$/i.test(trustProxy)?trustProxy.toLowerCase():trustProxy?'x-forwarded-for':shared?'cf-connecting-ip':null;
-function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086'}={}){
+function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null}={}){
  root=path.resolve(root);
  const shared=publicOrigin?new URL(publicOrigin):null;
  if(shared&&(shared.protocol!=='https:'||shared.pathname!=='/'||shared.search||shared.hash))throw Error('A shared link must be a plain https:// origin.');
@@ -140,7 +140,8 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     const entry=feedbackEntry(note,{now:now(),guest:guestLabel(token)});if(entry.error)return json(res,400,{error:entry.error});
     try{saveFeedback(feedbackFile,entry);}catch{return json(res,500,{error:'The host’s PC could not save that note. Please try again.'});}
     recent.push(now());feedbackUse.set(token,recent);
-    require('./mailer.cjs').createMailer().feedback(entry.markdown).catch(()=>{});
+    // Forwarded (when the host set up the game mailbox) as the readable entry, the same text as playtest-feedback.md.
+    (mailer??require('./mailer.cjs').createMailer()).feedback(entry.markdown).catch(()=>{});
     return json(res,200,{saved:true});
    }
    if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'Method not allowed.'});

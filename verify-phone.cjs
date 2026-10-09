@@ -90,7 +90,7 @@ async function sharedLink(){
  fs.mkdirSync(path.join(root,'_expo','static'),{recursive:true});const bundle='console.log("questbound");'.repeat(200);fs.writeFileSync(path.join(root,'_expo','static','index-0123456789abcdef0123.js'),bundle);
  const open=options=>{const s=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'24681357',sessionStore:store,feedbackFile:notes,fetchImpl,...options});return new Promise(resolve=>s.server.listen(0,'127.0.0.1',()=>resolve(s)));};
  const via=(s,route,opts={})=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:s.server.address().port,path:route,method:opts.method??'GET',headers:{Host:new URL(opts.origin??'https://quest.example.com').host,...opts.headers}},res=>{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,raw:Buffer.concat(chunks)}));});req.on('error',reject);req.end(opts.body);});
- let first=await open();let cookieJar;
+ const mailed=[];let first=await open({mailer:{feedback:async text=>{mailed.push(text);}}});let cookieJar;
  try{
   const joined=await via(first,'/pair',{method:'POST',headers:{Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({code:'24681357'})});cookieJar=joined.headers['set-cookie'][0].split(';')[0];
   assert.ok(!fs.readFileSync(store,'utf8').includes(cookieJar.split('=')[1]),'The raw cookie is never stored');
@@ -101,6 +101,7 @@ async function sharedLink(){
   const send=(body,cookie=cookieJar)=>via(first,'/api/feedback',{method:'POST',headers:{Cookie:cookie,Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify(body)});
   assert.equal((await send({text:'Loved the bandit fight!\nThe map was confusing.',rating:4,context:{player:'Sam',hero:'Brenna (Level 2 Fighter)',device:'Pixel 8 · Chrome',where:'Overgrown Roadside, in combat',screen:'Adventure'}})).status,200);
   const saved=fs.readFileSync(notes,'utf8');assert.match(saved,/Loved the bandit fight/);assert.match(saved,/★★★★☆/);assert.match(saved,/Sam · Brenna/);assert.match(saved,/> The map was confusing/);
+  assert.equal(typeof mailed[0],'string','the mailed note is the readable entry, not an object');assert.match(mailed[0],/Loved the bandit fight/);assert.match(mailed[0],/Sam · Brenna/);
   // A note with its details: the readable file gets the build, stage and problem lines, the record the guest label
   // (never the cookie), and a note too large for the limit is refused.
   const details={build:'a1b2c3d4',game:{stage:'combat'},problems:[{kind:'refused',said:'I cast Detect Magic',error:'Not prepared'}],recent:[{said:'I look around',rulings:['Perception d20 [9] + 2 = 11'],narration:'Dust.'}],padding:Array.from({length:30},()=>'p'.repeat(550))};
