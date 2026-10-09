@@ -108,6 +108,9 @@ export function mapLocation(game) {
  if(game.dungeon?.active)return 'dungeon';
  if(game.wildFight)return game.wildFight.place;
  if(game.stage==='wild')return game.world?.at;
+ // A party hero who is down or dead is carried with the party (partyView keeps where the party stands in party.stage).
+ const carried=game.party?.stage;
+ if(carried&&['dying','dead'].includes(game.stage))return carried==='wild'?game.world?.at:carried==='combat'?'bridge':['inn','bridge','tower'].includes(carried)?carried:'inn';
  const fallen=game.stage==='dying'?game.dying?.place:game.stage==='dead'?game.death?.at:null;
  if(fallen)return fallen==='wild'?game.world?.at:fallen==='dungeon'?'bridge':fallen;
  return ['inn','bridge','tower','dungeon'].includes(game.stage)?game.stage:['defeat','escaped','dead'].includes(game.stage)?'inn':'bridge';

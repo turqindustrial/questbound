@@ -163,7 +163,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       }
     };
     // A fight at a found place ends back at that place (or the way you came, if you ran); the story's own foe is untouched.
-    if (game.wildFight && result.game.wildFight && result.game.stage !== 'combat') {
+    // In a party, a hero who falls leaves the fight to the others while anyone stands (partyRules.js stageAfterFall).
+    const partyFightsOn = isPartyGame(result.game) && ['dying', 'dead'].includes(result.game.stage) && anyoneStanding(result.game);
+    if (game.wildFight && result.game.wildFight && result.game.stage !== 'combat' && !partyFightsOn) {
       const w = game.wildFight, outcome = result.game.stage === 'victory' ? 'won' : result.game.stage === 'escaped' ? 'fled' : 'fell';
       const fate = result.game.foeFate === 'subdued' ? 'subdued' : 'slain', group = w.stats.group;
       const kept = result.events.filter(t => !/wisp settles|restored the crossing|You retreat to the inn/.test(t));
@@ -174,10 +176,10 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       result.game = {...ended, log: [...result.events, ...game.log].slice(0, 40)};
     }
     // Tricks and conditions belong to one fight.
-    if (result.game.stage !== 'combat' && (result.game.heroCondition || result.game.foeTricks)) {
+    if (result.game.stage !== 'combat' && (result.game.heroCondition || (result.game.foeTricks && !partyFightsOn))) {
       result.game = {...result.game};
       delete result.game.heroCondition;
-      delete result.game.foeTricks;
+      if (!partyFightsOn) delete result.game.foeTricks;
     }
     // Arriving somewhere new can be dangerous: a lair's creature (or one you fled from) is waiting, and a risky
     // place may hide an ambush the first time you set foot there.
@@ -1637,6 +1639,14 @@ function memberName(game,id,hero){
 }
 const anyoneStanding=game=>Object.keys(game.party.members).some(id=>memberStatus(game,id)==='up');
 const fightFoeName=(hero,game)=>game.wildFight?.name??game.story?.foe??encounterFoe(hero,game).name;
+// A death save in a party, whatever comes of it: the party stays where it is, so a hero who wakes (or rises) comes to
+// where the others stand, never at the start alone while the world is elsewhere.
+function stayWithParty(game,result){
+ const next={...result.game,world:game.world,map:game.map};
+ if(game.wildFight)next.wildFight=game.wildFight;else delete next.wildFight;
+ if(!['dying','dead'].includes(next.stage)){const party={...next.party};next.stage=party.stage??next.stage;delete party.stage;next.party=party;}
+ return {...result,game:next};
+}
 function withoutOrder(game){if(!game.turnOrder)return game;const next={...game};delete next.turnOrder;return next;}
 // "Wolf: d20 … vs your AC 14. Hit." told of another hero, when the foe's turn is played from their point of view.
 function toldOf(line,name){
@@ -1658,8 +1668,9 @@ function partyStep(game,health,hero,action,random){
  // No fight under way, or its first move still to be made: anyone may act.
  if(!order){
   if(action?.type==='party-pass')return {game,health,error:'There is no turn to pass.'};
-  const result=heroStep(game,health,hero,action,random,{party:true});
+  let result=heroStep(game,health,hero,action,random,{party:true});
   if(result.error||result.waiting||result.game===game)return result;
+  if(game.stage==='dying')result=stayWithParty(game,result);
   if(!partyFightOn(result.game)||result.game.openingAttackAvailable||result.game.stage==='dying')return {...result,game:withoutOrder(result.game)};
   const begun=beginPartyFight(result.game,result.health,hero,random);
   return {...result,game:begun.game,health:begun.health,events:[...(result.events??[]),...begun.events]};
@@ -1680,8 +1691,7 @@ function partyStep(game,health,hero,action,random){
   // A death save on this hero's turn; whatever comes of it, the party stays where it is.
   result=dyingStep(game,health,hero,action,random);
   if(result.error)return result;
-  result={...result,game:{...result.game,world:game.world,map:game.map,...(game.wildFight?{wildFight:game.wildFight}:{})}};
-  if(!['dying','dead'].includes(result.game.stage)){const party={...result.game.party};const stage=party.stage??result.game.stage;delete party.stage;result.game={...result.game,stage,party};}
+  result=stayWithParty(game,result);
  } else {
   result=heroStep(game,health,hero,action,random,{party:true});
   if(result.error||result.waiting||result.game===game)return result;
