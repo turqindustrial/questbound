@@ -2,6 +2,8 @@
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {createAccounts}=require('./accounts.cjs'),{loopbackHost}=require('./security-headers.cjs');
 const {createLimiter}=require('./rate-limit.cjs'),{createCampaigns,validSnapshot}=require('./campaigns.cjs'),{createOperations,atomic}=require('./operations.cjs'),{createMailer}=require('./mailer.cjs');
+// The terms players accept are the ones legalText.js carries, so the date has one source.
+const currentTerms=(()=>{try{return /export const legalUpdated='([^']+)'/.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'legalText.js'),'utf8'))[1];}catch{return '9 October 2026';}})();
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 const accountRoutes=['register','login','verify','save','load','status','logout','logout-all','password','delete'];
 const campaignRoutes=['create','join','list','invite','turn','edit'];
@@ -11,7 +13,7 @@ const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/
 function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={}}={}){
  const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
  const accounts=createAccounts({...accountOptions,dir:accountsDir,now,validSnapshot,mailer:mail,backup:ops.backup,audit:ops.audit});
- const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,guest:'account-'+user.id}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
+ const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
  const campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl});
  const quota={poll:[1200,600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],other:[300,600000],...limits};
  const routeLimits=new Map([...routes].map(route=>{const [max,span]=quota[route]??quota.other;return [route,createLimiter(max,span,{now})];}));
@@ -36,7 +38,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(Object.hasOwn(b,'token'))return send(400,{error:'This version uses a protected sign-in cookie. Reload and sign in again.'});
    const token=cookieToken(req);
    if(route==='account-register'||route==='account-login'||route==='account-verify'){
-    if(route!=='account-verify'&&(b.termsVersion!=='8 October 2026'||b.ageConfirmed!==true))return send(400,{error:'Confirm your age and accept the current terms and privacy policy.'});
+    if(route!=='account-verify'&&(b.termsVersion!==currentTerms||b.ageConfirmed!==true))return send(400,{error:'Confirm your age and accept the current terms and privacy policy.'});
     ops.consume(caller,'account-attempts',100);
     const result=route==='account-register'?await accounts.register(b.email,b.password,caller,b.recoveryCode,b.termsVersion):route==='account-login'?await accounts.login(b.email,b.password,caller,b.termsVersion):await accounts.verify(b.email,b.challenge,b.code,caller);
     return send(200,loginResult(result));
@@ -52,7 +54,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(route==='account-delete'){const result=await accounts.remove(token,b.password,caller);campaigns.removeAccount(user.id);setSession('');return send(200,result);}
    if(route==='save')return send(403,{error:'Whole-adventure writes are disabled. Send an action to the campaign.'});
    if(route==='poll'||route==='leave')return send(200,campaigns[route](user,b));
-   if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](user,b);return send(result.conflict?409:200,result);}
+   if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](req.headers['x-questbound-local']==='1'?{...user,local:true}:user,b);return send(result.conflict?409:200,result);}
    if(route==='usage'){ops.consume(user.id,b.kind==='art'?'illustration-requests':'dm-requests',b.kind==='art'?1500:300);return send(200,{allowed:true,id:user.id});}
    if(route==='ops-status'||route==='ops-verify-backups'){
     if(req.headers['x-questbound-local']!=='1')return send(403,{error:'Host diagnostics are available only on the desktop.'});

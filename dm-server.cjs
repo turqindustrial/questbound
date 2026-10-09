@@ -280,7 +280,8 @@ function turnEffort(fallback,read=chosenModel){const chosen=read('.questbound-dm
 function loadSpending(){if(require('./spending.cjs').revision!==2)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
-const guestOf=body=>typeof body?.guest==='string'&&/^[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
+// A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
+const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
 // Tales written ahead (tale-pantry.cjs) also stay loaded between requests. The stock is topped up one tale at a time
 // while the Dungeon Master is in use, at the effort the host chose; a tale a guest took is replaced at that guest's cost
 // (their label and their allowance). Tests pass a stand-in `pantry`.
@@ -304,7 +305,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
   // only), so misuse by one player is never taken for the host's own. Tests pass a stand-in `spending`.
   const guest=guestOf(body),live=fetchImpl===fetch,spend=spending??(live&&guest?loadSpending():null);
-  const safety=guest?{safety_identifier:'qb-guest-'+guest.slice(0,32)}:null,mayPaint=()=>!guest||!spend||spend.check(guest).ok;
+  const safety=guest?{safety_identifier:(guest.startsWith('account-')?'qb-acct-'+guest.slice(8,40):'qb-guest-'+guest.slice(0,32))}:null,mayPaint=()=>!guest||!spend||spend.check(guest).ok;
   // A story being written in the background is asked after like an illustration: a quick question, never a wait.
   if(body.context.mode==='art'&&body.context.storyJob!==undefined)return loadStoryJobs().poll(body.context.storyJob);
   if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==5)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}

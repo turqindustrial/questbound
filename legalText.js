@@ -1,5 +1,5 @@
 // Single source for the in-game and generated legal pages. Reviewed against the implemented data flows.
-export const legalUpdated='8 October 2026';
+export const legalUpdated='9 October 2026';
 export const privacyPolicy={
  "id": "privacy",
  "title": "Privacy policy",

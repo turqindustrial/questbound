@@ -30,6 +30,12 @@ const success=reply=>async(url,options)=>{assert.equal(url,'https://api.openai.c
  await generate(guestBody,{apiKey:'test-only',model:'test-model',fetchImpl:telling({narration:'Back to the inn.',actionId:'travel-inn'}),spending:{check:()=>({ok:true})}});
  await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:telling({narration:'Back to the inn.',actionId:'travel-inn'})});
  assert.equal(JSON.stringify(told),JSON.stringify(['qb-guest-0123456789abcdef0123456789abcdef',null]));
+ // An account player's table turn (the account service labels it account-<id>) is a guest too: counted, budgeted, and
+ // named to OpenAI by a shortened id; a malformed label is the host's own.
+ const seen=[];await generate({...body,guest:'account-'+'ab'.repeat(32)},{apiKey:'test-only',model:'test-model',fetchImpl:telling({narration:'Back to the inn.',actionId:'travel-inn'}),spending:{check:g=>{seen.push(g);return {ok:true};}}});
+ assert.equal(told.at(-1),'qb-acct-'+'ab'.repeat(16));assert.equal(seen[0],'account-'+'ab'.repeat(32));
+ await generate({...body,guest:'account-NOT-HEX'},{apiKey:'test-only',model:'test-model',fetchImpl:telling({narration:'Back to the inn.',actionId:'travel-inn'})});
+ assert.equal(told.at(-1),null);
  await assert.rejects(generate({...guestBody,context:{mode:'diagnostics',choices:[]}},{apiKey:'test-only',model:'test-model',fetchImpl:async()=>{throw Error('never asked');}}),e=>e.httpStatus===403);
  let asked=0;const usedUp='The host\'s daily allowance for the Dungeon Master is used up. Play resumes tomorrow; your adventure is unchanged.';
  await assert.rejects(generate(guestBody,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>{asked++;throw Error('never asked');},spending:{check:()=>({ok:false,error:usedUp})}}),e=>e.httpStatus===503&&/allowance/.test(e.message));

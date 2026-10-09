@@ -12,7 +12,7 @@ const listen=(s,p)=>new Promise(r=>s.listen(p,'127.0.0.1',r));
    const testCookie=req.headers.cookie?.match(new RegExp('(?:^|;\\s*)qb_qa_'+port+'=([a-f0-9]{64})(?:;|$)'))?.[1];req.headers.cookie=testCookie?'questbound_account='+testCookie:'';
    const setHeader=res.setHeader.bind(res);res.setHeader=(key,value)=>setHeader(key,key.toLowerCase()==='set-cookie'?String(value).replace('questbound_account=','qb_qa_'+port+'='):value);
    if(req.url==='/'){
-    const values={'questbound.agreement.v1':{version:'8 October 2026',at:new Date().toISOString()},'questbound.account.v2':{id:account.id,email,verified:true,savedAt:null},['questbound.profile.'+account.id+'.questbound.character.v1']:JSON.parse(snap.character),['questbound.profile.'+account.id+'.questbound.adventure.v1']:snap};
+    const values={'questbound.agreement.v1':{version:'9 October 2026',at:new Date().toISOString()},'questbound.account.v2':{id:account.id,email,verified:true,savedAt:null},['questbound.profile.'+account.id+'.questbound.character.v1']:JSON.parse(snap.character),['questbound.profile.'+account.id+'.questbound.adventure.v1']:snap};
     if(signedOut)for(const key of Object.keys(values))if(key!=='questbound.agreement.v1')delete values[key];
     const seed='<script>if(!sessionStorage.getItem("qa-seeded")){const values='+JSON.stringify(values)+';for(const [key,value] of Object.entries(values))localStorage.setItem(key,JSON.stringify(value));sessionStorage.setItem("qa-seeded","1");}</script>';
     const html=fs.readFileSync(path.join(__dirname,'dist-phone','index.html'),'utf8').replace('</head>',seed+'</head>');
