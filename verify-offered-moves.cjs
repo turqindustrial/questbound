@@ -35,6 +35,11 @@ const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.l
  const offered=r.dmChoices(hero,fresh,null).map(c=>c.id);
  for(const id of ['potion','class:hands'])assert.ok(!offered.includes(id),id+' is not offered at full health');
  for(const c of r.dmChoices(hero,fresh,null))assert.ok(!r.adventureStep(fresh,null,hero,c.action,()=>0.5).error||/^npc-|^again:/.test(c.id),'in the fight, '+c.id+' is accepted');
+ // The same in a brawl at the refuge.
+ const inn={...r.freshStoryGame(hero,plain(story),r.newAdventure(hero)),potions:2},blow=r.dmChoices(hero,inn,null).find(c=>c.id.startsWith('npc-attack:mara'));
+ const brawl=r.adventureStep(inn,null,hero,blow.action,()=>0.2);assert.ok(brawl.game.npcCombat?.active,'a brawl breaks out');
+ const inBrawl=r.dmChoices(hero,brawl.game,null).map(c=>c.id);
+ for(const id of ['potion','class:hands'])assert.ok(!inBrawl.includes(id),id+' is not offered in a brawl at full health');
 }
 
 // ---- A written story at the refuge: long rest, draughts, the vault ----

@@ -67,7 +67,7 @@ function bonusChoices(hero,game,health){
 // Hands, or a draught for someone hurt beside you.
 function brawlBonusChoices(hero,game,health){
   if(!game.npcCombat?.active||game.bonusUsed||game.pendingSpell)return [];
-  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[];
+  const maximum=combatBasics(hero).hp,hurt=(health?.current??maximum)<maximum,used=game.resources??{},list=[];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
