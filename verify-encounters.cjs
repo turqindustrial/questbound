@@ -53,6 +53,10 @@ const goblins=kinds('goblin');assert.ok(r.foeHitExtras(goblins,kara,foe(goblins)
 const wolves=kinds('wolves');assert.equal(r.foeAttackMode(wolves,{},2),'advantage');assert.equal(r.foeAttackMode(wolves,{},1),'normal');assert.equal(r.foeAttackMode(wolves,{},2,{dodge:true}),'normal','Advantage and Dodge cancel');
 const skeleton=kinds('skeleton');x=r.shieldBlow(skeleton,9,()=>0.5);assert.equal(x.damage,5);assert.equal(r.shieldBlow(x.game,9,()=>0.5).damage,9);
 const zombies={...kinds('zombies'),enemyHP:0};x=r.undeadFortitude(zombies,foe(zombies),()=>0.9);assert.equal(x.game.enemyHP,1);assert.equal(r.undeadFortitude({...x.game,enemyHP:0},foe(zombies),()=>0.9).game.enemyHP,0,'Once a fight');
+// SRD 5.2: the save is against 5 + the damage of the blow, and fails outright against Radiant damage or a critical hit.
+assert.match(r.undeadFortitude(zombies,foe(zombies),()=>0.9,{damage:20,type:'Slashing'}).line,/vs DC 25. Failure/);
+assert.equal(r.undeadFortitude(zombies,foe(zombies),()=>0.99,{damage:3,type:'Radiant'}).game.enemyHP,0,'no fortitude against radiant light');
+assert.equal(r.undeadFortitude(zombies,foe(zombies),()=>0.99,{damage:3,type:'Slashing',critical:true}).game.enemyHP,0,'or a critical hit');
 const spider={...kinds('spider'),round:2};x=r.foeRoundMoves(spider,kara,foe(spider),()=>0);assert.equal(x.game.heroCondition,'restrained');assert.equal(r.foeRoundMoves(x.game,kara,foe(spider),()=>0).lines.length,0);
 assert.ok(valid({...x.game,heroCondition:'restrained'}));assert.ok(!valid({...x.game,heroCondition:'stunned'}));
 // ---- Companions fight beside you ----

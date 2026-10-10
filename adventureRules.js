@@ -957,12 +957,13 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         if (!contest && (weapon.twoHands || offhand) && holding(next)) { const freed = letGo(next, called); next = freed.game; entries.push(...freed.lines); }
         // Damage to the foe (its shield may catch a blow) or to the creature at its side, through what it is immune or
         // vulnerable to (`type`: the damage type); returns what got through.
-        const harm = (k, amount, shield, type) => {
+        let finalBlow = null;
+        const harm = (k, amount, shield, type, critical = false) => {
           const blocked = k === 'foe' && shield ? shieldBlow(next, amount, random) : {game: next, damage: amount, line: null}; next = blocked.game;
           const dealt = type ? defended(targetOf(k), type, blocked.damage) : blocked.damage;
           const note = dealt !== blocked.damage ? `${Called(k)} ${dealt === 0 ? 'is immune to' : dealt > blocked.damage ? 'is vulnerable to' : 'resists'} ${String(type).toLowerCase()} damage: ${dealt} damage applied (${blocked.damage} before defenses).` : null;
           const line = [blocked.line, note].filter(Boolean).join(' ') || null;
-          if (k === 'foe') { next.enemyHP = Math.max(0, next.enemyHP - dealt); return {dealt, line}; }
+          if (k === 'foe') { next.enemyHP = Math.max(0, next.enemyHP - dealt); if (dealt > 0) finalBlow = {damage: dealt, type, critical}; return {dealt, line}; }
           const struck = hurtAlly(next, Number(k.slice(5)), dealt); next = struck.game; return {dealt, hp: struck.hp, line: [line, struck.line].filter(Boolean).join(' ') || null};
         };
         let thrownNow = 0, lightUsed = null;
@@ -1003,7 +1004,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           const mastery = masteryOf(hero, w);
           if (hit) {
             // The other hand's blow adds no ability bonus to its damage (unless that bonus is negative).
-            const dw = offhand && w.bonus > 0 ? {...w, bonus: 0} : w, damage = rollDamage(dw, attack.critical, random), done = harm(key, damage.total, true, dw.type);
+            const dw = offhand && w.bonus > 0 ? {...w, bonus: 0} : w, damage = rollDamage(dw, attack.critical, random), done = harm(key, damage.total, true, dw.type, attack.critical);
             const magicPart = dw.magic ? ' + ' + dw.magic + ' magic' : '';
             if (key === 'foe') entries.push(`${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}${magicPart}).`);
             else entries.push(`The ${target.name} takes ${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}${magicPart}); ${done.hp} HP left.`);
@@ -1057,7 +1058,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           bonusAction = true;
           nickNow = nick;
         }
-        const fortitude = undeadFortitude(next, foe, random);
+        const fortitude = undeadFortitude(next, foe, random, finalBlow);
         next = fortitude.game;
         if (fortitude.line) entries.push(fortitude.line);
         if (next.enemyHP === 0) {
@@ -1067,7 +1068,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         }
       }
       if (next.stage === 'combat' && next.enemyHP === 0 && !turnOptions.enemyOnly) {
-        const fortitude = undeadFortitude(next, foe, random);
+        const fortitude = undeadFortitude(next, foe, random, spellResult?.damage > 0 ? {damage: spellResult.damage, type: automaticEffects[action?.request?.id ?? game.pendingSpell?.id]?.type} : null);
         next = fortitude.game;
         if (fortitude.line) entries.push(fortitude.line);
       }
