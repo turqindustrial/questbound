@@ -39,6 +39,9 @@ assert.equal(r.heroXp(g0,{...hero,level:3}),r.xpForLevel(3));
 assert.equal(r.heroXp({...g0,levelsOwed:2},{...hero,level:3}),r.xpForLevel(5),'owed levels become experience');
 assert.equal(r.heroXp({...g0,stage:'victory'},hero),r.xpForLevel(2),'an untaken old victory is one level');
 assert.equal(r.heroXp({...g0,stage:'victory',xp:120},hero),120,'with xp set a victory gives nothing by itself');
+// An old party at 'victory': the old partyVictory already owed the others their level, so it is never counted twice.
+{const party={lead:'A',members:{}};assert.equal(r.heroXp({...g0,stage:'victory',party,levelsOwed:1},hero),r.xpForLevel(2),'an owed victory level counts once');
+ assert.equal(r.heroXp({...g0,stage:'victory',party},hero),r.xpForLevel(2),'the winner keeps the victory level');}
 assert.equal(r.heroXp({...g0,xp:2000,levelsOwed:1},{...hero,level:2}),2000,'xp and owed levels: the larger');
 assert.equal(r.heroXp({...g0,xp:100,levelsOwed:2},{...hero,level:2}),r.xpForLevel(4));
 

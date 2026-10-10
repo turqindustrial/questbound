@@ -34,9 +34,11 @@ export const xpMax=xpThresholds[19];
 export const xpCap=level=>level>=19?xpMax:xpForLevel(level+2)-1;
 // The experience a hero has. Saves from before experience points are read lazily: a level owed on the road
 // (levelsOwed), or a main foe beaten and its level not yet taken (an old 'victory'), count as that much experience.
+// In an old party every hero but the winner already had that victory as a level owed (the old partyVictory), and
+// every hero sees the world's 'victory', so there it counts only for a hero with no level owed: never twice.
 export function heroXp(game,hero){
  const level=Math.max(1,Math.min(20,hero?.level??1)),owed=Number.isInteger(game?.levelsOwed)?game.levelsOwed:0;
- const won=game?.xp===undefined&&game?.stage==='victory'?1:0;
+ const won=game?.xp===undefined&&game?.stage==='victory'&&!(game.party&&owed>0)?1:0;
  return Math.max(xpForLevel(level),Number.isInteger(game?.xp)?game.xp:0,xpForLevel(Math.min(20,level+owed+won)));
 }
 // The numbers for the screen: the hero's level, experience, this level's floor and the next level's threshold.

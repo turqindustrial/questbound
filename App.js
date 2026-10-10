@@ -17,7 +17,7 @@ import Advancement from './Advancement';
 import {spellSelectionError} from './spellOptions';
 import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure} from './adventureStorage';
 import {useSharedTable} from './useSharedTable';
-import {backupLocalSave,deviceId,tableMembership} from './tableClient';
+import {backupLocalSave,tableMembership} from './tableClient';
 import {isPartyGame,partyView,joinParty,soloFromParty,partyMembers} from './partyRules';
 import PartyPanel from './PartyPanel';
 import SharedTable from './SharedTable';
@@ -156,7 +156,7 @@ function QuestboundApp() {
     await transition.prepare(sceneArtSubjects(snapshot.game));
     // A party: this device plays its own hero, joining with it the first time (partyRules.js).
     if(isPartyGame(snapshot?.game)){
-      let view=partyView(snapshot,deviceId());
+      let view=partyView(snapshot,snapshot.game.party.lead); // the server sends each player the table with their own seat in the lead
       if(!view)throw Error('This account has no hero in the campaign. Join with its campaign invite.');
       let mine;try{mine=JSON.parse(view.character);}catch{throw Error('The party could not be read.');}
       if(!isValidCharacter(mine)||!validAdventure(view,mine))throw Error('The party did not pass validation. This device kept its own save.');

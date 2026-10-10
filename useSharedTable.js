@@ -16,7 +16,7 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   if(data.snapshot)await apply.current(data.snapshot,current);
   if(!current())return;
   version.current=data.version;setTableMembership({version:data.version,campaignId:data.campaignId});
-  setStatus({players:data.players??[],online:true,synchronized:true,error:'',role:data.role});
+  setStatus({players:data.players??[],online:true,synchronized:true,error:'',role:data.role,you:data.you});
  }
  useEffect(()=>{
   if(!membership.joined||!ready)return;joined.current=true;const at=++epoch.current;let polling=false;
@@ -39,7 +39,8 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   finally{busy.current=false;}
  }
  async function edit(change){if(busy.current)throw Error('Wait for the current turn.');busy.current=true;generation.current++;const at=epoch.current;try{const data=await campaignCall('campaign-edit',{...change,baseVersion:version.current});await adopt(data,at);if(data.conflict){noteProblem({kind:'table',error:'The campaign changed; an edit was not kept.'});throw Error('The campaign changed. Try that edit again.');}return data;}finally{busy.current=false;}}
- const me=deviceId(),others=status.players.filter(p=>p.id!==me);
+ // This player's seat at the campaign (opaque; never an account id), else the device id before the first answer.
+ const me=status.you??deviceId(),others=status.players.filter(p=>p.id!==me);
  return {joined:membership.joined,name:membership.name,campaignId:membership.campaignId,...status,invite,others,otherActing:others.find(p=>p.acting)?.name??null,notice,clearNotice:()=>setNotice(''),join,leave,turn,edit,setActing:useCallback(()=>{},[]),checkpoint,isCurrent,deviceId:me,
   newInvite:async()=>{const data=await campaignCall('campaign-invite');setInvite(data.invite);},listCampaigns:()=>campaignCall('campaign-list')};
 }
