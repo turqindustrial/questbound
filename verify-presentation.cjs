@@ -1,8 +1,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 // The presentation pieces the host asked for on 2026-10-04: loading tips and the first-time primer that keep rolling
 // (loadingRules.js, StoryLoading.js); nothing in the game scrolls sideways at any width (WrapRow and chipLayout in
-// ui.js and fitRules.js); the valley painting back on the title screen; and the serpent biting its tail in place of
-// the turning bezel (serpent.js, webTheme.js, the launch card, the story seal, the boot card and the app icon).
+// ui.js and fitRules.js); the valley painting back on the title screen; and the host's emblem (2026-10-10: a serpent
+// biting its tail round a Q whose tail is a dagger) as the logo, animated, in place of the drawn serpent and seal (the
+// launch card, the title page, the story seal, the top bar, the boot card, the pairing page and the app icon).
 const load=(file,names)=>{const ctx={};vm.createContext(ctx);vm.runInContext(fs.readFileSync(file,'utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.out={'+names.join(',')+'};',ctx);return ctx.out;};
 const read=file=>fs.readFileSync(file,'utf8');
 
@@ -81,24 +82,38 @@ assert.ok(home.includes('{!short&&slot}')&&home.includes('sub={!wide&&!short&&st
 assert.ok(home.includes("onLegal?.(tab)")&&home.includes('Keep your progress safe: create an account')&&home.includes('menuGrid')&&home.includes('landLeft'),'everything added to the title screen since is kept');
 assert.ok(app.includes('unprotected={saved&&!account&&accountsOffered()}'),'the account prompt only while accounts are offered');
 
-// 4. The serpent.
-const {serpentMarkup}=load('serpent.js',['serpentMarkup']);
-const full=serpentMarkup(),plain=serpentMarkup({detail:false});
-assert.ok(full.startsWith('<svg')&&full.includes("fill='#be96ff'")&&(full.match(/<path/g)??[]).length>=4&&full.length<14000,'scales, a head and a violet eye, small enough to inline');
-assert.ok(plain.startsWith('<svg')&&plain.length<4000&&!plain.includes("stroke='#5e0d1e' stroke-width='.65'"),'a plain silhouette for masks');
-assert.equal(serpentMarkup(),full,'the same drawing every time');
-for(const n of [...full.matchAll(/ (?:d|cx|cy)='([^']*)'/g)].flatMap(m=>m[1].match(/-?\d+(\.\d+)?/g)).map(Number))assert.ok(Number.isFinite(n)&&n>-1&&n<=200,'every point inside the picture');
-assert.ok(web.includes("import {serpentMarkup} from './serpent';")&&web.includes('[data-qb=serpent]{background:var(--qb-serpent)')&&/\[data-qb=serpent\]\{[^}]*infinite reverse/.test(web),'it turns the way its head faces');
-assert.ok(web.includes('html[data-effects=light] [data-qb=serpent]{animation:none !important;}'),'still in the Light atmosphere');
+// 4. The emblem: the host's painting, made into layers by make-emblem.cjs.
+const isWebp=file=>{const bytes=fs.readFileSync(file);return bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';};
+const layers=['ring-v1','core-v1','ring-glow-v1','core-glow-v1','seal-v1'].map(name=>'public/emblem/'+name+'.webp');
+for(const file of [...layers,'assets/title/questbound-emblem.webp','assets/title/questbound-seal-source.webp'])assert.ok(fs.existsSync(file)&&isWebp(file)&&fs.statSync(file).size<400000,file+' is a WebP under 400 KB');
+assert.ok(fs.statSync('public/emblem/seal-v1.webp').size<60000,'the boot card and pairing page emblem stays light');
+const maker=read('make-emblem.cjs');assert.ok(maker.includes('questbound-seal-source.webp')&&layers.every(file=>maker.includes(file))&&maker.includes('bladeShare')&&maker.includes('ringShare'),'make-emblem.cjs makes every layer from the painting');
+assert.ok(!fs.existsSync('serpent.js'),'the drawn serpent is retired');
+for(const file of sources)assert.ok(!/qb:'(serpent|launch-ring|bezel)'/.test(read(file))&&!read(file).includes("from './serpent'"),file+' no longer draws the old seal');
+const emblem=read('TitleEmblem.js'),launch=read('LaunchScreen.js');
+// The ring (with its stars and their twinkles) turns under the Q and its blade, which are drawn after it and stay still.
+const order=['emblem-back','emblem-turn','emblem-ring','emblem-core','emblem-sheen'].map(name=>emblem.indexOf("qb:'"+name+"'"));
+assert.ok(order.every((at,i)=>at>0&&(i===0||at>order[i-1])),'the layers are drawn back to front: '+order);
+assert.ok(/\{ringStars\.map\(twinkle\)\}\r?\n  <\/View>/.test(emblem)&&emblem.includes('{twinkle(northStar)}'),'the ring stars twinkle as they turn, the Q\'s north star where it stands');
+assert.ok(emblem.includes('const box=Math.round(size*1.42);'),'the same square as the old seal and its serpent');
+assert.ok(launch.includes('<TitleEmblem size={ring} place="launch"/>')&&!/\bq=Math.round/.test(launch),'the launch card shows the emblem');
+assert.ok(loading.includes('<TitleEmblem size={106} place="story"/>'),'the story seal is the emblem');
+assert.equal((home.match(/<TitleEmblem size=/g)??[]).length,3,'the title page shows it on desktop, a phone held either way');
+assert.ok(app.includes('<EmblemMark size={42}/>')&&!app.includes('emblemQ'),'the top bar\'s mark is the emblem');
+assert.ok(web.includes('[data-qb=emblem-turn]{animation:qb-spin 90s linear infinite;')&&!/\[data-qb=emblem-core\]\{[^}]*animation/.test(web),'the ring turns once in 90 seconds the way the head faces; the Q stays still');
+assert.ok(web.includes('-webkit-mask:url(/emblem/core-v1.webp)')&&web.includes('[data-qb=emblem-shine]{')&&web.includes('@keyframes qb-emblem-twinkle')&&web.includes('@keyframes qb-emblem-glow'),'the sheen is cut to the Q, the stars twinkle, the glow breathes');
+assert.ok(web.includes('html[data-effects=light] [data-qb=emblem] *{animation:none !important;}'),'still in the Light atmosphere');
+assert.ok(web.includes('html[data-covered=on] [data-qb=emblem]:not([data-place=story]) *{animation-play-state:paused !important;}'),'still behind a full-screen cover');
 assert.ok(web.includes('@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;'),'still with reduced motion');
-assert.ok(!web.includes('bezel'),'the bezel is gone');
-for(const file of ['LaunchScreen.js','StoryLoading.js','TitleEmblem.js'])assert.ok(read(file).includes("qb:'serpent'")&&!read(file).includes("qb:'bezel'"),file);
-const page=read('public/index.html'),mask='url("data:image/svg+xml,'+encodeURIComponent(plain).replace(/'/g,'%27')+'")';
-const block=page.match(/\/\* qb-serpent:start \*\/([\s\S]*?)\/\* qb-serpent:end \*\//);
-assert.ok(block&&block[1]==='-webkit-mask: '+mask+' center/contain no-repeat; mask: '+mask+' center/contain no-repeat;','the boot card shows the same serpent (node verify-theme.cjs --write)');
-assert.ok(page.includes('<div class="serpent"></div>')&&!page.includes('bezel')&&/#qb-boot \.serpent \{[^}]*qb-turn 120s linear infinite reverse/.test(page)&&page.includes('#qb-boot .serpent, #qb-boot .bar i { animation: none; }'));
-const icon=read('assets/title/icon.html'),iconBlock=icon.match(/\/\* qb-serpent:start \*\/([\s\S]*?)\/\* qb-serpent:end \*\//);
-assert.ok(iconBlock&&iconBlock[1]==='background-image:url("data:image/svg+xml,'+encodeURIComponent(full).replace(/'/g,'%27')+'");','the app icon carries the same serpent (node make-icons.cjs)');
-assert.ok(icon.includes('url(questbound-title.jpg)')&&!icon.includes('fonts.googleapis.com')&&icon.includes('../../public/fonts/cinzel-decorative-900-latin.woff2'),'the icon needs neither the retired painting nor Google');
-for(const file of ['public/manifest.json','public/index.html','fullscreen.js','phone-server.cjs'])assert.ok(!/\.png\?v=[12]\b/.test(read(file))&&/\.png\?v=3\b/.test(read(file)),file+' asks for the new icons');
-console.log('Presentation: tips and primer roll, nothing scrolls sideways in '+sources.length+' files, the valley painting, and the serpent in five places.');
+assert.ok(web.includes('[data-qb=emblem]{position:relative;filter:var(--qb-emblem-filter);}')&&web.includes("'--qb-emblem-filter':emblemFilter(theme)"),'tinted for the theme');
+// Every emblem picture a page asks for exists, and the servers name its type; the pairing page may show it before pairing.
+const page=read('public/index.html'),gateway=read('phone-server.cjs');
+for(const text of [web,page,gateway])for(const m of text.matchAll(/\/emblem\/([a-z0-9-]+\.webp)/g))assert.ok(fs.existsSync('public/emblem/'+m[1]),m[1]+' exists');
+assert.ok(page.includes('<div class="seal"><div class="emblem"></div></div>')&&page.includes('url(/emblem/seal-v1.webp)')&&!page.includes('qb-serpent')&&page.includes('#qb-boot .emblem, #qb-boot .bar i { animation: none; }'),'the boot card shows the emblem');
+assert.ok(gateway.includes('<div class="seal" aria-hidden="true"></div>')&&gateway.includes('background:url(/emblem/seal-v1.webp)')&&gateway.includes('/^\\/emblem\\/[a-z0-9-]+\\.webp$/.test(pathname)'),'the pairing page shows the emblem');
+for(const file of ['phone-server.cjs','desktop-server.cjs'])assert.ok(read(file).includes("'.webp':'image/webp'"),file+' serves WebP as an image');
+const icon=read('assets/title/icon.html');
+assert.ok(icon.includes('url(questbound-emblem.webp)')&&!icon.includes('fonts.googleapis.com')&&!icon.includes('qb-serpent'),'the app icon is the emblem and needs no internet');
+assert.ok(read('make-icons.cjs').includes("[48,'assets/questbound-favicon.png','inset=.01&simple=1']")&&read('make-icons.cjs').includes("[180,'public/icons/apple-touch-icon.png','inset=.06&simple=1']"),'small icons are cut close to the ring');
+for(const file of ['public/manifest.json','public/index.html','fullscreen.js','phone-server.cjs'])assert.ok(!/\.png\?v=[123]\b/.test(read(file))&&/\.png\?v=4\b/.test(read(file)),file+' asks for the new icons');
+console.log('Presentation: tips and primer roll, nothing scrolls sideways in '+sources.length+' files, the valley painting, and the emblem in seven places.');

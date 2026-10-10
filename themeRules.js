@@ -6,11 +6,11 @@
 // The sums are done in OKLCH (lightness, chroma, hue), where turning the hue keeps a colour as light as it looked.
 export const themeChoices=[
  {id:'red',label:'Red',swatch:'#e04a5c',accentSwatch:'#b08cf5'},
- {id:'orange',label:'Orange',main:{hue:52,chroma:.95,lift:.09},accent:{hue:88,chroma:.6,lift:.1},neutral:{hue:55,chroma:1}},
- {id:'gold',label:'Gold',main:{hue:88,chroma:.62,lift:.19},accent:{hue:62,chroma:.6,lift:.08},neutral:{hue:265,chroma:1.5}},
- {id:'green',label:'Green',main:{hue:152,chroma:.82,lift:.12},accent:{hue:92,chroma:.55,lift:.1},neutral:{hue:165,chroma:1.1}},
- {id:'blue',label:'Blue',main:{hue:252,chroma:.82,lift:.06},accent:{hue:300,chroma:.9,lift:0},neutral:{hue:262,chroma:1.5}},
- {id:'purple',label:'Purple',main:{hue:300,chroma:.95,lift:.05},accent:{hue:8,chroma:.8,lift:.04},neutral:{hue:300,chroma:1.1}},
+ {id:'orange',label:'Orange',main:{hue:52,chroma:.95,lift:.09},accent:{hue:88,chroma:.6,lift:.1},neutral:{hue:55,chroma:1},emblem:'hue-rotate(62deg) saturate(0.95) brightness(1.25)'},
+ {id:'gold',label:'Gold',main:{hue:88,chroma:.62,lift:.19},accent:{hue:62,chroma:.6,lift:.08},neutral:{hue:265,chroma:1.5},emblem:'hue-rotate(86deg) saturate(0.92) brightness(1.25)'},
+ {id:'green',label:'Green',main:{hue:152,chroma:.82,lift:.12},accent:{hue:92,chroma:.55,lift:.1},neutral:{hue:165,chroma:1.1},emblem:'hue-rotate(181deg) saturate(1.22) brightness(1.25)'},
+ {id:'blue',label:'Blue',main:{hue:252,chroma:.82,lift:.06},accent:{hue:300,chroma:.9,lift:0},neutral:{hue:262,chroma:1.5},emblem:'hue-rotate(223deg) saturate(1.33) brightness(1.17)'},
+ {id:'purple',label:'Purple',main:{hue:300,chroma:.95,lift:.05},accent:{hue:8,chroma:.8,lift:.04},neutral:{hue:300,chroma:1.1},emblem:'hue-rotate(294deg) saturate(0.8) brightness(1.25)'},
 ];
 export const defaultTheme='red';
 export const themeIds=themeChoices.map(choice=>choice.id);
@@ -99,4 +99,19 @@ export const themedText=(text,themeId,mode='dark')=>themeId===defaultTheme&&mode
 export function themeSwatches(themeId){
  const show=(r,g,b)=>'#'+hexOf(...themedRgb(r,g,b,themeId));
  return {main:show(224,74,92),accent:show(176,140,245),deep:show(124,18,39)};
+}
+// The emblem (the host's painting, make-emblem.cjs) is a picture, so a theme reaches it as a CSS filter on the whole
+// emblem (`emblem` in themeChoices): a hue turn, saturation and brightness that bring the painting's crimsons to the
+// theme's main colour (verify-theme.cjs checks where they land, with the filters' own sums below). Red is the painting
+// as it is; the filter does not change with Light, where the emblem sits on a dark disc of its own.
+export const emblemFilter=themeId=>themeChoices.find(choice=>choice.id===validTheme(themeId))?.emblem??'none';
+// What a CSS filter of that kind (hue-rotate, saturate, brightness, in that order) makes of a colour.
+export function filteredRgb([r,g,b],filter){
+ const number=(name,fallback)=>{const at=String(filter).indexOf(name+'(');return at<0?fallback:parseFloat(String(filter).slice(at+name.length+1));};
+ const turn=number('hue-rotate',0),sat=number('saturate',1),bright=number('brightness',1);
+ const c=Math.cos(turn*Math.PI/180),s=Math.sin(turn*Math.PI/180);
+ const hue=[[.213+c*.787-s*.213,.715-c*.715-s*.715,.072-c*.072+s*.928],[.213-c*.213+s*.143,.715+c*.285+s*.14,.072-c*.072-s*.283],[.213-c*.213-s*.787,.715-c*.715+s*.715,.072+c*.928+s*.072]];
+ const satm=[[.213+.787*sat,.715-.715*sat,.072-.072*sat],[.213-.213*sat,.715+.285*sat,.072-.072*sat],[.213-.213*sat,.715-.715*sat,.072+.928*sat]];
+ const apply=(m,x)=>m.map(row=>Math.max(0,Math.min(1,row[0]*x[0]+row[1]*x[1]+row[2]*x[2])));
+ return apply(satm,apply(hue,[r/255,g/255,b/255])).map(x=>Math.round(Math.max(0,Math.min(255,x*bright*255))));
 }

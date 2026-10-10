@@ -1,10 +1,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 // Colour themes (themeRules.js, theme.js, ThemeControls.js): what each written colour becomes in each theme, that
 // every screen colour is wrapped in tint() so a theme can reach it, and that the loading card in public/index.html
-// carries the same colours. `node verify-theme.cjs --write` rewrites the loading card's table after a change to the themes.
+// carries the same colours, and that the emblem's tint lands on each theme's colour. `node verify-theme.cjs --write`
+// rewrites the loading card's table after a change to the themes.
 const ctx={};vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('themeRules.js','utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.out={themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,writtenColour,themedText,themeSwatches};',ctx);
-const {themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,themedText,themeSwatches}=ctx.out;
+vm.runInContext(fs.readFileSync('themeRules.js','utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.out={themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,writtenColour,themedText,themeSwatches,emblemFilter,filteredRgb};',ctx);
+const {themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,themedText,themeSwatches,emblemFilter,filteredRgb}=ctx.out;
 const plain=value=>JSON.parse(JSON.stringify(value));
 // The six choices the host asked for, Red first (the look the game is written in).
 assert.deepEqual(plain(themeIds),['red','orange','gold','green','blue','purple']);assert.equal(defaultTheme,'red');
@@ -46,6 +47,14 @@ for(const id of themeIds){
  assert.ok(contrast(themedRgb(221,214,219,id),panel)>=7,id+' text on panel');
  assert.ok(contrast(themedRgb(255,238,240,id),themedRgb(165,26,51,id))>=4.5,id+' button lettering '+contrast(themedRgb(255,238,240,id),themedRgb(165,26,51,id)).toFixed(2));
 }
+// The emblem (a painting) is tinted by a filter: Red leaves it as painted, every other theme turns its crimson onto the
+// theme's own hue (the filter's sums are the browser's: hue-rotate, saturate, brightness), each to a different colour.
+assert.equal(emblemFilter('red'),'none');assert.equal(emblemFilter('pink'),'none');
+{const landed=[];for(const id of themeIds.filter(id=>id!=='red')){const filter=emblemFilter(id);assert.match(filter,/^hue-rotate\(\d+deg\) saturate\([\d.]+\) brightness\([\d.]+\)$/,id);
+ for(const rgb of [[230,40,110],[200,30,80]])assert.ok(near(hue(filteredRgb(rgb,filter)),wanted[id],16),id+' emblem '+rgb+' lands at '+hue(filteredRgb(rgb,filter)).toFixed(0));
+ assert.ok(rgbToOklch(...filteredRgb([230,40,110],filter))[0]>=.5,id+' emblem stays bright');landed.push(Math.round(hue(filteredRgb([230,40,110],filter))/10));}
+ assert.equal(new Set(landed).size,landed.length,'no two themes tint the emblem alike');}
+assert.deepEqual(plain(filteredRgb([230,40,110],'none')),[230,40,110]);
 // Each theme's dots in Settings show its own colours, and no two themes share a main colour.
 const mains=themeIds.map(id=>themeSwatches(id).main);assert.equal(new Set(mains).size,themeIds.length);assert.equal(themeSwatches('red').main,'#e04a5c');assert.equal(themeSwatches('red').accent,'#b08cf5');
 for(const id of themeIds)for(const value of Object.values(plain(themeSwatches(id))))assert.match(value,/^#[0-9a-f]{6}$/);
@@ -53,8 +62,8 @@ for(const id of themeIds)for(const value of Object.values(plain(themeSwatches(id
 const keys=[];mapColours('a #e04a5c b rgba(178,34,58,.5) c rgba(178,34,58,0.05) d #6fbf8e e #abc f url(#n) g #E04A5C',colour=>{keys.push(colour.key);});
 assert.deepEqual(keys,['e04a5c','b2223a-500','b2223a-050','e04a5c']);for(const key of keys)assert.match(key,/^[0-9a-f]{6}(-\d{3})?$/);
 // Every family colour written in a screen is inside tint(...), so no theme leaves a stray red or violet behind.
-// (Rules files and the map's and the serpent's own art are not screens; webTheme.js wraps its whole style sheet.)
-const notScreens=new Set(['serpent.js','mapArt.js','mapLayout.js','iconPaths.js','audio.js','themeRules.js','webTheme.js']);
+// (Rules files and the map's own art are not screens; webTheme.js wraps its whole style sheet.)
+const notScreens=new Set(['mapArt.js','mapLayout.js','iconPaths.js','audio.js','themeRules.js','webTheme.js']);
 const pattern=/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/g;
 const familyOf=m=>{let r,g,b;if(m[1]){const h=m[1].length===3?m[1].split('').map(c=>c+c).join(''):m[1];r=parseInt(h.slice(0,2),16);g=parseInt(h.slice(2,4),16);b=parseInt(h.slice(4,6),16);}else{r=+m[2];g=+m[3];b=+m[4];}return colourFamily(r,g,b);};
 const stray=[];let wrapped=0;
@@ -68,7 +77,7 @@ for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f)&&!/^(verify|qa-)
 });
 assert.deepEqual(stray,[],'colours written outside tint(): '+stray.slice(0,12).join('; '));assert.ok(wrapped>400);
 const web=fs.readFileSync('webTheme.js','utf8');
-assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMarkup(turn),theme,mode)')&&web.includes("'--qb-serpent':svg(themedText(serpent,theme,mode))")&&web.includes('const serpent=serpentMarkup();'),'webTheme.js wraps its style sheet and writes its pictures per theme');
+assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMarkup(turn),theme,mode)')&&web.includes("'--qb-emblem-filter':emblemFilter(theme)")&&web.includes('[data-qb=emblem]{position:relative;filter:var(--qb-emblem-filter);}'),'webTheme.js wraps its style sheet and writes its pictures and the emblem filter per theme');
 const themeSource=fs.readFileSync('theme.js','utf8');
 assert.ok(themeSource.includes("const KEY='questbound.theme.v1'")&&themeSource.includes('export function setTheme')&&themeSource.includes("coin:tint('#e8c77b')"));
 // The Theme section is in Settings.
@@ -81,18 +90,15 @@ for(const id of themeIds){const bg=lightLuminance(themedText('#08060a',id,'light
 // var(--bN, <the Red colour>), and a small script sets the variables from a table that must match themeRules.js.
 const pagePath='public/index.html',page=fs.readFileSync(pagePath,'utf8');
 const card=[...page.matchAll(/var\(--b(\d+), ([^()]*(?:\([^()]*\))?[^()]*)\)/g)].reduce((list,m)=>{list[+m[1]]=m[2].trim();return list;},[]);
-assert.ok(card.length>=14&&card.every(Boolean),'the loading card names its colours --b0, --b1, ... with none missing');
+assert.ok(card.length>=9&&card.every(Boolean),'the loading card names its colours --b0, --b1, ... with none missing');
 const table=Object.fromEntries(themeIds.flatMap(id=>['dark','light'].map(mode=>[id+':'+mode,card.map(colour=>themedText(colour,id,mode))])));
-const script="<script>(function(){try{var p=JSON.parse(localStorage.getItem('questbound.theme.v1')||'{}'),t=p.theme||'red',m=p.mode==='light'?'light':'dark',c="+JSON.stringify(table)+"[t+':'+m];document.documentElement.setAttribute('data-appearance',m);if(c){var s=document.documentElement.style;for(var i=0;i<c.length;i++)s.setProperty('--b'+i,c[i]);}}catch(e){}})();</script>";
+// The card's emblem takes the same filter as the game's (--bf).
+const filters=Object.fromEntries(themeIds.filter(id=>emblemFilter(id)!=='none').map(id=>[id,emblemFilter(id)]));
+const script="<script>(function(){try{var p=JSON.parse(localStorage.getItem('questbound.theme.v1')||'{}'),t=p.theme||'red',m=p.mode==='light'?'light':'dark',c="+JSON.stringify(table)+"[t+':'+m],f="+JSON.stringify(filters)+"[t],s=document.documentElement.style;document.documentElement.setAttribute('data-appearance',m);if(c){for(var i=0;i<c.length;i++)s.setProperty('--b'+i,c[i]);}if(f)s.setProperty('--bf',f);}catch(e){}})();</script>";
 const block=/(<!-- qb-theme-colours:start[^>]*-->\s*)([\s\S]*?)(\s*<!-- qb-theme-colours:end -->)/,found=page.match(block);
 assert.ok(found,'public/index.html has the qb-theme-colours block');
-// The loading card's serpent is the silhouette of serpent.js (the game's own ring), as a mask in the card's colour.
-const serpentContext={};vm.createContext(serpentContext);
-vm.runInContext(fs.readFileSync('serpent.js','utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.serpentMarkup=serpentMarkup;',serpentContext);
-const maskUrl='url("data:image/svg+xml,'+encodeURIComponent(serpentContext.serpentMarkup({detail:false})).replace(/'/g,'%27')+'")';
-const mask='-webkit-mask: '+maskUrl+' center/contain no-repeat; mask: '+maskUrl+' center/contain no-repeat;';
-const serpentBlock=/(\/\* qb-serpent:start \*\/)([\s\S]*?)(\/\* qb-serpent:end \*\/)/,serpentFound=page.match(serpentBlock);
-assert.ok(serpentFound,'public/index.html has the qb-serpent block');
-if(process.argv.includes('--write')){fs.writeFileSync(pagePath,page.replace(block,(whole,start,old,end)=>start+script+end).replace(serpentBlock,(whole,start,old,end)=>start+mask+end));console.log('Wrote the loading card colours for '+Object.keys(table).join(', ')+' and its serpent.');}
-else{assert.equal(found[2],script,'the loading card colours are out of date: run node verify-theme.cjs --write');assert.equal(serpentFound[2],mask,'the loading card serpent is out of date: run node verify-theme.cjs --write');}
+// The loading card shows the emblem picture, tinted like the game's.
+assert.ok(page.includes('background: url(/emblem/seal-v1.webp) center/contain no-repeat; filter: var(--bf, none);')&&page.includes('<div class="seal"><div class="emblem"></div></div>')&&!page.includes('qb-serpent'),'the loading card shows the emblem');
+if(process.argv.includes('--write')){fs.writeFileSync(pagePath,page.replace(block,(whole,start,old,end)=>start+script+end));console.log('Wrote the loading card colours and emblem filters for '+Object.keys(table).join(', ')+'.');}
+else assert.equal(found[2],script,'the loading card colours are out of date: run node verify-theme.cjs --write');
 console.log('Themes: '+themeIds.join(', ')+'; '+wrapped+' screen colours follow the theme; loading card in step.');

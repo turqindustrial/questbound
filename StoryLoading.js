@@ -2,12 +2,13 @@ import React,{useEffect,useRef,useState} from 'react';
 import {View,Text,Pressable,StyleSheet,useWindowDimensions} from 'react-native';
 import intros from './adventureIntros.json';
 import Icon from './Icon';
+import TitleEmblem from './TitleEmblem';
 import {fonts,colors,tint} from './theme';
 import {tipMs,primerMs,primerResumeMs,cyclePage,autoTurnDue} from './loadingRules';
 // While the Dungeon Master writes a new tale (about three minutes when the story writer thinks hard, half a minute
 // when it does not), a loading screen in the manner of a console game: the chosen opening, a turning seal, a moving
-// progress line and a new tip every few seconds, round and round for as long as the wait lasts. A serpent biting its
-// tail (an ouroboros) turns slowly around the seal.
+// progress line and a new tip every few seconds, round and round for as long as the wait lasts. The seal is the
+// game's emblem (TitleEmblem), its serpent ring turning slowly round the Q.
 const tips=[
  ['speak','Talk to anyone. Tap a person above the message box, or name them in what you type.'],
  ['d20','Every roll is real: the dice decide how it goes, the Dungeon Master tells you what it means.'],
@@ -51,10 +52,7 @@ export default function StoryLoading({introId,hero=null,near=null}){
  return <View dataSet={{qb:'scrim'}} style={[StyleSheet.absoluteFill,s.root]} accessibilityViewIsModal>
   <View dataSet={{qb:'launch-glow'}} style={[StyleSheet.absoluteFill,{opacity:.55,pointerEvents:'none'}]}/>
   <View dataSet={{qb:'enter-slow'}} style={s.content}>
-   {!(teaching&&small)&&<View style={s.sealWrap}>
-    <View dataSet={{qb:'serpent'}} style={s.serpent}/>
-    <View dataSet={{qb:'launch-ring'}} style={s.seal}><Icon name="quill" size={40} color={colors.goldBright}/></View>
-   </View>}
+   {!(teaching&&small)&&<View style={s.sealWrap}><TitleEmblem size={106} place="story"/></View>}
    {!tiny&&<Text style={s.overline}>{hero!=null?'New character':'A new tale'}</Text>}
    <Text accessibilityLiveRegion="polite" dataSet={{qb:'title',lig:'off'}} style={[s.title,{fontSize:size,lineHeight:Math.round(size*1.25)}]}>{title}</Text>
    {!!detail&&!(tiny&&teaching)&&<Text style={s.setting}>{detail}</Text>}
@@ -83,8 +81,6 @@ const s=StyleSheet.create({
  root:{zIndex:70,backgroundColor:tint('rgba(7,5,7,.94)'),alignItems:'center',justifyContent:'center',padding:24},
  content:{alignItems:'center',maxWidth:600,width:'100%'},
  sealWrap:{width:150,height:150,alignItems:'center',justifyContent:'center',marginBottom:18},
- serpent:{position:'absolute',width:150,height:150,pointerEvents:'none'},
- seal:{width:104,height:104,borderRadius:52,borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},
  overline:{fontFamily:fonts.display,fontSize:11,letterSpacing:4.5,color:colors.goldMid,textTransform:'uppercase',textAlign:'center'},
  title:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',marginTop:8,letterSpacing:2.5},
  setting:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,lineHeight:26,color:tint('#ddcfca'),textAlign:'center',marginTop:8},

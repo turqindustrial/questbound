@@ -2,7 +2,7 @@
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {setBaseHeaders,filePolicies,publicFile}=require('./security-headers.cjs');
 const {feedbackEntry,saveFeedback,FEEDBACK_BODY_LIMIT}=require('./feedback-notes.cjs');
-const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf'};
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf'};
 // The desktop game talks to the Dungeon Master (8084, or 8083) and the shared table (8086) on this PC, and nothing else.
 const desktopConnect=["'self'",'http://localhost:8084','http://localhost:8083','http://localhost:8086'];
 // Only files whose names carry their content hash (the game script, hashed assets) and the font files (whose bytes

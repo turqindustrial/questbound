@@ -1,16 +1,43 @@
 import React from 'react';
-import {View,Text,StyleSheet} from 'react-native';
-import {fonts,colors,tint} from './theme';
+import {View,Image,Platform,StyleSheet} from 'react-native';
 
-// The seal of the opening animation with the serpent biting its tail turning around it (serpent.js, webTheme.js),
-// the same ring as the launch card and the story seal; its CSS honours reduced motion and the player's colour theme.
-export default function TitleEmblem({size=200}){
- return <View pointerEvents="none" accessible={false} style={{width:size*1.42,height:size*1.42,alignItems:'center',justifyContent:'center'}}>
-  <View dataSet={{qb:'serpent'}} style={[s.layer,{width:size*1.42,height:size*1.42}]}/>
-  <View dataSet={{qb:'launch-ring'}} style={[s.ring,{width:size,height:size,borderRadius:size/2}]}>
-   <View style={[s.inner,{width:size-18,height:size-18,borderRadius:(size-18)/2}]}/>
-   <Text dataSet={{qb:'title'}} style={{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold,fontSize:size*.56,lineHeight:size*.7,textAlign:'center'}}>Q</Text>
+// The Questbound emblem: the host's own painting (assets/title/questbound-seal-source.webp, 2026-10-10) of a serpent
+// biting its tail round a faceted Q whose tail is a dagger. make-emblem.cjs splits it into layers (public/emblem/) and
+// webTheme.js animates them: the serpent ring with its stars turns slowly the way the dragon's head faces, while the Q
+// and the whole of its blade (also where it crosses the ring) stay still on top; a soft glow breathes, a light sweeps
+// across the Q now and then and the stars twinkle. The Light atmosphere, reduced motion and the full-screen covers hold
+// it still, and the player's colour theme tints it (a filter, themeRules.js emblemFilter).
+// `size` is the size of the old ring; the emblem's square (the serpent, its head and the star points) is 1.42 times it.
+const web=Platform.OS==='web';
+const whole=web?null:require('./assets/title/questbound-emblem.webp');
+// Where the four-point stars shine, as shares of the square (from the painting): west, east and south on the ring
+// (they turn with it), north on the Q.
+const ringStars=[[12.7,49.7,'west'],[87.9,49.6,'east'],[50.2,86.3,'south']],northStar=[50.2,25.8,'north'];
+const twinkle=([left,top,star])=><View key={star} dataSet={{qb:'emblem-twinkle',star}} style={[s.twinkle,{left:left-6+'%',top:top-6+'%'}]}/>;
+export default function TitleEmblem({size=200,place='title'}){
+ const box=Math.round(size*1.42);
+ if(!web)return <Image source={whole} accessible={false} style={{width:box,height:box}}/>;
+ return <View accessible={false} dataSet={{qb:'emblem',place}} style={[s.still,{width:box,height:box}]}>
+  <View dataSet={{qb:'emblem-back'}} style={s.layer}/>
+  <View dataSet={{qb:'emblem-turn'}} style={s.layer}>
+   <View dataSet={{qb:'emblem-glow',part:'ring'}} style={s.layer}/>
+   <View dataSet={{qb:'emblem-ring'}} style={s.layer}/>
+   {ringStars.map(twinkle)}
   </View>
+  <View dataSet={{qb:'emblem-glow',part:'core'}} style={s.layer}/>
+  <View dataSet={{qb:'emblem-core'}} style={s.layer}/>
+  <View dataSet={{qb:'emblem-sheen'}} style={s.layer}><View dataSet={{qb:'emblem-shine'}} style={s.shine}/></View>
+  {twinkle(northStar)}
  </View>;
 }
-const s=StyleSheet.create({layer:{position:'absolute'},ring:{borderWidth:2,borderColor:colors.gold,alignItems:'center',justifyContent:'center'},inner:{position:'absolute',borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')}});
+// The emblem as a small still mark (the top bar's way back to the main menu).
+export function EmblemMark({size=40}){
+ if(!web)return <Image source={whole} accessible={false} style={{width:size,height:size}}/>;
+ return <View accessible={false} dataSet={{qb:'emblem-mark'}} style={[s.still,{width:size,height:size}]}/>;
+}
+const s=StyleSheet.create({
+ still:{pointerEvents:'none'},
+ layer:{position:'absolute',left:0,top:0,right:0,bottom:0,pointerEvents:'none'},
+ twinkle:{position:'absolute',width:'12%',height:'12%',pointerEvents:'none'},
+ shine:{position:'absolute',top:'-10%',bottom:'-10%',left:0,width:'45%'},
+});

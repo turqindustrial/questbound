@@ -58,6 +58,7 @@ import {placeName,mapLocation} from './mapRules';
 import {displayState} from './fullscreen';
 import GameHud from './GameHud';
 import LaunchScreen from './LaunchScreen';
+import {EmblemMark} from './TitleEmblem';
 import Agreement from './Agreement';
 import {agreementStatus,acceptAgreement} from './agreementRules';
 import SaveTransfer from './SaveTransfer';
@@ -418,7 +419,7 @@ function QuestboundApp() {
   </View>:<View style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
     <View style={[s.topBar,compact&&{paddingHorizontal:12},home&&{minHeight:48}]}>
-      {home?<View/>:inGame&&!['Level Up','Adventure'].includes(screen)?<Pressable accessibilityRole="button" accessibilityLabel="Back to the adventure" onPress={backToGame} dataSet={{qb:'chip'}} style={s.backChip}><Icon name="back" size={15} color={colors.gold}/><Text style={s.backChipText}>Adventure</Text></Pressable>:<Pressable accessibilityRole="button" accessibilityLabel="Main menu" onPress={()=>setScreen('Home')} style={s.brand}><View dataSet={{qb:'emblem'}} style={s.emblem}><Text dataSet={{qb:'title'}} style={s.emblemQ}>Q</Text></View>{windowWidth>=380&&<Text dataSet={{qb:'title'}} style={[s.logoSmall,compact&&{fontSize:17,letterSpacing:2}]}>Questbound</Text>}</Pressable>}
+      {home?<View/>:inGame&&!['Level Up','Adventure'].includes(screen)?<Pressable accessibilityRole="button" accessibilityLabel="Back to the adventure" onPress={backToGame} dataSet={{qb:'chip'}} style={s.backChip}><Icon name="back" size={15} color={colors.gold}/><Text style={s.backChipText}>Adventure</Text></Pressable>:<Pressable accessibilityRole="button" accessibilityLabel="Main menu" onPress={()=>setScreen('Home')} style={s.brand}><EmblemMark size={42}/>{windowWidth>=380&&<Text dataSet={{qb:'title'}} style={[s.logoSmall,compact&&{fontSize:17,letterSpacing:2}]}>Questbound</Text>}</Pressable>}
       <View style={s.controls}><FullscreenToggle compact/><AudioToggle compact/></View>
     </View>
   {home?<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={{flexGrow:1}} keyboardShouldPersistTaps="handled">
@@ -579,7 +580,7 @@ const s = StyleSheet.create({
   feedbackLink:{alignSelf:'center',marginTop:12,minHeight:44,paddingHorizontal:12,justifyContent:'center'},feedbackText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
   about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.2)')},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},legalRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:4},legalButton:{flexGrow:1,flexBasis:160,marginTop:0},
   backChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,paddingLeft:10,paddingRight:16,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(20,15,21,.8)'),justifyContent:'center'},
-  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},emblem:{width:34,height:34,borderRadius:17,borderWidth:1.5,borderColor:colors.gold,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(12,6,7,.7)')},emblemQ:{fontFamily:fonts.logo,fontSize:19,fontWeight:'900',color:colors.gold,marginTop:-2},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
+  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
 });
 
 

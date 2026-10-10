@@ -1,8 +1,7 @@
 // Web-only finish: typefaces, metallic buttons, framed panels, atmosphere and motion, attached through dataSet hooks (data-qb).
 // The colours are written as the Red theme; tint() turns each into a style variable that follows the chosen theme.
 import {tint,themeVariables} from './theme';
-import {themedText} from './themeRules';
-import {serpentMarkup} from './serpent';
+import {themedText,emblemFilter} from './themeRules';
 const svg=markup=>'url("data:image/svg+xml,'+encodeURIComponent(markup)+'")';
 // Corner filigree for framed panels: a rounded bracket, an inner echo, two curls and a lozenge.
 const flourishMarkup=transform=>(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${transform}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M20 1.5c3 0 4.5 1.6 4.5 3.6' stroke-opacity='.8'/><path d='M1.5 20c0 3 1.6 4.5 3.6 4.5' stroke-opacity='.8'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#be96ff' stroke='none'/></g></svg>`);
@@ -10,13 +9,16 @@ const turns={tl:'',tr:'translate(34 0) scale(-1 1)',bl:'translate(0 34) scale(1 
 const corners={tl:'var(--qb-corner-tl)',tr:'var(--qb-corner-tr)',bl:'var(--qb-corner-bl)',br:'var(--qb-corner-br)'};
 // Film grain: fractal noise baked into a small tile once; it only moves on the compositor.
 const grain=svg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>`);
-// A serpent biting its tail (an ouroboros) turns slowly around the launch emblem and the story seal: scales, a head with a
-// violet eye, its jaws on the tail tip (serpent.js).
-const serpent=serpentMarkup();
+// A four-point star's glint for the emblem's twinkles (pink and white: the emblem's theme filter tints it with the rest).
+const sparkle=svg("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><radialGradient id='g'><stop offset='0' stop-color='#fff' stop-opacity='.95'/><stop offset='.35' stop-color='#ffd6e2' stop-opacity='.45'/><stop offset='1' stop-color='#ffd6e2' stop-opacity='0'/></radialGradient></defs><circle cx='50' cy='50' r='34' fill='url(#g)'/><path d='M50 2C52 38 62 48 98 50C62 52 52 62 50 98C48 62 38 52 2 50C38 48 48 38 50 2Z' fill='#fff' fill-opacity='.95'/></svg>");
 // A picture written as text cannot read a style variable, so these are written out afresh for each theme.
 // Each theme's set is worked out once: theme.js repaints every extra whenever a colour is first used.
 const pictures={};
-themeVariables((theme,mode)=>pictures[theme+':'+mode]??={...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme,mode))])),'--qb-serpent':svg(themedText(serpent,theme,mode))});
+themeVariables((theme,mode)=>pictures[theme+':'+mode]??={...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme,mode))])),
+ // The emblem is a painting: the theme reaches it as a filter (themeRules.js), and in Light it sits on a dark disc of its
+ // own, the painting's background, so it looks as it was painted.
+ '--qb-emblem-filter':emblemFilter(theme),'--qb-emblem-shine':'rgba(255,240,246,.55)',
+ '--qb-emblem-back':mode==='light'?'radial-gradient(circle closest-side,rgb(20,1,15) 0,rgb(20,1,15) 86%,rgba(20,1,15,0) 100%)':'none'});
 const css=tint(`
 html[data-appearance=light] [data-qb=rays],html[data-appearance=light] [data-qb=grain]{opacity:.12!important;}
 html[data-appearance=light] [data-qb=gold],html[data-appearance=light] [data-qb=logo]{filter:none!important;text-shadow:none!important;}
@@ -294,9 +296,29 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 /* Launch sequence. */
 [data-qb=launch-glow]{background:radial-gradient(ellipse 60% 45% at 50% 42%,rgba(140,82,255,.22),transparent 70%),radial-gradient(ellipse 120% 80% at 50% 110%,rgba(72,35,115,.18),transparent 70%),#0a070b !important;animation:qb-candle 5s ease-in-out infinite;}
 @keyframes qb-candle{0%,100%{opacity:.85;}45%{opacity:1;}70%{opacity:.9;}}
-[data-qb=launch-ring]{box-shadow:0 0 0 1px rgba(0,0,0,.8),0 0 40px rgba(230,48,82,.35),inset 0 0 30px rgba(230,48,82,.18);background:radial-gradient(circle at 50% 40%,rgba(48,26,78,.55),rgba(14,10,14,.9) 70%) !important;}
-/* The serpent turns the way its head faces, chasing its tail. */
-[data-qb=serpent]{background:var(--qb-serpent) center/contain no-repeat;animation:qb-spin 120s linear infinite reverse;opacity:.95;}
+/* The emblem (TitleEmblem.js; its layers are made by make-emblem.cjs in public/emblem). The serpent ring and its stars
+   turn once every 90 seconds the way the dragon's head faces (clockwise), chasing its tail; the Q and its whole blade
+   stay still on top. A blurred copy breathes, a light sweeps across the Q now and then (inside the Q's own shape) and
+   the stars twinkle. Only transform and opacity move. */
+[data-qb=emblem]{position:relative;filter:var(--qb-emblem-filter);}
+[data-qb^=emblem-]{background-position:center;background-size:100% 100%;background-repeat:no-repeat;}
+[data-qb=emblem-back]{background-image:var(--qb-emblem-back);}
+[data-qb=emblem-turn]{animation:qb-spin 90s linear infinite;will-change:transform;}
+[data-qb=emblem-ring]{background-image:url(/emblem/ring-v1.webp);}
+[data-qb=emblem-core]{background-image:url(/emblem/core-v1.webp);}
+[data-qb=emblem-glow]{opacity:.55;animation:qb-emblem-glow 7s ease-in-out infinite;}
+[data-qb=emblem-glow][data-part=ring]{background-image:url(/emblem/ring-glow-v1.webp);}
+[data-qb=emblem-glow][data-part=core]{background-image:url(/emblem/core-glow-v1.webp);animation-delay:-3.5s;}
+@keyframes qb-emblem-glow{0%,100%{opacity:.3;}50%{opacity:.9;}}
+[data-qb=emblem-sheen]{overflow:hidden;-webkit-mask:url(/emblem/core-v1.webp) center/100% 100% no-repeat;mask:url(/emblem/core-v1.webp) center/100% 100% no-repeat;}
+[data-qb=emblem-shine]{background:linear-gradient(105deg,transparent 22%,var(--qb-emblem-shine) 50%,transparent 78%);opacity:0;transform:translateX(-120%);animation:qb-emblem-sheen 12s ease-in-out 2s infinite;}
+@keyframes qb-emblem-sheen{0%{opacity:0;transform:translateX(-120%);}6%{opacity:1;}28%{opacity:1;transform:translateX(240%);}29%,100%{opacity:0;transform:translateX(240%);}}
+[data-qb=emblem-twinkle]{background-image:${sparkle};background-size:contain;opacity:0;animation:qb-emblem-twinkle 6.4s ease-in-out infinite;}
+[data-qb=emblem-twinkle][data-star=east]{animation-delay:1.6s;}
+[data-qb=emblem-twinkle][data-star=south]{animation-delay:3.2s;}
+[data-qb=emblem-twinkle][data-star=north]{animation-delay:4.8s;}
+@keyframes qb-emblem-twinkle{0%,60%,100%{opacity:0;transform:scale(.3) rotate(0deg);}72%{opacity:1;transform:scale(1) rotate(30deg);}86%{opacity:0;transform:scale(.5) rotate(60deg);}}
+[data-qb=emblem-mark]{background:url(/emblem/seal-v1.webp) center/contain no-repeat;filter:var(--qb-emblem-filter);}
 [data-qb=launch-prompt]{animation:qb-pulse 2.2s ease-in-out infinite;}
 @keyframes qb-pulse{0%,100%{opacity:.45;}50%{opacity:1;}}
 /* Game HUD and phone tab bar: dark glass, always on top of the scene. They are almost opaque, so they carry no blur
@@ -307,7 +329,6 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=tabbar]{background:linear-gradient(180deg,rgba(16,12,17,.9),rgba(10,7,11,.97)) !important;}
 [data-qb=tabbar]::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(224,74,92,.6) 20%,rgba(224,74,92,.6) 80%,transparent);pointer-events:none;}
 [data-qb=tab-on]{background:radial-gradient(ellipse 60% 90% at 50% 0%,rgba(230,48,82,.22),transparent 70%) !important;}
-[data-qb=emblem]{box-shadow:0 0 16px rgba(230,48,82,.35),inset 0 0 10px rgba(230,48,82,.2);}
 [data-qb=key]{box-shadow:inset 0 -1px 0 rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.06);}
 @media (hover:none){[data-qb=key]{display:none !important;}}
 [data-qb=typing] [data-qb=dot]{animation:qb-typing 1.2s ease-in-out infinite;}
@@ -322,7 +343,7 @@ input::placeholder,textarea::placeholder{font-style:italic;}
    look, still. No grain or light shafts, the fog, embers and painting stay where they are, and the frosted panels
    become plain dark glass (a blur of the moving scene behind them was redrawn every frame). */
 html[data-effects=light] [data-qb=grain],html[data-effects=light] [data-qb=rays]{display:none !important;}
-html[data-effects=light] [data-qb=fog],html[data-effects=light] [data-qb=embers]::before,html[data-effects=light] [data-qb=embers]::after,html[data-effects=light] [data-qb=backdrop],html[data-effects=light] [data-qb=btn-primary]::after,html[data-effects=light] [data-qb=launch-glow],html[data-effects=light] [data-qb=serpent]{animation:none !important;}
+html[data-effects=light] [data-qb=fog],html[data-effects=light] [data-qb=embers]::before,html[data-effects=light] [data-qb=embers]::after,html[data-effects=light] [data-qb=backdrop],html[data-effects=light] [data-qb=btn-primary]::after,html[data-effects=light] [data-qb=launch-glow],html[data-effects=light] [data-qb=emblem] *{animation:none !important;}
 html[data-effects=light] [data-qb=glass],html[data-effects=light] [data-qb=hud],html[data-effects=light] [data-qb=tabbar],html[data-effects=light] [data-qb=scrim],html[data-effects=light] [data-qb=slot],html[data-effects=light] [data-qb=area],html[data-effects=light] [data-qb=finale]{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
 html[data-effects=light] [data-qb=glass]{background:linear-gradient(180deg,rgba(29,22,30,.95),rgba(16,11,17,.96)) !important;}
 html[data-effects=light] [data-qb=hud]{background:linear-gradient(180deg,rgba(22,17,23,.97),rgba(14,10,14,.95)) !important;}
@@ -330,6 +351,8 @@ html[data-effects=light] [data-qb=slot]{background:linear-gradient(160deg,rgba(4
 /* While a full-screen card covers the game (a tale being written, a scene loading, the agreement, a victory), the
    scene behind it holds still. */
 html[data-covered=on] [data-qb=stage] *,html[data-covered=on] [data-qb=stage] *::before,html[data-covered=on] [data-qb=stage] *::after{animation-play-state:paused !important;}
+/* The emblem behind a cover holds still too (the story seal is on the cover itself and keeps turning). */
+html[data-covered=on] [data-qb=emblem]:not([data-place=story]) *{animation-play-state:paused !important;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;}}
 `);
 export function initializeWebTheme(){
