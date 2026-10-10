@@ -124,9 +124,18 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     if(lock.current||busy||playing)return;
     if(!await openConversation(id))return;
     const speaker=conversationPeople(game).find(n=>n.id===id);
-    if(!speaker||table?.joined||waiting||tableSyncing||!shouldGreet(game,id))return;
+    if(!speaker||waiting||tableSyncing||turnWait||!shouldGreet(game,id))return;
     const opening=greeting(game,id,hero),snapshot=fingerprint;
     lock.current=true;setBusy(true);setError('');setDraft('');
+    // At a shared table the campaign server works out the greeting and plays it as a turn (server-turn.cjs, greet).
+    if(table?.joined){
+      try{const prefs=storyPreferences(),result=await table.turn(opening.scene,{npcId:id,greet:true,oneOnOne:alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
+       if(!alive.current)return;
+       const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,result);setAnimateId(result.turn?.id??null);}
+      catch(e){fail(e);}
+      finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
+      return;
+    }
     try{
       let narration=opening.aside,dialogue=[{speakerId:id,text:opening.fallback}],said=null;
       if(connected)try{const body=await post(opening.scene,game,health,speaker,{sceneTrigger:{id:'greet:'+id,cue:opening.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>l.speakerId===id).slice(0,2);if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
