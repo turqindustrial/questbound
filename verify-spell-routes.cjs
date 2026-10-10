@@ -8,7 +8,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // the shared table. It writes SPELL-COVERAGE.json from what it saw.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','sequelRules.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const names='hostileEncounterGame,startParty,joinParty,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,dmChoices,dmContext,commitDmTurn,adventureStep,quickActions,spellActions,dmCommand,knownSpells,spellLibrary,spellLimits,automaticEffects,narratedSpells,spellCostOptions,requestSpell,resolveSpellRuling,makeCharacter,equipmentFor,startWildFight,spellDamageMax,spellDefense,combatBasics,speciesSpells,partyView,settleParty,canonicalParty,endSpellMarks,spellConditions,castingStages,validParty,heroIdOf,markOf,withSpellMark,bonusOptions,concentrationAfterDamage';
+const names='hostileEncounterGame,startParty,joinParty,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,dmChoices,dmContext,commitDmTurn,adventureStep,quickActions,spellActions,dmCommand,knownSpells,spellLibrary,spellLimits,automaticEffects,narratedSpells,spellCostOptions,requestSpell,resolveSpellRuling,makeCharacter,equipmentFor,startWildFight,spellDamageMax,spellDefense,combatBasics,speciesSpells,partyView,settleParty,canonicalParty,endSpellMarks,spellConditions,castingStages,validParty,heroIdOf,markOf,withSpellMark,bonusOptions,concentrationAfterDamage,creatureDefenses';
 const r=vm.runInNewContext(source+'\n({'+names.split(',').map(n=>`${n}:typeof ${n}==='undefined'?undefined:${n}`).join(',')+'})',{AsyncStorage:{},weaponIcon:()=>'sword',console});
 for(const n of names.split(','))assert.ok(r[n]!==undefined,n+' is defined');
 
@@ -234,8 +234,33 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
 {
  const wiz=hero('Wizard',3,['fire-bolt','light','mage-hand','sleep','hold-person','mage-armor','detect-magic']),sc=scenes(wiz);
  const slept=cast(wiz,sc.fight,'I cast Sleep at the enemy.',()=>0);
- assert.equal(slept.error,undefined,slept.error);assert.equal(r.markOf(slept.game,'foe').spells[0].cond,'asleep');
- assert.match(lines(slept),/sleeps on\./,'the sleeping foe does nothing on its turn');assert.ok(!/Vessa the Dry Hand: d20/.test(lines(slept)),'and makes no attack');
+ // SRD 5.2: a failed save leaves it drowsy (Incapacitated, not helpless) to the end of its next turn, then it saves
+ // again and sleeps on a second failure.
+ assert.equal(slept.error,undefined,slept.error);
+ assert.match(lines(slept),/is drowsy and does nothing\./,'the drowsy foe does nothing on its turn');assert.ok(!/Vessa the Dry Hand: d20/.test(lines(slept)),'and makes no attack');
+ assert.match(lines(slept),/falls into a magical sleep, and only harm/,'a second failed save at the end of its turn puts it to sleep');
+ assert.equal(r.markOf(slept.game,'foe').spells[0].cond,'asleep');
+ const drowsy=r.adventureStep({...r.withSpellMark(sc.fight,'foe',{id:'sleep',cond:'drowsy',by:'hero',dc:13,save:'Wisdom'}),concentration:{id:'sleep',remaining:10,duration:'1 minute'}},null,wiz,'dodge',()=>0.99);
+ assert.equal(r.markOf(drowsy.game,'foe').spells,undefined,'a second save made shakes the spell off');assert.match(lines(drowsy),/shakes off Sleep/);
+ const asleep=r.adventureStep({...slept.game,actionUsed:undefined},null,wiz,'dodge',()=>0.5);assert.match(lines(asleep),/sleeps on\./,'asleep, it does nothing');
+ // The undead and constructs cannot be Exhausted, an elf does not sleep: Sleep has no hold on them.
+ const bones=r.startWildFight(sc.landmark,wiz,{template:'skeleton',name:'Barrow Skeleton',appearance:'Yellowed bones in rusted mail.'},{place:sc.landmark.world.at,from:'inn',hp:null}).game;
+ const notSleeping=cast(wiz,{...bones,openingAttackAvailable:false},'I cast Sleep at the skeleton.',()=>0);
+ assert.match(lines(notSleeping),/does not sleep, so the spell has no hold on it/);assert.equal(r.markOf(notSleeping.game,'foe').spells,undefined);
+ assert.equal(r.creatureDefenses({...sc.inn,story:{...sc.inn.story,npcs:{...sc.inn.story.npcs,keeper:{...sc.inn.story.npcs.keeper,species:'Wood Elf'}}}},'keeper').sleepless,true,'an elf does not sleep');
+ // Undead immunities (SRD 5.2): no Poison damage and never Poisoned; a skeleton takes double from Bludgeoning.
+ const sorc=hero('Sorcerer',3,['fire-bolt','light','prestidigitation','ray-of-sickness','shield']);
+ const sick=cast(sorc,{...bones,openingAttackAvailable:false},'I cast Ray of Sickness at the skeleton.',()=>0.99);
+ assert.equal(sick.error,undefined,sick.error);assert.equal(sick.game.enemyHP,bones.enemyHP,'a skeleton takes no Poison damage');assert.match(lines(sick),/cannot be poisoned/);
+ assert.ok(!(r.markOf(sick.game,'foe').spells??[]).some(m=>m.cond==='poisoned'),'and is not Poisoned');
+ same(r.creatureDefenses(bones,'foe'),{immunities:['Poison'],conditionImmunities:['Poisoned','Exhaustion'],vulnerabilities:['Bludgeoning'],sleepless:true});
+ const zombies=r.startWildFight(sc.landmark,wiz,{template:'zombies',name:'Drowned Dead',appearance:'Sodden corpses.'},{place:sc.landmark.world.at,from:'inn',hp:null}).game;
+ same(r.creatureDefenses(zombies,'foe').vulnerabilities,[]);same(r.creatureDefenses(zombies,'foe').immunities,['Poison']);
+ const cleric=hero('Cleric',3,['sacred-flame','light','guidance','cure','bless']);
+ const maceFoe={...bones,openingAttackAvailable:false,enemyHP:200};
+ const mace=r.dmChoices(cleric,maceFoe,null).find(c=>/^attack:/.test(c.id)&&/Mace/.test(c.id));
+ assert.ok(mace,'the Cleric swings a mace');
+ const blow=r.adventureStep(maceFoe,null,cleric,mace.action,seq([0.95,0.95,0.5,0.5,0.5,0.5,0.5,0.5]));assert.match(lines(blow),/is vulnerable to bludgeoning damage: \d+ damage applied/,'a mace breaks a skeleton\'s bones');
  assert.ok(saved(wiz,slept),'a mark of a spell saves');
  // Harm wakes it.
  const woke=cast(wiz,slept.game,'I cast Fire Bolt at the enemy.',()=>0.99);assert.match(lines(woke),/wakes/);assert.equal(r.markOf(woke.game,'foe').spells,undefined);
@@ -261,6 +286,11 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  assert.ok(hit.game.lastHit,'a melee hit opens the way for Divine Smite');
  const chip=r.spellActions(pal,hit.game).find(c=>c.key==='spell:divine-smite');assert.ok(chip,'the Divine Smite chip is offered after the hit');
  const smite=cast(pal,hit.game,chip.question,()=>0.5);assert.equal(smite.error,undefined,smite.error);assert.match(lines(smite),/Divine Smite: \d+d8/);
+ // The smite goes through the creature's defences (radiant resistance or immunity the Dungeon Master gave it).
+ const smiteReq=r.dmCommand(pal,hit.game,chip.question,null).action.request,vessa=extra=>({name:'Vessa the Dry Hand',ac:12,saves:{},...extra});
+ const proof=r.requestSpell(pal,hit.game,null,30,smiteReq,()=>0.5,vessa({immunities:['Radiant']}));
+ assert.equal(proof.damage,0,'radiant immunity stops Divine Smite');assert.ok(proof.logs.some(l=>/After the target's Radiant defenses: 0 damage applied/.test(l)));
+ assert.equal(r.requestSpell(pal,hit.game,null,30,smiteReq,()=>0.5,vessa({resistances:['Radiant']})).damage,Math.floor(r.requestSpell(pal,hit.game,null,30,smiteReq,()=>0.5,vessa({})).damage/2),'and resistance halves it');
  assert.match(r.dmCommand(pal,{...pf,lastHit:undefined},'I cast Divine Smite.',null).error,/follows a hit/);
  const blessed=cast(pal,scenes(pal).inn,'I cast Bless on me.');assert.equal(blessed.error,undefined,blessed.error);assert.equal(blessed.waiting,undefined,'Bless on yourself needs no ruling');assert.equal(blessed.game.concentration.id,'bless');
  const bf={...scenes(pal).fight,concentration:blessed.game.concentration,lastHit:undefined};

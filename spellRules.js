@@ -259,13 +259,15 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   const roll=(count,sides)=>Array.from({length:count},()=>1+Math.floor(random()*sides));
   const sum=dice=>dice.reduce((a,b)=>a+b,0);
   const count=spell.level===0?cantripDice(hero.level):(effect.count??1)+(level-spell.level)*(effect.upcast??0);
-  const key=request.npcTarget??request.aim??'foe',called=target.name?(key==='foe'?'the '+String(target.name).replace(/^the /i,''):target.name):'the target';
+  // What it is immune or vulnerable to (the undead take no Poison, a skeleton breaks under Bludgeoning).
+  const key=request.npcTarget??request.aim??'foe';target=withDefenses(game,key,target);
+  const called=target.name?(key==='foe'?'the '+String(target.name).replace(/^the /i,''):target.name):'the target';
   // The time a ritual or a long casting takes, out of a fight.
   const elapsed=()=>{if(fighting)return;const minutes=Math.ceil((durationRounds(spell.castingTime)??0)/10)+(request.slot==='ritual'?10:0);if(minutes&&(next.map??game.map))next.map={...(next.map??game.map),minutes:((next.map??game.map).minutes??0)+minutes};};
   // Every creature the spell may reach besides the one aimed at (target.others: the foe and the creatures beside it in
   // a fight with creatures, the people fighting in a brawl), as far as the spell allows: all of them for an area, else
   // as many as it has targets at this level. `splash`: the damage each of them takes.
-  const others=(target.others??[]).filter(o=>o&&o.key!==key),splash=[];
+  const others=(target.others??[]).filter(o=>o&&o.key!==key).map(o=>withDefenses(game,o.key,o)),splash=[];
   const reachOf=how=>how?.area?others:how?.targets?others.slice(0,Math.max(0,(how.targets.base??1)+Math.max(0,level-spell.level)*(how.targets.upcast??0)-1)):[];
   const calledOf=o=>o.key==='foe'?'the '+String(o.name??'foe').replace(/^the /i,''):String(o.name??o.key);
   const upper=t=>t.charAt(0).toUpperCase()+t.slice(1);
@@ -365,14 +367,19 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     // Whether a beast or a spirit wears or holds any metal is for the Dungeon Master to say.
     if(!nature.humanoid&&!/construct|warden|sentinel|knight|armou?r/i.test(String(target.name??'')))return {game:{...game,pendingSpell:{...request,id:spell.id,forceDM:true}},health,waiting:true,logs:[`${spell.name}: waiting for a DM ruling on what metal ${called} carries. No resources spent yet.`]};
     const dice=roll(count,effect.die);damage=defended(target,'Fire',sum(dice));
-    const save=saveAgainst('Constitution');
-    logs.push(`${spell.name}: the metal of ${called} glows red-hot: ${damage} Fire damage (${count}d${effect.die} [${dice.join(', ')}]). ${save.text}: ${save.success?'it lets go of what it can.':'it keeps hold of the burning metal, and its attacks have disadvantage until your next turn.'}`);
-    if(!save.success)next=withSpellMark(next,key,{id:spell.id,cond:'scorched',by:heroIdOf(next),dc,save:'Constitution',rounds:1});
+    // A failed Constitution save makes it drop the metal if it can; one that keeps hold (it saved, or the metal is armour
+    // it wears) attacks with disadvantage until your next turn.
+    const worn=heatWorn(nature,target,request.intent),save=saveAgainst('Constitution');
+    logs.push(`${spell.name}: the metal of ${called} glows red-hot: ${damage} Fire damage (${count}d${effect.die} [${dice.join(', ')}]). ${save.text}: ${heatLine(save.success,worn)}`);
+    if(save.success||worn)next=withSpellMark(next,key,{id:spell.id,cond:'scorched',by:heroIdOf(next),dc,save:'Constitution',rounds:1});
+    if(worn)next.concentration={...next.concentration,worn:true};
   } else if(effect.smite){
-    // Divine Smite: right after a melee hit, radiant damage to the creature struck (more against fiends and undead).
+    // Divine Smite: right after a melee hit, radiant damage to the creature struck (more against fiends and undead),
+    // through its defences.
     const hit=game.lastHit,nature=creatureNature(game,hit?.target??key),extra=nature.undead||nature.fiend?1:0,dice=roll((2+(level-1)+extra)*(hit?.critical?2:1),8);
-    damage=sum(dice);
-    logs.push(`Divine Smite: ${dice.length}d8 [${dice.join(', ')}] = ${damage} Radiant damage${extra?' (more against '+(nature.undead?'the undead':'a fiend')+')':''}${hit?.critical?', doubled by the critical hit':''}.`);
+    const rolled=sum(dice);damage=defended(target,'Radiant',rolled);
+    logs.push(`Divine Smite: ${dice.length}d8 [${dice.join(', ')}] = ${rolled} Radiant damage${extra?' (more against '+(nature.undead?'the undead':'a fiend')+')':''}${hit?.critical?', doubled by the critical hit':''}.`);
+    if(damage!==rolled)logs.push(`After the target's Radiant defenses: ${damage} damage applied (${rolled} before defenses).`);
     delete next.lastHit;
   } else if(effect.trueStrike){
     // True Strike: one attack with the hero's own weapon, guided by their spellcasting ability; Radiant if they say so,
@@ -401,6 +408,10 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
     const how=effect.inflict;
     const inflictOn=(tgt,k,who)=>{
       if(how.humanoid&&!creatureNature(next,k).humanoid){logs.push(`${spell.name}: ${who} is not a humanoid, so the spell has no hold on it.`);return;}
+      // Sleep: a creature that never sleeps or cannot be Exhausted (the undead, constructs, an elf in its trance) is
+      // untouched; any other that fails is only drowsy (Incapacitated) until its next turn ends (spellTurnEnds).
+      if(how.sleep&&tgt.sleepless){logs.push(`${spell.name}: ${upper(who)} does not sleep, so the spell has no hold on it.`);return;}
+      if(how.immune&&(tgt.conditionImmunities??[]).includes(how.immune)){logs.push(`${spell.name}: ${upper(who)} cannot be ${how.immune}, so the spell has no hold on it.`);return;}
       const save=saveAgainst(how.save,!!how.fightAdvantage,tgt,k);
       logs.push(`${spell.name}: ${who} makes a ${save.text}: ${save.success?'success. It shakes off the spell.':'failure. '+conditionText(how.cond,who,spell)}`);
       if(!save.success){
@@ -461,7 +472,8 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
       }
       damage+=part;
       if(hit && effect.drain && part>0){const back=Math.floor(part/2),was=hp.current;hp.current=Math.min(maximum,hp.current+back);logs.push(`You draw back ${hp.current-was} HP.`);}
-      if(hit && effect.condition){
+      if(hit && effect.condition==='Poisoned' && (target.conditionImmunities??[]).includes('Poisoned'))logs.push(`${upper(called)} cannot be poisoned.`);
+      else if(hit && effect.condition){
         if(effect.condition==='Next attack has advantage')next=withSpellMark(next,key,{id:spell.id,cond:'guided',by:heroIdOf(next),dc,save:'Wisdom',rounds:1});
         else if(effect.condition==='Poisoned')next=withSpellMark(next,key,{id:spell.id,cond:'poisoned',by:heroIdOf(next),dc,save:'Constitution',rounds:1});
         else next.enemyEffects={...next.enemyEffects,[effect.condition]:spell.id==='chill-touch'?2:1};
@@ -501,11 +513,16 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
   if(lasting&&next.concentration?.id===spell.id)next.concentration={...next.concentration,level,dc,...(lasting.zone==='target'||lasting.same?{target:key}:{}),...(fighting&&lasting.later?{fresh:true}:{})};
   return {game:next,health:hp,logs,damage,splash,bonus:spell.castingTime==='Bonus Action'&&!effect.asAction,reaction:spell.castingTime==='Reaction',enemyDisadvantage};
 }
+// Heat Metal: whether the heated metal is armour the creature wears (it cannot drop it): a construct or an armoured
+// warden, or armour the caster named.
+function heatWorn(nature,target,intent){return !!nature.construct||/construct|warden|sentinel|knight|armou?r/i.test(String(target?.name??''))||/\b(armou?r|mail|breastplate|plate|helm|helmet|cuirass|gauntlets?)\b/i.test(String(intent??''));}
+function heatLine(saved,worn){return worn?'it cannot shed the armour, so it burns on, and its attacks have disadvantage until your next turn.':saved?'it keeps hold of the burning metal, and its attacks have disadvantage until your next turn.':'it drops the red-hot metal.';}
 // A target's resistance, immunity or vulnerability to a damage type.
-function defended(target,type,amount){
-  if(!type||!amount)return amount;
-  if(target.immunities?.includes(type))return 0;
-  let n=amount;if(target.resistances?.includes(type))n=Math.floor(n/2);if(target.vulnerabilities?.includes(type))n*=2;
+export function defended(target,type,amount){
+  if(!type||!amount||!target)return amount;
+  const has=list=>(list??[]).some(t=>String(t).toLowerCase()===String(type).toLowerCase());
+  if(has(target.immunities))return 0;
+  let n=amount;if(has(target.resistances))n=Math.floor(n/2);if(has(target.vulnerabilities))n*=2;
   return n;
 }
 export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.random) {
@@ -583,7 +600,7 @@ export function concentrationAfterDamage(hero,game,damage,random=Math.random) {
 // the creature's key ('foe', 'ally:0', a person's id) as `spells` entries {id, cond, by: the caster's hero id, dc,
 // save, rounds?}; one held by concentration ends when the caster's concentration does (endSpellMarks).
 export const spellConditions={
-  sleep:{save:'Wisdom',cond:'asleep',area:true},
+  sleep:{save:'Wisdom',cond:'drowsy',sleep:true,area:true},
   'hypnotic-pattern':{save:'Wisdom',cond:'entranced',area:true},
   'hold-person':{save:'Wisdom',cond:'paralyzed',humanoid:true,targets:{base:1,upcast:1}},
   'hold-monster':{save:'Wisdom',cond:'paralyzed',targets:{base:1,upcast:1}},
@@ -611,6 +628,7 @@ Object.assign(automaticEffects,{
   shield:{shield:true},
 });
 const conditionLines={
+  drowsy:'grows heavy-eyed and does nothing until the end of its next turn, when it must save again or fall asleep. Harm rouses it.',
   asleep:'falls into a magical sleep: it does nothing until it wakes, and wakes if it is hurt.',
   entranced:'stands entranced and does nothing; harm breaks the spell.',
   paralyzed:'is paralyzed: it cannot act, attacks on it have advantage, and a blow from beside it is a critical hit. It tries to break free at the end of each of its turns.',
@@ -627,9 +645,23 @@ function conditionText(cond,called,spell){return (called.charAt(0).toUpperCase()
 // What a creature is, as far as spells care: a humanoid (Hold Person, Charm Person), undead or a fiend (Divine Smite).
 const humanoidWords=/\b(human|humans|elf|elves|elven|dwarf|dwarves|halfling|gnome|orc|orcs|goblin|goblins|hobgoblin|bugbear|kobold|tiefling|dragonborn|goliath|bandit|bandits|cultist|cultists|knight|guard|soldier|thief|mage|priest|priestess|witch|wizard|sorcerer|sorceress|warlock|captain|brigand|pirate|raider|assassin|noble|merchant|lord|lady|queen|king|woman|man)\b/i;
 export function creatureNature(game,key){
-  if(key&&key!=='foe'&&!String(key).startsWith('ally:'))return {humanoid:true,undead:false,fiend:false};
+  // A person is a humanoid; an elf goes into a trance instead of sleeping (so magic cannot put it to sleep).
+  if(key&&key!=='foe'&&!String(key).startsWith('ally:'))return {humanoid:true,undead:false,fiend:false,construct:false,skeleton:false,sleepless:/\b(elf|elves|elven|drow)\b/i.test(String(npcLore(game,key)?.species??''))};
   const kind=(key==='foe'?(game.wildFight?[game.wildFight.template,game.wildFight.name].join(' '):game.dungeon?.active?'warden construct':game.story?[game.story.foeSpecies,game.story.foe].join(' '):'lantern wisp'):String(game.foeAllies?.[Number(String(key).slice(5))]?.template??'')).toLowerCase();
-  return {humanoid:humanoidWords.test(kind),otherworldly:/\b(aberration|beholder|celestial|angel|deva|elemental|fey|sprite|pixie|dryad|hag|fiend|fiendish|demon|devil|imp|quasit|hellhound|undead|skeleton|skeletons|zombie|zombies|ghoul|ghast|wight|wraith|specter|spectre|ghost|vampire|lich|mummy|revenant|banshee|wisp)\b/.test(kind),undead:/\b(undead|skeleton|skeletons|zombie|zombies|ghoul|ghast|wight|wraith|specter|spectre|ghost|vampire|lich|mummy|revenant|banshee)\b/.test(kind),fiend:/\b(fiend|demon|devil|imp|quasit|hellhound|fiendish)\b/.test(kind)};
+  return {humanoid:humanoidWords.test(kind),otherworldly:/\b(aberration|beholder|celestial|angel|deva|elemental|fey|sprite|pixie|dryad|hag|fiend|fiendish|demon|devil|imp|quasit|hellhound|undead|skeleton|skeletons|zombie|zombies|ghoul|ghast|wight|wraith|specter|spectre|ghost|vampire|lich|mummy|revenant|banshee|wisp)\b/.test(kind),undead:/\b(undead|skeleton|skeletons|zombie|zombies|ghoul|ghast|wight|wraith|specter|spectre|ghost|vampire|lich|mummy|revenant|banshee)\b/.test(kind),fiend:/\b(fiend|demon|devil|imp|quasit|hellhound|fiendish)\b/.test(kind),construct:/\b(construct|golem|animated|homunculus)\b/.test(kind),skeleton:/\bskeletons?\b/.test(kind),sleepless:/\b(elf|elves|elven|drow)\b/.test(kind)};
+}
+// What a creature shrugs off, as SRD 5.2 gives it (worked out from what it is, so old saves and written foes have it
+// too): the undead and constructs take no Poison damage and are never Poisoned or Exhausted (so magic cannot put them
+// to sleep either); a skeleton's bones break under Bludgeoning blows; an elf's trance keeps it from magical sleep.
+export function creatureDefenses(game,key){
+  const nature=creatureNature(game,key),tireless=nature.undead||nature.construct;
+  return {immunities:tireless?['Poison']:[],conditionImmunities:tireless?['Poisoned','Exhaustion']:[],vulnerabilities:nature.skeleton?['Bludgeoning']:[],sleepless:tireless||!!nature.sleepless};
+}
+// A target's numbers with what it is immune or vulnerable to added (anything written for it is kept).
+export function withDefenses(game,key,target){
+  if(!target)return target;
+  const own=creatureDefenses(game,key),join=(a,b)=>[...new Set([...(a??[]),...b])];
+  return {...target,immunities:join(target.immunities,own.immunities),conditionImmunities:join(target.conditionImmunities,own.conditionImmunities),vulnerabilities:join(target.vulnerabilities,own.vulnerabilities),sleepless:!!target.sleepless||own.sleepless};
 }
 const spellMarksOf=(game,key)=>markOf(game,key).spells??[];
 export function withSpellMark(game,key,entry){
@@ -641,7 +673,7 @@ export const spellCondsOf=(game,key)=>spellMarksOf(game,key).map(m=>m.cond);
 // Whether a creature is helpless (a melee hit on it from beside it is a critical hit).
 export const helpless=(game,key)=>spellCondsOf(game,key).some(c=>['paralyzed','asleep'].includes(c));
 // Whether a creature does nothing on its turn.
-export const spellIncapacitated=(game,key)=>spellCondsOf(game,key).some(c=>['paralyzed','asleep','entranced','laughing','commanded','groveling'].includes(c));
+export const spellIncapacitated=(game,key)=>spellCondsOf(game,key).some(c=>['paralyzed','asleep','drowsy','entranced','laughing','commanded','groveling'].includes(c));
 // Whether a creature will not attack this hero (charmed by them).
 export const charmedBy=(game,key,heroId)=>spellMarksOf(game,key).some(m=>m.cond==='charmed'&&m.by===heroId);
 // The edge on an attack at a creature from what spells left on it: advantage on one paralyzed, asleep, held fast,
@@ -667,8 +699,8 @@ export function banedAttack(game,key,attack,random=Math.random){
 // (Their own Bless, unless they hold it only for others, or a friend's Bless on them: game.boons.)
 export function attackBoost(game,random=Math.random){return (game.concentration?.id==='bless'&&game.concentration.self!==false)||boonOn(game,ownBoonKey(game),'bless')?{amount:1+Math.floor(random()*4)}:{amount:0};}
 // Harm breaks a magical sleep, a trance and a charm.
-const breakable=['asleep','entranced','charmed'];
-const brokenLine=(name,conds)=>`${name} is hurt, and ${conds.map(c=>c==='charmed'?'the charm breaks':c==='asleep'?'wakes':'snaps out of the trance').join(' and ')}.`;
+const breakable=['asleep','drowsy','entranced','charmed'];
+const brokenLine=(name,conds)=>`${name} is hurt, and ${conds.map(c=>c==='charmed'?'the charm breaks':c==='asleep'?'wakes':c==='drowsy'?'is roused':'snaps out of the trance').join(' and ')}.`;
 export function breakOnDamage(game,key){
   const list=spellMarksOf(game,key);if(!list.some(m=>breakable.includes(m.cond)))return game;
   return setSpellMarks(game,key,list.filter(m=>!breakable.includes(m.cond)));
@@ -703,8 +735,8 @@ export function endSpellMarks(game,recast=null){
 // At the start of a creature's turn: whether spells keep it from acting.
 export function spellTurnStarts(game,key,name){
   const conds=spellCondsOf(game,key),lines=[];
-  const still=conds.find(c=>['paralyzed','asleep','entranced','laughing','commanded','groveling'].includes(c));
-  if(still)lines.push(`${name} ${({paralyzed:'is paralyzed and cannot act.',asleep:'sleeps on.',entranced:'stands entranced.',laughing:'is helpless with laughter.',commanded:'obeys your command and loses its turn.',groveling:'grovels and loses its turn.'})[still]}`);
+  const still=conds.find(c=>['paralyzed','asleep','drowsy','entranced','laughing','commanded','groveling'].includes(c));
+  if(still)lines.push(`${name} ${({paralyzed:'is paralyzed and cannot act.',asleep:'sleeps on.',drowsy:'is drowsy and does nothing.',entranced:'stands entranced.',laughing:'is helpless with laughter.',commanded:'obeys your command and loses its turn.',groveling:'grovels and loses its turn.'})[still]}`);
   // Commanded to grovel, it throws itself down: it lies prone until its next turn.
   return {skip:!!still,lines,game:still==='groveling'?withMark(game,key,{prone:true}):game};
 }
@@ -715,6 +747,13 @@ export function spellTurnEnds(game,key,name,saves,random=Math.random){
   for(const m of list){
     if(m.rounds!==undefined&&m.rounds<=1){if(['poisoned','blinded','charmed','frightened'].includes(m.cond))lines.push(`${name} is no longer ${m.cond}.`);continue;}
     const entry=m.rounds!==undefined?{...m,rounds:m.rounds-1}:m;
+    // Sleep: drowsy to the end of its turn, then a second Wisdom save, or it sleeps (Unconscious) while the spell lasts.
+    if(m.cond==='drowsy'){
+      const die=1+Math.floor(random()*20),bonus=saves?.[m.save]??0,bane=spellCondsOf(game,key).includes('baned')?1+Math.floor(random()*4):0,total=die+bonus-bane,woke=total>=m.dc;
+      lines.push(`${name} makes a ${m.save} save d20 ${die} + ${bonus}${bane?' − '+bane+' Bane':''} = ${total} vs DC ${m.dc}: ${woke?'it shakes off '+spellName(m.id)+'.':'it falls into a magical sleep, and only harm or a hard shake will wake it.'}`);
+      if(!woke)kept.push({...entry,cond:'asleep'});
+      continue;
+    }
     if(['paralyzed','laughing','restrained','blinded','frightened'].includes(m.cond)){
       const die=1+Math.floor(random()*20),bonus=saves?.[m.save]??0,bane=spellCondsOf(game,key).includes('baned')?1+Math.floor(random()*4):0,total=die+bonus-bane;
       if(total>=m.dc){lines.push(`${name} makes a ${m.save} save d20 ${die} + ${bonus} = ${total} vs DC ${m.dc} and breaks free of ${spellName(m.id)}.`);continue;}
@@ -1113,6 +1152,7 @@ export function againError(game,fighting=game.stage==='combat'||!!game.npcCombat
 export function spellAgain(hero,game,health,maximum,key,target,random=Math.random){
   const fighting=game.stage==='combat'||!!game.npcCombat?.active,error=againError(game,fighting);if(error)return {error};
   if(health?.current===0)return {error:'You cannot cast at 0 HP.'};
+  target=withDefenses(game,key,target);
   const c=game.concentration,l=lastingSpells[c.id],spell=spellLibrary.find(s=>s.id===c.id),level=c.level??spell.level;
   if(l.same&&c.target&&key!==c.target)return {error:`${spell.name} works only on the metal it first heated.`};
   const mod=modifier(hero.scores[castingAbility(hero)]),bonus=proficiencyBonus(hero.level)+mod,dc=8+bonus,roll=(n,d)=>Array.from({length:n},()=>1+Math.floor(random()*d)),sum=d=>d.reduce((a,b)=>a+b,0);
@@ -1136,11 +1176,12 @@ export function spellAgain(hero,game,health,maximum,key,target,random=Math.rando
       damage=defended(target,l.type,saved?(l.half?Math.floor(rolled/2):0):rolled);
       logs.push(`${spell.name} (${how}) on ${called}: ${l.save} save d20 ${die} + ${saveBonus}${shift?' − '+shift+' Bane':''} = ${total} vs DC ${dc}: ${saved?'success':'failure'}; ${damage} ${l.type} damage (${count}d${l.die} [${dice.join(', ')}]${saved&&l.half?', halved':''}).`);
     } else {
-      // Heat Metal: the damage comes with no save; holding on to the glowing metal spoils its attacks until your next turn.
+      // Heat Metal: the damage comes with no save; a failed Constitution save drops the metal if it can, and keeping hold
+      // of it (a success, or armour it wears) spoils its attacks until your next turn.
       damage=defended(target,l.type,rolled);
-      const die=1+Math.floor(random()*20),saveBonus=target.saves?.Constitution??0,total=die+saveBonus,held=total<dc;
-      logs.push(`${spell.name} (${how}): the metal of ${called} glows red-hot again: ${damage} ${l.type} damage (${count}d${l.die} [${dice.join(', ')}]). Constitution save d20 ${die} + ${saveBonus} = ${total} vs DC ${dc}: ${held?'it keeps hold of the burning metal, and its attacks have disadvantage until your next turn.':'it lets go of what it can.'}`);
-      if(held)next=withSpellMark(next,key,{id:spell.id,cond:'scorched',by:heroIdOf(next),dc,save:'Constitution',rounds:1});
+      const die=1+Math.floor(random()*20),saveBonus=target.saves?.Constitution??0,total=die+saveBonus,saved=total>=dc,worn=!!c.worn;
+      logs.push(`${spell.name} (${how}): the metal of ${called} glows red-hot again: ${damage} ${l.type} damage (${count}d${l.die} [${dice.join(', ')}]). Constitution save d20 ${die} + ${saveBonus} = ${total} vs DC ${dc}: ${heatLine(saved,worn)}`);
+      if(saved||worn)next=withSpellMark(next,key,{id:spell.id,cond:'scorched',by:heroIdOf(next),dc,save:'Constitution',rounds:1});
     }
   }
   if(damage>0){

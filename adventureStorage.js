@@ -125,11 +125,12 @@ function validSpellState(g) {
       && (g.concentration.damageType===undefined || ['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'].includes(g.concentration.damageType))
       && (g.concentration.used===undefined || g.concentration.used===true)
       // A spell held only for others (self:false); a lasting spell's slot level, save DC and whether it was cast this
-      // turn; Hex or Hunter's Mark whose creature dropped (lost) or whose fight ended (gone) (spellRules.js).
+      // turn; Hex or Hunter's Mark whose creature dropped (lost) or whose fight ended (gone); Heat Metal on worn armour (worn)
+      // (spellRules.js).
       && (g.concentration.self===undefined || g.concentration.self===false)
       && (g.concentration.level===undefined || integerBetween(g.concentration.level,0,9))
       && (g.concentration.dc===undefined || integerBetween(g.concentration.dc,1,40))
-      && ['fresh','lost','gone'].every(k=>g.concentration[k]===undefined || g.concentration[k]===true)))
+      && ['fresh','lost','gone','worn'].every(k=>g.concentration[k]===undefined || g.concentration[k]===true)))
     // Spells that last on the hero without concentration (Mage Armor, Barkskin, Divine Favor, Shillelagh), and the free
     // castings their species gives (once a long rest each).
     && (g.buffs===undefined || (!!g.buffs && typeof g.buffs==='object' && !Array.isArray(g.buffs) && Object.entries(g.buffs).every(([id,b])=>['mage-armor','barkskin','divine-favor','shillelagh','aid'].includes(id) && b && typeof b==='object' && integerBetween(b.remaining,1,4800) && (b.ac===undefined||integerBetween(b.ac,10,20)) && (b.amount===undefined||(id==='aid'&&integerBetween(b.amount,5,40))) && (b.ability===undefined||['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(b.ability)))))

@@ -1,6 +1,6 @@
 import {storyText,questState} from './storyRules';
 import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf} from "./npcRules";
-import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError} from "./spellRules";
+import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError,withDefenses,defended} from "./spellRules";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
@@ -49,7 +49,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
   // The foe as it fights: its own numbers, scaled to the side it faces (encounterRules.js scaledFoe; a hero alone is
   // never scaled).
   export function encounterFoe(hero, game) {
-    return scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game));
+    // With what it is immune or vulnerable to (spellRules.js creatureDefenses: the undead take no Poison, a skeleton
+    // breaks under Bludgeoning).
+    return withDefenses(game, 'foe', scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game)));
   }
   // A fight under way against a bigger side than it was written for: the foe's scale is set (or raised, when someone
   // joins) and its hit points (and any creature at its side) grow in proportion. Never lowered mid-fight.
@@ -946,17 +948,22 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         };
         const nick = offhand && masteryOf(hero, weapon) === 'Nick' && !game.nickUsed;
         if (offhand && !nick && game.bonusUsed) return {game, health, error: 'Your bonus action is already used this turn.'};
-        const key = aim !== null ? 'ally:' + aim : 'foe', targetOf = k => k === 'foe' ? foe : allyStats(next, Number(k.slice(5)), hero.level ?? 1);
+        const key = aim !== null ? 'ally:' + aim : 'foe', targetOf = k => k === 'foe' ? foe : withDefenses(next, k, allyStats(next, Number(k.slice(5)), hero.level ?? 1));
         const called = k => 'the ' + targetOf(k).name.replace(/^the /i, ''), Called = k => 'T' + called(k).slice(1);
         const standing = k => k === 'foe' ? next.enemyHP > 0 : (next.foeAllies?.[Number(k.slice(5))]?.hp ?? 0) > 0;
         if (contest && !withinGrip(hero, creatureSize(next, key))) return {game, health, error: `${Called(key)} is too big for you to ${contest}.`};
         if (contest === 'grapple' && grappledBy(next, key, hp)) return {game, health, error: `${Called(key)} is already held.`};
         // A two-handed weapon, or a weapon in each hand, needs the hand that holds a grapple: it lets go first (free).
         if (!contest && (weapon.twoHands || offhand) && holding(next)) { const freed = letGo(next, called); next = freed.game; entries.push(...freed.lines); }
-        // Damage to the foe (its shield may catch a blow) or to the creature at its side; returns what got through.
-        const harm = (k, amount, shield) => {
-          if (k === 'foe') { const blocked = shield ? shieldBlow(next, amount, random) : {game: next, damage: amount, line: null}; next = blocked.game; next.enemyHP = Math.max(0, next.enemyHP - blocked.damage); return {dealt: blocked.damage, line: blocked.line}; }
-          const struck = hurtAlly(next, Number(k.slice(5)), amount); next = struck.game; return {dealt: amount, hp: struck.hp, line: struck.line};
+        // Damage to the foe (its shield may catch a blow) or to the creature at its side, through what it is immune or
+        // vulnerable to (`type`: the damage type); returns what got through.
+        const harm = (k, amount, shield, type) => {
+          const blocked = k === 'foe' && shield ? shieldBlow(next, amount, random) : {game: next, damage: amount, line: null}; next = blocked.game;
+          const dealt = type ? defended(targetOf(k), type, blocked.damage) : blocked.damage;
+          const note = dealt !== blocked.damage ? `${Called(k)} ${dealt === 0 ? 'is immune to' : dealt > blocked.damage ? 'is vulnerable to' : 'resists'} ${String(type).toLowerCase()} damage: ${dealt} damage applied (${blocked.damage} before defenses).` : null;
+          const line = [blocked.line, note].filter(Boolean).join(' ') || null;
+          if (k === 'foe') { next.enemyHP = Math.max(0, next.enemyHP - dealt); return {dealt, line}; }
+          const struck = hurtAlly(next, Number(k.slice(5)), dealt); next = struck.game; return {dealt, hp: struck.hp, line: [line, struck.line].filter(Boolean).join(' ') || null};
         };
         let thrownNow = 0, lightUsed = null;
         // A bow is fine before the foe closes in (the opening attack); once it is within 5 feet, shots have disadvantage.
@@ -996,7 +1003,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           const mastery = masteryOf(hero, w);
           if (hit) {
             // The other hand's blow adds no ability bonus to its damage (unless that bonus is negative).
-            const dw = offhand && w.bonus > 0 ? {...w, bonus: 0} : w, damage = rollDamage(dw, attack.critical, random), done = harm(key, damage.total, true);
+            const dw = offhand && w.bonus > 0 ? {...w, bonus: 0} : w, damage = rollDamage(dw, attack.critical, random), done = harm(key, damage.total, true, dw.type);
             const magicPart = dw.magic ? ' + ' + dw.magic + ' magic' : '';
             if (key === 'foe') entries.push(`${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}${magicPart}).`);
             else entries.push(`The ${target.name} takes ${damage.total} ${dw.type.toLowerCase()} damage (${dw.flat ? '1' : damage.dice.join(' + ')} ${dw.bonus >= 0 ? '+' : ''}${dw.bonus}${magicPart}); ${done.hp} HP left.`);
@@ -1005,7 +1012,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
             const rider = riderDamage(hero, next, key, attack.critical, random, {weapon: true});
             next = rider.game;
             entries.push(...rider.lines);
-            if (rider.amount > 0 && standing(key)) { const extra = harm(key, rider.amount, false); if (extra.line) entries.push(extra.line); }
+            if (rider.amount > 0 && standing(key)) { const extra = harm(key, rider.amount, false, rider.type); if (extra.line) entries.push(extra.line); }
             // The subclass's extra on a hit, once a turn (subclassRules.js): fire in the blow, an opening, the first cut.
             const featHit = standing(key) ? subclassRiderRoll(hero, next, w, {key, called: called(key), critical: attack.critical, target, wounded: woundedBefore, firstRound: !!turnOptions.opening || game.round === 1, companion: fightingCompanions(next).length > 0}, random) : null;
             if (featHit) {
@@ -1032,12 +1039,12 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
                 next = {...next, cleaveUsed: true};
                 const second = targetOf(other), edge2 = heroEdge(next, other, w), swing2 = rollAttack(w, edgeMode(baseMode(w), edge2), random), hit2 = !swing2.miss && (swing2.critical || swing2.total >= second.ac);
                 entries.push(`Cleave: you swing on into ${other === key ? 'another of the ' + foe.group.plural : called(other)}: d20 [${swing2.dice.join(', ')}] (${swing2.mode}) + ${w.attackBonus} = ${swing2.total} vs AC ${second.ac}. ${swing2.critical ? 'Critical hit!' : hit2 ? 'Hit.' : 'Miss.'}`);
-                if (hit2) { const cut = rollDamage({...w, bonus: Math.min(0, w.bonus)}, swing2.critical, random), landed = harm(other, cut.total, false); entries.push(`${cut.total} ${w.type.toLowerCase()} damage (${cut.dice.join(' + ')}${w.bonus < 0 ? ' − ' + Math.abs(w.bonus) : ''}${w.magic ? ' + ' + w.magic + ' magic' : ''}).`); if (landed.line) entries.push(landed.line); }
+                if (hit2) { const cut = rollDamage({...w, bonus: Math.min(0, w.bonus)}, swing2.critical, random), landed = harm(other, cut.total, false, w.type); entries.push(`${cut.total} ${w.type.toLowerCase()} damage (${cut.dice.join(' + ')}${w.bonus < 0 ? ' − ' + Math.abs(w.bonus) : ''}${w.magic ? ' + ' + w.magic + ' magic' : ''}).`); if (landed.line) entries.push(landed.line); }
               }
             }
           } else if (mastery === 'Graze' && w.bonus > 0 && standing(key)) {
             // Graze: even a miss deals the ability bonus.
-            const done = harm(key, w.bonus, false);
+            const done = harm(key, w.bonus, false, w.type);
             entries.push(`Graze: the swing still deals ${w.bonus} ${w.type.toLowerCase()} damage.`);
             if (done.line) entries.push(done.line);
           }
