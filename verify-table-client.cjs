@@ -32,8 +32,12 @@ function fixture(){
  const told=await table.turn('Just us',{npcId:'n1',oneOnOne:true,storyPreferences:{narrator:'bard',brutality:'gritty'},autoShield:false}),sent=f.calls.filter(c=>c.route==='campaign-turn').at(-1).body;
  assert.equal(sent.oneOnOne,true);assert.deepEqual(JSON.parse(JSON.stringify(sent.storyPreferences)),{narrator:'bard',brutality:'gritty'});assert.equal(sent.autoShield,false);
  assert.ok(Array.isArray(told.suggestions)&&Array.isArray(told.deeds)&&told.xp===null&&told.fault===false);
- assert.equal(turns.at(-1).body.oneOnOne,undefined);assert.equal(turns.at(-1).body.autoShield,undefined);
- const leaving=f.delayPoll(),old=f.poll();await settle();await table.leave();leaving.resolve();await old;assert.equal(f.applied.at(-1),6);
+ assert.equal(turns.at(-1).body.oneOnOne,undefined);assert.equal(turns.at(-1).body.autoShield,undefined);assert.equal(turns.at(-1).body.greet,undefined);
+ // The Speak chip at a table asks the server for the person's greeting (server-turn.cjs) instead of skipping it.
+ await table.turn('You turn to Mara.',{npcId:'mara',greet:true});assert.equal(f.calls.filter(c=>c.route==='campaign-turn').at(-1).body.greet,true);
+ {const dm=fs.readFileSync('DungeonMaster.js','utf8'),engage=dm.slice(dm.indexOf('const engage='),dm.indexOf('// Turns that arrive from other players'));
+  assert.ok(/table\.turn\(opening\.scene,\{npcId:id,greet:true/.test(engage)&&!/table\?\.joined\|\|waiting/.test(engage),'Speak at a table sends the greeting to the campaign server');}
+ const leaving=f.delayPoll(),old=f.poll();await settle();await table.leave();leaving.resolve();await old;assert.equal(f.applied.at(-1),7);
  // Account-local storage captures the owner before delayed writes.
  const values=new Map(),source=fs.readFileSync('playerStorage.js','utf8').replace(/^import .*;\r?\n/gm,'').replace('export default','const storage=').replace(/export /g,'');
  const p=vm.runInNewContext(source+'\n({storage,selectProfile,currentProfile})',{AsyncStorage:{getItem:async k=>values.get(k)??null,setItem:async(k,v)=>values.set(k,v),removeItem:async k=>values.delete(k)}});

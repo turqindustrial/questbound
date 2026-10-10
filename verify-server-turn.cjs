@@ -94,6 +94,18 @@ function byHand(hero,snapshot,action,question,dice,actorName){
  assert.ok(won.events.some(e=>/^Experience: \+\d+ .*Every hero in the party gains experience too\.$/.test(e)));
  assert.ok(won.snapshot.game.storyLog?.length>0,'the story log records the fight');
  assert.equal(r.partyVictory,undefined);
+ // People speak first at a table too: the Speak chip sends {greet:true, npcId}; the server works out the opening, asks
+ // the Dungeon Master for a moment in which only that person speaks, and plays it as a trigger turn (no player line).
+ {const bard=r.readyHero('wizard'),tavern=r.adventureSnapshot(bard,r.newAdventure(bard),null,true),greetAsked=[];
+  const who=r.conversationPeople(tavern.game)[0].id;assert.ok(r.shouldGreet(tavern.game,who));
+  const said=await resolveTurn(tavern,{question:'ignored',npcId:who,greet:true},{ask:async p=>{greetAsked.push(p);return {narration:'She sets down a cup.',dialogue:[{speakerId:who,text:'Well met, traveller.'},{speakerId:'someone-else',text:'Not me.'}],suggestions:['Hello.']};},randomImpl:seq(5)});
+  assert.equal(greetAsked[0].context.sceneTrigger.id,'greet:'+who,'the Dungeon Master is asked for a greeting');assert.equal(greetAsked[0].input,r.greeting(tavern.game,who,bard).scene,'the opening is the server\'s, not the device\'s words');
+  const events=said.turn.events;assert.ok(!events.some(e=>e.kind==='player'),'no player line: a trigger turn');
+  assert.deepEqual(plain(events.filter(e=>e.kind==='dialogue').map(e=>e.text)),['Well met, traveller.'],'only that person speaks');assert.deepEqual(plain(said.suggestions),['Hello.']);
+  const standIn=await resolveTurn(tavern,{question:'x',npcId:who,greet:true},{ask:async()=>{throw Object.assign(Error('down'),{status:502});},randomImpl:seq(5)});
+  assert.deepEqual(plain(standIn.turn.events.filter(e=>e.kind==='dialogue').map(e=>e.text)),[r.greeting(tavern.game,who,bard).fallback],'the stand-in line when the Dungeon Master cannot be reached');
+  await assert.rejects(resolveTurn(said.snapshot,{question:'x',npcId:who,greet:true},{ask,randomImpl:seq()}),/waiting to speak first/,'someone who has just spoken does not greet again');
+  await assert.rejects(resolveTurn(tavern,{question:'x',npcId:'nobody',greet:true},{ask,randomImpl:seq()}),/waiting to speak first/);}
 
  // 6. The campaign's own gates (campaigns.cjs). AGENTS: in a party fight anyone may pass a hero's turn after 90 s, or at
  // once when that hero's player is not at the table (the host always may); only direct===true is talk to the Dungeon
@@ -125,5 +137,5 @@ function byHand(hero,snapshot,action,question,dice,actorName){
    const counted=spent.length,local={...A,local:true};holdFor(made.you,9);await turn(local,{question:'I look around.'});await refusedWith(turn(local,{question:'I swing.',action:{type:'no-such-chip'}}),400);
    assert.equal(spent.length,counted,'the host’s own desktop is not capped');assert.ok(spent.every(x=>x===B.id));
   }finally{fs.rmSync(dir,{recursive:true,force:true});}}
- console.log('Server turns: a skirmish won at the table pays '+snap.game.xp+' XP and leaves spoils, ideas and cues come back, device settings reach the rules unsaved, hard cast refusals stop before the Dungeon Master, any Attack… target works, companions are classed out of a fight, a party turn settles the same on the server and the device, and the campaign lets anyone pass an absent or slow player’s turn, keeps out-of-turn talk to direct:true, and spends the day’s allowance only on kept turns (never the host’s desktop).');
+ console.log('Server turns: a skirmish won at the table pays '+snap.game.xp+' XP and leaves spoils, ideas and cues come back, device settings reach the rules unsaved, hard cast refusals stop before the Dungeon Master, any Attack… target works, companions are classed out of a fight, a party turn settles the same on the server and the device, people speak first at a table too (the server works out the greeting, a trigger turn with no player line), and the campaign lets anyone pass an absent or slow player’s turn, keeps out-of-turn talk to direct:true, and spends the day’s allowance only on kept turns (never the host’s desktop).');
 })().catch(e=>{console.error(e);process.exitCode=1;});

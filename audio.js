@@ -43,7 +43,24 @@ function load(){try{const v=JSON.parse(window.localStorage.getItem(KEY));return 
 function persist(){try{window.localStorage.setItem(KEY,JSON.stringify(settings));}catch{}}
 export const audioSettings=()=>({...settings});
 export function subscribeAudio(fn){listeners.add(fn);return()=>listeners.delete(fn);}
-export function setAudio(changes){settings={...settings,...changes};persist();applyMix();listeners.forEach(fn=>fn({...settings}));}
+export function setAudio(changes){settings={...settings,...changes};persist();applyMix();settle();listeners.forEach(fn=>fn({...settings}));}
+// What should be running for the settings: muted, the score's scheduler, the ambience timers and the heartbeat stop
+// and the context is suspended, so its reverbs and compressors stop rendering too (a slow computer gains from muting);
+// a music or ambience volume of 0 stops that part alone. Unmuting (a tap, so the browser allows it) resumes and
+// restart() rebuilds what should be sounding.
+const musicOn=()=>!settings.muted&&settings.music>0,ambienceOn=()=>!settings.muted&&settings.ambience>0;
+function settle(){
+ if(!ctx)return;const t=ctx.currentTime;
+ if(scheduler&&!musicOn()){retire(scheduler,t);scheduler=null;}
+ if(ambience&&!ambienceOn()){ambience.stop();ambience=null;}
+ if(settings.muted){
+  if(heartbeat){clearInterval(heartbeat);heartbeat=null;}
+  setTimeout(()=>{if(settings.muted&&ctx&&ctx.state==='running')ctx.suspend().catch(()=>{});},150);
+  return;
+ }
+ if(ctx.state!=='running'&&ctx.state!=='closed'&&!document.hidden){pausedByUs=false;ctx.resume().catch(()=>{});}
+ restart();
+}
 
 // ---------- Mix ----------
 function applyMix(){
@@ -63,7 +80,7 @@ function ensure(){
   ctx=new window.AudioContext({latencyHint:'balanced'});
   const c=ctx;stats.baseLatency=c.baseLatency??null;stats.outputLatency=c.outputLatency??null;
   // A context the browser stopped by itself (a phone call, a headset unplugged) starts again as soon as it may.
-  c.onstatechange=()=>{if(c!==ctx)return;stats.states++;if(!['running','closed'].includes(c.state)&&!document.hidden&&!pausedByUs)c.resume().catch(()=>{});};
+  c.onstatechange=()=>{if(c!==ctx)return;stats.states++;if(!['running','closed'].includes(c.state)&&!document.hidden&&!pausedByUs&&!settings.muted)c.resume().catch(()=>{});};
   const o=out,g=v=>{const n=ctx.createGain();n.gain.value=v;return n;};
   o.master=g(0);o.limiter=ctx.createDynamicsCompressor();o.glue=ctx.createDynamicsCompressor();
   o.limiter.threshold.value=-2.5;o.limiter.knee.value=0;o.limiter.ratio.value=20;o.limiter.attack.value=.002;o.limiter.release.value=.08;
@@ -90,13 +107,14 @@ function ensure(){
   const dry=g(.7);o.pad.connect(dry);dry.connect(o.music);const wide=g(.5);merger.connect(wide);wide.connect(o.music);const padSend=g(.45);o.pad.connect(padSend);padSend.connect(o.hall);
   applyMix();
  }
- if(ctx.state==='suspended'||ctx.state==='interrupted'){pausedByUs=false;ctx.resume().catch(()=>{});}
+ if(settings.muted){if(ctx.state==='running')ctx.suspend().catch(()=>{});}
+ else if(ctx.state==='suspended'||ctx.state==='interrupted'){pausedByUs=false;ctx.resume().catch(()=>{});}
  return true;
 }
 // Start everything that should be sounding (after waking, or after the context was rebuilt).
 function restart(){
- if(mood&&moods[mood]&&!scheduler){applyMix();startScheduler(mood);}
- if(ambienceKind&&!ambience)ambience=startAmbience(ambienceKind);
+ if(mood&&moods[mood]&&!scheduler&&musicOn()){applyMix();startScheduler(mood);}
+ if(ambienceKind&&!ambience&&ambienceOn())ambience=startAmbience(ambienceKind);
  if(danger)setDanger(danger);
 }
 // A context that says it is running but whose clock has stopped (an output device changed under it) is replaced.
@@ -338,7 +356,7 @@ function changeMood(name){
  if(!ctx)return;
  const t=ctx.currentTime,old=scheduler;scheduler=null;
  if(old)retire(old,t);
- if(!moods[name])return;
+ if(!moods[name]||!musicOn())return;
  // Into combat: a rising swell, then the new score enters on a downbeat hit.
  if(name==='combat'&&from){swell(t,1.1,.12);startScheduler(name,t+1.1,{intro:true});}
  else startScheduler(name,t+.15);
@@ -366,10 +384,10 @@ function startAmbience(kind){
  // stop(true): the context is being replaced, so only the timers need stopping.
  return {kind,stop(atOnce=false){timers.forEach(clearInterval);if(atOnce||!ctx)return;const now=ctx.currentTime;gains.forEach(g=>{g.gain.cancelScheduledValues(now);g.gain.setTargetAtTime(0,now,.8);});setTimeout(()=>nodes.forEach(n=>{try{n.stop();}catch{}}),4000);}};
 }
-export function setAmbience(kind){if(kind===ambienceKind)return;ambienceKind=kind;if(!ctx)return;ambience?.stop();ambience=startAmbience(kind);}
+export function setAmbience(kind){if(kind===ambienceKind)return;ambienceKind=kind;if(!ctx)return;ambience?.stop();ambience=ambienceOn()?startAmbience(kind):null;}
 // Danger (0..1): at low HP a heartbeat rises under everything.
 export function setDanger(level){danger=Math.max(0,Math.min(1,level||0));if(!ctx)return;
- if(danger>.5&&!heartbeat){heartbeat=setInterval(()=>{if(!ctx||danger<=.5)return;const t=ctx.currentTime,v=.15+.25*danger;[0,.24].forEach((o,k)=>osc('sine',k?52:58,t+o,{bus:out.sfx,peak:v*(k?.7:1),attack:.004,release:.22,glide:38,priority:true}));},60000/(62+danger*30));}
+ if(danger>.5&&!heartbeat&&!settings.muted){heartbeat=setInterval(()=>{if(!ctx||danger<=.5)return;const t=ctx.currentTime,v=.15+.25*danger;[0,.24].forEach((o,k)=>osc('sine',k?52:58,t+o,{bus:out.sfx,peak:v*(k?.7:1),attack:.004,release:.22,glide:38,priority:true}));},60000/(62+danger*30));}
  if(danger<=.5&&heartbeat){clearInterval(heartbeat);heartbeat=null;}
 }
 
@@ -453,7 +471,7 @@ export function initializeAudio(){
  document.addEventListener('visibilitychange',()=>{
   if(!ctx)return;clearTimeout(hiddenTimer);
   if(document.hidden){if(settings.background)hiddenTimer=setTimeout(pause,HIDDEN_LIMIT);else pause();return;}
-  if(pausedByUs||ctx.state!=='running'){pausedByUs=false;ctx.resume().catch(()=>{});}
+  if(!settings.muted&&(pausedByUs||ctx.state!=='running')){pausedByUs=false;ctx.resume().catch(()=>{});}
   applyMix();
  });
  setInterval(watchdog,WATCHDOG_MS);

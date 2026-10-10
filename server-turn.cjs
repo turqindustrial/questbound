@@ -9,16 +9,21 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  let game=snapshot.game;if(game.stage!=='combat'&&!game.npcCombat?.active&&!game.pendingSpell)game=r.withCompanionClasses(game,hero);
  // The device's "Use Shield when it saves you" setting reaches the rules only, never the saved character.
  const ruled=request.autoShield===false?{...hero,autoShield:false}:hero;
- const question=typeof request.question==='string'?request.question.trim():'';
+ // People speak first (greetings.js): the Speak chip at a table sends {greet:true, npcId}. The opening is worked out
+ // here, never taken from the device; the person greets only when they may (not in a fight, not twice running).
+ const greet=request.greet===true,people=r.conversationPeople(game);
+ if(greet&&(!people.some(p=>p.id===request.npcId)||!r.shouldGreet(game,request.npcId)))throw fail('Nobody here is waiting to speak first.');
+ const opening=greet?r.greeting(game,request.npcId,hero):null;
+ const question=greet?opening.scene:typeof request.question==='string'?request.question.trim():'';
  if(!question||question.length>1000)throw fail('Describe one action in 1–1,000 characters.');
- const people=r.conversationPeople(game),target=r.conversationTarget(game,question,people.some(p=>p.id===request.npcId)?request.npcId:null),talkingTo=people.find(p=>p.id===target);
- const toDm=request.direct===true||/^(?:dm[, :]|\(ooc\))/i.test(question);
+ const target=greet?request.npcId:r.conversationTarget(game,question,people.some(p=>p.id===request.npcId)?request.npcId:null),talkingTo=people.find(p=>p.id===target);
+ const toDm=!greet&&(request.direct===true||/^(?:dm[, :]|\(ooc\))/i.test(question));
  const post=async(scene=game,hp=health,extra={})=>{
   const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...extra}});
   if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');return body;
  };
- function finish(action,body,normalizedCommand,dice=randomImpl){
-  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(toDm?{direct:true}:{} )};
+ function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
+  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(toDm?{direct:true}:{}),...extra};
   // The same pipeline as Adventure.act on a device (turnRules.js): the rules, experience for every living hero, the
   // turn recorded, the story log and deeds. Scene cues are not played at a shared table.
   const settled=r.settleTurn({hero,ruled,game,health,action,conversation,random:dice,sceneTrigger:false});if(settled.error)throw fail(settled.error);
@@ -41,6 +46,13 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl());
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
+ // A greeting is a trigger turn (no player line): the Dungeon Master writes it as a scene moment in which only that
+ // person speaks, and the stand-in line is used when it cannot be reached or answers with someone else.
+ if(greet){
+  let narration=opening.aside,dialogue=[{speakerId:target,text:opening.fallback}],said=null;
+  try{const reply=await post(game,health,{sceneTrigger:{id:'greet:'+target,cue:opening.cue},recruitmentTargets:[]});const lines=(Array.isArray(reply.dialogue)?reply.dialogue:[]).filter(l=>l?.speakerId===target).slice(0,2);if(lines.length){narration=reply.narration;dialogue=lines;said=reply;}}catch{}
+  return finish(null,{narration,dialogue,suggestions:said?.suggestions},undefined,randomImpl,{trigger:true});
+ }
  let command=r.dmCommand(ruled,game,question,health,target);
  if(request.action!==undefined){
   const offered=[...r.dmChoices(ruled,game,health),...r.quickActions(ruled,game,health),...r.attackTargets(ruled,game,health).flatMap(t=>r.attackActions(ruled,game,health,t.key)),...r.attackActions(ruled,game,health,null),...r.spellActions(ruled,game)];

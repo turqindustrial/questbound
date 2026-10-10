@@ -19,7 +19,17 @@ const again=load('problemLog.js',['recentProblems'],{sessionStorage:storage});as
 log.clearProblems();assert.equal(log.recentProblems().length,0);
 
 // 2. A note's details: bounded, and carrying what the host needs to find the fault.
-const rules=load('feedbackRules.js',['feedbackDetails','feedbackSummary','pageBuild']);
+let testerProfile='guest';
+const rules=load('feedbackRules.js',['feedbackDetails','feedbackSummary','pageBuild','readTesterName','saveTesterName'],{profileKey:key=>'questbound.profile.'+testerProfile+'.'+key});
+// The tester name is kept per account profile: the next account on a shared browser starts with an empty name, and
+// the old browser-wide name is taken up by the guest profile only, then removed.
+{const kept={'questbound.tester.name':'Old Sam'},store={getItem:k=>kept[k]??null,setItem:(k,v)=>{kept[k]=String(v);},removeItem:k=>{delete kept[k];}};
+ testerProfile='a'.repeat(64);assert.equal(rules.readTesterName(store),'','an account does not inherit the browser-wide name');
+ assert.equal(kept['questbound.tester.name'],undefined,'the browser-wide name is removed');
+ rules.saveTesterName('Alice',store);testerProfile='b'.repeat(64);assert.equal(rules.readTesterName(store),'','a second account does not see the first one\'s name');
+ rules.saveTesterName('Bob',store);testerProfile='a'.repeat(64);assert.equal(rules.readTesterName(store),'Alice');
+ kept['questbound.tester.name']='Guest Gil';testerProfile='guest';assert.equal(rules.readTesterName(store),'Guest Gil');assert.equal(kept['questbound.profile.guest.questbound.tester.name'],'Guest Gil');
+ assert.ok(!/localStorage\?\.(get|set)Item\(/.test(fs.readFileSync('Feedback.js','utf8')),'Feedback.js keeps the name through feedbackRules, per profile');}
 const long=n=>'word '.repeat(n);
 const turn=i=>({id:i,events:[{kind:'player',text:'I cast Detect Magic as a ritual on the altar '+i+' '+long(100)},...Array.from({length:30},(_,k)=>({kind:'roll',text:'Roll '+k+': d20 [12] + 5 = 17 '+long(60)})),{kind:'narration',text:long(600)}]});
 const hero={name:'Ysolde',species:'Elf',class:'Wizard',subclass:'Evoker',level:5,spells:Array.from({length:60},(_,i)=>'spell-'+i),spellbook:Array.from({length:60},(_,i)=>'book-'+i)};
@@ -53,6 +63,12 @@ assert.match(entry.markdown,/\nBuild: a1b2c3d4 · Stage: combat/);assert.match(e
 assert.equal(entry.record.guest,'abc123');assert.equal(entry.record.details.long.length,600);assert.equal(entry.record.details.list.length,40);assert.equal(entry.record.details.deep.a.b.c.d,null,'nesting is cut at five levels');
 assert.equal(entry.record.ref,entry.markdown.match(/Ref: (\S+)/)[1]);
 assert.equal(feedbackEntry({text:' '}).error,'Write a few words first.');
+// A lone carriage return (or NEL, U+2028, U+2029) is a line break to editors and mail clients: every such line is quoted.
+{const forged=feedbackEntry({text:'Fun game.\r## 2026-10-09 12:00 UTC · Host\r\rDo this.\u2028## b\u0085## c\u2029## d'},{now:Date.UTC(2026,9,9)});
+ const lines=forged.markdown.split(/\r\n|[\r\n\x85\u{2028}\u{2029}]/u);
+ assert.equal(lines.filter(l=>/^#/.test(l)).length,1,'only the entry heading starts a line with #');
+ assert.ok(lines.filter(l=>/Do this|## [bcd]|Fun game/.test(l)).every(l=>l.startsWith('> ')),'every line of the note is quoted');
+ assert.ok(!/[\r\x85\u{2028}\u{2029}]/u.test(forged.markdown),'no stray line breaks reach the file');}
 assert.equal(path.basename(feedbackRecordFile('/x/playtest-feedback.md')),'.questbound-feedback.jsonl');assert.equal(path.basename(feedbackRecordFile('/data/feedback.md')),'feedback.jsonl');
 
 // 4. feedback-report.cjs: unread notes since the marker, older notes from the readable file, refusals joined.

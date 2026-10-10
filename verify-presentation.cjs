@@ -41,6 +41,13 @@ assert.ok(ui.includes('export function WrapRow(')&&ui.includes('wrapLimit(rows,r
 assert.ok(/wrapCell:\{maxWidth:'100%'/.test(ui),'a chip wider than the row is cut to it');
 assert.ok(dm.includes('<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH}')&&!dm.includes('ScrollView')&&!dm.includes('actionScroll'),'the action rows wrap');
 assert.ok(dm.includes("resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen}"),'More folds away on a new turn or picker');
+// A phone on its side (one row of chips; checked headless at 812x375 and 667x375): the suggestions sit in the same
+// height-limited row as the actions, so a conversation never pushes the message box off the screen, and the
+// Actions/Suggestions tabs become one small switch beside the row, so the first action is on it.
+{const bar=dm.slice(dm.indexOf('const shortRow='),dm.indexOf('// One on one or everyone here'));
+ assert.ok(/const shortRow=showIdeas\?row\(\[\.\.\.ideaChips,\.\.\.extraChips\],chipRows,'ideas'\):row\(\[\.\.\.actionChips,\.\.\.extraChips\],chipRows,'all'\)/.test(bar),'on a short screen the suggestions are in a WrapRow too');
+ assert.ok(bar.includes('<View style={s.switchCell}>{tabSwitch}</View>')&&!/row\(\[\.\.\.tabButtons/.test(dm)&&!/\{tabButtons\}\{ideaChips\}/.test(dm),'the tabs do not take the one row of chips');
+ assert.ok(/short&&\{minHeight:0,height:chipH/.test(dm)&&dm.includes('numberOfLines={short?1:2}'),'a suggestion is one chip high on a short screen');}
 assert.ok(/actionTight:\{[^}]*maxWidth:'100%'/.test(dm),'a long story chip takes a row at most on a phone');
 assert.ok(map.includes('<WrapRow rows={1} rowHeight={34}')&&/regionTab:\{[^}]*height:34/.test(map),'the row of lands is one line with More');
 assert.ok(party.includes('<WrapRow rows={2} rowHeight={48}')&&!party.includes('ScrollView'),'the party cards wrap');

@@ -6,8 +6,11 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const FEEDBACK_BODY_LIMIT=32000;
 const strip=value=>String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,'');
-const clean=(value,max)=>typeof value==='string'?strip(value).trim().slice(0,max):'';
-const oneLine=(value,max)=>(typeof value==='string'||typeof value==='number'?strip(String(value)).replace(/\s+/g,' ').replace(/^#+\s*/,'').trim():'').slice(0,max);
+// Every kind of line break (a lone CR, NEL, the Unicode line and paragraph separators) becomes a plain newline first,
+// so each line of a note gets its quote mark: editors and mail clients break lines on all of them.
+const lineBreaks=/\r\n?|[\x85\u{2028}\u{2029}]/gu;
+const clean=(value,max)=>typeof value==='string'?strip(value.replace(lineBreaks,'\n')).trim().slice(0,max):'';
+const oneLine=(value,max)=>(typeof value==='string'||typeof value==='number'?strip(String(value)).replace(/[\s\u0085]+/g,' ').replace(/^#+\s*/,'').trim():'').slice(0,max);
 // The attached details, cut down to plain data: depth 5, strings 600, lists 40, objects 40 keys.
 function sanitise(value,depth=0){
  if(value==null||typeof value==='boolean')return value??null;
