@@ -112,6 +112,12 @@ const anselmNow=Object.entries(joined.people).find(([,p])=>p.name==='Brother Ans
 assert.ok(joined.npcMemory[anselmNow[0]].memories.includes('The player rang the chapel bell for me.'),'their memories follow them');
 assert.ok(!joined.npcMemory.n1.memories.some(m=>/chapel bell/.test(m)),'no memory crosses to the wrong person');
 assert.ok(Object.keys(joined.people).length<=r.maxPeople);assert.ok(valid(joined));
+// ---- Easy start: any opening (a written one, the player's idea, the next tale) may carry an errand, seated the same way ----
+for(const introId of ['crown','idea','surprise']){const g=r.freshStoryGame(kara,{...written,id:'reeds-easy-'+introId,introId},r.newAdventure(kara));
+ assert.equal(g.story.introId,introId);assert.equal(g.story.errand?.title,'Clear the weir',introId+' keeps its errand');assert.equal(g.world.places.find(p=>p.id===g.story.errand.place).danger,'lair');assert.match(g.journal.entries[0].text,/Your orders: Drive the reavers/);assert.ok(valid(g),introId);}
+{const nextEasy=r.freshStoryGame(kara,{...nextWritten,id:'reeds-next-easy',introId:'surprise',errand:written.errand,landmarks:written.landmarks},r.newAdventure(kara,r.carriedBase(earlier)));
+ const joinedEasy=r.joinRegion(nextEasy,earlier,{sameRegion:true,bearing:'S',miles:4}),held=joinedEasy.world.places.find(p=>p.id===joinedEasy.story.errand?.place);
+ assert.ok(held&&held.name==='Old Weir Camp'&&held.danger==='lair','the next tale in a region keeps its errand place when the old country joins the map');assert.ok(valid(joinedEasy));}
 // ---- A shared table: residents are shared world, the same from every point of view ----
 const ilyra=r.readyHero('wizard');
 const hosted=r.startParty(r.adventureSnapshot(kara,game,hp,true),'A','Sam');

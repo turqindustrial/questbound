@@ -81,7 +81,7 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
   const run=async(answers,options)=>{
    const store=new Map(),asked=[];let profile='guest';
    const AsyncStorage={getItem:async k=>store.get(k)??null,setItem:async(k,v)=>{store.set(k,v);},removeItem:async k=>{store.delete(k);}};
-   const api=vm.runInNewContext(source+'\n({bootstrapAccount,accountsNeeded,guestIdentity})',{AsyncStorage,legalUpdated:'9 October 2026',tableEndpoint:()=>'/api/sync',selectProfile:id=>{profile=/^[a-f0-9]{64}$/.test(id??'')?id:'guest';},currentProfile:()=>profile,AbortSignal,JSON,Object,Error,globalThis:{}});
+   const api=vm.runInNewContext(source+'\n({bootstrapAccount,accountsNeeded,guestIdentity})',{AsyncStorage,legalUpdated:'10 October 2026',tableEndpoint:()=>'/api/sync',selectProfile:id=>{profile=/^[a-f0-9]{64}$/.test(id??'')?id:'guest';},currentProfile:()=>profile,AbortSignal,JSON,Object,Error,globalThis:{}});
    const fetchImpl=async(url)=>{const route=url.split('/account-')[1];asked.push(route);const a=answers[route]??{status:404,body:{}};return {ok:a.status===200,status:a.status,json:async()=>a.body};};
    const result=await api.bootstrapAccount(fetchImpl,options);return {result,asked,profile,needed:api.accountsNeeded(),guest:api.guestIdentity(),stored:[...store.keys()]};
   };
@@ -98,8 +98,36 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
   assert.equal((app.match(/!account\?\.verified/g)??[]).length,1,'no other sign-in wall');
   assert.equal((app.match(/&&mustSignIn/g)??[]).length,2,'the screen guard and navigation both use the switch');
   assert.ok(panel.includes('An account is optional')&&fs.readFileSync('HomeScreen.js','utf8').includes('unprotected'),'an account stays an offer');
-  assert.ok(cloud.includes("owner!=='guest'||!!guestIdentity()"),'guests keep recovery-code copies on the host');}
+  assert.ok(cloud.includes("owner!=='guest'||!!guestIdentity()"),'once accounts are offered, guests keep recovery-code copies on the host');}
+ // ---- Local saves while accounts are not offered (the beta, 10 October 2026: "the login page is gone entirely for now,
+ // all data will be saved locally"): no account or recovery-code UI, and nothing uploaded. With the switch on, all of it returns.
+ {const vm=require('node:vm'),switchSource=fs.readFileSync('accountRules.js','utf8');
+  const offeredWith=(source,hostNeeds=false)=>vm.runInNewContext(source.replace(/^import .*;\r?\n/gm,'').replace(/^export \{[^}]*\} from .*;\r?\n?/gm,'').replace(/export /g,'')+'\n;accountsOffered',{hostNeedsAccounts:()=>hostNeeds});
+  const switchedOn=switchSource.replace('export const accountsRequired=false;','export const accountsRequired=true;');
+  assert.equal(offeredWith(switchSource)(),false,'the beta offers no accounts');assert.equal(offeredWith(switchSource,true)(),true,'the host requiring accounts brings them back');assert.equal(offeredWith(switchedOn)(),true,'so does the switch');
+  // scheduleCloudSave, run as written with the real switch: no request of any kind while accounts are not offered.
+  const run=async offered=>{
+   const requests=[],toAccount=[],noted=[],store=new Map(),scope={getItem:async k=>store.get(k)??null,setItem:async(k,v)=>{store.set(k,v);}};
+   const cloudApi=vm.runInNewContext(cloud.replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')+'\n;({scheduleCloudSave,uploadSave})',{AsyncStorage:{scope:()=>scope},currentProfile:()=>'guest',tableEndpoint:()=>'/api/sync',noteSnapshot:s=>noted.push(s),saveToAccount:async s=>{toAccount.push(s);return null;},guestIdentity:()=>'d'.repeat(64),accountsOffered:offered,
+    fetch:async(url,options)=>{requests.push(url);return {ok:true,json:async()=>({savedAt:'2026-10-10T12:00:00.000Z'})};},setTimeout,clearTimeout,AbortSignal,JSON,Array,Uint8Array,Error,globalThis:{crypto:require('node:crypto').webcrypto}});
+   cloudApi.scheduleCloudSave({version:1,game:{}},0);await new Promise(r=>setTimeout(r,40));
+   const direct=await cloudApi.uploadSave({version:1});await new Promise(r=>setTimeout(r,10));
+   return {requests,toAccount,noted,direct,stored:[...store.keys()]};
+  };
+  let r=await run(offeredWith(switchSource));
+  assert.deepEqual(r.requests,[],'no cloud-save request');assert.deepEqual(r.toAccount,[],'no account save');assert.deepEqual(r.noted,[],'no snapshot kept for an account');assert.equal(r.direct,null);assert.deepEqual(r.stored,[],'no recovery code is even made');
+  r=await run(offeredWith(switchedOn));
+  assert.ok(r.requests.length>=1&&r.requests.every(u=>u==='/api/sync/cloud-save'),'with accounts on, the recovery-code copy is uploaded again');assert.equal(r.toAccount.length,1,'and the account copy');
+  // The screens: Settings shows no account or recovery-code section, the title no account prompt, unless accounts are offered.
+  const home=fs.readFileSync('HomeScreen.js','utf8'),dev=fs.readFileSync('DeveloperDiagnostics.js','utf8');
+  assert.ok(app.includes("{screen === 'Settings' && accountsOffered() && <AccountSettings ")&&app.includes("{screen === 'Settings' && accountsOffered() && <CloudSaveSettings "),'Settings: account and recovery code only while offered');
+  assert.equal((app.match(/<AccountSettings /g)??[]).length,1);assert.equal((app.match(/<CloudSaveSettings /g)??[]).length,1);
+  for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f)&&!['App.js','AccountSettings.js','CloudSaveSettings.js'].includes(f)))assert.ok(!/<(AccountSettings|CloudSaveSettings)\b/.test(fs.readFileSync(file,'utf8')),file+' renders no account panel');
+  assert.ok(app.includes('unprotected={saved&&!account&&accountsOffered()}')&&/const protect=unprotected&&/.test(home),'the title asks for an account only while offered');
+  assert.ok(app.includes("if(a?.hold&&accountsOffered())setScreenState('Settings')")&&app.includes("accountsRequired?'Opening your account…':'Opening Questbound…'"),'nothing opens on an account');
+  assert.ok(dev.includes("{accountsOffered()&&<GameButton label=\"Check account and local save owner\"")&&dev.includes("{accountsOffered()&&<><GameButton label=\"Read host security alerts\""),'developer checks ask for no account in the beta');
+  assert.ok(app.includes("Settings' && <SaveTransfer/>"),'Move your hero (local save codes) stays');}
  assert.ok(fs.readFileSync('.gitignore','utf8').split(/\r?\n/).some(line=>line.trim()==='.questbound-*'),'account files are never committed');
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Accounts: register, sign in, save, load, lock-out, new password, host reset and delete; guest play by default (one switch, a silent guest in the guest save namespace, no sign-in wall); verified HTTP sessions checked separately.');
+ console.log('Accounts: register, sign in, save, load, lock-out, new password, host reset and delete; guest play by default (one switch, a silent guest in the guest save namespace, no sign-in wall); in the beta no account or recovery-code screen and no upload, all back when accounts are on; verified HTTP sessions checked separately.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

@@ -31,7 +31,7 @@ const never=async()=>{throw Error('the provider is never called in this check');
   // The Dungeon Master and the table are reached through the gateway alone.
   r=await call(port,'/api/health',{headers});assert.equal(r.status,200);assert.equal(JSON.parse(r.text).ready,true);
   r=await call(port,'/api/sync/poll',{method:'POST',headers,body:JSON.stringify({playerId:'hosted-player-1',name:'Ada'})});assert.equal(r.status,401,'pairing alone does not authenticate an account');
-  r=await call(port,'/api/sync/account-register',{method:'POST',headers,body:JSON.stringify({email:'ada@play.example',password:'made-up-pass',termsVersion:'9 October 2026',ageConfirmed:true})});assert.equal(r.status,200);
+  r=await call(port,'/api/sync/account-register',{method:'POST',headers,body:JSON.stringify({email:'ada@play.example',password:'made-up-pass',termsVersion:'10 October 2026',ageConfirmed:true})});assert.equal(r.status,200);
   assert.equal(JSON.parse(r.text).verificationRequired,true);
   const challenge=JSON.parse(r.text).challenge;
   r=await call(port,'/api/sync/account-verify',{method:'POST',headers,body:JSON.stringify({email:'ada@play.example',challenge,code:fixture.codes.get('ada@play.example')})});assert.equal(r.status,200);assert.match(r.headers['set-cookie'][0],/HttpOnly.*Secure/);assert.ok(!JSON.parse(r.text).token);

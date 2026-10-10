@@ -79,7 +79,7 @@ assert.ok(web.includes('[data-qb=backdrop]>div{background-position:50% 42% !impo
 assert.ok(web.includes('@keyframes qb-drift{from{transform:scale(1) translate3d(0,0,0);}to{transform:scale(1.05)'),'the painting stays zoomed out');
 assert.ok(home.includes('{!short&&slot}')&&home.includes('sub={!wide&&!short&&stats?.available?null:'),'an upright phone shows the hero strip above the menu');
 assert.ok(home.includes("onLegal?.(tab)")&&home.includes('Keep your progress safe: create an account')&&home.includes('menuGrid')&&home.includes('landLeft'),'everything added to the title screen since is kept');
-assert.ok(app.includes('unprotected={saved&&!account}'));
+assert.ok(app.includes('unprotected={saved&&!account&&accountsOffered()}'),'the account prompt only while accounts are offered');
 
 // 4. The serpent.
 const {serpentMarkup}=load('serpent.js',['serpentMarkup']);

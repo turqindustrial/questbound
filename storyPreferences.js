@@ -15,8 +15,10 @@ export const narrators=[
 ];
 export const narratorOf=id=>narrators.find(n=>n.id===id)??narrators[0];
 // autoShield: whether the game casts Shield for the hero when it turns a hit into a miss (Settings → Story → Rules).
-const defaults={brutality:'gritty',narrator:'chronicler',autoShield:true};
-function load(){try{const v=JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}');return {...defaults,...(brutalityLevels.some(l=>l.id===v?.brutality)?{brutality:v.brutality}:{}),...(narrators.some(n=>n.id===v?.narrator)?{narrator:v.narrator}:{}),...(typeof v?.autoShield==='boolean'?{autoShield:v.autoShield}:{})};}catch{return {...defaults};}}
+// easyStart: whether a new tale begins with the hero's orders in hand (a clear first errand from someone in charge),
+// whatever the opening; on unless the player turns it off (the New Adventure screen). The Skirmish ignores it.
+const defaults={brutality:'gritty',narrator:'chronicler',autoShield:true,easyStart:true};
+function load(){try{const v=JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}');return {...defaults,...(brutalityLevels.some(l=>l.id===v?.brutality)?{brutality:v.brutality}:{}),...(narrators.some(n=>n.id===v?.narrator)?{narrator:v.narrator}:{}),...(typeof v?.autoShield==='boolean'?{autoShield:v.autoShield}:{}),...(typeof v?.easyStart==='boolean'?{easyStart:v.easyStart}:{})};}catch{return {...defaults};}}
 let prefs=load();const listeners=new Set();
 export const storyPreferences=()=>({...prefs});
 export function subscribeStoryPreferences(fn){listeners.add(fn);return()=>listeners.delete(fn);}
@@ -24,8 +26,16 @@ export function setStoryPreferences(changes){
  if(changes.brutality&&!brutalityLevels.some(l=>l.id===changes.brutality))return;
  if(changes.narrator&&!narrators.some(n=>n.id===changes.narrator))return;
  if(changes.autoShield!==undefined&&typeof changes.autoShield!=='boolean')return;
+ if(changes.easyStart!==undefined&&typeof changes.easyStart!=='boolean')return;
  prefs={...prefs,...changes};try{globalThis.localStorage?.setItem(KEY,JSON.stringify(prefs));}catch{}
  listeners.forEach(fn=>fn(storyPreferences()));
 }
 // The hero as the rules see them on this device: the player's choices about reactions travel with every action.
 export const rulesHero=(hero,prefs=storyPreferences())=>hero&&prefs.autoShield===false?{...hero,autoShield:false}:hero;
+// Which opening a new tale is asked for and whether it is an easy start (Easy start on, any opening but the Skirmish).
+// Let fate decide with Easy start on is Easy to get into: the same tale of the writer's choosing with orders in hand,
+// stocked ahead so it starts in seconds. The next tale in a region is always asked for as Let fate decide.
+export function taleStart({selected,continuing=false,easyStart=true}){
+ const easy=easyStart!==false&&(continuing||selected!=='hostile');
+ return {introId:continuing?'surprise':easy&&selected==='surprise'?'easy':selected,easyStart:easy};
+}

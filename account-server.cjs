@@ -3,7 +3,7 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const {createAccounts}=require('./accounts.cjs'),{loopbackHost}=require('./security-headers.cjs');
 const {createLimiter}=require('./rate-limit.cjs'),{createCampaigns,validSnapshot}=require('./campaigns.cjs'),{createOperations,atomic}=require('./operations.cjs'),{createMailer}=require('./mailer.cjs');
 // The terms players accept are the ones legalText.js carries, so the date has one source.
-const currentTerms=(()=>{try{return /export const legalUpdated='([^']+)'/.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'legalText.js'),'utf8'))[1];}catch{return '9 October 2026';}})();
+const currentTerms=(()=>{try{return /export const legalUpdated='([^']+)'/.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'legalText.js'),'utf8'))[1];}catch{return '10 October 2026';}})();
 // Whether a signed-in, email-verified account is needed to play: one switch, accountsRequired in accountRules.js (read
 // from the file, as legalUpdated is above), or QUESTBOUND_REQUIRE_ACCOUNTS=1 for a hosted game. While it is off (the
 // beta), a browser without a session is given an anonymous guest identity (account-guest) and plays with it.

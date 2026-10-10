@@ -11,14 +11,21 @@ const all=legalDocuments.map(text).join('\n');
 // What the words promise is what the code does.
 assert.match(legalUpdated,/^\d{1,2} [A-Z][a-z]+ 20\d\d$/);
 const sync=fs.readFileSync('account-server.cjs','utf8'),accounts=fs.readFileSync('accounts.cjs','utf8');
-assert.ok(sync.includes('cloudLimit=200')&&text(privacyPolicy).includes('up to 200 saves'),'recovery-code copies kept: 200');
-assert.ok(accounts.includes('tokenDays=7')&&text(privacyPolicy).includes('7 days'),'sign-ins last 7 days');
-assert.ok(accounts.includes("crypto.scrypt(")&&text(privacyPolicy).includes('salted hash of your password'));
-assert.ok(accounts.includes("createHash('sha256').update('questbound-account-v1:'+email)")&&text(privacyPolicy).includes('hash of your email address'));
+// The beta (accountsRequired false in accountRules.js): no accounts are offered and saves stay in the browser
+// (cloudRules.js uploads nothing), so the texts describe the guest identity, shared tables and feedback only. Turning
+// accounts on needs these texts rewritten for accounts (as before 10 October 2026) in the same change.
+assert.ok(/^export const accountsRequired=false;$/m.test(fs.readFileSync('accountRules.js','utf8')),'accounts are on: rewrite legalText.js for accounts (email, password, recovery-code copies) before releasing them');
+assert.ok(fs.readFileSync('cloudRules.js','utf8').includes('if(!accountsOffered()){clearTimeout(cloudTimer);cloudPending=null;return;}')&&text(privacyPolicy).includes('your saves stay there: they are not copied to the host\'s computer')&&text(permissionsAgreement).includes('no copies of your saves on the host\'s computer'),'saves stay in the browser, and the texts say so');
+for(const doc of [privacyPolicy,termsOfUse,permissionsAgreement])assert.ok(!/Settings → (Your account|Recovery code)|recovery-code cop|verification (email|code|mail)|Sign out all devices|salted hash of your password|delete your account|deleting your account|create an account/i.test(text(doc)),doc.title+' describes no account feature players cannot use');
+assert.ok(text(privacyPolicy).includes('no accounts, email addresses, passwords, recovery codes or copies of your own saves')&&text(termsOfUse).includes('No account is needed during the beta'),'the texts say there are no accounts in the beta');
+// The guest identity: 90 days from its last use, removed after 60 unseen, the same HttpOnly cookie.
+assert.ok(/guestDays=90\b/.test(accounts)&&/guestIdleDays=60\b/.test(accounts)&&text(privacyPolicy).includes('lasts 90 days from the last time it is used')&&text(privacyPolicy).includes('not seen for 60 days is removed')&&text(permissionsAgreement).includes('for 90 days from its last use'),'the guest identity\'s lifetime');
+assert.ok(sync.includes('HttpOnly; SameSite=Strict')&&text(privacyPolicy).includes('HttpOnly and SameSite=Strict'),'the guest cookie');
+assert.ok(text(privacyPolicy).includes('Campaign invites expire after 7 days')&&text(privacyPolicy).includes('Up to 20 encrypted earlier versions of each shared table'),'shared tables');
 assert.ok(fs.readFileSync('Feedback.js','utf8').includes('device:deviceLabel()')&&text(privacyPolicy).includes('description of your device')&&text(privacyPolicy).includes('last two turns')&&text(privacyPolicy).includes('any errors the game showed you')&&fs.readFileSync('feedbackRules.js','utf8').includes('recent:')&&fs.readFileSync('Feedback.js','utf8').includes('Include what happened'),'the policy names what a feedback note carries');
-// The label OpenAI gets for phone, tester-link and table turns is the account's (a cut of the email hash), not the browser's.
-assert.ok(fs.readFileSync('phone-server.cjs','utf8').includes("parsed.guest='account-'+permitted.id")&&fs.readFileSync('account-server.cjs','utf8').includes("guest:'account-'+user.id")&&fs.readFileSync('dm-server.cjs','utf8').includes("'qb-acct-'+guest.slice(8,40)"),'requests carry the account label');
-assert.ok(text(privacyPolicy).includes('pseudonymous label for your account')&&text(privacyPolicy).includes('worked out from the account\'s email address')&&!text(privacyPolicy).includes("that browser's label"),'the policy describes the account label OpenAI gets');
+// The label OpenAI gets for phone, tester-link and table turns is the identity's (for a guest, a cut of its random id).
+assert.ok(fs.readFileSync('phone-server.cjs','utf8').includes("parsed.guest='account-'+permitted.id")&&fs.readFileSync('account-server.cjs','utf8').includes("guest:'account-'+user.id")&&fs.readFileSync('dm-server.cjs','utf8').includes("'qb-acct-'+guest.slice(8,40)"),'requests carry the identity\'s label');
+assert.ok(text(privacyPolicy).includes('pseudonymous label for your browser: a cut of its random guest identifier')&&!text(privacyPolicy).includes('email address, the same on every device'),'the policy describes the label OpenAI gets');
 assert.ok(fs.readFileSync('feedbackRules.js','utf8').includes('(g.storyLog??[]).slice(-6)')&&text(privacyPolicy).includes('latest six lines of the story log')&&text(privacyPolicy).includes('hit points, spells and class resources')&&text(privacyPolicy).includes('your experience points'),'the policy lists the story lines, hit points and experience a note carries');
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("recordUsage('turn'")&&text(privacyPolicy).includes('never the words themselves'));
 // Typefaces come from the host, so no third party sees a page load; the policy no longer names Google Fonts.
@@ -28,9 +35,9 @@ assert.ok(fs.readFileSync('launch.ps1','utf8').includes('cloudflared')&&text(pri
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes('api.openai.com')&&text(privacyPolicy).includes('OpenAI'));
 for(const doc of [privacyPolicy,termsOfUse,permissionsAgreement])assert.ok(text(doc).includes('16'),doc.title+' names the age');
 // The limits the texts describe are the ones the servers enforce.
-const gateway=fs.readFileSync('phone-server.cjs','utf8');assert.ok(gateway.includes('limiter(requestLimit,600000)')&&gateway.includes("register:limiter(5,3600000)")&&text(termsOfUse).includes('fair number of requests')&&text(privacyPolicy).includes('count requests, wrong pairing codes and wrong passwords'));
-assert.ok(text(privacyPolicy).includes('Settings → Your account → Manage account')&&fs.readFileSync('AccountSettings.js','utf8').includes("'Manage account'"));
-assert.ok(text(privacyPolicy).includes('Settings → Recovery code')&&fs.readFileSync('CloudSaveSettings.js','utf8').includes('title="Recovery code"'));
+const gateway=fs.readFileSync('phone-server.cjs','utf8');assert.ok(gateway.includes('limiter(requestLimit,600000)')&&text(termsOfUse).includes('fair number of requests')&&text(privacyPolicy).includes('The services count requests and wrong pairing codes.'));
+// What the texts name in the game is there: Settings → Move your hero, and Play Together on the title screen.
+assert.ok(fs.readFileSync('HomeScreen.js','utf8').includes("'Play Together','Multiplayer'")&&text(privacyPolicy).includes('Leave a shared table under Play Together'));
 assert.ok(text(privacyPolicy).includes('Settings → Move your hero')&&fs.readFileSync('SaveTransfer.js','utf8').includes('Move your hero'));
 assert.ok(!/\bD&D\b|Dungeons & Dragons/.test(all.replace(/never call the game Dungeons & Dragons or D&D/,'')),'no trademark used as a name');
 // Both System Reference Documents are attributed in the exact words their licence asks for.

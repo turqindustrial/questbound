@@ -53,7 +53,13 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await assert.rejects(ask({mode:'adventure',introId:'idea',idea:'  '}),/Write your idea/);
  const odd=await ask({mode:'adventure',introId:'idea',idea:'A cursed\u0000 bell\n\n tolls   at noon'});assert.ok(JSON.parse(calls.at(-1).input).creativeDirection.endsWith('A cursed bell tolls at noon'),'one clean line');
  assert.ok(odd.story.npcs.keeper.regard,'a tale for a known hero keeps the people\'s view of their kind');
+ // Easy start with another opening: written fresh, so it begins with orders in hand; Easy to get into itself is still stocked.
+ taken.length=0;await ask({mode:'adventure',introId:'crown',easyStart:true});assert.equal(taken.length,0,'an easy start on a written opening is written fresh');
+ await ask({mode:'adventure',introId:'surprise',easyStart:true});assert.equal(taken.length,0,'and on Let fate decide (the game asks for Easy to get into instead)');
+ const easyStocked=await ask({mode:'adventure',introId:'easy',easyStart:true});assert.equal(JSON.stringify(taken),JSON.stringify(['easy']),'Easy to get into comes from the stock');assert.equal(easyStocked.story.title,'T');
+ taken.length=0;await ask({mode:'adventure',introId:'crown',easyStart:false});assert.equal(JSON.stringify(taken),JSON.stringify(['crown']),'without Easy start the stock is used as before');
  const {generateAdventure}=require('./adventure-generator.cjs');
+ const intros0=JSON.parse(fs.readFileSync('adventureIntros.json','utf8'));
  const ahead=await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',ahead:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
  assert.match(calls.at(-1).instructions,/WRITTEN AHEAD/);assert.equal(ahead.story.npcs.keeper.regard,undefined,'written ahead, the view of the hero\'s kind is left to the game');
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',continuing:{previousTitle:'Old',newStartBearing:'north'},idea:'my sister comes looking for me',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
@@ -73,6 +79,17 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
  const fate=calls.at(-1);assert.ok(fate.text.format.schema.required.includes('residents')&&!fate.text.format.schema.required.includes('errand'),'every tale has residents; only Easy to get into has an errand');assert.ok(openingScenes.includes(JSON.parse(fate.input).openingScene));assert.ok(!fate.instructions.includes('EASY TO GET INTO'));
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});assert.equal(JSON.parse(calls.at(-1).input).openingScene,undefined,'a written opening keeps its own arrival');
+ // ---- Easy start: any opening but the Skirmish asks the writer for the errand, its voices and a direction to match ----
+ const easyFor=async context=>{await generateAdventure({input:'Create',context:{mode:'adventure',choices:[],...context}},{apiKey:'k',model:'m',fetchImpl:storyFetch});const call=calls.at(-1);return {schema:call.text.format.schema,instructions:call.instructions,input:JSON.parse(call.input)};};
+ for(const [label,context] of [['a written opening',{introId:'crown'}],['an idea of their own',{introId:'idea',idea:'A heist in a city on a sleeping giant'}],['the next tale',{introId:'surprise',continuing:{previousTitle:'Old',newStartBearing:'north'}}],['Let fate decide',{introId:'surprise'}]]){
+  const on=await easyFor({...context,easyStart:true});
+  for(const field of ['errand','openingDialogue','residents'])assert.ok(on.schema.required.includes(field),label+' with Easy start must have '+field);
+  assert.match(on.instructions,/EASY TO GET INTO/,label+' with Easy start is told how an errand begins');assert.ok(/errand/i.test(on.input.creativeDirection)||errandDirections.some(d=>on.input.creativeDirection.endsWith(d)),label+': the direction sets an errand');
+  const off=await easyFor({...context,easyStart:false});assert.ok(!off.schema.required.includes('errand')&&!off.instructions.includes('EASY TO GET INTO'),label+' without Easy start has no errand');
+ }
+ {const on=await easyFor({introId:'crown',easyStart:true});assert.ok(on.input.creativeDirection.startsWith(intros0.find(i=>i.id==='crown').setting),'a written opening keeps its own setting');assert.equal(on.input.openingScene,undefined,'and its own arrival');}
+ await assert.rejects(easyFor({introId:'hostile',easyStart:true}),/without the AI/,'the Skirmish is never written, easy or not');
+ {const truthy=await easyFor({introId:'crown',easyStart:'yes'});assert.ok(!truthy.schema.required.includes('errand'),'only easyStart:true counts');}
  // Written ahead, residents' views of the hero's kind are dropped too; their lines are kept by residentN.
  const peopled={...story,residents:[{name:'Old Tam',regard:{stance:'scornful',reason:'x'}}],openingDialogue:[{speakerId:'resident1',text:'Orders are orders.'},{speakerId:'resident9',text:'No.'},{speakerId:'keeper',text:'Go now.'}]};
  const peopledFetch=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(peopled)}]}]})};};
@@ -83,12 +100,27 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const screen=fs.readFileSync('AdventureIntros.js','utf8'),app=fs.readFileSync('App.js','utf8');
  assert.ok(screen.includes('function IdeaBox')&&screen.includes('ideaReady(idea)')&&screen.includes('<NarratorChoice compact/>'),'the idea box, its gate and the narrator choice');
  assert.ok(app.includes("...(wish?{idea:wish}:{})")&&app.includes("selectedIntro==='idea'&&!wish"),'the idea reaches the story writer');
+ // Easy start: a per-device switch on the New Adventure and next-tale screens, on unless turned off, hidden for the Skirmish.
+ assert.ok(screen.includes('function EasyStart')&&screen.includes("label=\"Easy start\"")&&(screen.match(/<EasyStart /g)??[]).length===2&&screen.includes("selected!=='hostile'"),'the Easy start switch on both screens, not for the Skirmish');
+ assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart})")&&app.includes("introId:start.introId,...(start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId:start.introId},base)"),'the game sends the easy start and keeps the opening it asked for');
 
  // ---- Narrators ----
  const prefs=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+'\n({narrators,narratorOf,storyPreferences,setStoryPreferences})',{globalThis:{localStorage:{store:{},getItem(k){return this.store[k]??null;},setItem(k,v){this.store[k]=v;}}},JSON,Set});
  assert.equal(JSON.stringify(prefs.narrators.map(n=>n.id)),JSON.stringify(['chronicler','lamplighter','bard']));assert.equal(prefs.storyPreferences().narrator,'chronicler','the Chronicler unless chosen');
  prefs.setStoryPreferences({narrator:'lamplighter'});assert.equal(prefs.storyPreferences().narrator,'lamplighter');prefs.setStoryPreferences({narrator:'old-greg'});assert.equal(prefs.storyPreferences().narrator,'lamplighter','only our own narrators');
  assert.equal(prefs.narratorOf('nobody').id,'chronicler');for(const n of prefs.narrators)assert.ok(n.name&&n.description&&n.sample&&n.voice.rate>0&&n.voice.pitch>0&&n.icon,n.id);
+ // Easy start: on by default, kept per device, only true or false; Let fate decide with it on is Easy to get into.
+ assert.equal(prefs.storyPreferences().easyStart,true,'Easy start is on unless turned off');prefs.setStoryPreferences({easyStart:'no'});assert.equal(prefs.storyPreferences().easyStart,true,'only a yes or a no');
+ prefs.setStoryPreferences({easyStart:false});assert.equal(prefs.storyPreferences().easyStart,false);
+ {const start=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+';({taleStart})',{globalThis:{localStorage:{getItem:()=>JSON.stringify({easyStart:false}),setItem(){}}},JSON,Set}).taleStart;
+  const map=o=>JSON.stringify(start(o));
+  assert.equal(map({selected:'surprise'}),JSON.stringify({introId:'easy',easyStart:true}),'Let fate decide with Easy start is Easy to get into (stocked ahead)');
+  assert.equal(map({selected:'surprise',easyStart:false}),JSON.stringify({introId:'surprise',easyStart:false}));
+  assert.equal(map({selected:'crown'}),JSON.stringify({introId:'crown',easyStart:true}));assert.equal(map({selected:'idea'}),JSON.stringify({introId:'idea',easyStart:true}));assert.equal(map({selected:'easy',easyStart:false}),JSON.stringify({introId:'easy',easyStart:false}));
+  assert.equal(map({selected:'hostile'}),JSON.stringify({introId:'hostile',easyStart:false}),'never for the Skirmish');
+  assert.equal(map({selected:'hostile',continuing:true}),JSON.stringify({introId:'surprise',easyStart:true}),'the next tale is asked for as Let fate decide, easy when on');
+  assert.equal(map({selected:'surprise',continuing:true,easyStart:false}),JSON.stringify({introId:'surprise',easyStart:false}));}
+ {const saved=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+';({storyPreferences})',{globalThis:{localStorage:{getItem:()=>JSON.stringify({easyStart:false}),setItem(){}}},JSON,Set});assert.equal(saved.storyPreferences().easyStart,false,'a saved choice is read back');}
  const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8');assert.ok(/NARRATOR: context\.storyPreferences\.narrator/.test(dm)&&dm.includes('instructions:instructions+narratorInstructions+')&&/never changes the rules/.test(dm)&&dm.includes('phaseInstructions+narratorVoice(body)+note')&&/NARRATOR THIS TURN: Wick the Lamplighter/.test(dm)&&/NARRATOR THIS TURN: Sable the Bard/.test(dm),'the Dungeon Master is told who narrates, in its standing instructions and, concretely, last in each turn');
  const header=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(header.includes('{teller.name}')&&header.includes('name={teller.icon}'),'the narrator heads the story');
  fs.rmSync(tmp,{recursive:true,force:true});

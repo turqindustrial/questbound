@@ -36,7 +36,7 @@ import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} fro
 import {fonts,colors,type,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
 import {setNarratorStyle} from './narrator';
-import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
+import {storyPreferences,subscribeStoryPreferences,narratorOf,taleStart} from './storyPreferences';
 import HomeScreen,{homeLayout} from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
@@ -66,7 +66,7 @@ import HeroRoster from './HeroRoster';
 import {scheduleCloudSave} from './cloudRules';
 import {CloudSaveSettings} from './CloudSaveSettings';
 import {AccountSettings} from './AccountSettings';
-import {accountState,bootstrapAccount,accountsRequired,accountsNeeded} from './accountRules';
+import {accountState,bootstrapAccount,accountsRequired,accountsNeeded,accountsOffered} from './accountRules';
 import {currentProfile,subscribeProfile} from './playerStorage';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
@@ -87,7 +87,7 @@ export default function App(){
  const [ready,setReady]=useState(false),[profile,setProfile]=useState(currentProfile);
  useEffect(()=>{const off=subscribeProfile(setProfile);bootstrapAccount(undefined,{required:accountsRequired}).finally(()=>{setProfile(currentProfile());setReady(true);});return off;},[]);
  useEffect(()=>{const changed=e=>{if(e.key==='questbound.account.v2')globalThis.location?.reload();};globalThis.addEventListener?.('storage',changed);return()=>globalThis.removeEventListener?.('storage',changed);},[]);
- if(!ready)return <View style={{flex:1,backgroundColor:colors.ink,padding:30}}><Text style={{color:colors.text}}>Opening your account…</Text></View>;
+ if(!ready)return <View style={{flex:1,backgroundColor:colors.ink,padding:30}}><Text style={{color:colors.text}}>{accountsRequired?'Opening your account…':'Opening Questbound…'}</Text></View>;
  return <SceneTransitionProvider key={profile}><QuestboundApp/></SceneTransitionProvider>;
 }
 function QuestboundApp() {
@@ -115,12 +115,13 @@ function QuestboundApp() {
   const [storageError, setStorageError] = useState('');
   const [adventureBlocked,setAdventureBlocked] = useState(false);
   const [saveStatus,setSaveStatus] = useState('');
-  // Whether the player is signed in to an account (their adventure is then also kept on the host's PC).
+  // Whether the player is signed in to an account (their adventure is then also kept on the host's PC). While accounts
+  // are not offered (accountsOffered in accountRules.js: the beta) nothing about accounts is shown and saves stay local.
   const [account,setAccount]=useState(null);
   // Which legal page is open (privacy, terms or licences), and where it was opened from.
   const [legalTab,setLegalTab]=useState('privacy'),[legalFrom,setLegalFrom]=useState('Home');
   const openLegal=(tab,from)=>{setLegalTab(tab);setLegalFrom(from);setScreenState('Legal');scrollRef.current?.scrollTo({y:0,animated:false});};
-  useEffect(()=>{accountState().then(a=>{setAccount(a);if(a?.hold)setScreenState('Settings');}).catch(()=>{});},[]);
+  useEffect(()=>{accountState().then(a=>{setAccount(a);if(a?.hold&&accountsOffered())setScreenState('Settings');}).catch(()=>{});},[]);
   // The read-aloud narrator sounds like the chosen narrator (storyPreferences.js narrators).
   useEffect(()=>{const apply=p=>setNarratorStyle(narratorOf(p.narrator).voice);apply(storyPreferences());return subscribeStoryPreferences(apply);},[]);
   const [saveRetry,setSaveRetry] = useState(0);
@@ -157,7 +158,7 @@ function QuestboundApp() {
     // A party: this device plays its own hero, joining with it the first time (partyRules.js).
     if(isPartyGame(snapshot?.game)){
       let view=partyView(snapshot,snapshot.game.party.lead); // the server sends each player the table with their own seat in the lead
-      if(!view)throw Error('This account has no hero in the campaign. Join with its campaign invite.');
+      if(!view)throw Error((accountsOffered()?'This account':'This browser')+' has no hero in the campaign. Join with its campaign invite.');
       let mine;try{mine=JSON.parse(view.character);}catch{throw Error('The party could not be read.');}
       if(!isValidCharacter(mine)||!validAdventure(view,mine))throw Error('The party did not pass validation. This device kept its own save.');
       if(!isCurrent())return;
@@ -245,10 +246,12 @@ function QuestboundApp() {
       // The player's own idea: the whole brief for Your own tale, an optional wish for the next tale in a region.
       const wish=(continuing||selectedIntro==='idea')&&idea.trim()?idea.trim().slice(0,300):null;
       if(!continuing&&selectedIntro==='idea'&&!wish)throw Error('Write your idea for the tale first.');
+      // Easy start (on unless the player turned it off): orders in hand for any opening; Let fate decide becomes Easy to get into.
+      const start=taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart});
       const endpoint=await findDmEndpoint();
-      const {ok,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:continuing?'surprise':selectedIntro,...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:start.introId,...(start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:hero.species??hero.race,class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       if(!ok)throw Error(body.error||'The story could not be created.');
-      next=freshStoryGame(hero,{...body.story,introId:continuing?'surprise':selectedIntro},base);
+      next=freshStoryGame(hero,{...body.story,introId:start.introId},base);
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
       if(characterChosen&&game.story)next=joinRegion(next,game,{sameRegion:continuing,bearing,miles});
@@ -419,7 +422,7 @@ function QuestboundApp() {
       <View style={s.controls}><FullscreenToggle compact/><AudioToggle compact/></View>
     </View>
   {home?<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={{flexGrow:1}} keyboardShouldPersistTaps="handled">
-    <HomeScreen hero={hero} game={game} health={health} saved={saved} unprotected={saved&&!account} onLegal={tab=>openLegal(tab,'Home')} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
+    <HomeScreen hero={hero} game={game} health={health} saved={saved} unprotected={saved&&!account&&accountsOffered()} onLegal={tab=>openLegal(tab,'Home')} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
       onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
       onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackRequest(null);setFeedbackOpen(true);}}/>
     <FeedbackSheet visible={feedbackOpen} onClose={()=>{setFeedbackOpen(false);setFeedbackRequest(null);}} context={feedbackContext} problem={feedbackRequest?.problem??null} prefill={feedbackRequest?.prefill??''}/>
@@ -497,13 +500,13 @@ function QuestboundApp() {
       </>}
       {screen === 'Multiplayer' && <SharedTable table={table} hero={hero} characterChosen={characterChosen} onPlay={()=>{setNewStoryRequested(false);setScreen(characterChosen?'Adventure':'Character Selection');}}/>}
       {screen === 'Legal' && <Legal tab={legalTab} onTab={setLegalTab}/>}
-      {screen === 'Settings' && <AccountSettings onRestore={restoreFromCloud} busy={saving||loading} onChange={setAccount} onLegal={tab=>openLegal(tab,'Settings')}/>}
+      {screen === 'Settings' && accountsOffered() && <AccountSettings onRestore={restoreFromCloud} busy={saving||loading} onChange={setAccount} onLegal={tab=>openLegal(tab,'Settings')}/>}
       {screen === 'Settings' && <StorySettings/>}
       {screen === 'Settings' && <ThemeSettings/>}
       {screen === 'Settings' && <DeveloperDiagnostics/>}
       {screen === 'Settings' && <DisplaySettings/>}
       {screen === 'Settings' && <AudioSettings/>}
-      {screen === 'Settings' && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
+      {screen === 'Settings' && accountsOffered() && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
       {screen === 'Settings' && <SaveTransfer/>}
       {screen === 'Settings' && <View style={s.about}><Section icon="info" title="About" style={{marginTop:0}}/><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>Questbound is an independent production, compatible with fifth edition, and is not affiliated with Wizards of the Coast. Its rules text includes material from the System Reference Documents 5.2 and 5.1 by Wizards of the Coast LLC under the Creative Commons Attribution 4.0 International License (see Licences and credits).</Text>
         <View style={s.legalRow}>{[['privacy','Privacy policy','key'],['terms','Terms of use','scroll'],['permissions','Permissions agreement','check'],['licences','Licences and credits','book']].map(([tab,label,icon])=><GameButton key={tab} icon={icon} label={label} onPress={()=>openLegal(tab,'Settings')} style={s.legalButton}/>)}</View></View>}

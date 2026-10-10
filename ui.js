@@ -122,8 +122,8 @@ export function HpFloaters({value,style}){
  return <View style={[s.floaters,{pointerEvents:'none'},style]}>{items.map(i=><Text key={i.id} dataSet={{qb:'floater'}} style={[s.floater,{color:i.delta<0?colors.bloodBright:colors.heal}]}>{i.delta<0?'−':'+'}{Math.abs(i.delta)}</Text>)}</View>;
 }
 // An on/off switch with a label and an optional description underneath.
-export function Toggle({value,onChange,label,description,style}){
- return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value}} accessibilityLabel={label} onPress={()=>onChange(!value)} style={[s.toggleRow,style]}>
+export function Toggle({value,onChange,label,description,style,disabled=false}){
+ return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value,disabled}} accessibilityLabel={label} disabled={disabled} onPress={()=>onChange(!value)} style={[s.toggleRow,disabled&&{opacity:.62},style]}>
   <View style={{flex:1,minWidth:0}}><Text style={s.toggleLabel}>{label}</Text>{!!description&&<Text style={s.toggleDescription}>{description}</Text>}</View>
   <View dataSet={{qb:value?'btn-primary':'seg'}} style={[s.track2,value&&s.trackOn]}><View style={[s.knob,value&&s.knobOn]}/></View>
  </Pressable>;

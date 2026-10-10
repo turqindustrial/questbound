@@ -1,11 +1,12 @@
-import React from 'react';
+import React,{useState,useEffect} from 'react';
 import {View,Text,TextInput,Pressable,StyleSheet,useWindowDimensions} from 'react-native';
 import intros from './adventureIntros.json';
-import {GameButton,Ornament,ScreenTitle,Crest} from './ui';
+import {GameButton,Ornament,ScreenTitle,Crest,Toggle} from './ui';
 import Icon from './Icon';
 import {playSound} from './audio';
 import {fonts,colors,type,tint} from './theme';
 import {NarratorChoice} from './StoryControls';
+import {storyPreferences,setStoryPreferences,subscribeStoryPreferences} from './storyPreferences';
 const icons={hostile:'swords',surprise:'compass',idea:'quill',easy:'flag',crown:'crown',drowned:'wave',sunforge:'flame',winter:'frost',deep:'door',names:'eye',oath:'shield'};
 // With a story behind them, a hero can carry on in the same region (the next chapter) or set out somewhere new.
 function Continuation({continuation,continuing,onContinuing,busy}){
@@ -24,20 +25,27 @@ function IdeaBox({idea,onIdea,busy,optional=false}){
   <Text style={s.ideaNote}>{idea.length}/{ideaLimit}. Tales stay in Questbound\'s own world: name a book or film and you get its mood, with people and places of the tale\'s own.</Text>
  </View>;
 }
+// Easy start (storyPreferences.js, per device, on unless turned off): any tale but the Skirmish begins with the hero's
+// orders in hand. Easy to get into always begins that way, so the switch shows on and cannot be turned off there.
+function EasyStart({always=false,busy}){
+ const [prefs,setPrefs]=useState(storyPreferences);
+ useEffect(()=>{setPrefs(storyPreferences());return subscribeStoryPreferences(setPrefs);},[]);
+ return <Toggle value={always||prefs.easyStart!==false} disabled={always||busy} onChange={on=>{playSound(on?'select':'tick');setStoryPreferences({easyStart:on});}} label="Easy start" description={always?'Easy to get into always begins this way: someone in charge gives you a clear first errand, and chapter 1 is that errand.':'Begin with your orders in hand: someone in charge gives you a clear first errand, and chapter 1 is that errand.'} style={s.easy}/>;
+}
 const firstTime=()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}};
 export default function AdventureIntros({selected,onSelect,onStart,busy,error,continuation=null,continuing=false,onContinuing,idea='',onIdea=()=>{}}){
  const narrow=useWindowDimensions().width<420;
  if(continuation&&continuing)return <View><ScreenTitle eyebrow="Next tale" icon="map" title="Where does your story go next?" sub={'After '+continuation.title+'.'}/>
   <Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>
   <IdeaBox idea={idea} onIdea={onIdea} busy={busy} optional/>
-  <View style={s.narrator}><NarratorChoice compact/></View>
+  <View style={s.narrator}><NarratorChoice compact/><EasyStart busy={busy}/></View>
   <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'One moment…':'Begin the next tale'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
   <Ornament/><Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
  return <View><ScreenTitle eyebrow="New adventure" icon="compass" title="Where does your story begin?" sub="Choose a tale, or bring your own idea. Each is yours alone: a long story told in chapters, with its own country, people, side errands and roads to other lands."/>
  {/* A first-time player (the in-game "How to play" card not yet dismissed) is told where to start. */}
-  {!continuation&&firstTime()&&<Text style={s.first}>First time here? <Text style={s.firstStrong}>Easy to get into</Text> starts you with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
+  {!continuation&&firstTime()&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
   {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
-  <View style={s.narrator}><NarratorChoice compact/></View>
+  <View style={s.narrator}><NarratorChoice compact/>{selected!=='hostile'&&<EasyStart always={selected==='easy'} busy={busy}/>}</View>
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {intros.map(intro=>{const chosen=selected===intro.id,hot=!!intro.local;return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>
  <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?'#ffb39e':colors.goldBright}/><View style={{flex:1,minWidth:0}}>
@@ -71,5 +79,6 @@ const s=StyleSheet.create({
  choice:{gap:0,marginBottom:6},option:{paddingVertical:14},
  note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginBottom:4,textAlign:'center'},
  ideaWrap:{marginTop:2,marginBottom:12,gap:6},idea:{minHeight:92,fontFamily:fonts.ui,fontSize:15,lineHeight:22,color:colors.parchment,backgroundColor:tint('rgba(8,5,9,.75)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),borderRadius:5,padding:12,textAlignVertical:'top'},ideaNote:{fontFamily:fonts.ui,color:colors.faint,fontSize:12,lineHeight:18},
+  easy:{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:tint('rgba(176,140,245,.22)')},
   narrator:{padding:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(176,140,245,.3)'),marginBottom:14},
   first:{fontFamily:fonts.ui,color:tint('#d4ced2'),fontSize:13.5,lineHeight:21,marginBottom:12,paddingVertical:10,paddingHorizontal:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(176,140,245,.4)'),backgroundColor:tint('rgba(48,26,78,.28)')},firstStrong:{color:colors.goldBright,fontWeight:'600'},error:{fontFamily:fonts.ui,color:colors.danger,marginVertical:12}});

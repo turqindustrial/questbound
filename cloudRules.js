@@ -1,7 +1,7 @@
 import AsyncStorage from './playerStorage';
 import {currentProfile} from './playerStorage';
 import {tableEndpoint} from './tableClient';
-import {noteSnapshot,saveToAccount,guestIdentity} from './accountRules';
+import {noteSnapshot,saveToAccount,guestIdentity,accountsOffered} from './accountRules';
 // Cloud saves: the current hero and adventure are also kept on the host PC under this browser's recovery code, a
 // little after play settles. Entering the code in another browser or device that can reach the game restores them
 // there (and that device then saves under the same code). Only a hash of the code is stored on the PC.
@@ -23,6 +23,7 @@ async function cloudCall(route,body,fetchImpl=fetch){
  return data;
 }
 export async function uploadSave(snapshot,fetchImpl){
+ if(!accountsOffered())return null;
  const owner=currentProfile(),store=AsyncStorage.scope(),s=await cloudSettings(store);if(!s.enabled||!onHost(owner)||owner!==currentProfile())return null;
  const r=await cloudCall('cloud-save',{code:s.code,snapshot},fetchImpl);await setCloudSettings({savedAt:r.savedAt},store);return r.savedAt;
 }
@@ -31,8 +32,11 @@ export const downloadSave=(code,fetchImpl)=>cloudCall('cloud-load',{code:normalC
 const onHost=owner=>owner!=='guest'||!!guestIdentity();
 // Saves are sent a few seconds after play settles, not on every step.
 let cloudTimer=null,cloudPending=null;
+// While accounts are not offered (accountsOffered in accountRules.js: the beta), saves stay in this browser: no
+// recovery-code copy and no account copy is sent anywhere.
 export function scheduleCloudSave(snapshot,delay=8000){
+ if(!accountsOffered()){clearTimeout(cloudTimer);cloudPending=null;return;}
  cloudPending={snapshot,owner:currentProfile()};noteSnapshot(snapshot);clearTimeout(cloudTimer);
  // The same copy goes to the player's account when they are signed in (accountRules.js).
- cloudTimer=setTimeout(()=>{const s=cloudPending;cloudPending=null;if(s&&s.owner===currentProfile()&&onHost(s.owner)){uploadSave(s.snapshot).catch(()=>{});saveToAccount(s.snapshot).catch(()=>{});}},delay);
+ cloudTimer=setTimeout(()=>{const s=cloudPending;cloudPending=null;if(s&&s.owner===currentProfile()&&onHost(s.owner)&&accountsOffered()){uploadSave(s.snapshot).catch(()=>{});saveToAccount(s.snapshot).catch(()=>{});}},delay);
 }

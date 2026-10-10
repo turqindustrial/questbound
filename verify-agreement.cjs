@@ -19,7 +19,7 @@ const blocked={getItem(){throw Error('blocked');},setItem(){throw Error('blocked
 assert.equal(permissionsAgreement.sections.length,7);
 for(const s of permissionsAgreement.sections)assert.ok(s.paragraphs[0].length>40&&s.paragraphs[0].length<420,s.heading+' fits the dialog');
 const words=permissionsAgreement.sections.flatMap(s=>s.paragraphs).join('\n');
-for(const must of ['OpenAI','16 or older','cookie','recovery code','clearing this browser','daily usage'])assert.ok(words.includes(must),'the agreement mentions '+must);
+for(const must of ['OpenAI','16 or older','cookie','guest identity','no copies of your saves','clearing this browser','daily usage'])assert.ok(words.includes(must),'the agreement mentions '+must);
 assert.ok(legalDocuments.some(d=>d.id==='permissions'),'readable in full under Settings → About');
 // Shown after the launch screen and before anything else, not while the player reads the full texts; accepted with one tap.
 const app=fs.readFileSync('App.js','utf8'),dialog=fs.readFileSync('Agreement.js','utf8'),legal=fs.readFileSync('Legal.js','utf8'),home=fs.readFileSync('HomeScreen.js','utf8'),gate=fs.readFileSync('phone-server.cjs','utf8');

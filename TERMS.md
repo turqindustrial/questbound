@@ -1,6 +1,6 @@
 # Questbound: Terms of use and Licences and credits
 
-_Last updated 9 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 10 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Terms of use
 
@@ -11,7 +11,7 @@ Questbound is an early-access game in testing, shared privately by its host with
 ### Who may play
 
 - You must be 16 or older. If you have not reached the age of legal majority where you live, your parent or guardian must authorize your use where applicable law requires it.
-- An account is optional during the beta. If you create one, use an email address you control and complete verification. Protect your password, sessions and invites. Report suspected unauthorized access promptly.
+- No account is needed during the beta: your browser plays under an anonymous guest identity and your saves stay in it. Accounts may be offered at full release, under terms you will be asked to accept first. Keep invite codes private and report suspected misuse promptly.
 - The host may suspend access for misuse, safety concerns or operational needs, subject to applicable law. Early-access features and saves may change or become unavailable. This does not remove any statutory rights.
 ### The Dungeon Master is an AI
 
@@ -39,7 +39,7 @@ Nothing in these terms excludes or limits liability for fraud, intentional misco
 
 ### Changes and law
 
-Material changes are dated and presented for renewed acceptance. Unless a lawful agreement says otherwise, mandatory law and consumer protections applicable to you remain in force. No compulsory arbitration clause, exclusive court venue or governing jurisdiction is chosen in this version. If a provision is unenforceable, the remaining provisions apply to the extent permitted by law. Contact the host through Feedback or the game's verification/support mailbox to raise an issue.
+Material changes are dated and presented for renewed acceptance. Unless a lawful agreement says otherwise, mandatory law and consumer protections applicable to you remain in force. No compulsory arbitration clause, exclusive court venue or governing jurisdiction is chosen in this version. If a provision is unenforceable, the remaining provisions apply to the extent permitted by law. Contact the host through Feedback to raise an issue.
 
 ### Third-party services and costs
 

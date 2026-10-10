@@ -328,7 +328,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     const write=(reasoning,timeout)=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});
     // A tale written ahead for this opening starts at once; its replacement is written at the asker's cost. The next
     // tale in a region and the player's own idea are always written fresh.
-    if(stock&&!body.context.continuing&&!body.context.idea){const stocked=stock.take(String(body.context.introId??'surprise'));try{topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live,guest});}catch{}if(stocked)return {story:{...stocked,id:require('node:crypto').randomUUID(),status:'active'},ahead:true};}
+    if(stock&&!body.context.continuing&&!body.context.idea&&!(body.context.easyStart===true&&String(body.context.introId??'surprise')!=='easy')){const stocked=stock.take(String(body.context.introId??'surprise'));try{topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live,guest});}catch{}if(stocked)return {story:{...stocked,id:require('node:crypto').randomUUID(),status:'active'},ahead:true};}
     // Asked for with a job id, the tale is written in the background with the effort the host chose, for as long as
     // it takes (up to seven minutes; at high effort a tale takes about three); the game asks after it every few
     // seconds (storyJob above).
