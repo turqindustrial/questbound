@@ -160,7 +160,7 @@ export function fightOver(game){
 // A spell's mark on a creature (spellRules.js withSpellMark).
 // acid: Acid Arrow's or Vitriolic Sphere's later burn; burning: Searing Smite; aflame: burning webs; scorched: held metal
 // glowing red-hot (Heat Metal). `level`: the slot the spell was cast with, for damage that comes later.
-const spellMarkConds=['asleep','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned','acid','burning','aflame','scorched'];
+const spellMarkConds=['asleep','drowsy','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned','acid','burning','aflame','scorched'];
 const validSpellMark=m=>!!m&&typeof m==='object'&&typeof m.id==='string'&&m.id.length>0&&m.id.length<=60&&spellMarkConds.includes(m.cond)&&typeof m.by==='string'&&m.by.length>0&&m.by.length<=80&&Number.isInteger(m.dc)&&m.dc>=1&&m.dc<=40&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(m.save)&&(m.rounds===undefined||(Number.isInteger(m.rounds)&&m.rounds>=1&&m.rounds<=100000))&&(m.level===undefined||(Number.isInteger(m.level)&&m.level>=0&&m.level<=9))&&Object.keys(m).every(k=>['id','cond','by','dc','save','rounds','level'].includes(k));
 export function validMarks(g){
  const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/;

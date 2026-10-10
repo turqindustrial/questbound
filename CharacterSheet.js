@@ -11,7 +11,7 @@ import FeaturePanel from './FeaturePanel';
 import React, {useState} from 'react';
 import LoadoutSummary from './LoadoutSummary';
 import {View, Text as PlainText, Pressable, StyleSheet, useWindowDimensions} from 'react-native';
-import {abilities, modifier} from './characterRules';
+import {abilities, modifier, currentSubclass} from './characterRules';
 import {combatBasics, signed} from './combatRules';
 import HealthTracker from './HealthTracker';
 import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
@@ -41,7 +41,7 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
       </View>
     </View>
     {stats.available&&<View style={s.hpBlock}><Icon name="heart" size={16} color={hp/Math.max(1,stats.hp)<=.3?colors.bloodBright:colors.heal}/><View style={{flex:1}}><StatBar value={hp} maximum={stats.hp} height={10}/></View><PlainText style={s.hpText}>{hp}<PlainText style={s.hpMax}> / {stats.hp} HP</PlainText></PlainText></View>}
-    {!!hero.plannedSubclass && <Text style={s.caption}>{hero.level>=3?'Subclass':'Planned subclass'}: {hero.plannedSubclass}{hero.level<3?' · Unlocks at level 3':''}</Text>}
+    {!!hero.plannedSubclass && <Text style={s.caption}>{hero.level>=3?'Subclass':'Planned subclass'}: {currentSubclass(hero.plannedSubclass)}{hero.level<3?' · Unlocks at level 3':''}</Text>}
     <Segmented value={tab} onChange={setTab} options={[['Overview','Overview','sheet'],['Spells','Spells','spell'],['Skills & Abilities','Skills','star'],['Inventory','Inventory','bag']]}/>
     {tab==='Overview'&&<>
     {stats.available ? <>

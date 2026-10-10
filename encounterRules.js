@@ -121,11 +121,14 @@ export function shieldBlow(game,damage,random){
  const block=1+Math.floor(random()*6),left=Math.max(0,damage-block);
  return {game:{...game,foeTricks:{...game.foeTricks,shield:true}},damage:left,line:`Shield Wall: the skeleton catches the blow on its cracked shield (1d6 [${block}]); ${left} damage gets through.`};
 }
-// A blow that would finish a zombie may not (once a fight).
-export function undeadFortitude(game,foe,random){
+// A blow that would finish a zombie may not (once a fight): a Constitution save against 5 + the damage of the blow
+// (SRD 5.2; 10 when the blow is not known), never against Radiant damage or a critical hit. `blow`: {damage, type,
+// critical} of the blow that dropped it.
+export function undeadFortitude(game,foe,random,blow=null){
  if(foeKind(game)!=='zombies'||game.foeTricks?.fortitude||game.enemyHP!==0)return {game,line:null};
- const die=1+Math.floor(random()*20),bonus=foe.saves?.Constitution??0,total=die+bonus,stands=total>=10;
- return {game:{...game,foeTricks:{...game.foeTricks,fortitude:true},...(stands?{enemyHP:1}:{})},line:`Undead Fortitude: Constitution save d20 [${die}] + ${bonus} = ${total} vs DC 10. ${stands?'Success. It lurches back up with 1 HP.':'Failure. It stays down.'}`};
+ if(blow&&(blow.critical||/^radiant$/i.test(String(blow.type??''))))return {game,line:`Undead Fortitude fails against ${blow.critical?'a critical hit':'radiant light'}: it stays down.`};
+ const dc=blow?.damage>0?5+blow.damage:10,die=1+Math.floor(random()*20),bonus=foe.saves?.Constitution??0,total=die+bonus,stands=total>=dc;
+ return {game:{...game,foeTricks:{...game.foeTricks,fortitude:true},...(stands?{enemyHP:1}:{})},line:`Undead Fortitude: Constitution save d20 [${die}] + ${bonus} = ${total} vs DC ${dc}. ${stands?'Success. It lurches back up with 1 HP.':'Failure. It stays down.'}`};
 }
 // ---------- Companions in a fight ----------
 // A companion fights as their class (game.npcClasses, npcRules.js), at their level: weapons for the martial classes,

@@ -51,8 +51,17 @@ assert.deepEqual(Object.keys(r.subclassOptions.Artificer),['Alchemist','Armorer'
 assert.ok(Object.values(JSON.parse(JSON.stringify(r.legacySubclassOptions))).flat().length>=50,'what was offered before is still accepted for saved heroes');
 assert.equal(r.validPlannedSubclass({class:'Barbarian',plannedSubclass:'Path of the Zealot'}),true);
 assert.equal(r.validPlannedSubclass({class:'Barbarian',plannedSubclass:'Path of the Moon'}),false);
-// No wording from unlicensed books in the game's own files.
-for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f))){const source=fs.readFileSync(file,'utf8');assert.ok(!/Monsters of the Multiverse|Player.s Handbook|Xanathar|Tasha.s Cauldron|Eberron|Forgotten Realms/.test(source),file+' names no unlicensed book');}
+// No unlicensed book named in any of the game's own files: code, servers and prompts, data, pages and documents
+// (everything but installed packages, builds and private data). The only exceptions are the lines that tell the
+// Dungeon Master, the story writer or a developer what never to use.
+{
+ const books=new RegExp(['Player.s Handbook','Dungeon Master.s Guide','Monster Manual','Xanathar','Tasha','Volo.s','Mordenkainen','Monsters of the Multiverse','Fizban','Sword Coast','Wildemount','Tal.Dorei','Critical Role','Eberron','Forgotten Realms','Ravnica','Theros','Ravenloft','Strixhaven','Spelljammer','Astral Adventurer','Planescape','Bigby','Book of Many Things','Acquisitions Incorporated','Radiant Citadel','Elemental Evil','Princes of the Apocalypse','Dragonlance','Phandelver','Curse of Strahd','Tomb of Annihilation','Storm King.s Thunder','Out of the Abyss','Tyranny of Dragons','Hoard of the Dragon Queen','Rise of Tiamat','Dragon Heist','Mad Mage','Descent into Avernus','Icewind Dale','Rime of the Frostmaiden','Candlekeep','Witchlight','Ghosts of Saltmarsh','Golden Vault','Vecna','Infinite Staircase','Heroes of Faer','Kwalish','Glory of the Giants','Lost Mine','Dungeon of the Mad Mage','Mythic Odysseys','Van Richten'].map(t=>'\\b'+t+'\\b').join('|'),'i');
+ const skip=/^(?:node_modules|dist[\w-]*|\.git|\.expo|project-memory|backups?|\.questbound-.*)$/,exempt=/never use names|is not SRD wording|book-name guard/i,seen=[];
+ const walk=dir=>{for(const e of fs.readdirSync(dir,{withFileTypes:true})){if(skip.test(e.name)||(dir==='assets'&&e.name==='art'))continue;const p=dir==='.'?e.name:dir+'/'+e.name;if(e.isDirectory())walk(p);else if(/\.(?:js|cjs|mjs|json|md|html)$/.test(e.name))seen.push(p);}};
+ walk('.');
+ for(const file of seen){if(file==='verify-legal.cjs')continue;const lines=fs.readFileSync(file,'utf8').split('\n');lines.forEach((line,i)=>assert.ok(exempt.test(line)||!books.test(line),file+':'+(i+1)+' names an unlicensed book ('+line.match(books)?.[0]+')'));}
+ assert.ok(seen.includes('dm-server.cjs')&&seen.includes('classFeatureCatalog.json')&&seen.includes('public/privacy.html')&&seen.includes('README.md'),'the guard reads servers, data, pages and documents');
+}
 // The Dungeon Master and the story writer are told to stay in Questbound's own world.
 for(const file of ['dm-server.cjs','adventure-generator.cjs'])assert.ok(fs.readFileSync(file,'utf8').includes('Never use names, places, gods, organisations, creatures or spells that belong to any publisher'),file);
 // The pages are reachable: Settings → About, the title screen, the account form, and the pairing page before pairing.

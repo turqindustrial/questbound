@@ -2281,7 +2281,7 @@
     "subclass": "Hearth Domain",
     "level": 3,
     "name": "Banked Fire",
-    "description": "When a Cleric spell you cast deals Fire or Radiant damage, it deals extra damage equal to your Wisdom modifier, once per casting.",
+    "description": "When a Cleric spell of level 1 or higher that you cast deals Fire or Radiant damage, it deals extra damage equal to your Wisdom modifier, once per casting.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -2782,16 +2782,16 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 3,
     "name": "Slip Behind",
-    "description": "Once on each of your turns, after you hit a creature with an Unarmed Strike or a Monk weapon, your next attack roll against that creature before the end of your next turn has Advantage.",
+    "description": "Once on each of your turns, after you hit a creature with an Unarmed Strike or a Monk weapon, your next attack roll against that creature before the end of this turn (your Martial Arts strike, say) has Advantage.",
     "source": "Questbound",
     "automation": "engine"
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 6,
     "name": "Quiet Feet",
     "description": "You have Advantage on Dexterity (Stealth) checks, and as a Bonus Action you can spend 2 Focus Points to become Invisible until the end of your next turn or until you attack.",
@@ -2800,7 +2800,7 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 11,
     "name": "Fold of the Moment",
     "description": "Once per Short or Long Rest, when you take damage, you can take a Reaction to halve it and reappear in an unoccupied space you can see within 30 feet.",
@@ -2809,7 +2809,7 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 17,
     "name": "The Unseen Hand",
     "description": "Once per Long Rest, as a Bonus Action, you become Invisible for 1 minute. Attacking does not end it, but you regain no Focus Points while it lasts.",
@@ -3343,7 +3343,7 @@
     "subclass": "Saintblood Sorcery",
     "level": 3,
     "name": "Saintblood Spells",
-    "description": "You always have these spells prepared once you reach the Sorcerer level shown, and they never count against the spells you prepare: level 3, Cure Wounds, Bless, Aid and Lesser Restoration; level 5, Revivify and Daylight; level 7, Death Ward and Guardian of Faith; level 9, Greater Restoration and Mass Cure Wounds.",
+    "description": "You always have these spells prepared once you reach the Sorcerer level shown, and they never count against the spells you prepare: level 3, Cure Wounds and Bless; level 5, Aid, Lesser Restoration, Revivify and Daylight; level 7, Death Ward and Guardian of Faith; level 9, Greater Restoration and Mass Cure Wounds.",
     "source": "Questbound",
     "automation": "engine"
   },
@@ -3352,7 +3352,7 @@
     "subclass": "Saintblood Sorcery",
     "level": 3,
     "name": "Grace in the Blood",
-    "description": "When you cast a spell with a spell slot that restores Hit Points, the creature regains extra Hit Points equal to your Charisma modifier.",
+    "description": "When you cast a spell with a spell slot that restores Hit Points, the creature regains extra Hit Points equal to half your Charisma modifier (rounded down).",
     "source": "Questbound",
     "automation": "engine"
   },

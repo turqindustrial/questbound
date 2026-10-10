@@ -1,3 +1,4 @@
+import {currentSubclass} from './characterRules';
 // The subclasses a hero may plan. For each class of the System Reference Document 5.2 the one it licenses (Wizards of
 // the Coast, CC BY 4.0) comes first, then three of Questbound's own, written in the game's own words; the Artificer, a
 // Questbound option beyond the SRD, has five specialities. Nothing is taken from other books (see Licences in
@@ -45,7 +46,7 @@ export const subclassOptions={
   "Warrior of the Open Hand": "Master precise unarmed techniques and control the flow of a fight.",
   "Warrior of the Crane": "Stand poised as a crane over water: patient, balanced and hard to touch.",
   "Warrior of the Coiled Serpent": "Strike the hidden points of the body and leave venom in every blow.",
-  "Warrior of the Hidden Step": "Vanish between heartbeats and strike from the corner of the eye."
+  "Warrior of the Quiet Step": "Vanish between heartbeats and strike from the corner of the eye."
  },
  Paladin: {
   "Oath of Devotion": "Commit yourself to honesty, courage, and protecting others.",
@@ -169,4 +170,4 @@ export const legacySubclassOptions={
   "Illusionist"
  ]
 };
-export function validPlannedSubclass(hero){return hero.plannedSubclass===undefined||hero.plannedSubclass===''||Object.hasOwn(subclassOptions[hero.class]??{},hero.plannedSubclass)||(legacySubclassOptions[hero.class]??[]).includes(hero.plannedSubclass);}
+export function validPlannedSubclass(hero){return hero.plannedSubclass===undefined||hero.plannedSubclass===''||Object.hasOwn(subclassOptions[hero.class]??{},currentSubclass(hero.plannedSubclass))||(legacySubclassOptions[hero.class]??[]).includes(hero.plannedSubclass);}

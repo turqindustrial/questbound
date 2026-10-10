@@ -211,6 +211,15 @@ const table=(kara,bram,game,health)=>{
  assert.equal(again.error,undefined,again.error);assert.match(lines(again),/Heat Metal \(bonus action\)/);assert.ok(again.game.enemyHP<heat.game.enemyHP);
  assert.ok(again.game.bonusUsed||again.game.actionUsed===undefined,'a bonus action');
  assert.equal(r.turnCost(druid,heat.game,'again:foe'),'bonus');
+ // SRD 5.2: a failed Constitution save drops the metal (no penalty); one that keeps hold (a success, or armour it wears)
+ // attacks with disadvantage until the caster's next turn.
+ const dropped=cast(druid,f,'I cast Heat Metal on Vessa the Dry Hand.',()=>0);
+ assert.match(lines(dropped),/it drops the red-hot metal\./,'a failed save drops the metal');assert.ok(!/disadvantage, red-hot metal/.test(lines(dropped)),'and leaves no penalty on its attack');
+ const kept=cast(druid,f,'I cast Heat Metal on Vessa the Dry Hand.',()=>0.99);
+ assert.match(lines(kept),/it keeps hold of the burning metal, and its attacks have disadvantage/,'a successful save keeps hold, at a cost');assert.match(lines(kept),/red-hot metal/);
+ const armour=cast(druid,f,"I cast Heat Metal on Vessa the Dry Hand's armour.",()=>0);
+ assert.match(lines(armour),/cannot shed the armour/,'armour cannot be dropped');assert.equal(armour.game.concentration.worn,true);assert.ok(saved(druid,armour),'Heat Metal on armour saves');
+ const again2=r.adventureStep(armour.game,armour.health,druid,'again:foe',()=>0.99);assert.match(lines(again2),/cannot shed the armour/,'and burns on when it is heated again');
  // Spiritual Weapon: strikes as it is cast, then as a bonus action on later turns.
  const cleric=hero('Cleric',3,['guidance','sacred-flame','spiritual-weapon','spirit-guardians']),cf=scenes(cleric).fight;
  const sw=cast(cleric,cf,'I cast Spiritual Weapon at the enemy.',()=>0.9);

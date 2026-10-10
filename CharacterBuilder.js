@@ -15,7 +15,7 @@ import {Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import {playSound} from './audio';
-import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages} from './characterRules';
+import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass} from './characterRules';
 import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions, lineageDetails} from './characterOptions';
 
 const basePages = [
@@ -115,9 +115,9 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {page === 2 && optionCards('Class', classes, form.class, value => change(value===form.class ? {} : {class:value,level:1,advancements:[],arcanum:{},spells:[],spellbook:[],plannedSubclass:''}), classDetails)}
     {page === 3 && <>
       <Text style={s.note}>Planned subclass · Unlocks at level 3</Text>
-      {!!form.plannedSubclass && !Object.hasOwn(subclassOptions[form.class]??{},form.plannedSubclass) && <Text style={s.note}>Saved path: {form.plannedSubclass}. You may keep it or choose one of the paths below.</Text>}
+      {!!form.plannedSubclass && !Object.hasOwn(subclassOptions[form.class]??{},currentSubclass(form.plannedSubclass)) && <Text style={s.note}>Saved path: {form.plannedSubclass}. You may keep it or choose one of the paths below.</Text>}
       {choices('Subclass decision', ['Decide later'], form.plannedSubclass ? '' : 'Decide later', () => change({plannedSubclass:''}))}
-      {optionCards('Subclass', Object.keys(subclassOptions[form.class]??{}), form.plannedSubclass??'', value=>change({plannedSubclass:value}), Object.fromEntries(Object.entries(subclassOptions[form.class]??{}).map(([name,description])=>[name,{description,features:subclassFirstFeatures(name)}])))}
+      {optionCards('Subclass', Object.keys(subclassOptions[form.class]??{}), currentSubclass(form.plannedSubclass)??'', value=>change({plannedSubclass:value}), Object.fromEntries(Object.entries(subclassOptions[form.class]??{}).map(([name,description])=>[name,{description,features:subclassFirstFeatures(name)}])))}
       <Text style={s.detail}>{form.class==='Artificer'?'Five specialities, each described in Questbound’s own words.':'The first path is the System Reference Document’s own; the other three are Questbound’s.'} Powers unlock at level 3.</Text>
     </>}
     {page === 4 && <>
@@ -152,7 +152,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       {!!form.description && <Text style={s.intro}>{form.description}</Text>}{['age','backstory'].map(key=>form[key]?<View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{form[key]}</Text></View>:null)}
       {reviewRow('Species', form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species, 1)}
       {reviewRow('Class', form.class, 2)}
-      {reviewRow('Planned subclass', form.plannedSubclass || 'Decide at level 3', 3)}
+      {reviewRow('Planned subclass', currentSubclass(form.plannedSubclass) || 'Decide at level 3', 3)}
       {reviewRow('Background', form.background, 4)}
       <Text style={s.note}>Origin feat: {bg?.feat}</Text>
       {reviewRow('Abilities', 'Final scores and modifiers', 5)}{scoreList()}{reviewRow('Equipment', 'Starter kit and gold', 6)}{equipmentList()}

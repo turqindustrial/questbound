@@ -39,9 +39,11 @@ export function weaponAttacks(hero) {
     const ability = staff ? hero.shillelagh : weapon.ranged || ((weapon.finesse || monk) && hero.scores.Dexterity > hero.scores.Strength) ? 'Dexterity' : 'Strength';
     const bonus = modifier(hero.scores[ability]);
     const proficient = subclassActive(hero,'College of Valor') || subclassPassive(hero).martial || (hero.class==='Artificer' && subclassActive(hero,'Battle Smith')) || !weapon.martial || ['Barbarian','Fighter','Paladin','Ranger'].includes(hero.class) || (['Rogue','Monk'].includes(hero.class) && weapon.finesse);
-    const die = hero.shillelagh && ['Club', 'Quarterstaff'].includes(name) ? Math.max(weapon.die, hero.level >= 11 ? 12 : hero.level >= 5 ? 10 : 8) : monk ? Math.max(martialDie(hero.level),weapon.die) : weapon.die;
+    // Shillelagh (SRD 5.2): a d8, then a d10 at level 5, a d12 at 11 and 2d6 at 17.
+    const shilled = !!hero.shillelagh && ['Club', 'Quarterstaff'].includes(name), twoDice = shilled && hero.level >= 17;
+    const die = twoDice ? 6 : shilled ? Math.max(weapon.die, hero.level >= 11 ? 12 : hero.level >= 5 ? 10 : 8) : monk ? Math.max(martialDie(hero.level),weapon.die) : weapon.die;
     const heavyDisadvantage = !!weapon.heavy && hero.scores[weapon.ranged ? 'Dexterity' : 'Strength'] < 13;
-    return [{...weapon,name,...(base !== name ? {base} : {}),...(magic ? {magic} : {}),die,count:weapon.count ?? 1,ability,bonus,attackBonus:bonus+(proficient?proficiencyBonus(hero.level):0)+magic,proficient,monk,heavyDisadvantage,
+    return [{...weapon,name,...(base !== name ? {base} : {}),...(magic ? {magic} : {}),die,count:twoDice ? 2 : weapon.count ?? 1,ability,bonus,attackBonus:bonus+(proficient?proficiencyBonus(hero.level):0)+magic,proficient,monk,heavyDisadvantage,
       criticalThreshold:combatBasics(hero).criticalThreshold,blocked:weapon.twoHands && has('Shield') ? 'This weapon needs two free hands. Shield changes are not available yet.' : weapon.ranged && !has('Arrow') ? 'No arrows available.' : ''}];
   });
   // The main weapon leads: the close-range weapon that suits this hero best (a frail wizard's dagger, a strong

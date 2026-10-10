@@ -2,7 +2,7 @@ import {requestSpell,knownSpells,automaticEffects,spellCostOptions,lastingSpells
 import {modifier,validLevel,martialDie,proficiencyBonus} from './characterRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {spellLibrary,slotChoices} from './spellOptions';
-import {offhandWeapons,masteryOf,withMark} from './masteryRules';
+import {offhandWeapons,masteryOf,withMark,heroEdge,edgeMode} from './masteryRules';
 import {npcScene,npcMaxHP,npcLore} from './npcRules';
 import {subclassAction,subclassUses,subclassRiderRoll,subclassDefended,subclassScaled} from './subclassRules';
 
@@ -117,11 +117,13 @@ export function resolveClassAction(hero,game,hp,maximum,id,random=Math.random,ta
     resources.hands=(resources.hands??0)+healed;current+=healed;logs.push(`Lay on Hands restores ${healed} HP and spends ${healed} healing points.`);
   } else if(id==='strike'){
     const bonus=Math.max(modifier(hero.scores.Strength),modifier(hero.scores.Dexterity)),attackBonus=bonus+proficiencyBonus(hero.level);
-    const attack=rollAttack({attackBonus},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=target.ac);
-    logs.push(`Martial Arts strike: d20 [${attack.dice.join(', ')}] + ${attackBonus} vs AC ${target.ac}. ${attack.critical?'Critical hit!':hit?'Hit.':'Miss.'}`);
+    // Like any other attack: advantage from an opening left on the creature (Slip Behind's, a prone or held foe).
+    const key=target.key??'foe',edge=heroEdge(game,key,{unarmed:true}),attack=rollAttack({attackBonus},edgeMode('normal',edge),random),hit=!attack.miss&&(attack.critical||attack.total>=target.ac);
+    if(edge.adv.includes('Vex')){next={...next};delete next.vex;}
+    logs.push(`Martial Arts strike: d20 [${attack.dice.join(', ')}]${attack.mode!=='normal'?' ('+attack.mode+', '+[...edge.adv,...edge.dis].join(', ')+')':''} + ${attackBonus} vs AC ${target.ac}. ${attack.critical?'Critical hit!':hit?'Hit.':'Miss.'}`);
     if(hit){const roll=rollDamage({count:1,die:martialDie(hero.level),bonus},attack.critical,random);damage=roll.total;logs.push(`${damage} bludgeoning damage (dice ${roll.dice.join(', ')}).`);
       // A subclass's extra on a Martial Arts hit (Serpent's Fang, Slip Behind), once a turn.
-      const extra=subclassRiderRoll(hero,game,{name:'Unarmed Strike',type:'Bludgeoning',unarmed:true,monk:true},{key:target.key??'foe',called:target.called,critical:attack.critical,target,wounded:target.wounded,firstRound:target.firstRound,companion:target.companion},random);
+      const extra=subclassRiderRoll(hero,next,{name:'Unarmed Strike',type:'Bludgeoning',unarmed:true,monk:true},{key:target.key??'foe',called:target.called,critical:attack.critical,target,wounded:target.wounded,firstRound:target.firstRound,companion:target.companion},random);
       if(extra){next=extra.game;damage+=extra.damage;logs.push(...extra.lines);}}
   }
   return {resources,health:{current,temp:hp.temp},damage,logs,bonus:option.bonus,...(next!==game?{game:next}:{})};
