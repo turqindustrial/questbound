@@ -5,16 +5,17 @@ import {Section} from './ui';
 import Icon from './Icon';
 import featureCatalog from './classFeatureCatalog.json';
 import {subclassOptions} from './subclassOptions';
+import {currentSubclass} from './characterRules';
 
 // Features the game plays out itself: these names, and every catalog entry marked automation 'engine' (subclassRules.js).
 const automaticNames=['Second Wind','Lay on Hands','Extra Attack','Improved Critical','Superior Critical','Potent Cantrip','Remarkable Athlete','Draconic Resilience','Disciple of Life','Supreme Healing','Dark One\'s Blessing','Life Domain Spells','Oath of Devotion Spells','Draconic Spells','Fiend Spells'];
 export default function FeaturePanel({hero}) {
   const [open,setOpen]=useState(null);
   const applied=feature=>feature.automation==='engine'||automaticNames.includes(feature.name);
-  const features=featureCatalog.filter(f=>f.class===hero.class && f.level<=hero.level && (!f.subclass || f.subclass===hero.plannedSubclass));
+  const features=featureCatalog.filter(f=>f.class===hero.class && f.level<=hero.level && (!f.subclass || f.subclass===currentSubclass(hero.plannedSubclass)));
   return <View>
     <Section icon="crown" title={'Abilities at level '+hero.level}/>
-    {hero.level>=3&&!!hero.plannedSubclass&&<><Text style={s.name}>{hero.plannedSubclass}</Text><Text style={s.text}>{subclassOptions[hero.class]?.[hero.plannedSubclass]??'Previously saved subclass.'}</Text></>}
+    {hero.level>=3&&!!hero.plannedSubclass&&<><Text style={s.name}>{currentSubclass(hero.plannedSubclass)}</Text><Text style={s.text}>{subclassOptions[hero.class]?.[currentSubclass(hero.plannedSubclass)]??'Previously saved subclass.'}</Text></>}
     {!features.length && <Text style={s.caption}>Your level, hit points, proficiency and spell slots are all tracked for you.</Text>}
     {features.map((feature,index)=><View key={`${feature.name}-${feature.level}`} style={s.card}>
       <Pressable accessibilityRole="button" accessibilityState={{expanded:open===index}} onPress={()=>setOpen(open===index?null:index)} style={s.button}><View style={s.featureRow}><Text style={[s.name,{flex:1}]}>{feature.name}</Text><Text style={s.lvl}>Lv {feature.level}</Text><Icon name="forward" size={14} color={colors.gold} style={{transform:open===index?'rotate(-90deg)':'rotate(90deg)'}}/></View></Pressable>

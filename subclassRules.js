@@ -1,4 +1,4 @@
-import {modifier,proficiencyBonus} from './characterRules';
+import {modifier,proficiencyBonus,currentSubclass} from './characterRules';
 // What the game itself plays of a hero's subclass (subclassOptions.js names them; classFeatureCatalog.json holds every
 // feature's full text for the sheet and the Dungeon Master). Each subclass of Questbound's own, and each Artificer
 // speciality, lists its features with a one-line rule for the Dungeon Master (`features`, the same names and levels as
@@ -48,7 +48,7 @@ export const subclassEngine={
  // ---- Monk ----
  'Warrior of the Crane':{class:'Monk',effects:[{level:3,kind:'passive',name:"Crane's Poise",acBonus:{n:1,when:'unarmored'}}]},
  'Warrior of the Coiled Serpent':{class:'Monk',effects:[{level:3,kind:'rider',name:"Serpent's Fang",count:1,die:4,wounded:true,type:'Poison',when:'martialArts',scale:{11:2}}]},
- 'Warrior of the Hidden Step':{class:'Monk',effects:[{level:3,kind:'rider',name:'Slip Behind',count:0,die:0,mark:'vex',when:'martialArts'}]},
+ 'Warrior of the Quiet Step':{class:'Monk',effects:[{level:3,kind:'rider',name:'Slip Behind',count:0,die:0,mark:'vex',when:'martialArts'}]},
  // ---- Paladin ----
  'Oath of the Open Road':{class:'Paladin',effects:[{level:3,kind:'passive',name:'Watchful Wayfarer',initiative:'Wisdom',skills:['Survival']}]},
  'Oath of Ashes':{class:'Paladin',effects:[{level:3,kind:'rider',name:'Cinder Oath',count:1,die:6,type:'Fire',when:'melee'}]},
@@ -192,7 +192,7 @@ export const subclassFeatures={
   [11,"Tightening Coil","A creature failing its save against your Stunning Strike also takes 2d6 Poison.",0],
   [17,"Patience of the Serpent","On rolling Initiative choose a creature: your first hit on it before the end of your next turn is a Critical Hit.",0]
  ],
- "Warrior of the Hidden Step":[
+ "Warrior of the Quiet Step":[
   [3,"Slip Behind","Once a turn, after an Unarmed Strike or Monk weapon hit, your next attack on that creature before your next turn ends has Advantage.",1],
   [6,"Quiet Feet","Advantage on Stealth; 2 Focus as a Bonus Action: Invisible until the end of your next turn or until you attack.",0],
   [11,"Fold of the Moment","Once per Short or Long Rest, Reaction when you take damage: halve it and reappear within 30 ft.",0],
@@ -376,7 +376,7 @@ export function subclassScaled(spec,level,base=null){
 }
 // The effects in force for this hero: their own class's subclass, from level 3, each from its own level.
 export function subclassEffects(hero){
- const spec=subclassEngine[hero?.plannedSubclass];
+ const spec=subclassEngine[currentSubclass(hero?.plannedSubclass)];
  if(!spec||spec.class!==hero.class||!(hero.level>=3))return [];
  return spec.effects.filter(e=>e.level<=hero.level);
 }
@@ -478,7 +478,7 @@ export function subclassVictoryTemp(hero){
 }
 // The features in force for the Dungeon Master and the sheet: name, level, one-line rule, and whether the game plays it.
 export function subclassBriefs(hero){
- const spec=subclassEngine[hero?.plannedSubclass];
+ const spec=subclassEngine[currentSubclass(hero?.plannedSubclass)];
  if(!spec||spec.class!==hero.class||!(hero.level>=3))return [];
  return (spec.features??[]).filter(f=>f.level<=hero.level).map(f=>({name:f.name,level:f.level,rule:f.brief,engine:!!f.engine}));
 }

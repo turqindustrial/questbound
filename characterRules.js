@@ -34,7 +34,10 @@ export const backgrounds = {
 export const validLevel = level => Number.isInteger(level) && level >= 1 && level <= 20;
 export const proficiencyBonus = level => validLevel(level) ? 2 + Math.floor((level-1)/4) : 0;
 export const martialDie = level => level >= 17 ? 12 : level >= 11 ? 10 : level >= 5 ? 8 : 6;
-export const subclassActive = (hero,name) => hero.level >= 3 && hero.plannedSubclass === name;
+// Subclasses renamed since heroes could plan them: a hero who planned the old name keeps the subclass and all it does.
+export const renamedSubclasses = {'Warrior of the Hidden Step': 'Warrior of the Quiet Step'};
+export function currentSubclass(name) { return Object.hasOwn(renamedSubclasses, name ?? '') ? renamedSubclasses[name] : name; }
+export const subclassActive = (hero,name) => hero.level >= 3 && currentSubclass(hero.plannedSubclass) === name;
 export const advancementLevels = name => [4,8,12,16,...(name === 'Fighter' ? [6,14] : name === 'Rogue' ? [10] : [])].sort((a,b)=>a-b);
 export const modifier = score => Math.floor((score - 10) / 2);
 // Developer heroes (the builder's developer options) carry a level and ability scores set freely for testing, in

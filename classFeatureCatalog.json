@@ -2782,7 +2782,7 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 3,
     "name": "Slip Behind",
     "description": "Once on each of your turns, after you hit a creature with an Unarmed Strike or a Monk weapon, your next attack roll against that creature before the end of your next turn has Advantage.",
@@ -2791,7 +2791,7 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 6,
     "name": "Quiet Feet",
     "description": "You have Advantage on Dexterity (Stealth) checks, and as a Bonus Action you can spend 2 Focus Points to become Invisible until the end of your next turn or until you attack.",
@@ -2800,7 +2800,7 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 11,
     "name": "Fold of the Moment",
     "description": "Once per Short or Long Rest, when you take damage, you can take a Reaction to halve it and reappear in an unoccupied space you can see within 30 feet.",
@@ -2809,7 +2809,7 @@
   },
   {
     "class": "Monk",
-    "subclass": "Warrior of the Hidden Step",
+    "subclass": "Warrior of the Quiet Step",
     "level": 17,
     "name": "The Unseen Hand",
     "description": "Once per Long Rest, as a Bonus Action, you become Invisible for 1 minute. Attacking does not end it, but you regain no Focus Points while it lasts.",
