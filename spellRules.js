@@ -1160,7 +1160,14 @@ export function moveMark(game,key,called){
 // Hex or Hunter's Mark whose creature has dropped (it may be moved with a bonus action: `lost`), or whose fight has
 // ended without it dropping (it holds on a creature no longer here: `gone`).
 export function markGone(game){
-  const c=game.concentration;if(!c?.target||!automaticEffects[c.id]?.rider)return game;
+  const c=game.concentration;if(!c?.target)return game;
+  // Any other held spell on a creature of a fight that is over: one that stays on its creature (Heat Metal) ends with
+  // it gone; one that can be moved (Moonbeam, Flaming Sphere) is held on nothing until it is moved or runs out.
+  if(!automaticEffects[c.id]?.rider){
+    const k=String(c.target);if(!(k==='foe'||k.startsWith('ally:'))||game.stage==='combat')return game;
+    const next={...game};if(lastingSpells[c.id]?.same)delete next.concentration;else{next.concentration={...c};delete next.concentration.target;}
+    return next;
+  }
   const k=String(c.target),fight=game.stage==='combat';
   const dropped=k==='foe'?game.enemyHP<=0:k.startsWith('ally:')?!(game.foeAllies?.[Number(k.slice(5))]?.hp>0):(game.npcHP?.[k]??1)<=0||game.npcFate?.[k]==='dead';
   const away=!dropped&&(k==='foe'||k.startsWith('ally:'))&&!fight;
