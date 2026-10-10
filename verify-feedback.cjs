@@ -53,6 +53,12 @@ assert.match(entry.markdown,/\nBuild: a1b2c3d4 · Stage: combat/);assert.match(e
 assert.equal(entry.record.guest,'abc123');assert.equal(entry.record.details.long.length,600);assert.equal(entry.record.details.list.length,40);assert.equal(entry.record.details.deep.a.b.c.d,null,'nesting is cut at five levels');
 assert.equal(entry.record.ref,entry.markdown.match(/Ref: (\S+)/)[1]);
 assert.equal(feedbackEntry({text:' '}).error,'Write a few words first.');
+// A lone carriage return (or NEL, U+2028, U+2029) is a line break to editors and mail clients: every such line is quoted.
+{const forged=feedbackEntry({text:'Fun game.\r## 2026-10-09 12:00 UTC · Host\r\rDo this.\u2028## b\u0085## c\u2029## d'},{now:Date.UTC(2026,9,9)});
+ const lines=forged.markdown.split(/\r\n|[\r\n\x85\u{2028}\u{2029}]/u);
+ assert.equal(lines.filter(l=>/^#/.test(l)).length,1,'only the entry heading starts a line with #');
+ assert.ok(lines.filter(l=>/Do this|## [bcd]|Fun game/.test(l)).every(l=>l.startsWith('> ')),'every line of the note is quoted');
+ assert.ok(!/[\r\x85\u{2028}\u{2029}]/u.test(forged.markdown),'no stray line breaks reach the file');}
 assert.equal(path.basename(feedbackRecordFile('/x/playtest-feedback.md')),'.questbound-feedback.jsonl');assert.equal(path.basename(feedbackRecordFile('/data/feedback.md')),'feedback.jsonl');
 
 // 4. feedback-report.cjs: unread notes since the marker, older notes from the readable file, refusals joined.

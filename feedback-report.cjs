@@ -45,7 +45,7 @@ function describe(note,diagnostics){
  out.push([c.player,c.hero,c.device].filter(Boolean).join(' · ')||'(no name)');
  const facts=[d.build&&'build '+d.build,note.rating&&'rating '+note.rating+'/5',(g.stage||c.where)&&'stage '+[g.stage,g.place??c.where].filter(Boolean).join(' at '),c.screen&&'screen '+c.screen,g.story&&'story '+g.story].filter(Boolean);
  if(facts.length)out.push(facts.join(' · '));
- out.push('Note: '+String(note.text??'').replace(/\s*\n\s*/g,' / '));
+ out.push('Note: '+String(note.text??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,'').replace(/\s*[\r\n\x85\u{2028}\u{2029}]+\s*/gu,' / '));
  if(g.fight)out.push('Fight: '+[g.fight.kind,g.fight.foe,g.fight.foeHp!=null?g.fight.foeHp+' HP':null].filter(Boolean).join(' '));
  for(const p of (d.problems??[]).filter(Boolean))out.push('Problem ('+p.kind+'): '+(p.said??'(no words)')+' -> '+(p.error??p.answer??'(no message)')+(p.action?' [action '+p.action+(p.spell?' '+p.spell:'')+']':''));
  for(const t of (d.recent??[]).filter(Boolean))out.push('Turn: '+(t.said??'(no words)')+' -> '+[...(t.rulings??[]).slice(0,3),t.narration].filter(Boolean).join(' | ').slice(0,400));
