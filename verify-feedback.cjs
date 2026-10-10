@@ -19,7 +19,17 @@ const again=load('problemLog.js',['recentProblems'],{sessionStorage:storage});as
 log.clearProblems();assert.equal(log.recentProblems().length,0);
 
 // 2. A note's details: bounded, and carrying what the host needs to find the fault.
-const rules=load('feedbackRules.js',['feedbackDetails','feedbackSummary','pageBuild']);
+let testerProfile='guest';
+const rules=load('feedbackRules.js',['feedbackDetails','feedbackSummary','pageBuild','readTesterName','saveTesterName'],{profileKey:key=>'questbound.profile.'+testerProfile+'.'+key});
+// The tester name is kept per account profile: the next account on a shared browser starts with an empty name, and
+// the old browser-wide name is taken up by the guest profile only, then removed.
+{const kept={'questbound.tester.name':'Old Sam'},store={getItem:k=>kept[k]??null,setItem:(k,v)=>{kept[k]=String(v);},removeItem:k=>{delete kept[k];}};
+ testerProfile='a'.repeat(64);assert.equal(rules.readTesterName(store),'','an account does not inherit the browser-wide name');
+ assert.equal(kept['questbound.tester.name'],undefined,'the browser-wide name is removed');
+ rules.saveTesterName('Alice',store);testerProfile='b'.repeat(64);assert.equal(rules.readTesterName(store),'','a second account does not see the first one\'s name');
+ rules.saveTesterName('Bob',store);testerProfile='a'.repeat(64);assert.equal(rules.readTesterName(store),'Alice');
+ kept['questbound.tester.name']='Guest Gil';testerProfile='guest';assert.equal(rules.readTesterName(store),'Guest Gil');assert.equal(kept['questbound.profile.guest.questbound.tester.name'],'Guest Gil');
+ assert.ok(!/localStorage\?\.(get|set)Item\(/.test(fs.readFileSync('Feedback.js','utf8')),'Feedback.js keeps the name through feedbackRules, per profile');}
 const long=n=>'word '.repeat(n);
 const turn=i=>({id:i,events:[{kind:'player',text:'I cast Detect Magic as a ritual on the altar '+i+' '+long(100)},...Array.from({length:30},(_,k)=>({kind:'roll',text:'Roll '+k+': d20 [12] + 5 = 17 '+long(60)})),{kind:'narration',text:long(600)}]});
 const hero={name:'Ysolde',species:'Elf',class:'Wizard',subclass:'Evoker',level:5,spells:Array.from({length:60},(_,i)=>'spell-'+i),spellbook:Array.from({length:60},(_,i)=>'book-'+i)};

@@ -3,7 +3,23 @@
 // the latest story-log lines, recent problems (problemLog.js) and how the game ran on the device (sound, drawing).
 // Pure and bounded: every string is cut, every list capped, and the whole object stays well under 16 KB. Nothing
 // here is sent anywhere until the player sends a note (Feedback.js). Callers work out place, chapter and turn text.
+import {profileKey} from './playerStorage';
 const FEEDBACK_MAX_BYTES=16000;
+
+// The tester name the feedback form remembers, kept per account profile (playerStorage.js) so the next account on a
+// shared browser does not send the last player's name. The old browser-wide key is only ever taken up by the guest
+// profile (as playerStorage does with its other old keys) and is removed once moved.
+const TESTER_NAME_KEY='questbound.tester.name';
+const testerKey=()=>typeof profileKey==='function'?profileKey(TESTER_NAME_KEY):TESTER_NAME_KEY;
+export function readTesterName(storage=globalThis.localStorage){
+ try{
+  const key=testerKey(),saved=storage?.getItem(key);if(saved!=null)return saved;
+  const legacy=storage?.getItem(TESTER_NAME_KEY);
+  if(legacy!=null&&key!==TESTER_NAME_KEY){storage.removeItem(TESTER_NAME_KEY);if(key.includes('.guest.')){storage.setItem(key,legacy);return legacy;}}
+ }catch{}
+ return '';
+}
+export function saveTesterName(value,storage=globalThis.localStorage){try{storage?.setItem(testerKey(),String(value??'').slice(0,80));}catch{}}
 const fbText=(value,max=200)=>value==null?null:String(value).replace(/[\u0000-\u0008\u000b-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max)||null;
 const fbNum=value=>Number.isFinite(value)?value:null;
 const fbList=(list,max,each)=>Array.isArray(list)?list.slice(0,max).map(each).filter(v=>v!=null):[];

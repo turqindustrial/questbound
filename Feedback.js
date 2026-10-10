@@ -2,12 +2,14 @@ import React,{useState,useEffect,useRef} from 'react';
 import {View,Text,TextInput,Pressable,Modal,ScrollView,Linking,StyleSheet} from 'react-native';
 import {GameButton,Toggle} from './ui';
 import Icon from './Icon';
+import {readTesterName,saveTesterName} from './feedbackRules';
+import {subscribeProfile} from './playerStorage';
 import {fonts,colors,type,tint} from './theme';
 // Playtest feedback from inside the game. Every note goes to the host's PC: playtest-feedback.md in the Questbound
 // folder, with the full details in .questbound-feedback.jsonl beside it (feedback-notes.cjs), read with
 // node feedback-report.cjs. The phone and tester links send it through the gateway, the host's own desktop through
 // desktop-server.cjs. GitHub issues stay as a second way.
-const ISSUES='https://github.com/turqindustrial/questbound/issues/new/choose',NAME_KEY='questbound.tester.name';
+const ISSUES='https://github.com/turqindustrial/questbound/issues/new/choose';
 export const hostDesktop=(location=globalThis.location)=>!!location&&['localhost','127.0.0.1','[::1]'].includes(location.hostname)&&['8081','8082'].includes(location.port);
 export function feedbackEndpoint(location=globalThis.location){return location?'/api/feedback':null;}
 // A small hub so anything in play (the Report chip beside an error, the Dungeon Master's admission of a fault) can open
@@ -30,13 +32,14 @@ export function deviceLabel(nav=globalThis.navigator,win=globalThis){
  let app='';try{if(win?.matchMedia?.('(display-mode: standalone)').matches||nav?.standalone)app=' · home-screen app';}catch{}
  return os+' · '+browser+(win?.innerWidth?' · '+win.innerWidth+'×'+win.innerHeight:'')+app;
 }
-const readName=()=>{try{return globalThis.localStorage?.getItem(NAME_KEY)??'';}catch{return '';}};
-const saveName=value=>{try{globalThis.localStorage?.setItem(NAME_KEY,value);}catch{}};
+const readName=()=>readTesterName(),saveName=value=>saveTesterName(value);
 export default function FeedbackSheet({visible,onClose,context={},problem=null,prefill=''}){
  const endpoint=feedbackEndpoint(),host=hostDesktop();
  const [include,setInclude]=useState(true);
  const [name,setName]=useState(readName),[text,setText]=useState(''),[rating,setRating]=useState(null),[state,setState]=useState('idle'),[error,setError]=useState('');
- useEffect(()=>{if(visible){setState('idle');setError('');setInclude(true);if(prefill)setText(old=>old.trim()?old:String(prefill).slice(0,2000));}},[visible,prefill]);
+ // The name belongs to the account profile: read afresh when the form opens and when another account signs in.
+ useEffect(()=>subscribeProfile(()=>setName(readName())),[]);
+ useEffect(()=>{if(visible){setName(readName());setState('idle');setError('');setInclude(true);if(prefill)setText(old=>old.trim()?old:String(prefill).slice(0,2000));}},[visible,prefill]);
  async function send(){
   if(state==='sending'||text.trim().length<2)return;setState('sending');setError('');saveName(name.trim());
   try{
