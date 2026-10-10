@@ -12,7 +12,7 @@
 #                    stored encrypted to your Windows account, and its public hostname)
 #   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
 #   -TrustNetwork    retained for compatibility; remote HTTP play is disabled
-param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork)
+param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork,[switch]$SetupDiscord,[switch]$ForgetDiscord,[switch]$AnnounceLink)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -25,6 +25,8 @@ $sessionFile = Join-Path $root '.questbound-phone-session.json'
 $shareFile = Join-Path $root '.questbound-share-session.json'
 $tunnelTokenFile = Join-Path $root '.questbound-tunnel.dpapi'
 $tunnelHostFile = Join-Path $root '.questbound-tunnel-host'
+$discordFile = Join-Path $root '.questbound-discord.dpapi'
+$discordLastFile = Join-Path $root '.questbound-discord-last'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
@@ -80,6 +82,49 @@ if ($Models) {
   $summary = if ($chosen[1]) { "$($chosen[0]) for play and $($chosen[1]) for stories and heroes" } else { "$($chosen[0]) for everything" }
   Say "  Saved: $summary. A running Dungeon Master uses them from its next reply; no restart is needed." 'Green'
   return
+}
+# Discord: the playtest link and invite code are posted to a channel of the host's own Discord server through a
+# webhook (Server Settings > Integrations > Webhooks). The webhook address is a secret: it is kept DPAPI-encrypted
+# like the API key, never printed, and never passed on a command line. A link is posted once, when it changes.
+function Get-DiscordHook {
+  if (-not (Test-Path $discordFile)) { return $null }
+  try { $sec = (Get-Content $discordFile -Raw).Trim() | ConvertTo-SecureString } catch { Say '  The saved Discord webhook could not be unlocked on this Windows account. Run Connect-Discord.cmd again.' 'Red'; return $null }
+  $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
+}
+function Send-Discord($hook, $text) {
+  $body = @{ content = $text; allowed_mentions = @{ parse = @() } } | ConvertTo-Json -Depth 4
+  Invoke-RestMethod -Method Post -Uri $hook -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 15 | Out-Null
+}
+function Announce-Share($share, [switch]$Force) {
+  if (-not $share -or -not (Test-Path $discordFile)) { return }
+  $stamp = "$($share.link) $($share.inviteCode)"
+  if (-not $Force -and (Test-Path $discordLastFile) -and (Get-Content $discordLastFile -Raw).Trim() -eq $stamp) { return }
+  $hook = Get-DiscordHook; if (-not $hook) { return }
+  $until = ([datetime]$share.expiresAt).ToLocalTime().ToString('dddd MMMM d')
+  $text = "**Questbound** playtest link:`n$($share.link)`nInvite code: **$($share.inviteCode)** (good until $until)`nOpen it on your phone or computer. No sign-in needed."
+  try { Send-Discord $hook $text; Set-Content $discordLastFile $stamp -Encoding ASCII; Say '  Posted the link to your Discord channel.' 'DarkGray' }
+  catch { Say '  Could not post the link to Discord (the webhook may have been deleted). Run Connect-Discord.cmd again.' 'Yellow' }
+}
+if ($ForgetDiscord) { Remove-Item $discordFile, $discordLastFile -ErrorAction SilentlyContinue; Say '  Discord posting is off and the webhook was forgotten.' 'Green'; return }
+if ($SetupDiscord) {
+  Say '  Post playtest links to Discord. In your Discord server: Server Settings > Integrations > Webhooks >' 'Cyan'
+  Say '  New Webhook, choose the channel for links, then Copy Webhook URL and paste it here.' 'Cyan'
+  $hookSecure = Read-Host '  Webhook URL (typing is hidden)' -AsSecureString
+  $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($hookSecure)
+  try { $hook = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
+  if ($hook -notmatch '^https://(ptb\.|canary\.)?(discord|discordapp)\.com/api/webhooks/\d+/[A-Za-z0-9_-]+$') { Say '  That is not a Discord webhook URL. Nothing was saved.' 'Red'; return }
+  try { Send-Discord $hook 'Questbound will post new playtest links in this channel.' } catch { Say '  Discord did not accept that webhook. Nothing was saved.' 'Red'; return }
+  $hookSecure | ConvertFrom-SecureString | Set-Content $discordFile -Encoding ASCII
+  Remove-Item $discordLastFile -ErrorAction SilentlyContinue
+  Say '  Saved. New playtest links will be posted to that channel automatically.' 'Green'
+  if (Test-Path $shareFile) { try { Announce-Share (Get-Content $shareFile -Raw | ConvertFrom-Json) -Force } catch {} }
+  return
+}
+if ($AnnounceLink) {
+  if (-not (Test-Path $discordFile)) { Say '  Discord is not set up yet. Run Connect-Discord.cmd first.' 'Yellow'; return }
+  if (-not (Test-Path $shareFile)) { Say '  Sharing is not running, so there is no link to post.' 'Yellow'; return }
+  Announce-Share (Get-Content $shareFile -Raw | ConvertFrom-Json) -Force; return
 }
 if ($TrustNetwork) { Say 'Use Questbound-Share.cmd for encrypted phone play.' 'Yellow'; return }
 if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }
@@ -255,6 +300,7 @@ if ($shared) {
   Say '  Send both to your testers. Their play uses your OpenAI key; keep this PC awake while they play.' 'DarkGray'
   if ($named) { Say '  This link stays the same, and so does the invite code until it expires.' 'DarkGray' }
   else { Say '  The link changes if sharing restarts (for example after a reboot). For a permanent link see Questbound.cmd -SetupTunnel' 'DarkGray' }
+  Announce-Share $shared
   try { Set-Clipboard -Value ("Questbound playtest: $($shared.link)  Invite code: $($shared.inviteCode)"); Say '  (Link and code copied to your clipboard.)' 'DarkGray' } catch {}
 }
 # Playtest notes not yet read (feedback-report.cjs keeps the marker; only its --mark moves it).
