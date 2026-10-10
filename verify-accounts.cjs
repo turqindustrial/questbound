@@ -72,7 +72,34 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
  assert.ok(cloud.includes('saveToAccount(s.snapshot).catch')&&cloud.includes('noteSnapshot(snapshot)'),'saves go to the account as well');
  assert.ok(panel.includes('secureTextEntry')&&panel.includes('autoComplete="email"')&&panel.includes('Load my saved adventure here')&&panel.includes('Delete my account'));
  assert.ok(app.includes("<AccountSettings ")&&app.includes('bootstrapAccount'));
+ // ---- Guest play (accountsRequired off): the one switch, the silent guest and no sign-in wall ----
+ {const switchLine=/^export const accountsRequired=(true|false);$/m.exec(fs.readFileSync('accountRules.js','utf8'));assert.ok(switchLine,'accountRules.js holds the one switch');
+  assert.equal(switchLine[1],'false','the beta lets everyone play without signing in');
+  assert.equal(require('./account-server.cjs').accountsRequiredNow(),false,'the account service reads the same switch');
+  process.env.QUESTBOUND_REQUIRE_ACCOUNTS='1';assert.equal(require('./account-server.cjs').accountsRequiredNow(),true,'a hosted game can force it on');delete process.env.QUESTBOUND_REQUIRE_ACCOUNTS;
+  const vm=require('node:vm'),source=rules.replace(/^import .*;\r?\n/gm,'').replace(/export /g,'');
+  const run=async(answers,options)=>{
+   const store=new Map(),asked=[];let profile='guest';
+   const AsyncStorage={getItem:async k=>store.get(k)??null,setItem:async(k,v)=>{store.set(k,v);},removeItem:async k=>{store.delete(k);}};
+   const api=vm.runInNewContext(source+'\n({bootstrapAccount,accountsNeeded,guestIdentity})',{AsyncStorage,legalUpdated:'9 October 2026',tableEndpoint:()=>'/api/sync',selectProfile:id=>{profile=/^[a-f0-9]{64}$/.test(id??'')?id:'guest';},currentProfile:()=>profile,AbortSignal,JSON,Object,Error,globalThis:{}});
+   const fetchImpl=async(url)=>{const route=url.split('/account-')[1];asked.push(route);const a=answers[route]??{status:404,body:{}};return {ok:a.status===200,status:a.status,json:async()=>a.body};};
+   const result=await api.bootstrapAccount(fetchImpl,options);return {result,asked,profile,needed:api.accountsNeeded(),guest:api.guestIdentity(),stored:[...store.keys()]};
+  };
+  const id='c'.repeat(64),signedOut={status:{status:401,body:{error:'You are signed out.'}}};
+  let r=await run({...signedOut,guest:{status:200,body:{guest:true,id}}},{required:false});
+  assert.deepEqual(r.asked,['status','guest'],'no session: a guest identity is asked for, silently');assert.equal(r.result,null);assert.equal(r.guest,id);assert.equal(r.needed,false);
+  assert.equal(r.profile,'guest','a guest keeps the guest save namespace, so earlier saves stay where they are');assert.deepEqual(r.stored,[],'nothing about the guest is kept in browser storage');
+  r=await run({status:{status:200,body:{signedIn:false,guest:true,id,verified:false,savedAt:null}}},{required:false});assert.deepEqual(r.asked,['status']);assert.equal(r.guest,id);assert.equal(r.profile,'guest');
+  r=await run({...signedOut,guest:{status:200,body:{guest:true,id}}},{required:true});assert.deepEqual(r.asked,['status'],'with accounts required no guest is asked for');assert.equal(r.needed,true);assert.equal(r.guest,null);
+  r=await run({...signedOut,guest:{status:403,body:{error:'Sign in with your account to play.',accountsRequired:true}}},{required:false});assert.equal(r.needed,true,'the host forcing accounts on is heard');assert.equal(r.guest,null);
+  r=await run({status:{status:200,body:{signedIn:true,id,verified:true,savedAt:null}}},{required:false});assert.equal(r.profile,id,'a signed-in account keeps its own saves');assert.equal(r.guest,null);
+  // Play is walled only while accounts are needed; Settings keeps the account as an offer.
+  assert.ok(app.includes('bootstrapAccount(undefined,{required:accountsRequired})')&&app.includes('const mustSignIn=accountsNeeded()&&!account?.verified'),'App asks for the guest and gates play only when accounts are required');
+  assert.equal((app.match(/!account\?\.verified/g)??[]).length,1,'no other sign-in wall');
+  assert.equal((app.match(/&&mustSignIn/g)??[]).length,2,'the screen guard and navigation both use the switch');
+  assert.ok(panel.includes('An account is optional')&&fs.readFileSync('HomeScreen.js','utf8').includes('unprotected'),'an account stays an offer');
+  assert.ok(cloud.includes("owner!=='guest'||!!guestIdentity()"),'guests keep recovery-code copies on the host');}
  assert.ok(fs.readFileSync('.gitignore','utf8').split(/\r?\n/).some(line=>line.trim()==='.questbound-*'),'account files are never committed');
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Accounts: register, sign in, save, load, lock-out, new password, host reset and delete; verified HTTP sessions checked separately.');
+ console.log('Accounts: register, sign in, save, load, lock-out, new password, host reset and delete; guest play by default (one switch, a silent guest in the guest save namespace, no sign-in wall); verified HTTP sessions checked separately.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

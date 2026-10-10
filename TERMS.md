@@ -11,7 +11,7 @@ Questbound is an early-access game in testing, shared privately by its host with
 ### Who may play
 
 - You must be 16 or older. If you have not reached the age of legal majority where you live, your parent or guardian must authorize your use where applicable law requires it.
-- Use an email address you control and complete verification. Protect your password, sessions and invites. Report suspected unauthorized access promptly.
+- An account is optional during the beta. If you create one, use an email address you control and complete verification. Protect your password, sessions and invites. Report suspected unauthorized access promptly.
 - The host may suspend access for misuse, safety concerns or operational needs, subject to applicable law. Early-access features and saves may change or become unavailable. This does not remove any statutory rights.
 ### The Dungeon Master is an AI
 

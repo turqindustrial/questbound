@@ -43,6 +43,19 @@ const snapshot={version:1,character:'{"name":"Test hero"}',game:{stage:'inn'},ch
  assert.equal(capacity.filter(r=>r.status==='fulfilled').length,1);assert.equal(small.count(),1);
  const busy=createAccounts({requireVerification:false,dir:path.join(tmp,'busy')});const waiting=Array.from({length:24},(_,i)=>busy.status('bad-'+i).catch(()=>{}));
  await rejected(busy.register('c@example.test',password),429);await Promise.all(waiting);
+ // Guest identities: their own cap (pruning the unseen when full), never counted against email accounts, never an
+ // identity once accounts are required, and never able to reach an account's save, password or deletion.
+ {let t=Date.now();const gdir=path.join(tmp,'guest-store'),open=createAccounts({requireVerification:false,dir:gdir,now:()=>t,limit:1,allowGuests:true,guestLimit:2});
+  const a=await open.guest(),b=await open.guest();await rejected(open.guest(),429);
+  assert.deepEqual(open.identity(a.token),{id:a.id,verified:false,guest:true});
+  const owner2=await open.register('solo@example.test',password);assert.equal(open.count(),1,'guests leave room for email accounts');
+  for(const action of [open.save(a.token,snapshot),open.load(a.token),open.changePassword(a.token,'x','y'),open.remove(a.token,'x'),open.logoutAll(a.token)])await rejected(action,403);
+  t+=30*86400000;open.identity(b.token);t+=31*86400000;const c=await open.guest();assert.equal(open.guestCount(),2,'a full store removes guests unseen for 60 days');
+  await assert.rejects(async()=>open.identity(a.token),e=>e.status===401);assert.equal(open.identity(b.token).id,b.id,'a guest seen lately stays');
+  t+=91*86400000;await assert.rejects(async()=>open.identity(c.token),e=>e.status===401,'a guest token runs out 90 days after its last use');
+  t-=91*86400000;const strict=createAccounts({requireVerification:false,dir:gdir,now:()=>t});
+  await rejected(strict.guest(),403);await assert.rejects(async()=>strict.identity(b.token),e=>e.status===401,'guests are not identities while accounts are required');
+  const later2=await strict.register('two@example.test',password);assert.equal(strict.identity(later2.token).id,later2.id,'email accounts still sign in');}
  // Rotating caller identities cannot exhaust memory or clear somebody's current restriction.
  let time=1000;const limit=createLimiter(1,1000,{now:()=>time,maxKeys:2});
  assert.equal(limit('a'),0);assert.equal(limit('b'),0);assert.ok(limit('c')>0);assert.ok(limit('a')>0);
@@ -96,7 +109,7 @@ const snapshot={version:1,character:'{"name":"Test hero"}',game:{stage:'inn'},ch
  const rules=fs.readFileSync(path.join(__dirname,'accountClient.js'),'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'');
  let sent=0;const {accountCall}=vm.runInNewContext(rules+'\n({accountCall})',{location:{protocol:'http:',hostname:'10.0.0.5'},tableEndpoint:()=>'',AbortSignal});
  await assert.rejects(accountCall('account-login',{email,password},async()=>{sent++;}),/HTTPS/);assert.equal(sent,0);
- console.log('Security hardening passed: account races, reset ownership/expiry, bounded queues and limits, invalid routes/origins, private-file escapes, and encrypted account access.');
+ console.log('Security hardening passed: account races, reset ownership/expiry, bounded queues and limits, guest identities kept apart from accounts, invalid routes/origins, private-file escapes, and encrypted account access.');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{
  for(const server of servers)await new Promise(r=>server.close(r));
  // Only remove the temp directory created by this test; unlink the junction first.

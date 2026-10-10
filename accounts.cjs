@@ -188,7 +188,7 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
   },
   // A new password signs every other device out.
   async changePassword(token,current,next,client='this-pc'){
-   const {id,record,key}=signedIn(token);
+   const {id,record,key}=member(token);
    if(blocked(id,client))throw fail(429,'Too many tries. Wait a few minutes and try again.');
    if(typeof current!=='string'||current.length>200||!await matches(record,current)){missed(id,client);throw fail(401,'Your current password is not right.');}
    if(!validPassword(next))throw fail(400,'Choose a new password of at least 8 characters.');
@@ -200,7 +200,7 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
   },
   // Deleting an account removes its password, its sign-ins and its saved adventure from the host's PC.
   async remove(token,password,client='this-pc'){
-   const {id,record}=signedIn(token);
+   const {id,record}=member(token);
    if(blocked(id,client))throw fail(429,'Too many tries. Wait a few minutes and try again.');
    if(typeof password!=='string'||password.length>200||!await matches(record,password)){missed(id,client);throw fail(401,'That password is not right. Nothing was deleted.');}
    unchanged(id,record);

@@ -55,6 +55,9 @@ async function sharedLink(){
   limited=await sync('poll',{playerId:'player-one'});assert.equal(limited.status,429);assert.match(JSON.parse(limited.text).error,/asked too often/);
   now+=601000;for(let i=0;i<5;i++)assert.equal((await sync('account-register',{email:'tester'+i+'@quest.example',password:'made-up-pass'})).status,200);
   limited=await sync('account-register',{email:'tester9@quest.example',password:'made-up-pass'});assert.equal(limited.status,429);assert.match(JSON.parse(limited.text).error,/Too many tries/);
+  // Guest identities (while accounts are not required) are handed out at most twenty an hour per visitor.
+  now+=601000;for(let i=0;i<20;i++)assert.equal((await sync('account-guest')).status,200);
+  limited=await sync('account-guest');assert.equal(limited.status,429);assert.match(JSON.parse(limited.text).error,/Too many tries/);
   now+=601000;for(let i=0;i<20;i++)assert.equal((await sync('cloud-load',{code:'AAAAAAAAAAAA'})).status,200);assert.equal((await sync('cloud-load',{code:'AAAAAAAAAAAA'})).status,429);
   now+=601000;for(let i=0;i<20;i++)assert.equal((await sync('account-login',{email:'tester0@quest.example',password:'made-up-pass'})).status,200);assert.equal((await sync('account-login',{email:'tester0@quest.example',password:'made-up-pass'})).status,429);
   now+=601000;
