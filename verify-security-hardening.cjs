@@ -52,6 +52,20 @@ const snapshot={version:1,character:'{"name":"Test hero"}',game:{stage:'inn'},ch
  assert.equal((await call(sp,'/unknown-route')).status,404);
  for(const body of [null,[],42,'bad'])assert.equal((await call(sp,'/poll',{body})).status,400);
  assert.equal((await call(sp,'/poll',{body:{playerId:'tester-123',name:'Test'}})).status,401);
+ // Players behind one address never share an allowance: before each Dungeon Master request the gateway asks 'usage';
+ // turns count per account, illustration and story checks not at all, and only requests without a sign-in are braked
+ // per address (bug: one 300-per-10-minutes bucket per address, paintings included, locked a household out of turns).
+ {const fx=require('./test-fixtures.cjs').fixtures(path.join(tmp,'usage'));const svc=createSyncServer({...fx.options,limits:{usage:[3,600000],unauthenticated:[2,600000],other:[5,600000]}});const up=await listen(svc.server);
+  const a='questbound_account='+(await fx.user(svc.accounts,'a@example.test')).token,b='questbound_account='+(await fx.user(svc.accounts,'b@example.test')).token,home={'X-Questbound-Client':'203.0.113.7'};
+  const usage=(cookie,kind)=>call(up,'/usage',{body:{kind},headers:{...home,Cookie:cookie}});
+  for(let i=0;i<40;i++)assert.equal((await usage(i%2?a:b,'art')).status,200,'painting and story checks are not counted');
+  for(let i=0;i<3;i++)assert.equal((await usage(a,'dm')).status,200);
+  const capped=await usage(a,'dm');assert.equal(capped.status,429);assert.ok(Number(capped.headers['retry-after'])>=1,'the wait is told');
+  assert.equal((await usage(b,'dm')).status,200,'another account at the same address keeps its own turns');
+  for(let i=0;i<6;i++)assert.equal((await call(up,'/account-save',{body:{snapshot:fx.snapshot()},headers:{...home,Cookie:i%2?a:b}})).status,200,'saves are counted per account too');
+  assert.equal(fx.operations.status().usage['illustration-requests'],undefined,'polls never use a daily allowance');
+  assert.equal((await call(up,'/poll',{headers:home})).status,401);assert.equal((await call(up,'/poll',{headers:home})).status,401);
+  assert.equal((await call(up,'/poll',{headers:home})).status,429,'requests without a sign-in are braked per address');}
  // Files accidentally placed inside the web export still must not expose host data.
  const root=path.join(tmp,'public'),outside=path.join(tmp,'private');fs.mkdirSync(root);fs.mkdirSync(outside);
  fs.writeFileSync(path.join(root,'index.html'),'<h1>Questbound</h1>');fs.writeFileSync(path.join(root,'game.js'),'window.game=true;');

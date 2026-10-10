@@ -96,7 +96,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // label the browser sent itself is replaced).
     let parsedBody;try{parsedBody=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
     const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80)},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
-    const permitted=await allowance.json();if(!allowance.ok)return json(res,allowance.status,permitted);
+    const permitted=await allowance.json();if(!allowance.ok){const after=allowance.headers?.get?.('retry-after');return json(res,allowance.status,permitted,after&&/^\d{1,6}$/.test(after)?{'Retry-After':after}:{});}
     if(permitted.allowed!==true||!/^[a-f0-9]{64}$/.test(permitted.id??''))return json(res,503,{error:'Account validation is unavailable.'});
     let mode=null;try{const parsed=JSON.parse(raw);mode=parsed?.context?.mode??null;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){parsed.guest='account-'+permitted.id;raw=JSON.stringify(parsed);}}catch{}
     if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.');}

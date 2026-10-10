@@ -15,8 +15,15 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
  const accounts=createAccounts({...accountOptions,dir:accountsDir,now,validSnapshot,mailer:mail,backup:ops.backup,audit:ops.audit});
  const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
  const campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl});
- const quota={poll:[1200,600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],other:[300,600000],...limits};
- const routeLimits=new Map([...routes].map(route=>{const [max,span]=quota[route]??quota.other;return [route,createLimiter(max,span,{now})];}));
+ // Allowances in sliding windows. Signing up, signing in and recovery codes are counted per visitor address (the caller
+ // the gateway names), as is anything sent without a valid sign-in; everything else per signed-in account, so players
+ // behind one home or carrier address never share a bucket. The gateway asks 'usage' before each Dungeon Master
+ // request: turns count against the account, illustration and story checks (kind 'art') are not counted here at all
+ // (the gateway limits them per browser and spending.cjs prices the paintings).
+ const quota={poll:[1200,600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],usage:[240,600000],unauthenticated:[300,600000],other:[300,600000],...limits};
+ const perCaller=new Set(['account-register','account-login','account-verify','account-logout','cloud-load']);
+ const routeLimits=new Map([...routes,'unauthenticated'].map(route=>{const [max,span]=quota[route]??quota.other;return [route,createLimiter(max,span,{now})];}));
+ const tooMany=(res,send,route,seconds)=>{ops.audit('rate-denied',{route,status:429});res.setHeader('Retry-After',String(seconds));return send(429,{error:'Too many tries. Wait a few minutes and try again.'});};
  const server=http.createServer(async(req,res)=>{
   const origin=req.headers.origin,send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store',...(allowedOrigins.has(origin)?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Credentials':'true','Vary':'Origin'}:{})});res.end(JSON.stringify(data));};
   const setSession=token=>res.setHeader('Set-Cookie','questbound_account='+token+'; HttpOnly; SameSite=Strict; Path=/; Max-Age='+(token?7*86400:0)+(req.headers['x-questbound-secure']==='1'?'; Secure':''));
@@ -31,7 +38,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(!allowedOrigins.has(origin))return send(403,{error:'Use the Questbound game to reach the table.'});
    route=req.url.slice(1);if(!routes.has(route))return send(404,{error:'Not found.'});
    caller=String(req.headers['x-questbound-client']??'this-pc').slice(0,80);
-   const seconds=routeLimits.get(route)(caller);if(seconds){ops.audit('rate-denied',{route,status:429});res.setHeader('Retry-After',String(seconds));return send(429,{error:'Too many tries. Wait a few minutes and try again.'});}
+   if(perCaller.has(route)){const seconds=routeLimits.get(route)(caller);if(seconds)return tooMany(res,send,route,seconds);}
    let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>2500000)return send(413,{error:'This adventure is too large.'});}
    let b;try{b=JSON.parse(raw);}catch{return send(400,{error:'Invalid request.'});}
    if(!b||typeof b!=='object'||Array.isArray(b))return send(400,{error:'Invalid request.'});
@@ -44,7 +51,8 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
     return send(200,loginResult(result));
    }
    if(route==='account-logout'){if(b.expectedAccountId&&accounts.identity(token).id!==b.expectedAccountId)return send(409,{error:'Another account signed in on this browser. Reload before continuing.'});await accounts.logout(token);setSession('');return send(200,{signedOut:true});}
-   const user=accounts.identity(token);user.active=()=>accounts.identity(token);
+   let user;try{user=accounts.identity(token);}catch(e){const seconds=routeLimits.get('unauthenticated')(caller);if(seconds)return tooMany(res,send,route,seconds);throw e;}user.active=()=>accounts.identity(token);
+   if(!perCaller.has(route)&&!(route==='usage'&&b.kind==='art')){const seconds=routeLimits.get(route)('account:'+user.id);if(seconds)return tooMany(res,send,route,seconds);}
    if(b.expectedAccountId&&b.expectedAccountId!==user.id)return send(409,{error:'Another account signed in on this browser. Reload before continuing.'});
    if(route==='account-status')return send(200,await accounts.status(token));
    if(route==='account-save')return send(200,await accounts.save(token,b.snapshot));
@@ -55,7 +63,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(route==='save')return send(403,{error:'Whole-adventure writes are disabled. Send an action to the campaign.'});
    if(route==='poll'||route==='leave')return send(200,campaigns[route](user,b));
    if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](req.headers['x-questbound-local']==='1'?{...user,local:true}:user,b);return send(result.conflict?409:200,result);}
-   if(route==='usage'){ops.consume(user.id,b.kind==='art'?'illustration-requests':'dm-requests',b.kind==='art'?1500:300);return send(200,{allowed:true,id:user.id});}
+   if(route==='usage'){if(b.kind!=='art')ops.consume(user.id,'dm-requests',300);return send(200,{allowed:true,id:user.id});}
    if(route==='ops-status'||route==='ops-verify-backups'){
     if(req.headers['x-questbound-local']!=='1')return send(403,{error:'Host diagnostics are available only on the desktop.'});
     return send(200,route==='ops-status'?ops.status():ops.backup.verify());
