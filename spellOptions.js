@@ -31,7 +31,7 @@ export const subclassSpells = {
   'Trickwright':{3:['mage-hand','minor-illusion','shock']},
   'Frostblood Sorcery':{3:['ice-knife','fog-cloud','gust-of-wind','hold-person'],5:['sleet-storm','protection-from-energy'],7:['ice-storm','stoneskin'],9:['cone-of-cold','wall-of-stone']},
   'Veilborn Sorcery':{3:['disguise-self','silent-image','invisibility','darkness'],5:['blink','major-image'],7:['greater-invisibility','hallucinatory-terrain'],9:['mislead','seeming']},
-  'Saintblood Sorcery':{3:['cure','bless','aid','lesser-restoration'],5:['revivify','daylight'],7:['death-ward','guardian-of-faith'],9:['greater-restoration','mass-cure-wounds']},
+  'Saintblood Sorcery':{3:['cure','bless'],5:['aid','lesser-restoration','revivify','daylight'],7:['death-ward','guardian-of-faith'],9:['greater-restoration','mass-cure-wounds']},
   'Lantern-Keeper Patron':{3:['healing-word','faerie-fire','continual-flame','see-invisibility'],5:['daylight','sending'],7:['locate-creature','guardian-of-faith'],9:['commune','greater-restoration']},
   'Elder Grove Patron':{3:['entangle','goodberry','barkskin','spike-growth'],5:['plant-growth','speak-with-plants'],7:['conjure-woodland-beings','giant-insect'],9:['tree-stride','awaken']},
   'Whispering Void Patron':{3:['silent-image','command','mind-spike','blindnessdeafness'],5:['fear','tongues'],7:['arcane-eye','resilient-sphere'],9:['scrying','dream']},

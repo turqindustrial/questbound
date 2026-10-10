@@ -148,8 +148,11 @@ assert.ok(r.trainedSkills(make('Rogue','Silvertongue')).includes('Persuasion'));
  const strike=r.adventureStep(g,hpOf(serpent),serpent,'class:strike',always(.9));assert.ok(!strike.error,strike.error);assert.match(lines(strike),/Poison damage \(Serpent's Fang: 1d4/,'the bonus strike: '+lines(strike));
  assert.equal(strike.game.featTurn,true,'spent for this turn');valid(serpent,strike.game,strike.health);
  const after=r.adventureStep(strike.game,strike.health,serpent,'attack:Unarmed Strike',always(.9));assert.ok(!/Serpent's Fang/.test(lines(after)),'once a turn');
- const hidden=make('Monk','Warrior of the Quiet Step'),h=r.adventureStep(fightFor(hidden),hpOf(hidden),hidden,'class:strike',always(.9));
- assert.match(lines(h),/Slip Behind: your next attack against the Bandit Cutthroat has advantage\./,lines(h));assert.equal(h.game.vex?.target,'foe');
+ // Slip Behind: the opening lasts the rest of the turn (balance: lasting to the next turn put the Quiet Step 15 points
+ // past the Open Hand), and the Martial Arts strike takes it like any other attack.
+ const hidden=make('Monk','Warrior of the Quiet Step'),h=r.adventureStep(fightFor(hidden),hpOf(hidden),hidden,'attack:Unarmed Strike',always(.9));
+ assert.match(lines(h),/Slip Behind: your next attack against the Bandit Cutthroat this turn has advantage\./,lines(h));assert.equal(JSON.stringify(h.game.vex),JSON.stringify({target:'foe'}));
+ const follow=r.adventureStep(h.game,h.health,hidden,'class:strike',always(.9));assert.match(lines(follow),/Martial Arts strike: d20 \[\d+, \d+\] \(advantage, Vex\)/,lines(follow));assert.equal(follow.game.vex,undefined,'spent');
  // A hero who planned the subclass under its old name (renamed: it bore a published feature's name) keeps it.
  const old={...hidden,plannedSubclass:'Warrior of the Hidden Step'};assert.ok(r.validPlannedSubclass(old),'the old name is still a valid plan');
  const o=r.adventureStep(fightFor(old),hpOf(old),old,'class:strike',always(.9));assert.match(lines(o),/Slip Behind/,'and still plays its features');
@@ -235,12 +238,17 @@ assert.notDeepEqual(plain(r.dmCommand(make('Fighter','Champion'),fightFor(make('
  assert.ok(!r.validAdventure(r.adventureSnapshot(h,{...g,stage:'combat',enemyHP:5,featTurn:'yes'},null,true),h),'featTurn is true or absent');assert.ok(r.validAdventure(r.adventureSnapshot(h,g,null,true),h),'an old save');}
 
 // ---- 9. Spell gifts and the gift on victory ----
-{const hearth={...make('Cleric','Hearth Domain',{scores:{...baseScores,Wisdom:16}}),spells:['sacred-flame']},g=fightFor(hearth),cast=r.adventureStep(g,hpOf(hearth),hearth,{type:'spell',request:{id:'sacred-flame',slot:0,intent:'Sacred Flame on the bandit',componentsConfirmed:true}},always(.05));
+{const hearth={...make('Cleric','Hearth Domain',{scores:{...baseScores,Wisdom:16}}),spells:['sacred-flame','guiding-bolt']},g={...fightFor(hearth),enemyHP:99},bolt={type:'spell',request:{id:'guiding-bolt',slot:1,intent:'Guiding Bolt at the bandit',componentsConfirmed:true}},cast=r.adventureStep(g,hpOf(hearth),hearth,bolt,always(.95));
  assert.ok(!cast.error,cast.error);assert.match(lines(cast),/3 Radiant damage \(Banked Fire\)\./,lines(cast));
- const without_=r.adventureStep(g,hpOf(without(hearth)),without(hearth),{type:'spell',request:{id:'sacred-flame',slot:0,intent:'Sacred Flame on the bandit',componentsConfirmed:true}},always(.05));
- assert.equal(g.enemyHP-cast.game.enemyHP,g.enemyHP-without_.game.enemyHP+3,'Wisdom added once');}
+ const without_=r.adventureStep(g,hpOf(without(hearth)),without(hearth),bolt,always(.95));
+ assert.equal(g.enemyHP-cast.game.enemyHP,g.enemyHP-without_.game.enemyHP+3,'Wisdom added once');
+ // Not to a cantrip (Clerics add Wisdom to cantrips only from level 7, Potent Spellcasting): it kept Hearth past the limit.
+ const flame=r.adventureStep(g,hpOf(hearth),hearth,{type:'spell',request:{id:'sacred-flame',slot:0,intent:'Sacred Flame on the bandit',componentsConfirmed:true}},always(.05));
+ assert.ok(!flame.error,flame.error);assert.ok(!/Banked Fire/.test(lines(flame)),'Banked Fire adds nothing to a cantrip');}
 {const saint=make('Sorcerer','Saintblood Sorcery'),cure=r.adventureStep({...fightFor(saint)},{current:2,temp:0},saint,{type:'spell',request:{id:'cure',slot:1,intent:'Cure Wounds on myself',componentsConfirmed:true}},always(.5));
- assert.ok(!cure.error,cure.error);assert.match(lines(cure),/\+ 2 Grace in the Blood; restored/,lines(cure));}
+ // Half the Charisma modifier (+2), and Aid from level 5: Saintblood sat 15 points past Draconic Sorcery (balance-check).
+ assert.ok(!cure.error,cure.error);assert.match(lines(cure),/\+ 1 Grace in the Blood; restored/,lines(cure));
+ assert.ok(!r.knownSpells(saint).some(s=>s.id==='aid'),'Aid comes at level 5');assert.ok(r.knownSpells(make('Sorcerer','Saintblood Sorcery',{level:5})).some(s=>s.id==='aid'));}
 {const voidW={...make('Warlock','Whispering Void Patron',{level:5}),spells:['blast']},g=fightFor(voidW),blast=r.adventureStep(g,hpOf(voidW),voidW,{type:'spell',request:{id:'blast',slot:0,intent:'Eldritch Blast at the bandit',componentsConfirmed:true}},always(.9));
  assert.ok(!blast.error,blast.error);assert.match(lines(blast),/beam 2/,'two beams at level 5');assert.equal((blast.events??[]).filter(l=>/\(Echo of the Void\)/.test(l)).length,1,'once a casting: '+lines(blast));}
 {const door=make('Cleric','Threshold Domain'),g={...fightFor(door),enemyHP:1},win=r.adventureStep(g,hpOf(door),door,'attack:Mace',always(.9));
@@ -272,7 +280,7 @@ assert.notDeepEqual(plain(r.dmCommand(make('Fighter','Champion'),fightFor(make('
  const later=r.partyView({...table,game:{...table.game,turnOrder:{...order,at:1}}},'p1');assert.equal(later.game.featTurn,undefined,'gone once the turn has passed');}
 
 // ---- 11. Every subclass's level-3 signature, played through the engine ----
-const castBy={'Hearth Domain':['sacred-flame',0,.05],'Circle of the Fallow Field':['ray-of-sickness',1,.95],'Frostblood Sorcery':['ice-knife',1,.95],'Whispering Void Patron':['mind-spike',2,.05],Bonewright:['chill-touch',0,.95],'Circle of the Hollow Hill':['cure',1,.5],'Saintblood Sorcery':['cure',1,.5]};
+const castBy={'Hearth Domain':['guiding-bolt',1,.95],'Circle of the Fallow Field':['ray-of-sickness',1,.95],'Frostblood Sorcery':['ice-knife',1,.95],'Whispering Void Patron':['mind-spike',2,.05],Bonewright:['chill-touch',0,.95],'Circle of the Hollow Hill':['cure',1,.5],'Saintblood Sorcery':['cure',1,.5]};
 const surface=h=>JSON.stringify([r.combatBasics(h),r.weaponAttacks(h).map(w=>w.proficient),r.trainedSkills(h),r.unarmedDC(h),r.subclassPassive(h).companionBonus,r.attacksPerAction(h)]);
 let played=0;
 for(const [name,spec] of Object.entries(r.subclassEngine)){

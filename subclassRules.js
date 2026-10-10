@@ -34,7 +34,7 @@ export const subclassEngine={
  'College of Borrowed Faces':{class:'Bard',effects:[{level:3,kind:'passive',name:'Practised Liar',skills:['Deception','Insight']},{level:3,kind:'action',id:'jest',name:'Rattling Jest',bonus:true,uses:'Charisma',recharge:'long',effect:{mark:'sapped',save:'Wisdom'},say:/\b(rattling jest|cruel jest)\b|\bi (mock|taunt|jeer at)\b/i,chip:['✶','Rattling Jest','I rattle the foe with a cruel jest.','speak'],description:'Rattling Jest: a cruel jest at the foe. It makes a Wisdom save against your spell save DC or has disadvantage on its next attack. A bonus action.'}]},
  'College of the Long Road':{class:'Bard',effects:[{level:3,kind:'passive',name:'Road-Wise',skills:['Survival']},{level:3,kind:'action',id:'hearthsong',name:'Hearthsong',bonus:true,uses:'proficiency',recharge:'long',effect:{temp:{count:1,die:8,plus:'level'}},say:/\bhearthsong\b|\bwalking song\b/i,chip:['♪','Hearthsong','I hum an old walking song.','lute'],description:'Hearthsong: hum an old walking song and gain 1d8 + your Bard level temporary hit points (they do not add to any you have). A bonus action.'}]},
  // ---- Cleric ----
- 'Hearth Domain':{class:'Cleric',effects:[{level:3,kind:'spell',name:'Banked Fire',damage:{types:['Fire','Radiant'],ability:'Wisdom'}}]},
+ 'Hearth Domain':{class:'Cleric',effects:[{level:3,kind:'spell',name:'Banked Fire',damage:{types:['Fire','Radiant'],ability:'Wisdom',cantrip:0}}]},
  'Vigil Domain':{class:'Cleric',effects:[{level:3,kind:'passive',name:'Steadfast Guard',acBonus:{n:1,when:'armor'}}]},
  'Threshold Domain':{class:'Cleric',effects:[{level:3,kind:'victory',name:"Ferryman's Due",plus:['level','Wisdom']}]},
  // ---- Druid ----
@@ -48,7 +48,7 @@ export const subclassEngine={
  // ---- Monk ----
  'Warrior of the Crane':{class:'Monk',effects:[{level:3,kind:'passive',name:"Crane's Poise",acBonus:{n:1,when:'unarmored'}}]},
  'Warrior of the Coiled Serpent':{class:'Monk',effects:[{level:3,kind:'rider',name:"Serpent's Fang",count:1,die:4,wounded:true,type:'Poison',when:'martialArts',scale:{11:2}}]},
- 'Warrior of the Quiet Step':{class:'Monk',effects:[{level:3,kind:'rider',name:'Slip Behind',count:0,die:0,mark:'vex',when:'martialArts'}]},
+ 'Warrior of the Quiet Step':{class:'Monk',effects:[{level:3,kind:'rider',name:'Slip Behind',count:0,die:0,mark:'vex',lasts:'turn',when:'martialArts'}]},
  // ---- Paladin ----
  'Oath of the Open Road':{class:'Paladin',effects:[{level:3,kind:'passive',name:'Watchful Wayfarer',initiative:'Wisdom',skills:['Survival']}]},
  'Oath of Ashes':{class:'Paladin',effects:[{level:3,kind:'rider',name:'Cinder Oath',count:1,die:6,type:'Fire',when:'melee'}]},
@@ -66,7 +66,7 @@ export const subclassEngine={
  // ---- Sorcerer ----
  'Frostblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Rime-Touched',damage:{types:['Cold'],ability:'Charisma',cantrip:0}}]},
  'Veilborn Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'action',id:'veil',name:'Step Behind the Veil',bonus:true,uses:'proficiency',recharge:'long',effect:{mark:'sapped'},say:/\bstep behind the veil\b|\bfade (half )?(out )?of sight\b/i,chip:['◌','Behind the Veil','I fade half out of sight.','eye'],description:'Step Behind the Veil: fade half out of the world. The next attack the foe makes before your next turn has disadvantage. A bonus action.'}]},
- 'Saintblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Grace in the Blood',heal:'Charisma'}]},
+ 'Saintblood Sorcery':{class:'Sorcerer',effects:[{level:3,kind:'spell',name:'Grace in the Blood',heal:'Charisma',share:0.5}]},
  // ---- Warlock ----
  'Lantern-Keeper Patron':{class:'Warlock',effects:[{level:3,kind:'action',id:'kindly',name:'Kindly Light',bonus:true,uses:'Charisma',recharge:'long',effect:{heal:{count:1,die:8,plus:'level'}},say:/\bkindly light\b|\bpatron'?s lamp\b/i,chip:['✚','Kindly Light',"I draw on my patron's lamp.",'sun'],description:"Kindly Light: draw on your patron's lamp and regain 1d8 + your Warlock level hit points. A bonus action."}]},
  'Elder Grove Patron':{class:'Warlock',effects:[{level:3,kind:'ward',name:'Bark and Bramble',count:1,die:8,plus:'Charisma',uses:'Charisma',recharge:'short'}]},
@@ -115,7 +115,7 @@ export const subclassFeatures={
  ],
  "Hearth Domain":[
   [3,"Hearth Domain Spells","Always prepared from level 3: Burning Hands, Heroism, Heat Metal and Flaming Sphere; more at higher levels.",1],
-  [3,"Banked Fire","Cleric spells dealing Fire or Radiant damage add your Wisdom modifier, once per casting.",1],
+  [3,"Banked Fire","Cleric spells of level 1 or higher dealing Fire or Radiant damage add your Wisdom modifier, once per casting.",1],
   [3,"Hearthkeeper's Welcome","Channel Divinity, Magic action: you and allies within 30 ft gain Temporary HP equal to your Cleric level.",0],
   [6,"Warmth Shared","Allies sharing your Short Rest regain extra HP equal to your Wisdom modifier.",0],
   [17,"Hearth Never Cold","Fire Resistance; your Fire ignores Resistance; once per Long Rest drop to 1 HP instead of 0 and burst 4d8 Fire (Dex save, half).",0]
@@ -193,7 +193,7 @@ export const subclassFeatures={
   [17,"Patience of the Serpent","On rolling Initiative choose a creature: your first hit on it before the end of your next turn is a Critical Hit.",0]
  ],
  "Warrior of the Quiet Step":[
-  [3,"Slip Behind","Once a turn, after an Unarmed Strike or Monk weapon hit, your next attack on that creature before your next turn ends has Advantage.",1],
+  [3,"Slip Behind","Once a turn, after an Unarmed Strike or Monk weapon hit, your next attack on that creature this turn has Advantage.",1],
   [6,"Quiet Feet","Advantage on Stealth; 2 Focus as a Bonus Action: Invisible until the end of your next turn or until you attack.",0],
   [11,"Fold of the Moment","Once per Short or Long Rest, Reaction when you take damage: halve it and reappear within 30 ft.",0],
   [17,"The Unseen Hand","Once per Long Rest, Bonus Action: Invisible for 1 minute; attacking does not end it, but you regain no Focus meanwhile.",0]
@@ -279,8 +279,8 @@ export const subclassFeatures={
   [18,"Veilwalker","Once per Long Rest, Magic action, 1 minute: Invisible, see invisible things, pass through objects; attacking does not end it.",0]
  ],
  "Saintblood Sorcery":[
-  [3,"Saintblood Spells","Always prepared from level 3: Cure Wounds, Bless, Aid and Lesser Restoration; more at higher levels.",1],
-  [3,"Grace in the Blood","Healing spells cast with a slot restore extra HP equal to your Charisma modifier.",1],
+  [3,"Saintblood Spells","Always prepared: Cure Wounds and Bless from level 3; Aid and Lesser Restoration from 5; more at higher levels.",1],
+  [3,"Grace in the Blood","Healing spells cast with a slot restore extra HP equal to half your Charisma modifier (rounded down).",1],
   [6,"Haloed","Bonus Action, 1 Sorcery Point, 1 minute: bright light 20 ft; Undead and Fiends in it have Disadvantage on attacks against you.",0],
   [14,"Martyr's Grace","Reaction: take the damage meant for an ally within 30 ft, with Resistance to it.",0],
   [18,"Miracle","Once per Long Rest, Magic action: restore 70 HP shared among creatures within 30 ft, ending Blinded, Deafened and Poisoned.",0]
@@ -447,7 +447,7 @@ export function subclassRiderRoll(hero,game,weapon,ctx={},random=Math.random){
   const raw=dice.reduce((a,b)=>a+b,0)+(e.flat??0);damage=subclassDefended(ctx.target,type,raw);
   lines.push(`${damage} ${type} damage (${e.name}: ${count}d${e.die} [${dice.join(', ')}]${damage!==raw?'; '+raw+' before its defences':''}).`);
  }
- if(e.mark==='vex'){next.vex={target:ctx.key,fresh:true};lines.push(`${e.name}: your next attack against ${ctx.called??'it'} has advantage.`);}
+ if(e.mark==='vex'){next.vex={target:ctx.key,...(e.lasts==='turn'?{}:{fresh:true})};lines.push(`${e.name}: your next attack against ${ctx.called??'it'} ${e.lasts==='turn'?'this turn ':''}has advantage.`);}
  return {damage,dice,lines,line:lines.join(' '),mark:e.mark??null,game:next};
 }
 // The Reaction that blunts a blow: once a round (game.reactionUsed), while uses remain. Returns the damage that gets
@@ -462,11 +462,12 @@ export function subclassWardRoll(hero,game,total,random=Math.random){
  return {total:total-cut,reduced:cut,name:w.name,line:`${w.name}: the blow is reduced by ${cut} (${count}d${die} [${dice.join(', ')}]${plus?(plus>0?' + ':' − ')+Math.abs(plus):''}).`,game:{...game,reactionUsed:true,resources:{...(game.resources??{}),feat:used+1}}};
 }
 // A casting's extra: the modifier once to damage of a listed type (when it dealt any), or to healing from a slot. A
-// cantrip may carry only a share of it (`cantrip`: 0.5 is half the modifier, rounded down; 0 nothing).
+// cantrip may carry only a share of it (`cantrip`: 0.5 is half the modifier, rounded down; 0 nothing), and healing only
+// `share` of it.
 export function subclassSpellBonus(hero,kind,{type=null,slot=0,cantrip=false}={}){
  for(const e of subclassEffects(hero)){
   if(e.kind!=='spell')continue;
-  if(kind==='heal'&&e.heal&&slot>=1){const amount=Math.max(0,subclassMod(hero,e.heal));if(amount)return {amount,label:e.name};}
+  if(kind==='heal'&&e.heal&&slot>=1){const amount=Math.max(0,Math.floor(subclassMod(hero,e.heal)*(e.share??1)));if(amount)return {amount,label:e.name};}
   if(kind==='damage'&&e.damage&&type&&e.damage.types.includes(type)){const mod=Math.max(0,subclassMod(hero,e.damage.ability)),amount=cantrip&&e.damage.cantrip!==undefined?Math.floor(mod*e.damage.cantrip):mod;if(amount)return {amount,label:e.name};}
  }
  return {amount:0,label:''};
