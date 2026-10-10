@@ -63,7 +63,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(route==='save')return send(403,{error:'Whole-adventure writes are disabled. Send an action to the campaign.'});
    if(route==='poll'||route==='leave')return send(200,campaigns[route](user,b));
    if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](req.headers['x-questbound-local']==='1'?{...user,local:true}:user,b);return send(result.conflict?409:200,result);}
-   if(route==='usage'){if(b.kind!=='art')ops.consume(user.id,'dm-requests',300);return send(200,{allowed:true,id:user.id});}
+   if(route==='usage'){if(b.kind==='dm')ops.consume(user.id,'dm-requests',300);return send(200,{allowed:true,id:user.id});}
    if(route==='ops-status'||route==='ops-verify-backups'){
     if(req.headers['x-questbound-local']!=='1')return send(403,{error:'Host diagnostics are available only on the desktop.'});
     return send(200,route==='ops-status'?ops.status():ops.backup.verify());

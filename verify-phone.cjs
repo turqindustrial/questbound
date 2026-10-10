@@ -113,7 +113,7 @@ async function sharedLink(){
   assert.equal((await send({text:'too big',details:{padding:'q'.repeat(40000)}})).status,413);
   const withDetails=fs.readFileSync(notes,'utf8');assert.match(withDetails,/\nBuild: a1b2c3d4 · Stage: combat/);assert.match(withDetails,/\nProblem \(refused\): I cast Detect Magic → Not prepared/);assert.match(withDetails,/\nLast turn: I look around → Perception/);
   const records=fs.readFileSync(path.join(root,'feedback.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line));
-  assert.equal(records.length,2);assert.match(records[1].guest,/^[0-9a-f]{32}$/,'the record names the browser by its guest label');
+  assert.equal(records.length,2);assert.equal(records[1].guest,'account-'+'a'.repeat(64),'the record names a signed-in player by the account label their Dungeon Master turns carry');
   const cookieToken=cookieJar.split('=')[1];assert.ok(!fs.readFileSync(path.join(root,'feedback.jsonl'),'utf8').includes(cookieToken),'never the cookie');
   assert.equal((await send({text:''})).status,400);assert.equal((await send({text:'hi'},'questbound_phone='+'0'.repeat(64))).status,401,'Unpaired browsers cannot send notes');
   for(let i=0;i<8;i++)await send({text:'note '+i});assert.equal((await send({text:'one too many'})).status,429);

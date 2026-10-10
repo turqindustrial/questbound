@@ -99,5 +99,26 @@ const post=(port,body,{origin='http://localhost:'+port,host='localhost:'+port,ty
   // Pages are still served as before.
   const page=await new Promise((resolve,reject)=>http.get({hostname:'127.0.0.1',port,path:'/',headers:{Host:'localhost:'+port}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>resolve(t));}).on('error',reject));assert.equal(page,'<h1>game</h1>');
  }finally{server.close();fs.rmSync(dir,{recursive:true,force:true});}
- console.log('Feedback: the problem log keeps the last eight on one line each; details stay under 16 KB ('+size+' bytes for a long tale) with the build, spells, stage, last two turns and problems; notes cannot write headings and their records are cut and labelled; feedback-report lists unread notes (old ones too), joins refusals for the same browser and moves its marker only with --mark; the host\'s desktop takes notes from its own page only.');
+ // 7. Through the phone gateway: a signed-in player's note carries the same label as their Dungeon Master turns, so the
+ // report joins it to their refused replies (bug: the note had the browser's label, the logs the account's), and notes
+ // are mailed within a gateway-wide ceiling an hour and a day while every note is still saved.
+ {const {createPhoneServer}=require('./phone-server.cjs'),home=fs.mkdtempSync(path.join(os.tmpdir(),'qb-gateway-notes-')),site=path.join(home,'site');fs.mkdirSync(site);fs.writeFileSync(path.join(site,'index.html'),'<h1>game</h1>');
+  let clock=Date.UTC(2026,9,9,12,0),told=null,mails=0;const account='c'.repeat(64);
+  const fetchImpl=async(url,options={})=>{if(url.endsWith('/usage'))return {ok:true,status:200,json:async()=>({allowed:true,id:account})};if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true})};told=JSON.parse(options.body).guest;return {ok:true,status:200,headers:{get:()=>null},json:async()=>({narration:'Fine.'})};};
+  const gate=createPhoneServer({host:'127.0.0.1',port:0,root:site,code:'24681357',now:()=>clock,fetchImpl,feedbackFile:path.join(home,'feedback.md'),mailer:{feedback:async()=>{mails++;}},feedbackMail:{hour:2,day:3}});
+  await new Promise(r=>gate.server.listen(0,'127.0.0.1',r));
+  const send=(route,body,cookie='')=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:gate.server.address().port,path:route,method:'POST',headers:{Host:'127.0.0.1:0',Origin:'http://127.0.0.1:0','Content-Type':'application/json',Cookie:cookie}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:t}));});req.on('error',reject);req.end(JSON.stringify(body));});
+  try{
+   const paired=await send('/pair',{code:'24681357'});assert.equal(paired.status,200);const cookie=paired.headers['set-cookie'][0].split(';')[0];
+   assert.equal((await send('/api/dm',{input:'I cast Detect Magic',context:{choices:[]}},cookie)).status,200);assert.equal(told,'account-'+account);
+   assert.equal((await send('/api/feedback',{text:'Detect Magic was refused'},cookie)).status,200);
+   fs.writeFileSync(path.join(home,'.questbound-diagnostics.jsonl'),JSON.stringify({at:new Date(clock+60000).toISOString(),guest:told,error:'castCommand did not name a spell'})+'\n');
+   const out=[];report.report(['--all'],{dir:home,print:t=>out.push(t)});assert.match(out.join('\n'),/castCommand did not name a spell/,'the note is joined to the player’s refused reply');
+   for(let i=0;i<4;i++)assert.equal((await send('/api/feedback',{text:'Another note '+i},cookie)).status,200);
+   assert.equal(mails,2,'two mails an hour at most');clock+=3600001;
+   for(let i=0;i<3;i++)assert.equal((await send('/api/feedback',{text:'Later note '+i},cookie)).status,200);
+   assert.equal(mails,3,'three a day at most');
+   assert.equal(fs.readFileSync(path.join(home,'feedback.jsonl'),'utf8').trim().split('\n').length,8,'every note is still saved');
+  }finally{gate.server.close();fs.rmSync(home,{recursive:true,force:true});}}
+ console.log('Feedback: the problem log keeps the last eight on one line each; details stay under 16 KB ('+size+' bytes for a long tale) with the build, spells, stage, last two turns and problems; notes cannot write headings and their records are cut and labelled; feedback-report lists unread notes (old ones too), joins refusals for the same browser (a phone player by their account label) and moves its marker only with --mark; the host\'s desktop takes notes from its own page only; the gateway mails notes within an hourly and daily ceiling.');
 })().catch(e=>{console.error(e);process.exit(1);});
