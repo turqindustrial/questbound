@@ -30,6 +30,11 @@ const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.l
   assert.ok(r.adventureStep(done.game,done.health,hero,w,()=>0.5).error,'the action is still spent');
  }
  assert.ok(seen,'the scene reaches a hurt paladin with the action spent');
+ // Health not known is full health (a hero who has just joined a party): nothing that only heals is offered.
+ const fresh={...r.hostileEncounterGame(hero,r.newAdventure(hero),pick('bandit')),openingAttackAvailable:false,potions:2};
+ const offered=r.dmChoices(hero,fresh,null).map(c=>c.id);
+ for(const id of ['potion','class:hands'])assert.ok(!offered.includes(id),id+' is not offered at full health');
+ for(const c of r.dmChoices(hero,fresh,null))assert.ok(!r.adventureStep(fresh,null,hero,c.action,()=>0.5).error||/^npc-|^again:/.test(c.id),'in the fight, '+c.id+' is accepted');
 }
 
 // ---- A written story at the refuge: long rest, draughts, the vault ----

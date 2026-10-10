@@ -44,7 +44,8 @@ function bonusChoices(hero,game,health){
   const offhand=[];
   if(game.lightAttack&&!game.nickUsed)for(const w of offhandWeapons(hero,game.lightAttack.weapon)){const nick=masteryOf(hero,w)==='Nick'&&!game.nickUsed;if(nick||!game.bonusUsed)offhand.push(['offhand:'+w.name,'Strike with the '+w.name+' in your other hand ('+(nick?'Nick: part of your Attack action':'bonus action')+')']);}
   if(game.bonusUsed)return offhand;
-  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[...offhand];
+  // Health not known is full health, as the rules read it (classActions.js bonusOptions).
+  const maximum=combatBasics(hero).hp,hurt=(health?.current??maximum)<maximum,used=game.resources??{},list=[...offhand];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if(hero.class==='Monk')list.push(['class:strike','Martial Arts strike (bonus action)']);
