@@ -68,8 +68,9 @@ const plainChoices=[
  ['short-rest',/\b(short rest|catch (?:my|our) breath|take a breather|rest (?:a while|a little|briefly|for an hour|for a bit)|bind (?:my|our) wounds)\b/,'taking a short rest'],
  ['long-rest',/\b(long rest|rest for the night|rest until (?:morning|dawn)|sleep|bed down|turn in for the night|make camp for the night|get a night's rest)\b/,'resting for the night'],
  ['potion',/\b(drink|quaff|down|swallow|use)\b[^.!?]{0,30}\b(potion|draught)\b/,'drinking a healing draught'],
- // Searching the fallen or a lair (the game rolls what they held: lootRules.js).
- ['loot',/^(?:i |we |let me |let's )?(?:(?:loot|skin)\b(?! is)|(?:search|rifle through|go through|strip|check|rummage through|go over)\s+(?:(?:him|her|them|it)\b|.*\b(?:bod(?:y|ies)|corpses?|remains|fallen|dead|pockets|belongings|purse|lair|den|nest|hoard|carcass(?:es)?|pelts?)\b))/,'searching the fallen'],
+ // Searching the fallen or a lair (the game rolls what they held: lootRules.js): a search verb with the body, the
+ // remains or the lair within three words. Checking a pulse or wounds, or going over what the dead said, is not looting.
+ ['loot',/^(?:i |we |let me |let's )?(?:(?:loot|skin)\b(?! is)|(?:search|rifle through|go through|strip|rummage through)\s+(?:(?:him|her|them|it)\b(?!\s+for\s+(?:wounds?|injur|a pulse|signs?\s+of\s+life|breath))|(?:\S+\s+){0,3}?(?:bod(?:y|ies)|corpses?|remains|fallen|dead|pockets|belongings|purse|lair|den|nest|hoard|carcass(?:es)?|pelts?)\b))/,'searching the fallen'],
 ];
 // A side errand (a lead) the player's words seem to settle: they name it (a word of its title) and do something that
 // ends such errands (hand over, return, tell, pay, free, destroy...).

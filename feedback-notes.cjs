@@ -41,7 +41,7 @@ function feedbackEntry(note,{now=Date.now(),guest=null,random=crypto.randomBytes
  if(last&&typeof last==='object')lines.push('Last turn: '+(oneLine(last.said,200)||'(no words)')+' → '+(oneLine(Array.isArray(last.rulings)&&last.rulings[0]?last.rulings[0]:last.narration,240)||'(nothing)'));
  lines.push('Ref: '+ref);
  const markdown='\n## '+heading+'\n'+(rating?'Rating: '+stars(rating)+'\n':'')+'\n'+text.split('\n').map(line=>'> '+line).join('\n')+'\n\n'+lines.join('\n')+'\n';
- const record={ref,at:when.toISOString(),guest:guest?oneLine(guest,40):null,rating,text,context:Object.fromEntries(['player','hero','device','where','screen','story'].map(k=>[k,oneLine(c[k],200)||null])),details:d};
+ const record={ref,at:when.toISOString(),guest:guest?oneLine(guest,80):null,rating,text,context:Object.fromEntries(['player','hero','device','where','screen','story'].map(k=>[k,oneLine(c[k],200)||null])),details:d};
  return {markdown,record};
 }
 // Appends a note to both files. Throws when the disk refuses; the callers answer 500.

@@ -18,12 +18,12 @@ const pairingPolicy=[false,true].map(shared=>pagePolicy(pairingPage(shared)));
 // on a hosted machine the header its proxy sets, given by the host (trustProxy), else the last X-Forwarded-For entry,
 // the one the nearest proxy added (earlier entries are whatever the visitor sent, so they are never trusted).
 const proxyHeaderFor=(shared,trustProxy)=>typeof trustProxy==='string'&&/^[a-z0-9-]{2,40}$/i.test(trustProxy)?trustProxy.toLowerCase():trustProxy?'x-forwarded-for':shared?'cf-connecting-ip':null;
-function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null}={}){
+function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
  root=path.resolve(root);
  const shared=publicOrigin?new URL(publicOrigin):null;
  if(shared&&(shared.protocol!=='https:'||shared.pathname!=='/'||shared.search||shared.hash))throw Error('A shared link must be a plain https:// origin.');
  const origin=shared?shared.origin:'http://'+host+':'+port,expectedHost=shared?shared.host:host+':'+port;
- const expires=expiresAt??now()+pairingHours*3600000,sessions=new Map(),attempts=new Map(),failures=[],feedbackUse=new Map();
+ const expires=expiresAt??now()+pairingHours*3600000,sessions=new Map(),attempts=new Map(),failures=[],feedbackUse=new Map(),feedbackVisitors=new Map(),mailed=[];
  // Paired browsers are remembered by a hash of their cookie (never the cookie itself); with a session store they
  // survive a gateway restart for the same link, so updating the game doesn't send testers back to the invite page.
  const digest=token=>crypto.createHash('sha256').update(token).digest('hex');
@@ -96,7 +96,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // label the browser sent itself is replaced).
     let parsedBody;try{parsedBody=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
     const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80)},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
-    const permitted=await allowance.json();if(!allowance.ok)return json(res,allowance.status,permitted);
+    const permitted=await allowance.json();if(!allowance.ok){const after=allowance.headers?.get?.('retry-after');return json(res,allowance.status,permitted,after&&/^\d{1,6}$/.test(after)?{'Retry-After':after}:{});}
     if(permitted.allowed!==true||!/^[a-f0-9]{64}$/.test(permitted.id??''))return json(res,503,{error:'Account validation is unavailable.'});
     let mode=null;try{const parsed=JSON.parse(raw);mode=parsed?.context?.mode??null;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){parsed.guest='account-'+permitted.id;raw=JSON.stringify(parsed);}}catch{}
     if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.');}
@@ -133,15 +133,25 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
    if(pathname==='/api/feedback'&&req.method==='POST'){
     if(!feedbackFile)return json(res,404,{error:'Feedback is not collected here.'});
     if(req.headers.origin!==origin||!req.headers['content-type']?.startsWith('application/json'))return json(res,403,{error:'Use the Questbound game to send feedback.'});
-    const recent=(feedbackUse.get(token)??[]).filter(t=>t>now()-3600000);if(recent.length>=10)return json(res,429,{error:'Thanks! That’s plenty of notes for one hour. Try again a little later.'});
+    // Ten notes an hour per browser and twenty per visitor address (one tester may pair several browsers).
+    const visitor=String(client(req)??''),recent=(feedbackUse.get(token)??[]).filter(t=>t>now()-3600000),nearby=(feedbackVisitors.get(visitor)??[]).filter(t=>t>now()-3600000);
+    if(recent.length>=10||nearby.length>=20)return json(res,429,{error:'Thanks! That’s plenty of notes for one hour. Try again a little later.'});
     let note;try{note=JSON.parse(await body(req,FEEDBACK_BODY_LIMIT));}catch(e){if(e.status)throw e;return json(res,400,{error:'That note could not be read.'});}
     // The readable entry and the full record (feedback-notes.cjs); the record names the browser only by its guest
     // label, the same one the Dungeon Master's logs use, never by its cookie.
-    const entry=feedbackEntry(note,{now:now(),guest:guestLabel(token)});if(entry.error)return json(res,400,{error:entry.error});
+    // A signed-in player's note carries their account label, the one the Dungeon Master's logs use for their turns, so
+    // feedback-report.cjs can join it to replies the Dungeon Master refused; otherwise the browser's own label.
+    let guest=guestLabel(token);
+    try{const who=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':visitor.slice(0,80)},body:JSON.stringify({kind:'feedback'}),signal:AbortSignal.timeout(5000)});
+     const found=await who.json();if(who.ok&&found?.allowed===true&&/^[a-f0-9]{64}$/.test(found.id??''))guest='account-'+found.id;}catch{}
+    const entry=feedbackEntry(note,{now:now(),guest});if(entry.error)return json(res,400,{error:entry.error});
     try{saveFeedback(feedbackFile,entry);}catch{return json(res,500,{error:'The host’s PC could not save that note. Please try again.'});}
-    recent.push(now());feedbackUse.set(token,recent);
-    // Forwarded (when the host set up the game mailbox) as the readable entry, the same text as playtest-feedback.md.
-    (mailer??require('./mailer.cjs').createMailer()).feedback(entry.markdown).catch(()=>{});
+    recent.push(now());feedbackUse.set(token,recent);nearby.push(now());feedbackVisitors.set(visitor,nearby);if(feedbackVisitors.size>2048)feedbackVisitors.delete(feedbackVisitors.keys().next().value);
+    // Forwarded (when the host set up the game mailbox) as the readable entry, the same text as playtest-feedback.md,
+    // within a gateway-wide ceiling (feedbackMail: so many an hour and a day), so notes can never use up the mailbox's
+    // sending limit that account verification codes depend on. Past it the note is only kept on disk.
+    while(mailed.length&&mailed[0]<=now()-86400000)mailed.shift();
+    if(mailed.filter(t=>t>now()-3600000).length<feedbackMail.hour&&mailed.length<feedbackMail.day){mailed.push(now());(mailer??require('./mailer.cjs').createMailer()).feedback(entry.markdown).catch(()=>{});}
     return json(res,200,{saved:true});
    }
    if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'Method not allowed.'});

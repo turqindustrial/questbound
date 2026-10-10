@@ -67,9 +67,9 @@ try{
  // 5. A level earned by experience at a two-hero table: taken where the hero stands.
  const host=c.create(A,{snapshot:snapshotOf(fighter,joined.game),party:true,name:'Al'});
  const rogue=r.readyHero('rogue'),inv=c.join(B,{invite:host.invite,snapshot:snapshotOf(rogue,r.newAdventure(rogue)),name:'Bo'});
- const view=r.partyView(inv.snapshot,B.id),heroB=JSON.parse(view.character);
+ const view=r.partyView(inv.snapshot,inv.you),heroB=JSON.parse(view.character);
  refused(()=>c.edit(B,{campaignId:host.campaignId,baseVersion:inv.version,kind:'advance',character:{...heroB,level:2}}),/experience/);
- const ready=rewrite(host.campaignId,camp=>{const v=r.partyView(camp.snapshot,B.id);camp.snapshot={...v,game:{...v.game,xp:r.xpForLevel(2)}};});
+ const ready=rewrite(host.campaignId,camp=>{const v=r.partyView(camp.snapshot,inv.you);camp.snapshot={...v,game:{...v.game,xp:r.xpForLevel(2)}};});
  const beforeFoe=view.game.enemyHP,companion=JSON.parse(JSON.stringify(view.game.npcClasses??{}));
  const levelled=c.edit(B,{campaignId:host.campaignId,baseVersion:ready,kind:'advance',character:{...heroB,level:2}});
  const g=levelled.snapshot.game;
@@ -79,5 +79,35 @@ try{
  assert.ok(g.enemyHP>=beforeFoe,'a foe not yet met grows to match');
  for(const [id,trained] of Object.entries(g.npcClasses??{}))assert.ok(trained.level>=(companion[id]?.level??1),'companions keep pace');
  assert.ok(g.storyLog.some(l=>/reached level 2/.test(l.text??l)),'the story log records it');
- console.log('Campaign edits: send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, and a level by experience keeps the party, the XP and the companions.');
+ // 6. A one-hero campaign (party:false): every member plays the host's hero, but its lasting choices are the host's.
+ {const ready={...r.newAdventure(fighter),xp:r.xpForLevel(2)},made=c.create(A,{snapshot:snapshotOf(fighter,ready),party:false,name:'Al'});
+  const guest=c.join(B,{invite:made.invite,name:'Bo'}),at2={id:made.campaignId,version:guest.version};
+  for(const change of [{kind:'advance',character:{...fighter,level:2}},{kind:'wield',name:'Greatsword'},{kind:'attune',name:'Rope'},{kind:'training',training:{}}])
+   assert.throws(()=>edit(B,at2,change),e=>e.status===403,'a guest cannot make '+change.kind+' choices for the host');
+  const noted=edit(B,at2,{kind:'note',text:'Ask the miller.'});assert.equal(noted.version,at2.version+1,'a guest may still write in the journal');
+  const own=edit(A,{id:at2.id,version:noted.version},{kind:'advance',character:{...fighter,level:2}});assert.equal(JSON.parse(own.snapshot.character).level,2,'the host levels their own hero');}
+
+ // 7. Level 3 and above at a table: an older subclass is kept; a hero with none yet chooses one now (as Advancement.js).
+ {const adv=r.advancementLevels('Fighter').includes(4)?[{level:4,abilities:['Strength','Strength']}]:[];
+  const take=(hero,plannedSubclass)=>{const made=solo(hero,{...r.newAdventure(hero),xp:r.xpForLevel(4)});return edit(A,made,{kind:'advance',character:{level:4,class:'Fighter',plannedSubclass,advancements:adv,spells:hero.spells,spellbook:hero.spellbook,arcanum:hero.arcanum}});};
+  const legacy=r.makeCharacter({...fighter,level:3,devLevel:3,plannedSubclass:'Battle Master',advancements:[]});assert.ok(r.isValidCharacter(legacy),'fixture: an older subclass');
+  assert.equal(JSON.parse(take(legacy,'Battle Master').snapshot.character).plannedSubclass,'Battle Master','an older subclass is kept');
+  const none=r.makeCharacter({...fighter,level:3,devLevel:3,plannedSubclass:'',advancements:[]}),choice=Object.keys(r.subclassOptions.Fighter)[0];
+  assert.equal(JSON.parse(take(none,choice).snapshot.character).plannedSubclass,choice,'a subclass is chosen at the table');
+  refused(()=>take(none,''),/Choose your subclass/);refused(()=>take(none,'Battle Master'),/Choose a subclass/);}
+
+ // 8. Players never see each other's account ids: seats in the party, the turn order and the players list, and a
+ // table saved before seats is given them when it is first read.
+ {const fresh=c.create(A,{snapshot:snapshotOf(fighter,r.newAdventure(fighter)),party:true,name:'Al'});
+  const bo=c.join(B,{invite:fresh.invite,snapshot:snapshotOf(wizard,r.newAdventure(wizard)),name:'Bo'}),seen=JSON.stringify([fresh,bo,c.poll(B,{campaignId:fresh.campaignId,knownVersion:-1})]);
+  assert.ok(!seen.includes(A.id)&&!seen.includes(B.id),'no account id reaches a player');assert.match(bo.you,/^seat-[a-f0-9]{16}$/);assert.equal(bo.snapshot.game.party.lead,bo.you);
+  assert.deepEqual(bo.players.map(p=>p.id).sort(),[fresh.you,bo.you].sort(),'the players list names seats');
+  const file=path.join(dir,fresh.campaignId+'.json'),camp=JSON.parse(fs.readFileSync(file,'utf8')),back={[fresh.you]:A.id,[bo.you]:B.id};
+  const old=JSON.parse(JSON.stringify(camp.snapshot).replace(/seat-[a-f0-9]{16}/g,s=>back[s]));old.game.turnOrder={order:[{id:B.id,init:15},{id:A.id,init:9},{id:'foe',init:4}],at:0,round:1};
+  for(const m of Object.values(camp.members))delete m.seat;camp.snapshot=old;camp.receipts=[{id:'r'.repeat(16),by:B.id}];fs.writeFileSync(file,JSON.stringify(camp));
+  const migrated=c.poll(B,{campaignId:fresh.campaignId,knownVersion:-1}),stored=fs.readFileSync(file,'utf8');
+  assert.ok(!JSON.stringify(migrated).includes(A.id)&&!JSON.stringify(migrated).includes(B.id),'an older table is given seats');
+  assert.equal(migrated.snapshot.game.turnOrder.order[0].id,migrated.you,'the turn order follows the seats');
+  assert.ok(!JSON.parse(stored).snapshot.game.party.members[A.id]&&JSON.parse(stored).receipts[0].by===migrated.you,'the stored table and its receipts are rewritten once');}
+ console.log('Campaign edits: send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, a one-hero campaign’s lasting choices are the host’s, an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
 }finally{fs.rmSync(dir,{recursive:true,force:true});}

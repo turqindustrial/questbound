@@ -161,7 +161,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const [patience,setPatience]=useState('');
   useEffect(()=>{if(!turnKey)return;const timer=setTimeout(()=>setPatience(turnKey),90000);return()=>clearTimeout(timer);},[turnKey]);
   const awayFromTable=turnWait?.kind==='hero'&&!!table?.joined&&!(table.players??[]).some(p=>p.id===turnWait.id);
-  const canPass=(!table?.joined||table.role==='owner')&&turnWait?.kind==='hero'&&(awayFromTable||patience===turnKey);
+  const canPass=turnWait?.kind==='hero'&&(awayFromTable||patience===turnKey);
   // The turn has come round to this player: a sound, once a turn.
   const myTurnKey=turnsNow?.mine?turnsNow.round+':'+turnsNow.current?.id:'';
   useEffect(()=>{if(myTurnKey&&turnsNow.entries.filter(e=>e.kind==='hero').length>1)playSound('select');},[myTurnKey]);

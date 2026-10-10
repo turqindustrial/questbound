@@ -94,5 +94,36 @@ function byHand(hero,snapshot,action,question,dice,actorName){
  assert.ok(won.events.some(e=>/^Experience: \+\d+ .*Every hero in the party gains experience too\.$/.test(e)));
  assert.ok(won.snapshot.game.storyLog?.length>0,'the story log records the fight');
  assert.equal(r.partyVictory,undefined);
- console.log('Server turns: a skirmish won at the table pays '+snap.game.xp+' XP and leaves spoils, ideas and cues come back, device settings reach the rules unsaved, hard cast refusals stop before the Dungeon Master, any Attack… target works, companions are classed out of a fight, and a party turn settles the same on the server and the device.');
+
+ // 6. The campaign's own gates (campaigns.cjs). AGENTS: in a party fight anyone may pass a hero's turn after 90 s, or at
+ // once when that hero's player is not at the table (the host always may); only direct===true is talk to the Dungeon
+ // Master out of turn; the day's turn allowance is spent only on a kept turn, and never by the host's own desktop.
+ {const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),{createCampaigns}=require('./campaigns.cjs');
+  let t=1e12;const spent=[],peeked=[],dir=fs.mkdtempSync(path.join(os.tmpdir(),'qb-turns-'));
+  const operations={backup:{put(){},remove(){}},audit(){},consume(id,type,max,o={}){if(type!=='turns')return;(o.peek?peeked:o.spend?spent:[]).push(id);if(!o.peek&&!o.spend)throw Error('a turn spent before it was kept');}};
+  const c=createCampaigns({dir,ask:async()=>({narration:'Steel rings.',actionId:null}),randomImpl:seq(3),now:()=>t,operations});
+  const A={id:'a'.repeat(64)},B={id:'b'.repeat(64)},hero=r.readyHero('fighter'),bandit=()=>(r.hostileFoes.findIndex(f=>f.key==='bandit')+.5)/r.hostileFoes.length;
+  try{
+   const made=c.create(A,{snapshot:r.adventureSnapshot(hero,r.hostileEncounterGame(hero,r.newAdventure(hero),bandit),null,true),name:'Al',party:true});
+   const second=r.readyHero('fighter'),bo=c.join(B,{invite:made.invite,snapshot:r.adventureSnapshot(second,r.newAdventure(second),null,true),name:'Bo'}),id=made.campaignId;
+   const turn=(user,body)=>c.turn(user,{campaignId:id,requestId:crypto.randomUUID(),baseVersion:c.poll(user,{campaignId:id}).version,...body});
+   const opening=chip(second,bo.snapshot.game,bo.snapshot.health,/^attack:/);await turn(B,{question:'I attack.',action:opening.action});
+   assert.ok(c.poll(B,{campaignId:id,knownVersion:-1}).snapshot.game.turnOrder,'the fight goes in turns');
+   const holdFor=(seat,round)=>{const file=path.join(dir,id+'.json'),camp=JSON.parse(fs.readFileSync(file,'utf8')),o=camp.snapshot.game.turnOrder;o.at=o.order.findIndex(e=>e.id===seat);o.round=round;camp.version++;fs.writeFileSync(file,JSON.stringify(camp));};
+   const pass={question:'I pass the turn.',action:{type:'party-pass'}},refusedWith=async(p,status)=>assert.equal(await p.then(()=>0,e=>e.status),status);
+   // Al's player has left the table: Bo may pass at once.
+   t+=20000;holdFor(made.you,5);await turn(B,pass);
+   // Al is here: not yet; Bo's out-of-turn words are not talk to the Dungeon Master unless direct is exactly true.
+   holdFor(made.you,6);c.poll(A,{campaignId:id});await refusedWith(turn(B,pass),403);
+   await refusedWith(turn(B,{question:'I shout to flank the bandit.',direct:1}),409);
+   const spentBefore=spent.length;await turn(B,{question:'DM, how far is the river?',direct:true});assert.equal(spent.length,spentBefore+1,'talk to the Dungeon Master is a kept turn');
+   // A minute and a half later Bo may pass even though Al is still here.
+   t+=80000;c.poll(A,{campaignId:id});t+=11000;holdFor(made.you,6);await turn(B,pass);
+   // A turn the rules refuse spends nothing; the host's desktop is never counted.
+   const before=[spent.length,peeked.length];await refusedWith(turn(B,{question:'I swing.',action:{type:'no-such-chip'}}),400);
+   assert.deepEqual([spent.length,peeked.length],[before[0],before[1]+1],'checked, not spent');
+   const counted=spent.length,local={...A,local:true};holdFor(made.you,9);await turn(local,{question:'I look around.'});await refusedWith(turn(local,{question:'I swing.',action:{type:'no-such-chip'}}),400);
+   assert.equal(spent.length,counted,'the host’s own desktop is not capped');assert.ok(spent.every(x=>x===B.id));
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}}
+ console.log('Server turns: a skirmish won at the table pays '+snap.game.xp+' XP and leaves spoils, ideas and cues come back, device settings reach the rules unsaved, hard cast refusals stop before the Dungeon Master, any Attack… target works, companions are classed out of a fight, a party turn settles the same on the server and the device, and the campaign lets anyone pass an absent or slow player’s turn, keeps out-of-turn talk to direct:true, and spends the day’s allowance only on kept turns (never the host’s desktop).');
 })().catch(e=>{console.error(e);process.exitCode=1;});

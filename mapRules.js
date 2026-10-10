@@ -137,11 +137,19 @@ export function validMap(game) {
   const known=new Set([...Object.keys(mapPlaces),...worldPlaces(game).map(p=>p.id)]);
   return validWorld(game) && !!m && Array.isArray(m.visited) && m.visited.length>=1 && m.visited.length<=4+worldPlaces(game).length && new Set(m.visited).size===m.visited.length && m.visited.every(id=>known.has(id)) && m.visited.includes('inn') && m.visited.includes(mapLocation(game)) && ['accepted','clue','peaceful'].every(k=>typeof m[k]==='boolean') && Number.isSafeInteger(m.minutes) && m.minutes>=0 && (!m.clue || m.visited.includes('tower')) && (!m.peaceful || (m.clue && game.stage==='victory')) && (game.stage==='inn' || m.accepted || Object.keys(game.npcMemory??{}).length>0);
 }
+// A party does not walk off and leave a friend dying where they fell (partyRules.js): their view of the world would
+// lose its place. The name of the first other hero who is down, else null.
+export function downPartyMember(game){
+ const p=game?.party;if(!p?.members)return null;
+ for(const [id,m] of Object.entries(p.members))if(id!==p.lead&&m?.status==='down'){try{return JSON.parse(m.character).name||'A friend';}catch{return 'A friend';}}
+ return null;
+}
 export function travelError(game,destination) {
   if(destination==='dungeon')return 'Enter the vaults through the bridge approach.';
   if(!Object.hasOwn(mapPlaces,destination)&&!worldPlace(game,destination))return 'Choose a place on the map.';
   if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
   if(!['inn','bridge','tower','wild'].includes(game.stage))return 'Finish this encounter or begin another adventure before traveling.';
+  {const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
   // The keeper's errand gates the crossroads adventure only; a written story is under way from its first scene.
   if(!game.story&&!mapState(game).accepted&&!Object.keys(game.npcMemory??{}).length)return 'Speak with the keeper before leaving the inn.';
   if(destination===mapLocation(game))return 'You are already here.';
@@ -208,6 +216,7 @@ export function discoveryError(game,discovery){
  if(!game.story)return 'New places can be found in a written story.';
  if(!['inn','bridge','tower','wild'].includes(game.stage))return 'Finish this encounter before exploring further.';
  if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
+ if(discovery?.travel){const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
  // A place in a new land (region: its name and terrain) may lie days away; anything else is within a day's walk.
  const far=d?.region!==undefined&&d?.region!==null;
  if(far&&!(text(d.region?.name,2,60)&&terrains.includes(d.region?.terrain)))return 'That new land was not described clearly enough to map.';

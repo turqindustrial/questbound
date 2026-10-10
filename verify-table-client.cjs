@@ -4,7 +4,7 @@ const settle=()=>new Promise(r=>setImmediate(r));
 function fixture(){
  let slots=[],index=0,pendingEffects=[],timers=[],membership={joined:true,name:'Alice',campaignId:'test'},serverVersion=1,gate=null,applyGate=null,fail=false;
  const calls=[],applied=[];
- const state=()=>({campaignId:'test',version:serverVersion,role:'owner',players:[],snapshot:{game:{version:serverVersion},health:null}});
+ const state=()=>({campaignId:'test',version:serverVersion,role:'owner',you:'seat-0123456789abcdef',players:[{id:'seat-0123456789abcdef',name:'Al'},{id:'seat-fedcba9876543210',name:'Bo'}],snapshot:{game:{version:serverVersion},health:null}});
  const useRef=v=>{const i=index++;return slots[i]??(slots[i]={current:v});};
  const useState=v=>{const i=index++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return [slots[i],n=>slots[i]=typeof n==='function'?n(slots[i]):n];};
  const useEffect=(fn,deps)=>{const i=index++;if(!slots[i]||deps.some((d,j)=>d!==slots[i].deps[j])){slots[i]?.cleanup?.();slots[i]={deps};pendingEffects.push(()=>slots[i].cleanup=fn());}};
@@ -17,6 +17,8 @@ function fixture(){
 }
 (async()=>{
  let f=fixture(),table=f.render();await settle();assert.deepEqual(f.applied,[1]);
+ // The table names this player by the seat the server gave them, never by the account id (deviceId is 'alice' here).
+ table=f.render();assert.equal(table.deviceId,'seat-0123456789abcdef');assert.deepEqual(table.others.map(p=>p.name),['Bo']);
  const gate=f.delayPoll(),poll=f.poll();await settle();const turn=await table.turn('Attack');gate.resolve();await poll;
  assert.equal(turn.game.version,2);assert.deepEqual(f.applied,[1,2],'slow old polls cannot overwrite an acknowledged turn');
  assert.equal(f.calls.find(c=>c.route==='campaign-turn').body.snapshot,undefined,'no whole-state writes');

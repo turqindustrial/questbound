@@ -64,6 +64,12 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  assert.equal(r.settleParty(leadFallsUpA).world.stage,'combat');assert.equal(r.partyView(leadFallsUpA,'A').game.stage,'combat');
  // Nobody standing: the foe leaves them where they fell.
  assert.equal(r.settleParty(leadFalls).world.stage,'bridge','the foe leaves when every hero is down');
+ // Out of the fight, a friend lies dying: no travel is offered, and travel is refused in plain words (bug: the move
+ // was offered and then refused by the campaign server as an invalid adventure).
+ {const seen=r.partyView(leadFallsUpA,'A'),quiet={...seen,game:{...seen.game,stage:'bridge',enemyHP:0}},hero=JSON.parse(quiet.character);assert.equal(quiet.game.stage,'bridge');assert.equal(quiet.game.party.members.B.status,'down');
+  assert.ok(!r.dmChoices(hero,quiet.game,quiet.health).some(c=>c.action?.type==='travel'),'no travel while a friend is dying');
+  const left=r.adventureStep(quiet.game,quiet.health,hero,{type:'travel',destination:'inn'},()=>.5);assert.match(left.error??'',new RegExp(ilyra.name+' lies dying here'));
+  const up={...quiet.game,party:{...quiet.game.party,members:{...quiet.game.party.members,B:{...quiet.game.party.members.B,status:'up'}}}};assert.ok(r.dmChoices(hero,up,quiet.health).some(c=>c.action?.type==='travel'),'travel returns once they are up');}
 
  // ---- A victory earns every living hero their own experience (each the full award, from their own level) ----
  const fightOn={...viewB.game,stage:'combat',enemyHP:5},wonFight={...viewB.game,stage:'victory',enemyHP:0};

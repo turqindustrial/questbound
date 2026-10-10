@@ -66,8 +66,8 @@ async function sharedLink(){
   now+=7*86400000;assert.equal((await join('87654321','198.51.100.100')).status,401);
  }finally{await new Promise(resolve=>share.server.close(resolve));}
  // A busy Dungeon Master (one reply at a time) is retried until it answers, and a restarted gateway keeps its invite's expiry.
- let busy=2,dmCalls=0;const until=Date.now()+3*86400000;
- const patient=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'13572468',expiresAt:until,dmLimit:5,fetchImpl:async(url,options={})=>{if(url.endsWith('/usage'))return {ok:true,status:200,json:async()=>({allowed:true,id:'a'.repeat(64)})};if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true})};dmCalls++;return busy-->0?{ok:false,status:429,json:async()=>({error:'Please wait before asking the DM again.'})}:{ok:true,status:200,json:async()=>({narration:'Your turn.'})};}});
+ let busy=2,dmCalls=0,refuseUsage=false;const until=Date.now()+3*86400000;
+ const patient=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'13572468',expiresAt:until,dmLimit:5,fetchImpl:async(url,options={})=>{if(url.endsWith('/usage'))return refuseUsage?{ok:false,status:429,headers:{get:k=>k.toLowerCase()==='retry-after'?'120':null},json:async()=>({error:'Too many tries. Wait a few minutes and try again.'})}:{ok:true,status:200,json:async()=>({allowed:true,id:'a'.repeat(64)})};if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true})};dmCalls++;return busy-->0?{ok:false,status:429,json:async()=>({error:'Please wait before asking the DM again.'})}:{ok:true,status:200,json:async()=>({narration:'Your turn.'})};}});
  assert.equal(patient.info.expiresAt,new Date(until).toISOString());
  await new Promise(resolve=>patient.server.listen(0,'127.0.0.1',resolve));
  try{
@@ -75,6 +75,9 @@ async function sharedLink(){
   const paired=await hit('/pair',{method:'POST',headers:{Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({code:'13572468'})});assert.equal(paired.status,200);
   const r=await hit('/api/dm',{method:'POST',headers:{Cookie:paired.headers['set-cookie'][0].split(';')[0],Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({input:'Hi',context:{choices:[]}})});
   assert.equal(r.status,200);assert.equal(JSON.parse(r.text).narration,'Your turn.');assert.equal(dmCalls,3,'Two busy replies, then the answer');
+  // The account service's own refusal reaches the game with its wait.
+  refuseUsage=true;const capped=await hit('/api/dm',{method:'POST',headers:{Cookie:paired.headers['set-cookie'][0].split(';')[0],Origin:'https://quest.example.com','Content-Type':'application/json'},body:JSON.stringify({input:'Hi',context:{choices:[]}})});
+  assert.equal(capped.status,429);assert.equal(capped.headers['retry-after'],'120','the wait is passed on');assert.equal(dmCalls,3,'nothing reaches the Dungeon Master');refuseUsage=false;
  }finally{await new Promise(resolve=>patient.server.close(resolve));}
  // A flood from one address is refused before any work, whatever it asks for; a home gateway has limits of its own by default.
  const flood=createPhoneServer({host:'127.0.0.1',port:0,root,code:'11112222',requestLimit:3,fetchImpl});
@@ -110,7 +113,7 @@ async function sharedLink(){
   assert.equal((await send({text:'too big',details:{padding:'q'.repeat(40000)}})).status,413);
   const withDetails=fs.readFileSync(notes,'utf8');assert.match(withDetails,/\nBuild: a1b2c3d4 · Stage: combat/);assert.match(withDetails,/\nProblem \(refused\): I cast Detect Magic → Not prepared/);assert.match(withDetails,/\nLast turn: I look around → Perception/);
   const records=fs.readFileSync(path.join(root,'feedback.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line));
-  assert.equal(records.length,2);assert.match(records[1].guest,/^[0-9a-f]{32}$/,'the record names the browser by its guest label');
+  assert.equal(records.length,2);assert.equal(records[1].guest,'account-'+'a'.repeat(64),'the record names a signed-in player by the account label their Dungeon Master turns carry');
   const cookieToken=cookieJar.split('=')[1];assert.ok(!fs.readFileSync(path.join(root,'feedback.jsonl'),'utf8').includes(cookieToken),'never the cookie');
   assert.equal((await send({text:''})).status,400);assert.equal((await send({text:'hi'},'questbound_phone='+'0'.repeat(64))).status,401,'Unpaired browsers cannot send notes');
   for(let i=0;i<8;i++)await send({text:'note '+i});assert.equal((await send({text:'one too many'})).status,429);

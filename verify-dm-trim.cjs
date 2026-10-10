@@ -96,5 +96,25 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  // The request helper.
  assert.deepEqual(modelOptions('gpt-4.1','none'),{model:'gpt-4.1'});assert.deepEqual(modelOptions('o3','low'),{model:'o3',reasoning:{effort:'low'}});assert.deepEqual(modelOptions('gpt-6-luna','silly'),{model:'gpt-6-luna',reasoning:{effort:'none'}});
  assert.equal(effortOf(' Medium '),'medium');assert.equal(providerTimeout('none'),30000);assert.equal(providerTimeout('medium'),80000);assert.equal(outputBudget(2500,'minimal'),2500);assert.equal(outputBudget(2500,'high'),8500);
- console.log('Passed: the scene is trimmed ('+JSON.stringify(body).length+' to '+JSON.stringify(sent).length+' characters) with the guidance in the cached instructions, overruns in discoveries, creatures and introductions are repaired, fake-provider runs leave the logs alone, stories go to the story writer with thinking room, and the setup check looks that model up.');
+ // No check is offered while fighting people or once the action of a creature fight is spent (dm-rules refuses
+ // both; bug: the schema offered one, the reply was refused and the whole turn failed), and a refusal of either kind
+ // is asked again rather than shown to the player.
+ {const check={skill:'Persuasion',ability:'Charisma',dc:13,mode:'normal',reason:'Talk them down',success:'They lower blades',failure:'They sneer',damageCount:0,damageDie:6,damageOn:'none'};
+  for(const scene of [{npcCombat:{active:true},stage:'inn'},{stage:'combat',turnResources:{actionUsed:true}}]){
+   const reply=await generate({input:'I shout at them to stop and try to talk them down.',context:{choices:[{id:'end-turn',label:'End turn'}],...scene}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'You raise your hands and plead.'})});
+   assert.equal(request.text.format.schema.properties.check.type,'null','no check on offer');assert.equal(reply.check,null);}
+  await generate({input:'I try to talk the guard round.',context:{choices:[],stage:'inn'}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He listens.'})});assert.deepEqual(request.text.format.schema.properties.check.type,['object','null'],'a check stays on offer out of a fight');
+  let asked=0;const stubborn=async(url,options)=>{asked++;request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...blank,narration:'You plead.',...(asked===1?{check}:{})})}]}]})};};
+  const again=await generate({input:'I talk them down.',context:{choices:[],stage:'inn',npcCombat:{active:true}}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:stubborn});assert.equal(asked,2,'a refused check is asked again');assert.equal(again.check,null);}
+ // The errand reward (an Easy to get into tale): the telling of 'Chapter 1 complete' is asked to pay it, and pays the
+ // gold the reward names when the reply leaves it out (bug: the instruction said to pay it beside story-advance,
+ // where loot is always dropped, so the purse was never paid).
+ {const errand={title:'Burn the camp',task:'Burn out the reaver camp.',place:'Reaver Camp',reward:'40 gold and the jarl\'s favour'};
+  const context={choices:[],stage:'inn',inventory:{gold:10,items:[]},player:{level:1},story:{errand},engineResolved:['Chapter 1 complete: Burn the camp. A letter.','Chapter 2 begins: The Fjord. Find the ships.']};
+  const paid=await generate({input:'I tell the jarl the camp is burned out.',context},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'The jarl nods.'})});
+  assert.match(request.instructions,/keeper hands over the promised reward \(40 gold and the jarl's favour\) now/);assert.equal(paid.loot?.gold,40,'the named gold is paid');
+  const given=await generate({input:'I tell the jarl.',context},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He pays.',loot:{gold:25,items:[{name:'Jarl\'s Ring',kind:'treasure',qty:1,value:50,note:'Gold.',magic:null}],reason:'The promised reward'}})});
+  assert.equal(given.loot.gold,25,'the model\'s own reward is kept as given');
+  const later=await generate({input:'I tell the jarl.',context:{...context,engineResolved:['Chapter 2 complete: The Fjord.']}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He nods.'})});assert.equal(later.loot,null,'only the errand\'s own chapter pays it');}
+ console.log('Passed: the scene is trimmed ('+JSON.stringify(body).length+' to '+JSON.stringify(sent).length+' characters) with the guidance in the cached instructions, overruns in discoveries, creatures and introductions are repaired, fake-provider runs leave the logs alone, stories go to the story writer with thinking room, and the setup check looks that model up; no check is offered in a brawl or after the action is spent, and the errand’s reward is paid when its chapter is told.');
 })().catch(e=>{console.error(e);process.exit(1);});

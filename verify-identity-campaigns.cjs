@@ -19,7 +19,7 @@ async function main(){await listen();base='http://127.0.0.1:'+server.address().p
  assert.equal((await post('account-load',{token:a.cookie},b.cookie)).status,400);
  const campaign=await post('campaign-create',{snapshot:snap,party:true,name:'Alice'},a.cookie);assert.equal(campaign.status,200,JSON.stringify(campaign.body));const campaignId=campaign.body.campaignId;
  assert.equal((await post('poll',{campaignId,playerId:a.id},c.cookie)).status,403);
- const joined=await post('campaign-join',{invite:campaign.body.invite,snapshot:snapB,name:'Bob',playerId:a.id},b.cookie);assert.equal(joined.status,200,JSON.stringify(joined.body));assert.equal(joined.body.you,b.id);assert.equal(joined.body.snapshot.game.party.lead,b.id);
+ const joined=await post('campaign-join',{invite:campaign.body.invite,snapshot:snapB,name:'Bob',playerId:a.id},b.cookie);assert.equal(joined.status,200,JSON.stringify(joined.body));assert.match(joined.body.you,/^seat-[a-f0-9]{16}$/);assert.equal(joined.body.snapshot.game.party.lead,joined.body.you);
  assert.equal((await post('campaign-invite',{campaignId},b.cookie)).status,403);
  assert.equal((await post('save',{campaignId,snapshot:snap,force:true},b.cookie)).status,403);
  const request={campaignId,question:'I look around.',requestId:crypto.randomUUID(),baseVersion:joined.body.version};
@@ -27,7 +27,9 @@ async function main(){await listen();base='http://127.0.0.1:'+server.address().p
  const turn=await post('campaign-turn',request,b.cookie);assert.equal(turn.status,200,JSON.stringify(turn.body));assert.equal(turn.body.version,joined.body.version+1);assert.equal(calls,1);
  const repeated=await post('campaign-turn',request,b.cookie);assert.equal(repeated.status,200);assert.equal(repeated.body.replayed,true);assert.equal(calls,1);
  const stale=await post('campaign-turn',{...request,requestId:crypto.randomUUID()},a.cookie);assert.equal(stale.status,409);assert.equal(calls,1);
- const aView=await post('poll',{campaignId},a.cookie);assert.equal(r.canonicalParty(aView.body.snapshot),r.canonicalParty(turn.body.snapshot));
+ const aView=await post('poll',{campaignId},a.cookie);
+ // Members see seats, never each other's account ids (an unsalted hash of the email anyone could test guesses against).
+ for(const body of [campaign.body,joined.body,turn.body,aView.body])assert.ok(![a.id,b.id].some(id=>JSON.stringify(body).includes(id)),'no account id reaches a campaign member');assert.equal(r.canonicalParty(aView.body.snapshot),r.canonicalParty(turn.body.snapshot));
  const backups=ops.backup.list('account-'+a.id);assert.ok(backups.length);assert.deepEqual(ops.backup.read('account-'+a.id,backups[0]).snapshot,JSON.parse(JSON.stringify(snap)));
  const newOps=createOperations({dir:root,key,now:()=>tick});assert.equal(newOps.status().usage.turns,1);assert.ok(newOps.backup.verify().checked>=3);
  assert.equal((await post('ops-status',{},a.cookie)).status,403);assert.equal((await post('ops-status',{},a.cookie,{'X-Questbound-Local':'1'})).status,200);

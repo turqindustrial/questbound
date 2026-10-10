@@ -57,7 +57,10 @@ fault=look('I drink my healing potion.');assert.equal(fault.actionId,'potion');a
 {const spoils={...base,choices:[...base.choices,{id:'loot',label:'Search the fallen and anything they guarded'}]};
  fault=look('I search the bandit\'s body.',quiet,spoils);assert.equal(fault.actionId,'loot');assert.equal(fault.sure,true);assert.equal(settled(fault).narration,'You search the fallen.');
  assert.equal(look('I search the bandit\'s body.',quiet),null,'only when something lies here unsearched');
- assert.equal(look('The loot is not worth it.',quiet,spoils),null,'words about loot are not a search');}
+ assert.equal(look('The loot is not worth it.',quiet,spoils),null,'words about loot are not a search');
+ for(const words of ['I go through his pockets.','I search them.','I rifle through the dead bandit\'s belongings.','I loot the wolves.'])assert.equal(look(words,quiet,spoils)?.actionId,'loot',words);
+ // Tending or remembering the fallen is not searching them (bug: the game looted on its own after "I check her pulse").
+ for(const words of ['I check her pulse.','I check them for wounds.','I search them for wounds.','I go over what the dead man told us.','I search the room for what remains of the map.'])assert.equal(look(words,quiet,spoils),null,words);}
 assert.equal(look('I take a short rest.',quiet,{...base,choices:base.choices.filter(c=>c.id!=='short-rest')}),null,'only what is offered');
 assert.equal(look('Should I rest for the night?'),null);
 // A side errand the player's words seem to settle is asked about (the game never closes one itself).

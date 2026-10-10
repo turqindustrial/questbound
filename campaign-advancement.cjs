@@ -7,8 +7,10 @@ function advanceCharacter(snapshot,choices){
  if(!choices||choices.level!==hero.level+1||choices.class!==hero.class)fail('Choose the next earned level for your current class.');
  const level=hero.level+1,old=hero.advancements??[],improve=r.advancementLevels(hero.class).includes(level),next=choices.advancements??[];
  if(JSON.stringify(next.slice(0,old.length))!==JSON.stringify(old)||next.length!==old.length+(improve?1:0)||(improve&&next.at(-1).level!==level))fail('Keep your earlier ability choices and select the earned improvement.');
- const subclass=hero.level>=3?hero.plannedSubclass:choices.plannedSubclass;
- if(subclass&&!Object.hasOwn(r.subclassOptions[hero.class]??{},subclass))fail('Choose a subclass for your class.');
+ // As Advancement.js: a hero at level 3 or above keeps the subclass they have (an older one included); one without a
+ // subclass yet chooses one of the current options now.
+ const subclass=hero.level>=3&&hero.plannedSubclass?hero.plannedSubclass:choices.plannedSubclass;
+ if(subclass&&!(Object.hasOwn(r.subclassOptions[hero.class]??{},subclass)||(subclass===hero.plannedSubclass&&r.validPlannedSubclass(hero))))fail('Choose a subclass for your class.');
  if(level>=3&&!subclass)fail('Choose your subclass.');
  const form={...hero,level,advancementVersion:1,advancements:next,plannedSubclass:subclass,spells:choices.spells,spellbook:choices.spellbook,arcanum:choices.arcanum};
  const problem=r.buildError(form)||r.spellSelectionError(form);if(problem)fail(problem);
