@@ -8,6 +8,7 @@
 //   QUESTBOUND_INVITE_CODE      eight digits; else one is made once and kept in the data folder
 //   OPENAI_API_KEY, OPENAI_MODEL, OPENAI_STORY_MODEL (and the other QUESTBOUND_* settings dm-server.cjs reads)
 //   QUESTBOUND_MAX_PLAYERS (500), QUESTBOUND_TURNS_PER_PLAYER (60 per 10 min), QUESTBOUND_TURNS_IN_ALL (1200)
+//   QUESTBOUND_REQUIRE_ACCOUNTS 1 requires signed-in, verified accounts (else accountsRequired in accountRules.js decides)
 //   QUESTBOUND_CLIENT_IP_HEADER the header the platform's proxy sets to the visitor's address (Fly-Client-IP on Fly.io;
 //                               else the last X-Forwarded-For entry, the one the nearest proxy added)
 const path=require('node:path'),fs=require('node:fs'),crypto=require('node:crypto');

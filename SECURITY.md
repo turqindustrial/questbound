@@ -4,9 +4,13 @@ These controls are implemented in the current source. Restart running services w
 
 Release handoff: the web export built successfully and 92 automated checks passed. Two isolated browser accounts confirmed separate heroes and the same committed combat outcome. The live account service still reports the previous protocol: the security update is **not active until the services restart**. Windows denied process inspection from the development sandbox, so the restart was not attempted. One additional launcher check could not finish because its nested PowerShell process was blocked; a direct PowerShell synthetic DPAPI encryption/decryption check passed. No paid AI requests, real verification emails or production save changes were made by these tests.
 
+## Beta: guest play (9 October 2026)
+
+Accounts are not required during the beta. `accountsRequired` in `accountRules.js` is `false`; the account service reads the same line (and `QUESTBOUND_REQUIRE_ACCOUNTS=1` forces it on for a hosted game). A browser without a session is given an anonymous guest identity: a random 64-hex id held in the same HttpOnly, SameSite=Strict `questbound_account` cookie (Secure on HTTPS), lasting 90 days and renewed on use. The server stores only the token hash and when the guest was created and last seen, under `.questbound-accounts/guests/`; no email, password or saved adventure. Guests are capped separately (5,000; unseen for 60 days they are removed with the campaigns they host), never count against the email account limit, and are created at most 20 an hour per caller and 300 an hour in all. A guest can take Dungeon Master turns (labelled and budgeted like an account), send feedback, keep recovery-code saves and create, join and play campaigns; account saves, password changes, sign-out-all, deletion and host diagnostics refuse guests. Anyone who passes the share link's invite code can now play without an email, so the invite code, the per-guest and overall guest budgets and the request limits are the beta's protection against misuse. To require verified accounts again, set `accountsRequired=true`, rebuild `dist-phone` and restart the account service and gateways: guest cookies then stop being identities.
+
 ## Accounts and mail
 
-- Email verification is required before any account session is issued, including older accounts. Codes expire after ten minutes, have five attempts, and are usable once. A new email may be requested after one minute, up to five per address per UTC day. Pending registrations do not replace existing accounts.
+- Email verification is required before any account session is issued, including older accounts (guest identities have no email and are not account sessions). Codes expire after ten minutes, have five attempts, and are usable once. A new email may be requested after one minute, up to five per address per UTC day. Pending registrations do not replace existing accounts.
 
 - The dedicated Questbound mailbox has **not been connected**. The user chose to keep personal Gmail separate. `Connect-Game-Email.cmd` asks for a dedicated Gmail address and a hidden Google app password, then stores the password encrypted to the Windows account. Never put either an app password or API key in chat, source code, browser storage, or a command argument. Two-step verification is required to create a Google app password. No automatic emails have been sent or delivery-tested yet.
 
@@ -20,7 +24,7 @@ Release handoff: the web export built successfully and 92 automated checks passe
 
 ## Campaign permissions and multiplayer
 
-The gateway invite lets a browser open the site; it does not grant account or campaign access. Each player signs in, verifies their email, and uses a separate campaign invite supplied by its host. Those invites expire after seven days; issuing a new one revokes the previous code. Existing members can resume without rejoining.
+The gateway invite lets a browser open the site; it does not grant account or campaign access. Each player plays under their own identity (during the beta a guest identity, otherwise a signed-in, verified account) and uses a separate campaign invite supplied by its host. Those invites expire after seven days; issuing a new one revokes the previous code. Existing members can resume without rejoining.
 
 Each campaign has an owner and authenticated members. A party supports four separate heroes; an optional shared-hero campaign lets its members control one hero. The owner can issue invitations and pass another hero's turn. Other members cannot issue invitations, read unrelated campaigns, impersonate a player ID, or replace a campaign snapshot.
 
@@ -38,7 +42,7 @@ Static serving blocks hidden files, source maps, alternate streams and escaping 
 
 ## Limits, alerts and recovery
 
-- Atomic counters persist across restarts and reset each UTC day. Defaults per account: 150 campaign turns, 300 direct DM requests, 1,500 illustration checks and five new campaigns. Registration/login/verification also consume a persistent caller allowance. Aggregate caps and existing short-term gateway limits apply too.
+- Atomic counters persist across restarts and reset each UTC day. Defaults per account or guest: 150 campaign turns, 300 direct DM requests, 1,500 illustration checks and five new campaigns. Registration/login/verification also consume a persistent caller allowance. Aggregate caps and existing short-term gateway limits apply too.
 
 - Existing dollar allowances are estimates. Request limits and cost estimates are **not a guaranteed billing ceiling**; provider billing controls and usage review remain necessary. A campaign turn can use multiple model requests. Testing this release used synthetic AI replies and no paid provider calls.
 

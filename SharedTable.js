@@ -12,7 +12,7 @@ export default function SharedTable({table,hero,characterChosen,onPlay}){
  const run=async fn=>{setBusy(true);setError('');try{await fn();}catch(e){setError(e.message);}finally{setBusy(false);}};
  return <View>
   <ScreenTitle eyebrow="Multiplayer" icon="people" title="The shared table" sub="One adventure, played together from several phones and computers."/>
-  <Text style={s.copy}>Verified members see the same committed story. The server applies actions and rolls dice; while one player is taking a turn, the others wait. In a party each player brings their own hero: up to four travel together, the foe can strike any of them, and a fallen friend can be revived with a draught. The same table also lets you continue your own adventure on another device.</Text>
+  <Text style={s.copy}>{accountsNeeded()?'Verified members':'Members'} see the same committed story. The server applies actions and rolls dice; while one player is taking a turn, the others wait. In a party each player brings their own hero: up to four travel together, the foe can strike any of them, and a fallen friend can be revived with a draught. The same table also lets you continue your own adventure on another device.</Text>
   {table.joined?<>
    <View dataSet={{qb:'plate'}} style={s.status}>
     <View style={s.online}><View style={[s.dot,{backgroundColor:table.online?colors.heal:colors.gold}]}/><Text style={s.label}>{table.online?'Connected':'Reconnecting…'}</Text></View>

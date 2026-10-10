@@ -18,6 +18,7 @@ The launcher (`Questbound.cmd`) runs the game on one Windows PC for friends on y
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | The key and the play model (`gpt-6-luna`). `OPENAI_STORY_MODEL` optionally names a different story writer. |
 | `QUESTBOUND_INVITE_CODE` | Eight digits. Without it a code is made once and kept in the data folder, so a restart never changes it. The log prints it. |
 | `QUESTBOUND_MAX_PLAYERS` | Paired browsers at once (500). |
+| `QUESTBOUND_REQUIRE_ACCOUNTS` | `1` requires a signed-in, email-verified account to play, whatever `accountsRequired` in `accountRules.js` says. Without it the switch decides: during the beta it is off and players without an account play as anonymous guests. |
 | `QUESTBOUND_TURNS_PER_PLAYER` | Dungeon Master turns per browser per ten minutes (60). `QUESTBOUND_TURNS_IN_ALL` caps the whole gateway (1200). |
 | `QUESTBOUND_DM_CONCURRENCY`, `QUESTBOUND_DM_REASONING`, `QUESTBOUND_STORY_REASONING`, `QUESTBOUND_IMAGE_MODEL` | As for the PC (see AI-SETUP.md). |
 
