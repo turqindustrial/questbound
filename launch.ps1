@@ -227,7 +227,7 @@ if ($Share) {
         Start-Hidden 'tunnel' "`"$cf`"" 'tunnel --no-autoupdate --url http://127.0.0.1:8087' | Out-Null
         for ($i = 0; $i -lt 80 -and -not $url; $i++) {
           Start-Sleep -Milliseconds 500
-          if (Test-Path $tunnelLog) { $m = [regex]::Match([string](Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $url = $m.Value } }
+          if (Test-Path $tunnelLog) { $m = [regex]::Match("$(Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue)", 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $url = $m.Value } }
         }
       }
       if (-not $url) { Say '  The secure link did not start. See .questbound-logs\tunnel.err.log' 'Red' }
