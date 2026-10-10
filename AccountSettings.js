@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,TextInput,Pressable,StyleSheet} from 'react-native';
 import {Section,GameButton,Segmented,Toggle} from './ui';
-import {accountState,registerAccount,signIn,signOut,saveToAccount,loadFromAccount,releaseHold,changePassword,deleteAccount,verifyEmail,signOutEverywhere} from './accountRules';
+import {accountState,registerAccount,signIn,signOut,saveToAccount,loadFromAccount,releaseHold,changePassword,deleteAccount,verifyEmail,signOutEverywhere,accountsNeeded} from './accountRules';
 import {fonts,colors,tint} from './theme';
 import PlayerStorage from './playerStorage';
 // Settings → Your account: an email and a password that keep the player's hero and adventure on the host's PC.
@@ -42,6 +42,7 @@ export function AccountSettings({onRestore,busy,onChange,onLegal}){
  return <View dataSet={{qb:'plate'}} style={st.panel}>
   <Section icon="key" title="Your account" style={{marginTop:0}}/>
   {!account?<>
+   {!accountsNeeded()&&<Text style={st.body}>An account is optional: you are playing as a guest, and everything works without one. Your saves stay in this browser.</Text>}
    <Text style={st.body}>Keep your hero and adventure safe. With an account they are saved on the host's PC after every turn, and signing in on any phone or browser brings them back, even if this one loses its data.</Text>
    <Segmented options={[['create','Create account','quill'],['signin','Sign in','key']]} value={mode} onChange={id=>{setMode(id);setMessage('');}} style={{marginBottom:10}}/>
    <GameButton variant="quiet" label={mode==='recover'?'Back to sign in':'Recover account'} disabled={working||busy} onPress={()=>{setMode(mode==='recover'?'signin':'recover');setMessage('');}}/>

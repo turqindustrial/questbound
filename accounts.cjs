@@ -7,6 +7,11 @@
 // <id> is a hash of the email address: the address itself is never written down, so the folder holds no list of who
 // plays. A short-lived code sent by the configured game mailbox verifies ownership. A forgotten password is reset by the host (see the commands at the end of this file).
 // Wrong passwords are counted per account, per caller and overall, and further tries are refused for a while.
+//
+// Guests (while accounts are not required: accountsRequired in accountRules.js): a browser without a session is given an
+// anonymous guest identity, kept in guests/<id>.json: a random id, the hash of its sign-in token and when it was last
+// seen. No email, no password, no saved adventure. Guests never count against the email account limit; they have their
+// own (guestLimit), and a guest not seen for guestIdleDays is removed (onGuestRemoved lets campaigns forget them).
 const crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
 const fail=(status,message)=>Object.assign(Error(message),{status});
 const normalEmail=email=>typeof email==='string'?email.trim().toLowerCase():'';
@@ -22,14 +27,19 @@ function weakPassword(password,email=''){
 const accountId=email=>crypto.createHash('sha256').update('questbound-account-v1:'+email).digest('hex');
 const digest=token=>crypto.createHash('sha256').update(String(token)).digest('hex');
 const hashPassword=(password,salt)=>new Promise((resolve,reject)=>crypto.scrypt(password.normalize('NFKC'),salt,64,{N:32768,r:8,p:1,maxmem:96*1024*1024},(error,key)=>error?reject(error):resolve(key)));
-function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=500,tokenDays=7,idleHours=12,tokensEach=8,now=Date.now,validSnapshot=()=>true,mailer=require('./mailer.cjs').createMailer(),requireVerification=true,backup=null,audit=()=>{}}={}){
- const file=id=>path.join(dir,id+'.json'),saveFile=id=>path.join(dir,id+'.save.json');
- const read=id=>{try{const record=JSON.parse(fs.readFileSync(file(id),'utf8'));return record&&record.v===1?record:null;}catch{return null;}};
- const write=(id,record)=>{fs.mkdirSync(dir,{recursive:true});const tmp=file(id)+'.tmp';fs.writeFileSync(tmp,JSON.stringify(record));fs.renameSync(tmp,file(id));};
- const ids=()=>{try{return fs.readdirSync(dir).filter(f=>/^[a-f0-9]{64}\.json$/.test(f)).map(f=>f.slice(0,64));}catch{return [];}};
- // Which account a sign-in token belongs to (kept in memory, rebuilt from the records at start).
+function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=500,tokenDays=7,idleHours=12,tokensEach=8,now=Date.now,validSnapshot=()=>true,mailer=require('./mailer.cjs').createMailer(),requireVerification=true,backup=null,audit=()=>{},allowGuests=false,guestLimit=5000,guestDays=90,guestIdleDays=60,onGuestRemoved=()=>{}}={}){
+ const guestDir=path.join(dir,'guests');
+ const file=id=>path.join(dir,id+'.json'),saveFile=id=>path.join(dir,id+'.save.json'),guestFile=id=>path.join(guestDir,id+'.json');
+ const readFrom=where=>{try{const record=JSON.parse(fs.readFileSync(where,'utf8'));return record&&record.v===1?record:null;}catch{return null;}};
+ const read=id=>{const record=readFrom(file(id));return record&&!record.guest?record:null;};
+ const readGuest=id=>{const record=readFrom(guestFile(id));return record?.guest===true?record:null;};
+ const write=(id,record)=>{const where=record?.guest?guestFile(id):file(id);fs.mkdirSync(path.dirname(where),{recursive:true});const tmp=where+'.tmp';fs.writeFileSync(tmp,JSON.stringify(record));fs.renameSync(tmp,where);};
+ const listIn=where=>{try{return fs.readdirSync(where).filter(f=>/^[a-f0-9]{64}\.json$/.test(f)).map(f=>f.slice(0,64));}catch{return [];}};
+ const ids=()=>listIn(dir),guestIds=()=>listIn(guestDir);
+ // Which account (or guest) a sign-in token belongs to (kept in memory, rebuilt from the records at start).
  const owners=new Map();
  for(const id of ids()){const record=read(id);for(const [key,until] of Object.entries(record?.tokens??{}))if(until>now())owners.set(key,id);}
+ for(const id of guestIds()){const record=readGuest(id);for(const [key,until] of Object.entries(record?.tokens??{}))if(until>now())owners.set(key,id);}
  const failures=new Map(),overall=[];
  const recent=(key,span)=>{
   if(!failures.has(key)&&failures.size>=2048){for(const [k,list] of failures)if(!list.length||list.at(-1)<=now()-900000)failures.delete(k);if(failures.size>=2048)return Array(12).fill(now());}
@@ -45,13 +55,35 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
  const savedAt=id=>{try{return JSON.parse(fs.readFileSync(saveFile(id),'utf8')).savedAt??null;}catch{return null;}};
  const matches=async(record,password)=>{const key=await hashPassword(String(password),Buffer.from(record.salt,'hex')),stored=Buffer.from(record.hash,'hex');return key.length===stored.length&&crypto.timingSafeEqual(key,stored);};
  const signedIn=token=>{
-  const key=typeof token==='string'&&/^[a-f0-9]{64}$/.test(token)?digest(token):null,id=key?owners.get(key):null,record=id?read(id):null;
+  const key=typeof token==='string'&&/^[a-f0-9]{64}$/.test(token)?digest(token):null,id=key?owners.get(key):null,record=id?read(id)??readGuest(id):null;
   if(!record||!((record.tokens?.[key]??0)>now())){if(key)owners.delete(key);throw fail(401,'You are signed out. Sign in again to keep saving to your account.');}
+  // A guest: never verified and no idle expiry; the token lasts guestDays from its last use (renewed once a day).
+  // While accounts are required (allowGuests false) a guest record is not an identity at all.
+  if(record.guest){
+   if(!allowGuests)throw fail(401,'Sign in with your account to play.');
+   let renewed=false;if(!(record.seen?.[key]>now()-86400000)){record.seen={...record.seen,[key]:now()};record.tokens[key]=now()+guestDays*86400000;write(id,record);renewed=true;}
+   return {id,record,key,guest:true,renewed};
+  }
   if(requireVerification&&!record.verifiedAt)throw fail(401,'Sign in again and verify your email to access this account.');
   if(!(record.seen?.[key]>now()-idleHours*3600000)){delete record.tokens[key];owners.delete(key);write(id,record);throw fail(401,'Your session expired after inactivity. Sign in again.');}
   if(now()-record.seen[key]>60000){record.seen[key]=now();write(id,record);}
   return {id,record,key};
  };
+ // What only an email account may do: keep a saved adventure, change its password, sign out everywhere, be deleted.
+ const member=token=>{const who=signedIn(token);if(who.guest)throw fail(403,'Create an account or sign in to use this.');return who;};
+ // Guests not seen for guestIdleDays (or whose token ran out) are removed: at most once an hour, or at once when the
+ // guest store is full.
+ let pruned=0;
+ function pruneGuests(force=false){
+  if(!force&&now()-pruned<3600000)return 0;pruned=now();let removed=0;
+  for(const id of guestIds()){
+   const record=readGuest(id),seen=Math.max(0,...Object.values(record?.seen??{})),alive=Object.values(record?.tokens??{}).some(until=>until>now());
+   if(record&&alive&&seen>now()-guestIdleDays*86400000)continue;
+   for(const key of Object.keys(record?.tokens??{}))owners.delete(key);fs.rmSync(guestFile(id),{force:true});removed++;
+   try{onGuestRemoved(id);}catch{}audit('guest-removed',{account:id});
+  }
+  return removed;
+ }
  // Serialize operations on an account: an old sign-in must not restore a password
  // or token that another request just revoked. Bound queued password-hash work too.
  const locks=new Map();let pending=0;
@@ -128,19 +160,30 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
    const result=sessionResult(id,record,email);fs.rmSync(pendingFile(id),{force:true});audit('email-verified',{account:id});return result;
   },
   async save(token,snapshot){
-   const {id}=signedIn(token);if(!validSnapshot(snapshot))throw fail(400,'That adventure could not be saved.');
+   const {id}=member(token);if(!validSnapshot(snapshot))throw fail(400,'That adventure could not be saved.');
    fs.mkdirSync(dir,{recursive:true});const at=new Date(now()).toISOString(),tmp=saveFile(id)+'.tmp';backup?.put('account-'+id,{savedAt:at,snapshot});fs.writeFileSync(tmp,JSON.stringify({savedAt:at,snapshot}));fs.renameSync(tmp,saveFile(id));
    return {saved:true,savedAt:at};
   },
   async load(token){
-   const {id}=signedIn(token);
+   const {id}=member(token);
    try{return JSON.parse(fs.readFileSync(saveFile(id),'utf8'));}catch{throw fail(404,'Your account has no saved adventure yet.');}
   },
-  async status(token){const {id}=signedIn(token);return {signedIn:true,id,verified:true,savedAt:savedAt(id)};},
-  identity(token){const {id,record}=signedIn(token);return {id,verified:!!record.verifiedAt};},
-  async logoutAll(token){const {id,record}=signedIn(token);for(const key of Object.keys(record.tokens??{}))owners.delete(key);record.tokens={};record.seen={};write(id,record);audit('sessions-revoked',{account:id});return {signedOut:true};},
+  async status(token){const {id,guest}=signedIn(token);return guest?{signedIn:false,guest:true,id,verified:false,savedAt:null}:{signedIn:true,id,verified:true,savedAt:savedAt(id)};},
+  identity(token){const {id,record,guest,renewed}=signedIn(token);return guest?{id,verified:false,guest:true,...(renewed?{renewed:true}:{})}:{id,verified:!!record.verifiedAt};},
+  // A browser without a session is given an anonymous guest identity (only while guests are allowed).
+  async guest(){
+   if(!allowGuests)throw fail(403,'Sign in with your account to play.');
+   pruneGuests();if(guestIds().length>=guestLimit)pruneGuests(true);
+   if(guestIds().length>=guestLimit)throw fail(429,'This game has all the guests it can hold. Ask the host.');
+   const id=crypto.randomBytes(32).toString('hex'),token=crypto.randomBytes(32).toString('hex'),key=digest(token);
+   write(id,{v:1,guest:true,created:new Date(now()).toISOString(),tokens:{[key]:now()+guestDays*86400000},seen:{[key]:now()}});owners.set(key,id);
+   audit('guest-created',{account:id});return {token,id,guest:true};
+  },
+  pruneGuests:(force=true)=>pruneGuests(force),
+  guestCount:()=>guestIds().length,
+  async logoutAll(token){const {id,record}=member(token);for(const key of Object.keys(record.tokens??{}))owners.delete(key);record.tokens={};record.seen={};write(id,record);audit('sessions-revoked',{account:id});return {signedOut:true};},
   async logout(token){
-   try{const {id,record,key}=signedIn(token);delete record.tokens[key];write(id,record);owners.delete(key);}catch{}
+   try{const {id,record,key,guest}=signedIn(token);if(guest)return {signedOut:true};delete record.tokens[key];write(id,record);owners.delete(key);}catch{}
    return {signedOut:true};
   },
   // A new password signs every other device out.

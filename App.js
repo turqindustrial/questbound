@@ -66,7 +66,7 @@ import HeroRoster from './HeroRoster';
 import {scheduleCloudSave} from './cloudRules';
 import {CloudSaveSettings} from './CloudSaveSettings';
 import {AccountSettings} from './AccountSettings';
-import {accountState,bootstrapAccount} from './accountRules';
+import {accountState,bootstrapAccount,accountsRequired,accountsNeeded} from './accountRules';
 import {currentProfile,subscribeProfile} from './playerStorage';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
@@ -85,7 +85,7 @@ const titlePainting=require('./assets/title/questbound-title.jpg');
 
 export default function App(){
  const [ready,setReady]=useState(false),[profile,setProfile]=useState(currentProfile);
- useEffect(()=>{const off=subscribeProfile(setProfile);bootstrapAccount().finally(()=>{setProfile(currentProfile());setReady(true);});return off;},[]);
+ useEffect(()=>{const off=subscribeProfile(setProfile);bootstrapAccount(undefined,{required:accountsRequired}).finally(()=>{setProfile(currentProfile());setReady(true);});return off;},[]);
  useEffect(()=>{const changed=e=>{if(e.key==='questbound.account.v2')globalThis.location?.reload();};globalThis.addEventListener?.('storage',changed);return()=>globalThis.removeEventListener?.('storage',changed);},[]);
  if(!ready)return <View style={{flex:1,backgroundColor:colors.ink,padding:30}}><Text style={{color:colors.text}}>Opening your account…</Text></View>;
  return <SceneTransitionProvider key={profile}><QuestboundApp/></SceneTransitionProvider>;
@@ -177,13 +177,16 @@ function QuestboundApp() {
     setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(false);
   }
   const table=useSharedTable({ready:!loading&&!storageError&&!adventureBlocked,hero,game,health,characterChosen,applyRemote});
-  useEffect(()=>{if(!loading&&!account?.verified&&['Adventure','Character Creation','Multiplayer','Adventure Opening','Level Up'].includes(screen)){setScreenState('Settings');setError('Sign in and verify your email before playing. Your earlier saves are kept.');}},[screen,account?.verified,loading]);
+  // Play needs a signed-in, verified account only once accounts are required (accountsRequired in accountRules.js);
+  // until then a browser plays as a guest and an account stays an offer in Settings.
+  const mustSignIn=accountsNeeded()&&!account?.verified;
+  useEffect(()=>{if(!loading&&mustSignIn&&['Adventure','Character Creation','Multiplayer','Adventure Opening','Level Up'].includes(screen)){setScreenState('Settings');setError('Sign in and verify your email before playing. Your earlier saves are kept.');}},[screen,mustSignIn,loading]);
   // Leaving a party table: this device's adventure goes on alone from where the party stands.
   useEffect(()=>{if(!table.joined&&isPartyGame(game))setGame(g=>isPartyGame(g)?soloFromParty({game:g},hero?.level??null).game:g);},[table.joined,game,hero]);
   const party=partyMembers(game).filter(m=>!m.lead);
   async function setScreen(target){
     if(table.joined&&['Character Selection','Character Creation','Adventure Opening'].includes(target)){setScreenState('Multiplayer');setError('Leave the shared table before changing your hero or starting a separate adventure.');return;}
-    if(['Adventure','Character Creation','Multiplayer','Adventure Opening'].includes(target)&&!account?.verified){setScreenState('Settings');setError('Sign in and verify your email before playing. Your existing guest saves are kept.');return;}
+    if(['Adventure','Character Creation','Multiplayer','Adventure Opening'].includes(target)&&mustSignIn){setScreenState('Settings');setError('Sign in and verify your email before playing. Your existing guest saves are kept.');return;}
     try{if(['Adventure','Character Sheet','Campaign Journal','Followers'].includes(target)&&hero)await transition.prepare([...sceneArtSubjects(game),...(target==='Followers'?Object.keys(game.followers??{}).map(id=>npcArtSubject(game,id)):[])]);setScreenState(target);}
     catch(e){setError(e.message);}
   }

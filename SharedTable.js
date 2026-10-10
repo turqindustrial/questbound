@@ -3,6 +3,7 @@ import {View,Text,TextInput,StyleSheet} from 'react-native';
 import {GameButton,Ornament,ScreenTitle,Section,Segmented} from './ui';
 import Icon from './Icon';
 import {localBackup,restoreLocalBackup} from './tableClient';
+import {accountsNeeded} from './accountRules';
 import {fonts,colors,type,tint} from './theme';
 export default function SharedTable({table,hero,characterChosen,onPlay}){
  const [code,setCode]=useState(''),[campaigns,setCampaigns]=useState([]);
@@ -32,7 +33,7 @@ export default function SharedTable({table,hero,characterChosen,onPlay}){
    <TextInput dataSet={{qb:'input'}} accessibilityLabel="Your name at the table" value={name} onChangeText={setName} maxLength={40} placeholder="e.g. Sam" placeholderTextColor={tint('#938890')} style={s.input}/>
    <Text style={s.label}>Campaign invite</Text><TextInput value={code} onChangeText={setCode} autoCapitalize="none" autoCorrect={false} maxLength={16} accessibilityLabel="Campaign invite" style={s.input}/>
    <GameButton variant="primary" icon="people" label={busy?'Joining…':'Join the table'} disabled={busy||!name.trim()||!code.trim()} onPress={()=>run(()=>table.join(name,false,{code}))}/>
-   <Text style={s.note}>At a party table you bring your current hero{hero?' ('+hero.name+')':''}; at a table that shares one hero, you play theirs. The campaign host supplies this invite after you sign in and verify your email. Your own save is backed up here first.</Text>
+   <Text style={s.note}>At a party table you bring your current hero{hero?' ('+hero.name+')':''}; at a table that shares one hero, you play theirs. The campaign host supplies this invite{accountsNeeded()?' after you sign in and verify your email':''}. Your own save is backed up here first.</Text>
    <Section icon="party" title="Or host the table"/>
    <Segmented options={[['party','Everyone brings a hero','party'],['shared','Everyone plays mine','people']]} value={mode} onChange={setMode}/>
    <GameButton icon="flag" label={mode==='party'?'Start a party with my adventure':'Start the table with my adventure'} disabled={busy||!name.trim()||!hero||!characterChosen} onPress={()=>run(()=>table.join(name,true,{party:mode==='party'}))}/>

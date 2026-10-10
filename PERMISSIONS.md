@@ -12,11 +12,11 @@ What you type, your hero and the state of your game are sent to the host's compu
 
 Your browser stores your characters, adventures, roster, settings, recovery code, account display information, campaign membership and acceptance of the current terms. Saves are separated by account; guest progress is kept separately and may be imported deliberately. Local saves are not encrypted against someone with access to your device. Clearing site data removes local copies.
 
-Account sign-in uses an HttpOnly cookie that game scripts cannot read. Remote game access also uses a pairing cookie. These are necessary service cookies, not advertising cookies. Old browser-readable account tokens are removed on startup.
+An account is optional during the beta: without one you play as a guest. A browser that is not signed in is given an anonymous guest identity, a random identifier held in the same HttpOnly cookie that account sign-in uses, which game scripts cannot read. Remote game access also uses a pairing cookie. These are necessary service cookies, not advertising cookies. Old browser-readable account tokens are removed on startup.
 
 ### Copies on the host's computer
 
-Verified accounts, recovery codes and shared campaigns keep saves on the host's computer, with up to 20 encrypted historical copies. Read the privacy policy for retention, access and deletion details.
+An account is optional during the beta: without one you play as a guest under an anonymous guest identity, which lasts 90 days from its last use. Verified accounts, recovery codes and shared campaigns keep saves on the host's computer, with up to 20 encrypted historical copies. Read the privacy policy for retention, access and deletion details.
 
 ### Feedback and service records
 

@@ -10,20 +10,33 @@ export async function accountState(){try{const a=JSON.parse(await AsyncStorage.g
 async function remember(state){if(state)await AsyncStorage.setItem(KEY,JSON.stringify(state));else await AsyncStorage.removeItem(KEY);return state;}
 export async function accountCall(route,body={},fetchImpl=fetch){
  const where=globalThis.location;if(where?.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(where.hostname))throw Error('Use the encrypted HTTPS game link.');
- const expected=!['register','login','verify','status'].includes(route)&&currentProfile()!=='guest'?{expectedAccountId:currentProfile()}:{};
+ const expected=!['guest','register','login','verify','status'].includes(route)&&currentProfile()!=='guest'?{expectedAccountId:currentProfile()}:{};
  let response;try{response=await fetchImpl(tableEndpoint()+'/account-'+route,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,...expected}),signal:AbortSignal.timeout(20000)});}catch{throw Error('The host could not be reached. Your local progress is kept.');}
- const data=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(Error(data.error||'Account request failed.'),{status:response.status});return data;
+ const data=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(Error(data.error||'Account request failed.'),{status:response.status,accountsRequired:data.accountsRequired===true});return data;
 }
-export async function bootstrapAccount(fetchImpl){
+// Whether play needs a signed-in, verified account (accountsRequired in accountRules.js, or the host's service says so),
+// and this browser's anonymous guest identity while it does not. A guest keeps the local profile 'guest' (playerStorage.js),
+// so saves made before guest identities existed stay where they are; the identity itself lives only in an HttpOnly cookie.
+let required=false,guestId=null;
+export const accountsNeeded=()=>required;
+export const guestIdentity=()=>guestId;
+async function becomeGuest(fetchImpl){
+ try{const g=await accountCall('guest',{},fetchImpl);if(g.guest===true&&/^[a-f0-9]{64}$/.test(g.id??''))guestId=g.id;}
+ catch(error){if(error.accountsRequired)required=true;}
+}
+export async function bootstrapAccount(fetchImpl,{required:needed=false}={}){
+ required=needed===true;guestId=null;
  await AsyncStorage.removeItem(OLD); // Old browser-readable tokens are never reused.
  const saved=await accountState();
- try{const status=await accountCall('status',{},fetchImpl);if(!status.verified||!/^[a-f0-9]{64}$/.test(status.id??''))throw Object.assign(Error('The host must apply the account service update.'),{status:503});const next={...saved,...status,email:saved?.id===status.id?saved.email:'Verified account'};await remember(next);selectProfile(next.id);return next;}
- catch(error){if(error.status===401){await remember(null);selectProfile(null);return null;}selectProfile(saved?.id);return saved;}
+ try{const status=await accountCall('status',{},fetchImpl);
+  if(status.guest===true&&/^[a-f0-9]{64}$/.test(status.id??'')){await remember(null);selectProfile(null);guestId=status.id;return null;}
+  if(!status.verified||!/^[a-f0-9]{64}$/.test(status.id??''))throw Object.assign(Error('The host must apply the account service update.'),{status:503});const next={...saved,...status,email:saved?.id===status.id?saved.email:'Verified account'};await remember(next);selectProfile(next.id);return next;}
+ catch(error){if(error.status===401){await remember(null);selectProfile(null);if(!required)await becomeGuest(fetchImpl);return null;}selectProfile(saved?.id);return saved;}
 }
 async function entered(result){
  if(result.verificationRequired)return result;
  if(result.token||result.verified!==true||!/^[a-f0-9]{64}$/.test(result.id??''))throw Error('The host must run Apply-Security-Update.cmd before signing in.');
- const state={id:result.id,email:result.email,verified:true,savedAt:result.savedAt??null,hold:!!result.savedAt};await remember(state);latest=null;selectProfile(state.id);return state;
+ const state={id:result.id,email:result.email,verified:true,savedAt:result.savedAt??null,hold:!!result.savedAt};await remember(state);latest=null;guestId=null;selectProfile(state.id);return state;
 }
 export async function registerAccount(email,password,fetchImpl,recoveryCode=''){
  const problem=emailProblem(email)??passwordProblem(password);if(problem)throw Error(problem);
@@ -31,7 +44,7 @@ export async function registerAccount(email,password,fetchImpl,recoveryCode=''){
 }
 export async function signIn(email,password,fetchImpl){if(emailProblem(email))throw Error(emailProblem(email));return entered(await accountCall('login',{email:tidyEmail(email),password,termsVersion:legalUpdated,ageConfirmed:true},fetchImpl));}
 export async function verifyEmail(email,challenge,code,fetchImpl){return entered(await accountCall('verify',{email:tidyEmail(email),challenge,code:code.trim()},fetchImpl));}
-export async function signOut(fetchImpl,all=false){try{await accountCall(all?'logout-all':'logout',{},fetchImpl);}catch(e){if(all||e.status!==401)throw e;}await remember(null);latest=null;selectProfile(null);}
+export async function signOut(fetchImpl,all=false){try{await accountCall(all?'logout-all':'logout',{},fetchImpl);}catch(e){if(all||e.status!==401)throw e;}await remember(null);latest=null;if(!required)await becomeGuest(fetchImpl);selectProfile(null);}
 export const signOutEverywhere=fetchImpl=>signOut(fetchImpl,true);
 let latest=null;
 export const noteSnapshot=snapshot=>{latest={snapshot,owner:currentProfile()};};
@@ -45,4 +58,4 @@ export async function saveToAccount(snapshot,fetchImpl){
 export async function loadFromAccount(fetchImpl){return accountCall('load',{},fetchImpl).catch(signedOutBy);}
 export async function releaseHold(){const s=await accountState();return s?remember({...s,hold:false}):null;}
 export async function changePassword(current,next,fetchImpl){if(passwordProblem(next))throw Error(passwordProblem(next));return accountCall('password',{password:current,newPassword:next},fetchImpl);}
-export async function deleteAccount(password,fetchImpl){await accountCall('delete',{password},fetchImpl);await remember(null);latest=null;selectProfile(null);}
+export async function deleteAccount(password,fetchImpl){await accountCall('delete',{password},fetchImpl);await remember(null);latest=null;if(!required)await becomeGuest(fetchImpl);selectProfile(null);}

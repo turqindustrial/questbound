@@ -36,10 +36,10 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  // Request limits, counted in memory within a sliding window per paired browser (its cookie hash) or per visitor
  // address: a limiter answers 0 when the request may go ahead, else the seconds to wait (sent as Retry-After). Turns are
  // the host's AI bill (per browser and for the gateway as a whole); illustration and story checks, the shared table,
- // sign-ups, sign-ins, recovery codes and passwords each have their own allowance; and a flood of anything is refused.
+ // sign-ups, guest identities, sign-ins, recovery codes and passwords each have their own allowance; and a flood of anything is refused.
  const limiter=(max,span)=>createLimiter(max,span,{now});
  const wait=(res,seconds,error)=>json(res,429,{error},{'Retry-After':String(seconds)});
- const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),allTurns:limiter(dmTotal,600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),register:limiter(5,3600000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
+ const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),allTurns:limiter(dmTotal,600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),register:limiter(5,3600000),guest:limiter(20,3600000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
  // Behind the tunnel every request arrives from loopback and the tunnel names the real visitor in CF-Connecting-IP; a
  // hosted gateway behind its platform's proxy (trustProxy, serve.cjs) reads the proxy's header for the same reason.
  const proxyHeader=proxyHeaderFor(shared,trustProxy);
@@ -95,9 +95,11 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // game simply waits a few seconds when told to). The request is passed on with this browser's guest label (whatever
     // label the browser sent itself is replaced).
     let parsedBody;try{parsedBody=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
-    const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80)},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
+    const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80),'X-Questbound-Secure':shared?'1':'0'},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
     const permitted=await allowance.json();if(!allowance.ok){const after=allowance.headers?.get?.('retry-after');return json(res,allowance.status,permitted,after&&/^\d{1,6}$/.test(after)?{'Retry-After':after}:{});}
     if(permitted.allowed!==true||!/^[a-f0-9]{64}$/.test(permitted.id??''))return json(res,503,{error:'Account validation is unavailable.'});
+    // A guest's cookie renewed by the account service (once a day) reaches the browser here too.
+    {const renewed=allowance.headers?.get?.('set-cookie');if(renewed)res.setHeader('Set-Cookie',renewed);}
     let mode=null;try{const parsed=JSON.parse(raw);mode=parsed?.context?.mode??null;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){parsed.guest='account-'+permitted.id;raw=JSON.stringify(parsed);}}catch{}
     if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.');}
     else{const seconds=limits.turns(token)||limits.allTurns('all');if(seconds)return wait(res,seconds,'The Dungeon Master needs a short rest. Try again in a few minutes. Your adventure is unchanged.');}
@@ -119,7 +121,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     if(syncRoute.startsWith('account-')&&!shared&&!loopback.includes(host))return json(res,403,{error:'Use the encrypted HTTPS game link to sign in or access your account.'});
     // The table is polled every few seconds; sign-ups and sign-ins (per visitor), recovery codes and passwords (per browser) are rare.
     const visitor=String(client(req)??'');
-    {const seconds=limits.sync(token)||(syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
+    {const seconds=limits.sync(token)||(syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-guest'?limits.guest(visitor):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
      if(seconds)return wait(res,seconds,syncRoute.startsWith('account')||syncRoute==='cloud-load'?'Too many tries. Wait a few minutes and try again.':'The shared table is being asked too often. The game will catch up in a moment.');}
     const raw=await body(req,2500000);let response;
     // The table service is told who is asking (never trusted from the visitor), so wrong account passwords are counted per visitor.
