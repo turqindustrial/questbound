@@ -37,7 +37,7 @@ const doc={addEventListener:(t,fn)=>(listeners[t]??=[]).push(fn),hidden:false};
 const timerSet=(fn,ms)=>{if(ms===3000){watchdog=fn;return 0;}return setInterval(fn,ms);};
 const context={window:{AudioContext:FakeContext,matchMedia:q=>({matches:q.includes('hover:hover')}),localStorage:{getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=v;}}},document:doc,setInterval:timerSet,clearInterval,setTimeout,clearTimeout,Math,JSON,Float32Array,Array,Set,Map,Number,Promise,Error,Proxy};
 context.globalThis=context;
-const audio=vm.runInNewContext(fs.readFileSync('audio.js','utf8').replace(/export (const|function)/g,'$1')+'\n({initializeAudio,playSound,setMood,setAmbience,setDanger,setAudio,audioSettings,audioHealth,narrating,internals:()=>({out,scheduler,ctx,stats,mood})})',context);
+const audio=vm.runInNewContext(fs.readFileSync('audio.js','utf8').replace(/export (const|function)/g,'$1')+'\n({initializeAudio,playSound,setMood,setAmbience,setDanger,setAudio,audioSettings,audioHealth,narrating,internals:()=>({out,scheduler,ctx,stats,mood}),internals2:()=>({ambience,heartbeat})})',context);
 const feed=vm.runInNewContext(fs.readFileSync('feedSounds.js','utf8').replace(/export (const|function)/g,'$1')+'\n({eventSounds})');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -58,6 +58,22 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  // Settings persist and apply; muting silences new sounds.
  audio.setAudio({night:true,master:.5});assert.equal(JSON.parse(store['questbound.audio.v1']).night,true);
  audio.setAudio({muted:true});const muted=nodes;audio.playSound('hit');assert.equal(nodes,muted,'Muted means silent');audio.setAudio({muted:false,night:false,master:.85});
+ // Muting stops the work too: the score's scheduler, the ambience timers and the heartbeat end and the context is
+ // suspended (so its reverbs stop rendering); nothing new is started while muted, and unmuting brings it all back.
+ {const peek=()=>({...audio.internals(),...audio.internals2()});
+  now+=5;audio.setMood('combat');audio.setAmbience('wild');audio.setDanger(.9);
+  assert.ok(peek().scheduler&&peek().ambience&&peek().heartbeat,'score, ambience and heartbeat run before muting');
+  const s0=suspends;audio.setAudio({muted:true});
+  assert.equal(peek().scheduler,null,'muting retires the scheduler');assert.equal(peek().ambience,null,'muting stops the ambience timers');assert.equal(peek().heartbeat,null,'muting stops the heartbeat');
+  await wait(250);assert.equal(suspends,s0+1,'muting suspends the context');assert.equal(peek().ctx.state,'suspended');
+  const quiet=sources.length;now+=20;audio.setMood('explore');audio.setAmbience('cave');audio.setDanger(.95);fire('pointerdown');await wait(600);
+  assert.equal(sources.length,quiet,'nothing is started while muted');assert.equal(peek().ctx.state,'suspended','a tap while muted does not wake the sound');
+  doc.hidden=true;fire('visibilitychange');doc.hidden=false;const r0=resumes;fire('visibilitychange');assert.equal(resumes,r0,'coming back to the page while muted stays silent');
+  audio.setAudio({muted:false});assert.equal(peek().ctx.state,'running','unmuting resumes');
+  assert.equal(peek().scheduler?.name,'explore','unmuting plays the current mood');assert.equal(peek().ambience?.kind,'cave','and its ambience');assert.ok(peek().heartbeat,'and the heartbeat');
+  audio.setAudio({music:0});assert.equal(peek().scheduler,null,'a music volume of 0 stops the scheduler');audio.setAudio({ambience:0});assert.equal(peek().ambience,null,'an ambience volume of 0 stops its timers');
+  audio.setAudio({music:.6,ambience:.6});assert.equal(peek().scheduler?.name,'explore');assert.equal(peek().ambience?.kind,'cave');
+  audio.setDanger(0);audio.setAmbience('none');audio.setMood('silence');}
  const inside=audio.internals;
  // (a) A stall: the page is busy for two seconds and plans nothing. The beats that went by are skipped, nothing
  // is started in the past, and the music carries on from the next beat.
