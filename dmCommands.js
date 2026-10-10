@@ -320,7 +320,11 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(request.npcTarget&&game.npcFate?.[request.npcTarget]==='dead')return {error:'They are dead. No spell you know can bring them back.'};
   // Another player's hero in the party, by name ("on Bram", "on Bram Ironfist").
   if(!request.npcTarget&&target&&game.party?.members){
-    const named=Object.keys(game.party.members).find(id=>{if(id===game.party.lead)return false;let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase();}catch{}const first=name.split(' ')[0];return !!name&&(target===name||target===first||target.startsWith(first+' '));});
+    // The whole name first, then a first name only one other hero has; among namesakes, one still living.
+    const others=Object.keys(game.party.members).filter(id=>id!==game.party.lead).map(id=>{let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase().trim();}catch{}return {id,name,first:name.split(' ')[0],dead:game.party.members[id].status==='dead'};}).filter(m=>m.name);
+    const whole=others.filter(m=>target===m.name||target.startsWith(m.name+' ')),byFirst=others.filter(m=>target===m.first||target.startsWith(m.first+' '));
+    const pool=whole.length?whole:byFirst.length===1?byFirst:[],named=(pool.find(m=>!m.dead)??pool[0])?.id;
+    if(!pool.length&&byFirst.length>1)return {error:'More than one hero here is called '+byFirst[0].first.replace(/^./,c=>c.toUpperCase())+'. Name them in full.',soft:true};
     if(named){if(game.party.members[named].status==='dead')return {error:'They are dead. No spell you know can bring them back.'};request.partyTarget=named;}
   }
   // A spell for friends (Bless, Aid, Shield of Faith and the like): the friends named ("on me, Bram and Mara", "on the
