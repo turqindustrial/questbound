@@ -41,6 +41,10 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const instant=await ask({mode:'adventure',introId:'crown',job:'verify-job-ahead-000001'});
  assert.equal(instant.story.title,'Stocked');assert.equal(instant.story.status,'active');assert.match(instant.story.id,/^[0-9a-f-]{36}$/);assert.equal(calls.length,0,'no wait and no call');
  assert.ok(toppedUp.length>=1&&toppedUp.at(-1).includes('surprise')&&!toppedUp.at(-1).includes('idea')&&!toppedUp.at(-1).includes('hostile'),'every written opening is kept in stock, not Your own tale or the Skirmish');
+ // The replacement written at an account player's cost carries the same OpenAI safety identifier as their own turns.
+ {let asker=null;const account='account-'+'ab'.repeat(32);
+  await generate({input:'Create a fresh adventure.',guest:account,context:{choices:[],mode:'adventure',introId:'crown'}},{...keys,pantry:{take:()=>({...story,title:'Stocked'}),topUp:(openings,w)=>{asker??=w;return false;}}});
+  assert.ok(asker,'the asker writes the replacement');await asker('surprise');assert.equal(calls.at(-1).safety_identifier,'qb-acct-'+'ab'.repeat(16));}
  taken.length=0;await ask({mode:'adventure',introId:'crown',continuing:{previousTitle:'Old'}});assert.equal(taken.length,0,'the next tale in a region is written fresh');
  await ask({mode:'adventure',introId:'idea',idea:'A haunted lighthouse on a frozen coast'});assert.equal(taken.length,0,'so is the player\'s own idea');
 
