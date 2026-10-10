@@ -44,7 +44,8 @@ function bonusChoices(hero,game,health){
   const offhand=[];
   if(game.lightAttack&&!game.nickUsed)for(const w of offhandWeapons(hero,game.lightAttack.weapon)){const nick=masteryOf(hero,w)==='Nick'&&!game.nickUsed;if(nick||!game.bonusUsed)offhand.push(['offhand:'+w.name,'Strike with the '+w.name+' in your other hand ('+(nick?'Nick: part of your Attack action':'bonus action')+')']);}
   if(game.bonusUsed)return offhand;
-  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[...offhand];
+  // Health not known is full health, as the rules read it (classActions.js bonusOptions).
+  const maximum=combatBasics(hero).hp,hurt=(health?.current??maximum)<maximum,used=game.resources??{},list=[...offhand];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if(hero.class==='Monk')list.push(['class:strike','Martial Arts strike (bonus action)']);
@@ -66,7 +67,7 @@ function bonusChoices(hero,game,health){
 // Hands, or a draught for someone hurt beside you.
 function brawlBonusChoices(hero,game,health){
   if(!game.npcCombat?.active||game.bonusUsed||game.pendingSpell)return [];
-  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[];
+  const maximum=combatBasics(hero).hp,hurt=(health?.current??maximum)<maximum,used=game.resources??{},list=[];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
@@ -127,7 +128,7 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='dead')return [];
   if(game.stage==='dying')return [{id:'death-save',label:'Roll a death saving throw',action:'death-save'}];
   if(game.pendingSpell)return [{id:'cancel-spell',label:'Cancel the pending spell',action:{type:'cancel-spell'}}];
-  const choices=dungeonChoices(game).map(c=>({...c,action:c.id})),add=(id,label,action=id)=>choices.push({id,label,action});
+  const choices=(game.story?[]:dungeonChoices(game)).map(c=>({...c,action:c.id})),add=(id,label,action=id)=>choices.push({id,label,action});
   const c=campaignState(game),map=mapState(game);
   // The action is spent this turn: a bonus action, or the end of the turn, is all that remains.
   if(game.stage==='combat'&&game.actionUsed){add('end-turn','End your turn');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);return choices;}
@@ -155,7 +156,7 @@ export function dmChoices(hero,game,health=null) {
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
     if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);for(const [id,label,action] of sustainActions(game))add(id,label,action);return choices;}
     if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const [id,label,action] of sustainActions(game))add(id,label,action);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
-    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
+    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn'&&!npcServiceError(game,'long-rest'))add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0&&!!health&&health.current<combatBasics(hero).hp)add('potion','Drink a healing draught');addPotionGifts();
       // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
       if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
       for(const c of companionChoices(game))add(c.id,c.label,c.action);

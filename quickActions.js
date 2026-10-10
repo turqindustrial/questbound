@@ -9,6 +9,7 @@ import {foeLabel} from './encounterRules';
 import {npcLore} from './npcRules';
 import {masteryOf,unarmedDC} from './masteryRules';
 import {partyMembers} from './partyRules';
+import {dmCommand} from './dmCommands';
 import {spoilsHere,magicItems,packMagic} from './lootRules';
 import {subclassAction,subclassUsesLeft} from './subclassRules';
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
@@ -157,7 +158,9 @@ export function spellActions(hero,game){
   const ends=spell.concentration&&held&&held!==spell.id&&heldName?'ends '+heldName:null;
   const timing=fighting&&spell.castingTime==='Bonus Action'&&!effect?.asAction?'Bonus':fighting&&spell.castingTime==='Reaction'?'Reaction':null;
   const base={key:'spell:'+spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp||effect?.buff?'shield':effect?.detection||effect?.narrated?'eye':spellIcon(effect?.type),label:spell.name,detail:[spell.level?'Level '+spell.level:'Cantrip',timing,how,ends].filter(Boolean).join(' · ')};
-  const friends=effect?.heal&&!spell.id.startsWith('mass-')?hurtFriends.map(m=>({...base,key:base.key+':party:'+m.id,label:spell.name,detail:'on '+m.name.split(' ')[0]+(m.status==='down'?' · down':''),question:'I cast '+spell.name+' on '+m.name+'.'})):[];
+  // A friend's chip carries its own cast, aimed at that hero by id (two heroes may share a name).
+  const friendCast=m=>{const question='I cast '+spell.name+' on '+m.name+'.',c=dmCommand(hero,game,question);return {question,...(c?.action?.type==='spell'?{action:{...c.action,request:{...c.action.request,partyTarget:m.id}}}:{})};};
+  const friends=effect?.heal&&!spell.id.startsWith('mass-')?hurtFriends.map(m=>({...base,key:base.key+':party:'+m.id,label:spell.name,detail:'on '+m.name.split(' ')[0]+(m.status==='down'?' · down':''),...friendCast(m)})):[];
   // A spell already held needs no second chip on yourself.
   if(self&&spell.concentration&&held===spell.id)return friends;
   if(self)return [{...base,question:'I cast '+spell.name+' on me.'},...friends];

@@ -108,6 +108,9 @@ export function mapLocation(game) {
  if(game.dungeon?.active)return 'dungeon';
  if(game.wildFight)return game.wildFight.place;
  if(game.stage==='wild')return game.world?.at;
+ // A party hero who is down or dead is carried with the party (partyView keeps where the party stands in party.stage).
+ const carried=game.party?.stage;
+ if(carried&&['dying','dead'].includes(game.stage))return carried==='wild'?game.world?.at:carried==='combat'?'bridge':['inn','bridge','tower'].includes(carried)?carried:'inn';
  const fallen=game.stage==='dying'?game.dying?.place:game.stage==='dead'?game.death?.at:null;
  if(fallen)return fallen==='wild'?game.world?.at:fallen==='dungeon'?'bridge':fallen;
  return ['inn','bridge','tower','dungeon'].includes(game.stage)?game.stage:['defeat','escaped','dead'].includes(game.stage)?'inn':'bridge';
@@ -145,14 +148,21 @@ export function travelError(game,destination) {
   if(!travelRoute(game,mapLocation(game),destination))return 'No known path leads there.';
   return '';
 }
+// Minutes go by (a journey, a short rest, a retreat): a held spell and temporary hit points from a spell count down
+// (ten rounds a minute) and end when their time is up.
+export function timePasses(game,health,minutes){
+  if(!(minutes>0))return {game,health};
+  const next={...game};let hp=health?{...health}:health;
+  if(next.concentration?.remaining!=null){next.concentration={...next.concentration,remaining:next.concentration.remaining-minutes*10};if(next.concentration.remaining<=0)delete next.concentration;}
+  if(next.temporarySpell?.remaining!=null){next.temporarySpell={...next.temporarySpell,remaining:next.temporarySpell.remaining-minutes*10};if(next.temporarySpell.remaining<=0){if(hp)hp.temp=0;delete next.temporarySpell;}}
+  return {game:next,health:hp};
+}
 export function travelTo(game,health,destination) {
   const route=travelRoute(game,mapLocation(game),destination),wild=!!worldPlace(game,destination);
-  const map=mapState(game),next={...game,stage:wild?'wild':destination,map:{...map,accepted:map.accepted||!!game.story,visited:[...new Set([...map.visited,destination])],minutes:map.minutes+route.minutes}};
-  if(game.world)next.world={...game.world,at:wild?destination:null};
-  let hp=health?{...health}:health;
+  const map=mapState(game),moved={...game,stage:wild?'wild':destination,map:{...map,accepted:map.accepted||!!game.story,visited:[...new Set([...map.visited,destination])],minutes:map.minutes+route.minutes}};
+  if(game.world)moved.world={...game.world,at:wild?destination:null};
   // Timed magic advances by the actual route duration.
-  if(next.concentration?.remaining!=null){next.concentration={...next.concentration,remaining:next.concentration.remaining-route.minutes*10};if(next.concentration.remaining<=0)delete next.concentration;}
-  if(next.temporarySpell?.remaining!=null){next.temporarySpell={...next.temporarySpell,remaining:next.temporarySpell.remaining-route.minutes*10};if(next.temporarySpell.remaining<=0){if(hp)hp.temp=0;delete next.temporarySpell;}}
+  const {game:next,health:hp}=timePasses(moved,health,route.minutes);
   // Starting places keep their legacy names in the line (a story retells them); found places are named as written.
   const name=wild?worldPlace(game,destination).name:mapPlaces[destination].name,legacy=!wild&&coreIds.includes(mapLocation(game))&&!game.story?.geography;
   next.log=[legacy?`You travel to ${name}. ${route.feet} ft; ${route.minutes} minutes pass.`:`You travel to ${name}. ${distanceText(route.feet)}; ${passingText(route.minutes)} pass.`,...game.log].slice(0,40);

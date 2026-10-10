@@ -4,7 +4,7 @@ import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrat
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
-import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace} from "./mapRules";
+import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace,travelRoute,timePasses} from "./mapRules";
 import {resolveClassAction,bonusOptions,shortRestLimit,surgeReady,turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack} from "./weaponRules";
@@ -163,7 +163,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       }
     };
     // A fight at a found place ends back at that place (or the way you came, if you ran); the story's own foe is untouched.
-    if (game.wildFight && result.game.wildFight && result.game.stage !== 'combat') {
+    // In a party, a hero who falls leaves the fight to the others while anyone stands (partyRules.js stageAfterFall).
+    const partyFightsOn = isPartyGame(result.game) && ['dying', 'dead'].includes(result.game.stage) && anyoneStanding(result.game);
+    if (game.wildFight && result.game.wildFight && result.game.stage !== 'combat' && !partyFightsOn) {
       const w = game.wildFight, outcome = result.game.stage === 'victory' ? 'won' : result.game.stage === 'escaped' ? 'fled' : 'fell';
       const fate = result.game.foeFate === 'subdued' ? 'subdued' : 'slain', group = w.stats.group;
       const kept = result.events.filter(t => !/wisp settles|restored the crossing|You retreat to the inn/.test(t));
@@ -172,12 +174,14 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       const ended = endWildFight(result.game, outcome);
       result.events = [...kept, ...ending, ...scattered];
       result.game = {...ended, log: [...result.events, ...game.log].slice(0, 40)};
+      // Running back the way you came takes as long as the road.
+      if (outcome === 'fled') { const away = timePasses(result.game, result.health, travelRoute(game, w.place, w.from)?.minutes ?? 0); result.game = away.game; result.health = away.health; }
     }
     // Tricks and conditions belong to one fight.
-    if (result.game.stage !== 'combat' && (result.game.heroCondition || result.game.foeTricks)) {
+    if (result.game.stage !== 'combat' && (result.game.heroCondition || (result.game.foeTricks && !partyFightsOn))) {
       result.game = {...result.game};
       delete result.game.heroCondition;
-      delete result.game.foeTricks;
+      if (!partyFightsOn) delete result.game.foeTricks;
     }
     // Arriving somewhere new can be dangerous: a lair's creature (or one you fled from) is waiting, and a risky
     // place may hide an ambush the first time you set foot there.
@@ -746,7 +750,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       next.shortRests = used + 1;
       entries.push(`Short rest (${used + 1} of ${limit}).`, ...lines);
       next.log = [...entries, ...game.log].slice(0, 40);
-      return {game: next, events: entries, health: {current: now, temp: hp.temp}};
+      // An hour goes by: a held spell or a spell's temporary hit points may run out meanwhile.
+      const rested = timePasses(next, {current: now, temp: hp.temp}, 60);
+      return {game: rested.game, events: entries, health: rested.health};
     }
     // A long rest restores hit points, spell slots, class features and the short rests. Everything else about the
     // adventure stays exactly as it was: the places found, the people met, the pack, the story so far.
@@ -815,6 +821,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       let dodge = false,
         bonusAction = false,
         usedBonus = false,
+        reacted = false,
         nickNow = false;
       const ending = action === 'end-turn';
       if (turnOptions.enemyOnly) {
@@ -836,7 +843,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           else { const i = aimedAlly(next, s.key); if (i === null) continue; const struck = hurtAlly(next, i, s.damage); next = struck.game; if (struck.line) entries.push(struck.line); }
         }
         bonusAction = spellResult.bonus || spellResult.reaction;
-        if (spellResult.reaction) next.reactionUsed = true;
+        if (spellResult.reaction) { next.reactionUsed = true; reacted = true; }
         dodge = !!spellResult.enemyDisadvantage;
         if (spellResult.bonus) { next.bonusUsed = true; usedBonus = true; }
         if (hp.current === 0) {
@@ -1069,8 +1076,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         next.stage = 'victory';
         entries.push('The wisp settles into the lantern. You have restored the crossing!');
       }
-      // One action a turn: once it is spent, only a bonus action or ending the turn remains.
-      if (game.actionUsed && !usedBonus && !ending && !turnOptions.enemyOnly) return {
+      // One action a turn: once it is spent, only a bonus action, a reaction (Hellish Rebuke) or ending the turn remains.
+      if (game.actionUsed && !usedBonus && !reacted && !ending && !turnOptions.enemyOnly) return {
         game,
         health,
         error: 'You have already used your action this turn. Use a bonus action or end your turn.'
@@ -1636,7 +1643,17 @@ function memberName(game,id,hero){
  return heroOf(game.party.members[id]?.character)?.name??'A hero';
 }
 const anyoneStanding=game=>Object.keys(game.party.members).some(id=>memberStatus(game,id)==='up');
+// A hero of a party lies down (or dead) while the fight goes on for those still standing (partyRules.js settleParty).
+const partyFightGoesOn=(game,health,hero)=>isPartyGame(game)&&['dying','dead'].includes(game.stage)&&(!!game.npcCombat?.active||settleParty(snapshotOf(game,health,hero)).world.stage==='combat');
 const fightFoeName=(hero,game)=>game.wildFight?.name??game.story?.foe??encounterFoe(hero,game).name;
+// A death save in a party, whatever comes of it: the party stays where it is, so a hero who wakes (or rises) comes to
+// where the others stand, never at the start alone while the world is elsewhere.
+function stayWithParty(game,result){
+ const next={...result.game,world:game.world,map:game.map};
+ if(game.wildFight)next.wildFight=game.wildFight;else delete next.wildFight;
+ if(!['dying','dead'].includes(next.stage)){const party={...next.party};next.stage=party.stage??next.stage;delete party.stage;next.party=party;}
+ return {...result,game:next};
+}
 function withoutOrder(game){if(!game.turnOrder)return game;const next={...game};delete next.turnOrder;return next;}
 // "Wolf: d20 … vs your AC 14. Hit." told of another hero, when the foe's turn is played from their point of view.
 function toldOf(line,name){
@@ -1652,14 +1669,31 @@ function brawlWorthy(game,order){
  return worthy.length?{worthy}:{};
 }
 function partyStep(game,health,hero,action,random){
+ const result=partyStepCore(game,health,hero,action,random);
+ if(result.error||result.waiting||!result.game||result.game===game)return result;
+ return {...result,game:partyAftermath(result.game,result.health,hero)};
+}
+// After any party move: a hero who has fallen lets go of what they held (whoever's device played the blow), and once
+// the party's fight is over (won, fled, or nobody left standing) nothing of it outlasts it, as for one hero alone. A
+// hero who lies down while the others fight on keeps nothing of their own fight either.
+function partyAftermath(game,health,hero){
+ const settled=settleParty(snapshotOf(game,health,hero)),fallen=Object.keys(settled.members).filter(id=>settled.members[id].status!=='up');
+ let next=game;
+ for(const [key,mark] of Object.entries(game.marks??{}))if(fallen.includes(mark.grappled))next=withMark(next,key,{grappled:undefined});
+ if(!next.npcCombat?.active&&settled.world.stage!=='combat')return fightOver(next);
+ if(['dying','dead'].includes(next.stage)&&['vex','lastHit','hurtBy','shieldUp'].some(k=>next[k]!==undefined)){next={...next};for(const k of ['vex','lastHit','hurtBy','shieldUp'])delete next[k];}
+ return next;
+}
+function partyStepCore(game,health,hero,action,random){
  const me=game.party.lead;
  if(game.turnOrder&&!partyFightOn(game))game=withoutOrder(game);
  const order=game.turnOrder;
  // No fight under way, or its first move still to be made: anyone may act.
  if(!order){
   if(action?.type==='party-pass')return {game,health,error:'There is no turn to pass.'};
-  const result=heroStep(game,health,hero,action,random,{party:true});
+  let result=heroStep(game,health,hero,action,random,{party:true});
   if(result.error||result.waiting||result.game===game)return result;
+  if(game.stage==='dying')result=stayWithParty(game,result);
   if(!partyFightOn(result.game)||result.game.openingAttackAvailable||result.game.stage==='dying')return {...result,game:withoutOrder(result.game)};
   const begun=beginPartyFight(result.game,result.health,hero,random);
   return {...result,game:begun.game,health:begun.health,events:[...(result.events??[]),...begun.events]};
@@ -1680,8 +1714,7 @@ function partyStep(game,health,hero,action,random){
   // A death save on this hero's turn; whatever comes of it, the party stays where it is.
   result=dyingStep(game,health,hero,action,random);
   if(result.error)return result;
-  result={...result,game:{...result.game,world:game.world,map:game.map,...(game.wildFight?{wildFight:game.wildFight}:{})}};
-  if(!['dying','dead'].includes(result.game.stage)){const party={...result.game.party};const stage=party.stage??result.game.stage;delete party.stage;result.game={...result.game,stage,party};}
+  result=stayWithParty(game,result);
  } else {
   result=heroStep(game,health,hero,action,random,{party:true});
   if(result.error||result.waiting||result.game===game)return result;
@@ -1793,7 +1826,10 @@ function heroStep(game,health,hero,action,random,opts={}){
  // A concentration spell's marks end with it (a failed concentration save, a fall, a new spell).
  // What it left on friends ends with it too; Hex or Hunter's Mark whose creature dropped waits to be moved.
  if(result.game&&!result.error){if(result.game.marks||result.game.boons)result.game=endSpellMarks(result.game);result.game=markGone(result.game);}
- if(result.game&&!result.error&&result.game.stage!=='combat'&&!result.game.npcCombat?.active){result.game=fightOver(result.game);const gathered=gatherThrown(result.game);if(gathered){result.game={...gathered.game,log:[gathered.line,...(gathered.game.log??[])].slice(0,40)};result.events=[...(result.events??[]),gathered.line];}}
+ if(result.game&&!result.error&&result.game.stage!=='combat'&&!result.game.npcCombat?.active&&!partyFightGoesOn(result.game,result.health,hero)){result.game=fightOver(result.game);const gathered=gatherThrown(result.game);if(gathered){result.game={...gathered.game,log:[gathered.line,...(gathered.game.log??[])].slice(0,40)};result.events=[...(result.events??[]),gathered.line];}}
+ // A finished brawl's record (kept for the step that ended it: experienceRules.js) goes once the hero has left the
+ // place or a fight of another kind has begun there.
+ if(result.game&&!result.error&&result.game.npcCombat&&!result.game.npcCombat.active&&(mapLocation(result.game)!==mapLocation(game)||!['inn','bridge','tower','wild'].includes(result.game.stage)&&!(isPartyGame(result.game)&&['dying','dead'].includes(result.game.stage)))){result.game={...result.game};delete result.game.npcCombat;}
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
  if(result.game&&result.game!==game&&(result.game.subdue!==undefined||result.game.aim!==undefined)){result.game={...result.game};delete result.game.subdue;delete result.game.aim;}
  return result;
@@ -1856,7 +1892,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};
  // Stories continue after a lost fight: the player is back at the starting location and the foe keeps its HP.
- if(['escaped','defeat'].includes(result.game.stage)){const woke=result.game.stage==='defeat'?['You wake at '+game.story.locations.inn.name+', carried back from the fight. Rest to recover.']:[],map=mapState(result.game);result.events=[...(result.events??stepLogEntries(game.log,result.game.log)),...woke];result.game={...result.game,stage:'inn',map:{...map,visited:[...new Set([...map.visited,'inn'])]},log:[...woke,...result.game.log].slice(0,40)};}
+ if(['escaped','defeat'].includes(result.game.stage)){const away=timePasses(result.game,result.health,travelRoute(game,mapLocation(game),'inn')?.minutes??0);result.game=away.game;result.health=away.health;const woke=result.game.stage==='defeat'?['You wake at '+game.story.locations.inn.name+', carried back from the fight. Rest to recover.']:[],map=mapState(result.game);result.events=[...(result.events??stepLogEntries(game.log,result.game.log)),...woke];result.game={...result.game,stage:'inn',map:{...map,visited:[...new Set([...map.visited,'inn'])]},log:[...woke,...result.game.log].slice(0,40)};}
  toldInStory(game,result);
  if(action==='long-rest')result.game.journal=game.journal;
  return result;
