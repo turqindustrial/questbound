@@ -84,10 +84,11 @@ assert.ok(app.includes('unprotected={saved&&!account&&accountsOffered()}'),'the 
 
 // 4. The emblem: the host's painting, made into layers by make-emblem.cjs.
 const isWebp=file=>{const bytes=fs.readFileSync(file);return bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';};
-const layers=['ring-v1','core-v1','ring-glow-v1','core-glow-v1','seal-v1'].map(name=>'public/emblem/'+name+'.webp');
+const layers=['ring-v2','core-v2','ring-glow-v2','core-glow-v2','seal-v1','seal-ring-v1','seal-core-v1'].map(name=>'public/emblem/'+name+'.webp');
 for(const file of [...layers,'assets/title/questbound-emblem.webp','assets/title/questbound-seal-source.webp'])assert.ok(fs.existsSync(file)&&isWebp(file)&&fs.statSync(file).size<400000,file+' is a WebP under 400 KB');
-assert.ok(fs.statSync('public/emblem/seal-v1.webp').size<60000,'the boot card and pairing page emblem stays light');
-const maker=read('make-emblem.cjs');assert.ok(maker.includes('questbound-seal-source.webp')&&layers.every(file=>maker.includes(file))&&maker.includes('bladeShare')&&maker.includes('ringShare'),'make-emblem.cjs makes every layer from the painting');
+for(const name of ['seal-v1','seal-ring-v1','seal-core-v1'])assert.ok(fs.statSync('public/emblem/'+name+'.webp').size<60000,name+': the top bar, boot card and pairing page pictures stay light');
+// Under the blade the turning ring holds scales lined up by measurement (mismatch), blended in past the blade's outline.
+const maker=read('make-emblem.cjs');assert.ok(maker.includes('questbound-seal-source.webp')&&layers.every(file=>maker.includes(file))&&maker.includes('bladeShare')&&maker.includes('ringShare')&&maker.includes('function mismatch('),'make-emblem.cjs makes every layer from the painting');
 assert.ok(!fs.existsSync('serpent.js'),'the drawn serpent is retired');
 for(const file of sources)assert.ok(!/qb:'(serpent|launch-ring|bezel)'/.test(read(file))&&!read(file).includes("from './serpent'"),file+' no longer draws the old seal');
 const emblem=read('TitleEmblem.js'),launch=read('LaunchScreen.js');
@@ -95,13 +96,18 @@ const emblem=read('TitleEmblem.js'),launch=read('LaunchScreen.js');
 const order=['emblem-back','emblem-turn','emblem-ring','emblem-core','emblem-sheen'].map(name=>emblem.indexOf("qb:'"+name+"'"));
 assert.ok(order.every((at,i)=>at>0&&(i===0||at>order[i-1])),'the layers are drawn back to front: '+order);
 assert.ok(/\{ringStars\.map\(twinkle\)\}\r?\n  <\/View>/.test(emblem)&&emblem.includes('{twinkle(northStar)}'),'the ring stars twinkle as they turn, the Q\'s north star where it stands');
-assert.ok(emblem.includes('const box=Math.round(size*1.42);'),'the same square as the old seal and its serpent');
+assert.ok(emblem.includes('const box=Math.round(size*1.42),'),'the same square as the old seal and its serpent');
 assert.ok(launch.includes('<TitleEmblem size={ring} place="launch"/>')&&!/\bq=Math.round/.test(launch),'the launch card shows the emblem');
 assert.ok(loading.includes('<TitleEmblem size={106} place="story"/>'),'the story seal is the emblem');
 assert.equal((home.match(/<TitleEmblem size=/g)??[]).length,3,'the title page shows it on desktop, a phone held either way');
 assert.ok(app.includes('<EmblemMark size={42}/>')&&!app.includes('emblemQ'),'the top bar\'s mark is the emblem');
-assert.ok(web.includes('[data-qb=emblem-turn]{animation:qb-spin 90s linear infinite;')&&!/\[data-qb=emblem-core\]\{[^}]*animation/.test(web),'the ring turns once in 90 seconds the way the head faces; the Q stays still');
-assert.ok(web.includes('-webkit-mask:url(/emblem/core-v1.webp)')&&web.includes('[data-qb=emblem-shine]{')&&web.includes('@keyframes qb-emblem-twinkle')&&web.includes('@keyframes qb-emblem-glow'),'the sheen is cut to the Q, the stars twinkle, the glow breathes');
+// The ring goes all the way round, steadily (2026-10-10, the host: "make sure the ouroboros animation goes all the way
+// around the circle"): once in 36 s, from exactly 0 to 360 degrees so the wrap cannot be seen, and on the page's one
+// clock (a negative delay) so a change of screen never turns it back. The boot card and the pairing page turn it alike.
+assert.ok(web.includes('[data-qb=emblem-turn]{animation:qb-emblem-turn 36s linear infinite;')&&web.includes('@keyframes qb-emblem-turn{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}')&&!/\[data-qb=emblem-core\]\{[^}]*animation/.test(web),'the ring turns once in 36 seconds the way the head faces; the Q stays still');
+assert.ok(emblem.includes('export const emblemTurn=36;')&&emblem.includes("turn.current.style.animationDelay=Math.round(emblemPhase())+'ms'")&&emblem.includes("<View ref={turn} dataSet={{qb:'emblem-turn'}}"),'each emblem joins the page clock');
+{const phase=eval('('+emblem.match(/export const emblemPhase=([^;]+);/)[1].replace('emblemTurn','36')+')');assert.equal(phase(0),-0);assert.equal(phase(40000),-4000);assert.equal(phase(36000*3+500),-500);}
+assert.ok(web.includes('-webkit-mask:url(/emblem/core-v2.webp)')&&web.includes('[data-qb=emblem-shine]{')&&web.includes('@keyframes qb-emblem-twinkle')&&web.includes('@keyframes qb-emblem-glow'),'the sheen is cut to the Q, the stars twinkle, the glow breathes');
 assert.ok(web.includes('html[data-effects=light] [data-qb=emblem] *{animation:none !important;}'),'still in the Light atmosphere');
 assert.ok(web.includes('html[data-covered=on] [data-qb=emblem]:not([data-place=story]) *{animation-play-state:paused !important;}'),'still behind a full-screen cover');
 assert.ok(web.includes('@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;'),'still with reduced motion');
@@ -109,11 +115,16 @@ assert.ok(web.includes('[data-qb=emblem]{position:relative;filter:var(--qb-emble
 // Every emblem picture a page asks for exists, and the servers name its type; the pairing page may show it before pairing.
 const page=read('public/index.html'),gateway=read('phone-server.cjs');
 for(const text of [web,page,gateway])for(const m of text.matchAll(/\/emblem\/([a-z0-9-]+\.webp)/g))assert.ok(fs.existsSync('public/emblem/'+m[1]),m[1]+' exists');
-assert.ok(page.includes('<div class="seal"><div class="emblem"></div></div>')&&page.includes('url(/emblem/seal-v1.webp)')&&!page.includes('qb-serpent')&&page.includes('#qb-boot .emblem, #qb-boot .bar i { animation: none; }'),'the boot card shows the emblem');
-assert.ok(gateway.includes('<div class="seal" aria-hidden="true"></div>')&&gateway.includes('background:url(/emblem/seal-v1.webp)')&&gateway.includes('/^\\/emblem\\/[a-z0-9-]+\\.webp$/.test(pathname)'),'the pairing page shows the emblem');
+assert.ok(page.includes('<div class="seal"><div class="emblem"><i class="ring"></i><i class="core"></i></div></div>')&&page.includes('background-image: url(/emblem/seal-ring-v1.webp); animation: qb-turn 36s linear infinite;')&&page.includes('url(/emblem/seal-core-v1.webp)')&&page.includes('@keyframes qb-turn { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }')&&!page.includes('qb-serpent')&&page.includes('#qb-boot .emblem, #qb-boot .emblem .ring, #qb-boot .bar i { animation: none; }'),'the boot card shows the emblem, its ring turning');
+assert.ok(gateway.includes('<div class="seal" aria-hidden="true"><i class="ring"></i><i class="core"></i></div>')&&gateway.includes('.seal .ring{background-image:url(/emblem/seal-ring-v1.webp);animation:turn 36s linear infinite}')&&gateway.includes('@keyframes turn{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}')&&gateway.includes('/^\\/emblem\\/[a-z0-9-]+\\.webp$/.test(pathname)'),'the pairing page shows the emblem');
 for(const file of ['phone-server.cjs','desktop-server.cjs'])assert.ok(read(file).includes("'.webp':'image/webp'"),file+' serves WebP as an image');
 const icon=read('assets/title/icon.html');
 assert.ok(icon.includes('url(questbound-emblem.webp)')&&!icon.includes('fonts.googleapis.com')&&!icon.includes('qb-serpent'),'the app icon is the emblem and needs no internet');
 assert.ok(read('make-icons.cjs').includes("[48,'assets/questbound-favicon.png','inset=.01&simple=1']")&&read('make-icons.cjs').includes("[180,'public/icons/apple-touch-icon.png','inset=.06&simple=1']"),'small icons are cut close to the ring');
 for(const file of ['public/manifest.json','public/index.html','fullscreen.js','phone-server.cjs'])assert.ok(!/\.png\?v=[123]\b/.test(read(file))&&/\.png\?v=4\b/.test(read(file)),file+' asks for the new icons');
+// The gold icon for the next big update is stored, not deployed (2026-10-10): its whole set and how to switch it in.
+{const dir='assets/branding/next-icon/',readme=read(dir+'README.md');
+ for(const file of ['apple-touch-icon.png','icon-192.png','icon-512.png','maskable-512.png','questbound-favicon.png','favicon-32.png','questbound-icon.png','android-icon-background.png','android-icon-foreground.png','android-icon-monochrome.png'])assert.ok(fs.existsSync(dir+file)&&readme.includes('`'+file+'`'),dir+file+' is stored and described');
+ assert.ok(readme.includes('?v=5')&&read('make-icons.cjs').includes("process.argv.includes('--next')")&&read(dir+'icon.html').includes('url(../../title/questbound-emblem.webp)'),'the stored icon says how to switch it in and is drawn by make-icons.cjs --next');
+ for(const file of ['public/manifest.json','public/index.html','fullscreen.js','phone-server.cjs',...sources])assert.ok(!read(file).includes('next-icon'),file+' does not use the stored icon yet');}
 console.log('Presentation: tips and primer roll, nothing scrolls sideways in '+sources.length+' files, the valley painting, and the emblem in seven places.');

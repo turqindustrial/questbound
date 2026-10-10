@@ -7,7 +7,7 @@
 export const themeChoices=[
  {id:'red',label:'Red',swatch:'#e04a5c',accentSwatch:'#b08cf5'},
  {id:'orange',label:'Orange',main:{hue:52,chroma:.95,lift:.09},accent:{hue:88,chroma:.6,lift:.1},neutral:{hue:55,chroma:1},emblem:'hue-rotate(62deg) saturate(0.95) brightness(1.25)'},
- {id:'gold',label:'Gold',main:{hue:88,chroma:.62,lift:.19},accent:{hue:62,chroma:.6,lift:.08},neutral:{hue:265,chroma:1.5},emblem:'hue-rotate(86deg) saturate(0.92) brightness(1.25)'},
+ {id:'gold',label:'Gold',main:{hue:88,chroma:.62,lift:.19},accent:{hue:62,chroma:.6,lift:.08},neutral:{hue:265,chroma:1.5},emblem:'grayscale(1) sepia(1) saturate(2.4) hue-rotate(-2deg) brightness(1.4) contrast(1.25)'},
  {id:'green',label:'Green',main:{hue:152,chroma:.82,lift:.12},accent:{hue:92,chroma:.55,lift:.1},neutral:{hue:165,chroma:1.1},emblem:'hue-rotate(181deg) saturate(1.22) brightness(1.25)'},
  {id:'blue',label:'Blue',main:{hue:252,chroma:.82,lift:.06},accent:{hue:300,chroma:.9,lift:0},neutral:{hue:262,chroma:1.5},emblem:'hue-rotate(223deg) saturate(1.33) brightness(1.17)'},
  {id:'purple',label:'Purple',main:{hue:300,chroma:.95,lift:.05},accent:{hue:8,chroma:.8,lift:.04},neutral:{hue:300,chroma:1.1},emblem:'hue-rotate(294deg) saturate(0.8) brightness(1.25)'},
@@ -104,14 +104,25 @@ export function themeSwatches(themeId){
 // emblem (`emblem` in themeChoices): a hue turn, saturation and brightness that bring the painting's crimsons to the
 // theme's main colour (verify-theme.cjs checks where they land, with the filters' own sums below). Red is the painting
 // as it is; the filter does not change with Light, where the emblem sits on a dark disc of its own.
+// Gold is made differently (2026-10-10, the host: "maybe gold is a good idea"): a hue turn left the crimson olive and
+// amber, so the painting is first taken to its light and shade (grayscale), toned like old metal (sepia), and that tone
+// is deepened and warmed (saturate, a small hue turn) and given its shine (brightness, contrast): pale yellow-gold in
+// the highlights, deep bronze in the shadows.
 export const emblemFilter=themeId=>themeChoices.find(choice=>choice.id===validTheme(themeId))?.emblem??'none';
-// What a CSS filter of that kind (hue-rotate, saturate, brightness, in that order) makes of a colour.
+// What a CSS filter made of grayscale, sepia, saturate, hue-rotate, brightness and contrast (in the order written, as
+// the browser applies them) makes of a colour.
 export function filteredRgb([r,g,b],filter){
- const number=(name,fallback)=>{const at=String(filter).indexOf(name+'(');return at<0?fallback:parseFloat(String(filter).slice(at+name.length+1));};
- const turn=number('hue-rotate',0),sat=number('saturate',1),bright=number('brightness',1);
- const c=Math.cos(turn*Math.PI/180),s=Math.sin(turn*Math.PI/180);
- const hue=[[.213+c*.787-s*.213,.715-c*.715-s*.715,.072-c*.072+s*.928],[.213-c*.213+s*.143,.715+c*.285+s*.14,.072-c*.072-s*.283],[.213-c*.213-s*.787,.715-c*.715+s*.715,.072+c*.928+s*.072]];
- const satm=[[.213+.787*sat,.715-.715*sat,.072-.072*sat],[.213-.213*sat,.715+.285*sat,.072-.072*sat],[.213-.213*sat,.715-.715*sat,.072+.928*sat]];
- const apply=(m,x)=>m.map(row=>Math.max(0,Math.min(1,row[0]*x[0]+row[1]*x[1]+row[2]*x[2])));
- return apply(satm,apply(hue,[r/255,g/255,b/255])).map(x=>Math.round(Math.max(0,Math.min(255,x*bright*255))));
+ const mix=(m,x)=>m.map(row=>Math.max(0,Math.min(1,row[0]*x[0]+row[1]*x[1]+row[2]*x[2])));
+ const steps={
+  grayscale:(a,x)=>{const k=1-Math.min(1,a);return mix([[.2126+.7874*k,.7152-.7152*k,.0722-.0722*k],[.2126-.2126*k,.7152+.2848*k,.0722-.0722*k],[.2126-.2126*k,.7152-.7152*k,.0722+.9278*k]],x);},
+  sepia:(a,x)=>{const k=1-Math.min(1,a);return mix([[.393+.607*k,.769-.769*k,.189-.189*k],[.349-.349*k,.686+.314*k,.168-.168*k],[.272-.272*k,.534-.534*k,.131+.869*k]],x);},
+  saturate:(sat,x)=>mix([[.213+.787*sat,.715-.715*sat,.072-.072*sat],[.213-.213*sat,.715+.285*sat,.072-.072*sat],[.213-.213*sat,.715-.715*sat,.072+.928*sat]],x),
+  'hue-rotate':(turn,x)=>{const c=Math.cos(turn*Math.PI/180),s=Math.sin(turn*Math.PI/180);
+   return mix([[.213+c*.787-s*.213,.715-c*.715-s*.715,.072-c*.072+s*.928],[.213-c*.213+s*.143,.715+c*.285+s*.14,.072-c*.072-s*.283],[.213-c*.213-s*.787,.715-c*.715+s*.715,.072+c*.928+s*.072]],x);},
+  brightness:(v,x)=>x.map(c=>Math.max(0,Math.min(1,c*v))),
+  contrast:(v,x)=>x.map(c=>Math.max(0,Math.min(1,c*v+.5-.5*v))),
+ };
+ let x=[r/255,g/255,b/255];
+ for(const [,name,value] of String(filter).matchAll(/([a-z-]+)\(([-\d.]+)(?:deg)?\)/g))if(steps[name])x=steps[name](parseFloat(value),x);
+ return x.map(v=>Math.round(v*255));
 }

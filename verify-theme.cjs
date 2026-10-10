@@ -49,8 +49,18 @@ for(const id of themeIds){
 }
 // The emblem (a painting) is tinted by a filter: Red leaves it as painted, every other theme turns its crimson onto the
 // theme's own hue (the filter's sums are the browser's: hue-rotate, saturate, brightness), each to a different colour.
+// Gold is metal: the painting's light and shade toned (grayscale, sepia, saturate, a small hue turn, brightness and
+// contrast), so every crimson, light or dark, lands on one gold ramp.
 assert.equal(emblemFilter('red'),'none');assert.equal(emblemFilter('pink'),'none');
-{const landed=[];for(const id of themeIds.filter(id=>id!=='red')){const filter=emblemFilter(id);assert.match(filter,/^hue-rotate\(\d+deg\) saturate\([\d.]+\) brightness\([\d.]+\)$/,id);
+assert.match(emblemFilter('gold'),/^grayscale\(1\) sepia\(1\) saturate\([\d.]+\) hue-rotate\(-?\d+deg\) brightness\([\d.]+\) contrast\([\d.]+\)$/);
+{const gold=rgb=>rgbToOklch(...filteredRgb(rgb,emblemFilter('gold')));
+ // Highlights warm yellow-gold (not white, not lemon green), the body gold (not amber or orange, not olive), the shadows deep bronze.
+ const [lit,litC,litH]=gold([255,170,200]),[mid,midC,midH]=gold([230,40,110]),[deep,deepC,deepH]=gold([90,10,40]);
+ assert.ok(lit>=.9&&litC>=.08&&litH>=95&&litH<=112,'gold highlights '+[lit,litC,litH].map(v=>v.toFixed(2)));
+ assert.ok(mid>=.6&&midC>=.1&&midH>=72&&midH<=95,'gold body '+[mid,midC,midH].map(v=>v.toFixed(2)));
+ assert.ok(deep<=.35&&deepC>=.04&&deepH>=55&&deepH<=80,'gold shadows '+[deep,deepC,deepH].map(v=>v.toFixed(2)));
+ assert.deepEqual(plain(filteredRgb([30,200,90],'contrast(0)')),[128,128,128]);assert.deepEqual(plain(filteredRgb([255,0,0],'grayscale(1)')),[54,54,54]);}
+{const landed=[];for(const id of themeIds.filter(id=>id!=='red')){const filter=emblemFilter(id);if(id!=='gold')assert.match(filter,/^hue-rotate\(\d+deg\) saturate\([\d.]+\) brightness\([\d.]+\)$/,id);
  for(const rgb of [[230,40,110],[200,30,80]])assert.ok(near(hue(filteredRgb(rgb,filter)),wanted[id],16),id+' emblem '+rgb+' lands at '+hue(filteredRgb(rgb,filter)).toFixed(0));
  assert.ok(rgbToOklch(...filteredRgb([230,40,110],filter))[0]>=.5,id+' emblem stays bright');landed.push(Math.round(hue(filteredRgb([230,40,110],filter))/10));}
  assert.equal(new Set(landed).size,landed.length,'no two themes tint the emblem alike');}
@@ -98,7 +108,7 @@ const script="<script>(function(){try{var p=JSON.parse(localStorage.getItem('que
 const block=/(<!-- qb-theme-colours:start[^>]*-->\s*)([\s\S]*?)(\s*<!-- qb-theme-colours:end -->)/,found=page.match(block);
 assert.ok(found,'public/index.html has the qb-theme-colours block');
 // The loading card shows the emblem picture, tinted like the game's.
-assert.ok(page.includes('background: url(/emblem/seal-v1.webp) center/contain no-repeat; filter: var(--bf, none);')&&page.includes('<div class="seal"><div class="emblem"></div></div>')&&!page.includes('qb-serpent'),'the loading card shows the emblem');
+assert.ok(page.includes('#qb-boot .emblem { position: absolute; inset: 0; filter: var(--bf, none);')&&page.includes('url(/emblem/seal-ring-v1.webp)')&&page.includes('<div class="seal"><div class="emblem"><i class="ring"></i><i class="core"></i></div></div>')&&!page.includes('qb-serpent'),'the loading card shows the emblem');
 if(process.argv.includes('--write')){fs.writeFileSync(pagePath,page.replace(block,(whole,start,old,end)=>start+script+end));console.log('Wrote the loading card colours and emblem filters for '+Object.keys(table).join(', ')+'.');}
 else assert.equal(found[2],script,'the loading card colours are out of date: run node verify-theme.cjs --write');
 console.log('Themes: '+themeIds.join(', ')+'; '+wrapped+' screen colours follow the theme; loading card in step.');

@@ -297,20 +297,23 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=launch-glow]{background:radial-gradient(ellipse 60% 45% at 50% 42%,rgba(140,82,255,.22),transparent 70%),radial-gradient(ellipse 120% 80% at 50% 110%,rgba(72,35,115,.18),transparent 70%),#0a070b !important;animation:qb-candle 5s ease-in-out infinite;}
 @keyframes qb-candle{0%,100%{opacity:.85;}45%{opacity:1;}70%{opacity:.9;}}
 /* The emblem (TitleEmblem.js; its layers are made by make-emblem.cjs in public/emblem). The serpent ring and its stars
-   turn once every 90 seconds the way the dragon's head faces (clockwise), chasing its tail; the Q and its whole blade
+   turn all the way round once every 36 seconds (TitleEmblem.js emblemTurn), steadily, the way the dragon's head faces
+   (clockwise), chasing its tail: qb-emblem-turn runs from exactly 0 to 360 degrees, so the wrap cannot be seen, and each
+   emblem joins the page's one clock (a negative delay) so a screen change never turns it back. The Q and its whole blade
    stay still on top. A blurred copy breathes, a light sweeps across the Q now and then (inside the Q's own shape) and
    the stars twinkle. Only transform and opacity move. */
 [data-qb=emblem]{position:relative;filter:var(--qb-emblem-filter);}
 [data-qb^=emblem-]{background-position:center;background-size:100% 100%;background-repeat:no-repeat;}
 [data-qb=emblem-back]{background-image:var(--qb-emblem-back);}
-[data-qb=emblem-turn]{animation:qb-spin 90s linear infinite;will-change:transform;}
-[data-qb=emblem-ring]{background-image:url(/emblem/ring-v1.webp);}
-[data-qb=emblem-core]{background-image:url(/emblem/core-v1.webp);}
+[data-qb=emblem-turn]{animation:qb-emblem-turn 36s linear infinite;will-change:transform;}
+@keyframes qb-emblem-turn{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+[data-qb=emblem-ring]{background-image:url(/emblem/ring-v2.webp);}
+[data-qb=emblem-core]{background-image:url(/emblem/core-v2.webp);}
 [data-qb=emblem-glow]{opacity:.55;animation:qb-emblem-glow 7s ease-in-out infinite;}
-[data-qb=emblem-glow][data-part=ring]{background-image:url(/emblem/ring-glow-v1.webp);}
-[data-qb=emblem-glow][data-part=core]{background-image:url(/emblem/core-glow-v1.webp);animation-delay:-3.5s;}
+[data-qb=emblem-glow][data-part=ring]{background-image:url(/emblem/ring-glow-v2.webp);}
+[data-qb=emblem-glow][data-part=core]{background-image:url(/emblem/core-glow-v2.webp);animation-delay:-3.5s;}
 @keyframes qb-emblem-glow{0%,100%{opacity:.3;}50%{opacity:.9;}}
-[data-qb=emblem-sheen]{overflow:hidden;-webkit-mask:url(/emblem/core-v1.webp) center/100% 100% no-repeat;mask:url(/emblem/core-v1.webp) center/100% 100% no-repeat;}
+[data-qb=emblem-sheen]{overflow:hidden;-webkit-mask:url(/emblem/core-v2.webp) center/100% 100% no-repeat;mask:url(/emblem/core-v2.webp) center/100% 100% no-repeat;}
 [data-qb=emblem-shine]{background:linear-gradient(105deg,transparent 22%,var(--qb-emblem-shine) 50%,transparent 78%);opacity:0;transform:translateX(-120%);animation:qb-emblem-sheen 12s ease-in-out 2s infinite;}
 @keyframes qb-emblem-sheen{0%{opacity:0;transform:translateX(-120%);}6%{opacity:1;}28%{opacity:1;transform:translateX(240%);}29%,100%{opacity:0;transform:translateX(240%);}}
 [data-qb=emblem-twinkle]{background-image:${sparkle};background-size:contain;opacity:0;animation:qb-emblem-twinkle 6.4s ease-in-out infinite;}
