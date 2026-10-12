@@ -34,13 +34,19 @@ import {combatBasics} from './combatRules';
 import {gearedHero} from './inventoryRules';
 import {attuneItem} from './lootRules';
 import {encounterFoe,foeStanding} from './adventureRules';
-import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
+import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction,IconButton} from './ui';
 import {rememberTurn} from './turnMemory';
 import {useVisualViewport} from './webLayout';
 import {fonts,colors,type,tint} from './theme';
 import {heroSpecies} from './characterRules';
 // The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
 const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
+// On wide screens the side column can be folded to a slim rail so the story and a conversation get the whole width
+// (the host, 2026-10-12: "add a minimizer for the information on the left side of the screen on pc view to help the
+// player engage fully in conversations"). Remembered per device; storage may be missing or refuse, so both are guarded.
+const sideKey='questbound.side.v1';
+export function sideFolded(){try{return JSON.parse(globalThis.localStorage?.getItem(sideKey)||'{}').folded===true;}catch{return false;}}
+function rememberSide(folded){try{globalThis.localStorage?.setItem(sideKey,JSON.stringify({folded}));}catch{}}
 // The story log's marks: an icon and a tone for each kind of line.
 const taleIcon={travel:'travel',place:'map',person:'people',fight:'swords',victory:'star',flight:'retreat',fall:'heart',death:'skull',deed:'speak',loot:'coin',rest:'rest',level:'starFill',quest:'scroll'};
 const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:tint('#cba6ff'),level:tint('#cba6ff'),rest:'#6fbf8e',quest:tint('#cba6ff')};
@@ -62,6 +68,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const stats=combatBasics(gearedHero(hero,game)),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
  const [inConversation,setInConversation]=useState(false);
  const [sideTab,setSideTab]=useState('quest');
+ const [folded,setFoldedState]=useState(sideFolded),setFolded=value=>{playSound('page');setFoldedState(value);rememberSide(value);};
  // The share sheet (the tale card), and a narrator silenced when the play screen is left.
  const [sharing,setSharing]=useState(false);
  useEffect(()=>()=>stopNarrator(),[]);
@@ -220,8 +227,14 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
-  {wide&&<View style={[s.side,{width:sideWidth},cramped&&{display:'none'}]}>
-   <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={s.sideTabs}>{sideTabs.map(([id,icon,label])=>{const on=sideTab===id;return <Pressable key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setSideTab(id);}} dataSet={{qb:on?'seg-on':undefined,tip:label}} style={[s.sideTabItem,on&&s.sideTabOn]}>{(sideWidth>=440||sideWidth<280)&&<Icon name={icon} size={16} color={on?colors.goldBright:colors.muted}/>}{sideWidth>=280&&<PlainText numberOfLines={1} style={[s.sideTabText,on&&{color:colors.goldBright}]}>{label}</PlainText>}</Pressable>;})}</View>
+  {wide&&folded&&<View dataSet={{qb:'side-rail'}} style={[s.rail,cramped&&{display:'none'}]}>
+   <IconButton icon="forward" label="Show the side panel" size={36} onPress={()=>setFolded(false)}/>
+   {sideTabs.map(([id,icon,label])=><IconButton key={id} icon={icon} label={'Show '+label} tip={label} size={36} onPress={()=>{setSideTab(id);setFolded(false);}}/>)}
+   {(game.stage==='combat'||game.npcCombat?.active||game.stage==='dying'||game.stage==='dead')&&<View accessibilityLabel={game.stage==='dying'?'Dying':game.stage==='dead'?'Fallen':'In a fight'} style={s.railAlert}><Icon name={game.stage==='dying'||game.stage==='dead'?'skull':'swords'} size={16} color={tint('#ffb39e')}/></View>}
+  </View>}
+  {wide&&!folded&&<View style={[s.side,{width:sideWidth},cramped&&{display:'none'}]}>
+   <View style={s.sideHead}><View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.sideTabs,{flex:1,minWidth:0}]}>{sideTabs.map(([id,icon,label])=>{const on=sideTab===id;return <Pressable key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setSideTab(id);}} dataSet={{qb:on?'seg-on':undefined,tip:label}} style={[s.sideTabItem,on&&s.sideTabOn]}>{(sideWidth>=440||sideWidth<280)&&<Icon name={icon} size={16} color={on?colors.goldBright:colors.muted}/>}{sideWidth>=280&&<PlainText numberOfLines={1} style={[s.sideTabText,on&&{color:colors.goldBright}]}>{label}</PlainText>}</Pressable>;})}</View>
+   <IconButton icon="back" label="Hide the side panel" size={36} onPress={()=>setFolded(true)}/></View>
    <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{sideTab==='quest'&&questPanel}{sideTab==='map'&&mapPanel}{sideTab==='pack'&&inventoryPanel}{sideTab==='log'&&logPanel}</ScrollView>
   </View>}
   {!wide&&tab==='story'&&!cramped&&combatStrip}
@@ -265,7 +278,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
 }
 const s=StyleSheet.create({
  // Screen-fitting layouts: nothing scrolls the page; each region scrolls on its own.
- wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
+ wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},sideHead:{flexDirection:'row',alignItems:'center',gap:6},rail:{width:44,flexGrow:0,flexShrink:0,alignItems:'center',gap:8,paddingTop:2},railAlert:{marginTop:4,width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:tint('rgba(240,106,79,.6)')},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
  sideTabs:{flexDirection:'row',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(10,7,11,.55)')},
  // Each tab takes the room its word needs, so "Inventory" is never cut short in a narrow column.
  sideTabItem:{flexGrow:1,flexShrink:1,flexBasis:'auto',minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
