@@ -104,7 +104,12 @@ export function actionDescription(action,hero,game){
  if(key==='level-up')return 'You have earned a new level. Choose what you gain.';
  if(key==='cast')return 'Choose one of your spells to cast.';
  if(key==='spells-back')return 'Back to your other actions.';
- if(key.startsWith('spell:'))return spellSummary(knownSpells(hero).find(s=>'spell:'+s.id===key));
+ if(key==='cast-back')return 'Back to your spells.';
+ // A spell chip (a friend's heal and a way of casting from the slot organizer carry the spell's id too).
+ if(key.startsWith('spell:')){const id=action.spell??key.slice(6).split(/[:@]/)[0],spell=knownSpells(hero).find(s=>s.id===id),text=spellSummary(spell);
+  if(action.slot===undefined||!spell)return text;
+  const way=typeof action.slot==='number'?'Cast with a level '+action.slot+' slot'+(action.slot>spell.level?', above the spell\'s own level':'')+(action.detail?' ('+action.detail+')':'')+'.':action.slot==='ritual'?'Cast as a ritual: it takes ten minutes longer and spends no slot.':action.slot==='species'?'Cast without a slot, as your people can, once between long rests.':'Cast with your Mystic Arcanum, once between long rests.';
+  return (text?text+' ':'')+way;}
  if(key==='end-turn')return game.actionUsed?'Finish your turn without a bonus action. The enemy acts next.':'Pass your turn without acting. The enemy acts next.';
  if(key==='attack-menu')return 'Choose a weapon to attack with: everything you carry for close fighting under Melee, bows and throwing weapons under Ranged, and who to attack when there is more than one.';
  if(key==='attack-back')return 'Back to your other actions.';
@@ -156,7 +161,7 @@ export function actionCost(action,game){
  if(key.startsWith('class:'))return /^Bonus\b/.test(action.detail??'')?'Bonus action':'Action';
  if(key.startsWith('offhand:'))return action.detail==='Nick'?null:'Bonus action';
  if(key.startsWith('again:')||key.startsWith('move-mark:'))return /^Bonus/.test(action.detail??'')?'Bonus action':'Action';
- if(key.startsWith('spell:'))return action.detail?.includes('Bonus')?'Bonus action':'Action';
+ if(key.startsWith('spell:'))return action.bonus||action.detail?.includes('Bonus')?'Bonus action':'Action';
  if(key.startsWith('give-potion:'))return 'Bonus action';
  if(key==='class:surge')return null;
  if(key==='end-turn'||key==='cast'||key==='spells-back'||key==='death-save')return null;
