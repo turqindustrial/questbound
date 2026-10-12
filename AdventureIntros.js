@@ -22,7 +22,7 @@ function IdeaBox({idea,onIdea,busy,optional=false}){
  return <View style={s.ideaWrap}>
   <Text style={s.label}>{optional?'Anything you would like to happen? (optional)':'Your idea'}</Text>
   <TextInput value={idea} onChangeText={onIdea} editable={!busy} multiline maxLength={ideaLimit} accessibilityLabel={optional?'A wish for the next tale':'Your idea for the tale'} placeholder={optional?'A rival returns, a storm cuts the roads, my sister comes looking for me…':'A haunted lighthouse on a frozen coast. A heist in a city built on the back of a sleeping giant. A plague of silence…'} placeholderTextColor={tint('#938890')} style={s.idea}/>
-  <Text style={s.ideaNote}>{idea.length}/{ideaLimit}. Tales stay in Questbound\'s own world: name a book or film and you get its mood, with people and places of the tale\'s own.</Text>
+  <Text style={s.ideaNote}>{idea.length}/{ideaLimit}. Tales stay in Questbound’s own world: name a book or film and you get its mood, with people and places of the tale’s own.</Text>
  </View>;
 }
 // Easy start (storyPreferences.js, per device, on unless turned off): any tale but the Skirmish begins with the hero's
@@ -48,9 +48,9 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
   <View style={s.narrator}><NarratorChoice compact/>{selected!=='hostile'&&<EasyStart always={selected==='easy'} busy={busy}/>}</View>
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {intros.map(intro=>{const chosen=selected===intro.id,hot=!!intro.local;return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>
- <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?'#ffb39e':colors.goldBright}/><View style={{flex:1,minWidth:0}}>
+ <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?tint('#ffb39e'):colors.goldBright}/><View style={{flex:1,minWidth:0}}>
   <View style={s.tags}><Text style={[s.tone,hot&&{color:tint('#ff9f86')}]}>{intro.tone.toUpperCase()}</Text>{intro.scale==='saga'&&<View style={s.tag}><Icon name="scroll" size={10} color={colors.gold}/><Text style={s.tagText}>LONG TALE</Text></View>}{intro.errand&&<View style={s.tag}><Icon name="flag" size={10} color={colors.gold}/><Text style={s.tagText}>CLEAR START</Text></View>}{hot&&<View style={[s.tag,s.tagHot]}><Icon name="bolt" size={10} color={tint('#ffb39e')}/><Text style={[s.tagText,{color:tint('#ffb39e')}]}>INSTANT</Text></View>}</View>
-  <Text style={[s.title,narrow&&{fontSize:19}]}>{intro.title}</Text></View>{chosen&&<View style={[s.check,hot&&{backgroundColor:colors.bloodBright,borderColor:'#ffd2c2'}]}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
+  <Text style={[s.title,narrow&&{fontSize:19}]}>{intro.title}</Text></View>{chosen&&<View style={[s.check,hot&&{backgroundColor:colors.bloodBright,borderColor:tint('#ffd2c2')}]}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
  <Text style={[s.setting,narrow&&{fontSize:16,lineHeight:23}]}>{intro.setting}</Text>
  {/* The chosen opening tells what is wrong, where the road leads and what is at stake. */}
  {chosen&&intro.idea&&<IdeaBox idea={idea} onIdea={onIdea} busy={busy}/>}
@@ -63,13 +63,13 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
 const s=StyleSheet.create({
  copy:{fontFamily:fonts.ui,color:tint('#d4ced2'),lineHeight:23,fontSize:14.5,marginBottom:10},
  card:{padding:18,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),backgroundColor:tint('#211822'),marginBottom:12},
- selected:{borderColor:colors.gold},combat:{borderColor:'rgba(200,65,47,.5)'},
+ selected:{borderColor:colors.gold},combat:{borderColor:tint('rgba(200,65,47,.5)')},
  top:{flexDirection:'row',gap:14,alignItems:'center',marginBottom:10},
  tags:{flexDirection:'row',flexWrap:'wrap',gap:8,alignItems:'center',marginBottom:4},
  tone:{fontFamily:fonts.display,color:tint('#b58cff'),fontSize:10,fontWeight:'700',letterSpacing:2},
  tag:{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),borderRadius:10,paddingHorizontal:7,paddingVertical:2},
  tagText:{fontFamily:fonts.ui,fontSize:9,fontWeight:'700',letterSpacing:1.1,color:colors.gold},
- tagHot:{borderColor:'rgba(240,106,79,.55)'},
+ tagHot:{borderColor:tint('rgba(240,106,79,.55)')},
  title:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:21,letterSpacing:.6},
  check:{width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
  setting:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#ded1cb'),fontSize:17,lineHeight:25,marginBottom:8},

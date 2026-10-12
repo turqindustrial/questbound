@@ -82,7 +82,7 @@ export default function FeedbackSheet({visible,onClose,context={},problem=null,p
 }
 const s=StyleSheet.create({
  scrim:{flex:1,backgroundColor:tint('rgba(5,3,5,.78)'),alignItems:'center',justifyContent:'center',padding:16},
- emblem:{alignSelf:'center',width:52,height:52,borderRadius:26,borderWidth:1,borderColor:tint('rgba(224,74,92,.6)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(48,26,78,.45)')},sent:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.45)'},
+ emblem:{alignSelf:'center',width:52,height:52,borderRadius:26,borderWidth:1,borderColor:tint('rgba(224,74,92,.6)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(48,26,78,.45)')},sent:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(111,191,142,.45)')},
  sheet:{width:'100%',maxWidth:480,maxHeight:'92%',padding:22,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.98)')},
  overline:{...type.label,textAlign:'center'},title:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
  text:{fontFamily:fonts.ui,color:tint('#d4ced2'),fontSize:14,lineHeight:22},label:{...type.label,marginTop:4},small:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,textAlign:'center'},

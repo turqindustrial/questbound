@@ -31,9 +31,9 @@ export default function EncounterProvider({hero,game,health,children}){
  <Pressable accessibilityLabel="Close" onPress={()=>setSelected(null)} dataSet={{qb:'scrim'}} style={s.scrim}><Pressable onPress={()=>{}} accessibilityViewIsModal dataSet={{qb:'sheet'}} style={[s.modal,width<600&&{padding:16}]}>
  <View style={s.header}><View style={{flex:1,minWidth:0}}><Text style={s.overline}>{combat?(active?'Round '+(game.npcCombat?.round??game.round)+' · Remaining HP':'Encounter ended · current HP'):[entity?.species,entity?.className??entity?.kind??shortRole(entity?.role)].filter(Boolean).join(' · ')||'Character'}</Text><Text accessibilityRole="header" numberOfLines={2} style={s.title}>{combat?'Combat encounter':entity?.name??'Character'}</Text></View><IconButton icon="close" label="Close" size={38} onPress={()=>setSelected(null)}/></View>
  <ScrollView style={{maxHeight:Math.max(120,Math.min(560,height*.9-110)),flexShrink:1}}>
- {combat?<>{roster.map(e=>{const enemy=e.side==='enemy',low=!enemy&&(e.hp??0)/Math.max(1,e.maximum)<=.3;return <View key={e.id} style={[s.member,enemy&&{borderColor:'rgba(220,90,70,.4)'}]}>
+ {combat?<>{roster.map(e=>{const enemy=e.side==='enemy',low=!enemy&&(e.hp??0)/Math.max(1,e.maximum)<=.3;return <View key={e.id} style={[s.member,enemy&&{borderColor:tint('rgba(220,90,70,.4)')}]}>
   <View style={s.memberTop}>
-   <View style={[s.side,enemy&&{borderColor:'rgba(240,106,79,.6)'},e.side==='player'&&{borderColor:colors.gold}]}><Icon name={enemy?'swords':e.side==='player'?'sheet':'shield'} size={16} color={enemy?'#ffb39e':e.side==='player'?colors.goldBright:colors.heal}/></View>
+   <View style={[s.side,enemy&&{borderColor:tint('rgba(240,106,79,.6)')},e.side==='player'&&{borderColor:colors.gold}]}><Icon name={enemy?'swords':e.side==='player'?'sheet':'shield'} size={16} color={enemy?tint('#ffb39e'):e.side==='player'?colors.goldBright:colors.heal}/></View>
    <View style={{flex:1,minWidth:0}}><Pressable accessibilityRole="link" onPress={()=>open(e.id)}><Text numberOfLines={1} style={[s.nameLink,s.memberName]}>{e.name}</Text></Pressable><Text style={s.memberMeta}>{e.side==='player'?'You':e.side==='ally'?'Ally':'Opponent'}{e.initiative!=null?' · Initiative '+e.initiative:''}{e.hp===0?' · Downed':''}</Text></View>
    <Text style={[s.hp,low&&{color:colors.bloodBright}]}>{e.hp??'—'}<Text style={s.hpMax}> / {e.maximum}</Text></Text>
   </View>
@@ -49,7 +49,7 @@ export default function EncounterProvider({hero,game,health,children}){
  </ScrollView></Pressable></Pressable></Modal></EncounterContext.Provider>;
 }
 const s=StyleSheet.create({nameLink:{color:tint('#e46475'),textDecorationLine:'underline',textDecorationStyle:'dotted',textDecorationColor:tint('rgba(224,74,92,.6)'),fontWeight:'600'},
- trigger:{flexGrow:1,alignItems:'center',paddingHorizontal:16,paddingVertical:10,minHeight:44,borderRadius:22,borderWidth:1,borderColor:'rgba(200,65,47,.7)',backgroundColor:'rgba(60,18,14,.8)',justifyContent:'center',marginTop:10},triggerText:{fontFamily:fonts.display,color:tint('#ffd2c2'),fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},triggerRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+ trigger:{flexGrow:1,alignItems:'center',paddingHorizontal:16,paddingVertical:10,minHeight:44,borderRadius:22,borderWidth:1,borderColor:tint('rgba(200,65,47,.7)'),backgroundColor:tint('rgba(60,18,14,.8)'),justifyContent:'center',marginTop:10},triggerText:{fontFamily:fonts.display,color:tint('#ffd2c2'),fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},triggerRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
  scrim:{flex:1,backgroundColor:tint('rgba(5,3,5,.78)'),alignItems:'center',justifyContent:'center',padding:16},
  modal:{width:'100%',maxWidth:600,maxHeight:'92%',backgroundColor:tint('rgba(22,16,23,.98)'),borderWidth:1,borderColor:colors.goldLine,borderRadius:6,padding:24},
  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:14,paddingBottom:12,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.22)')},
@@ -63,6 +63,6 @@ const s=StyleSheet.create({nameLink:{color:tint('#e46475'),textDecorationLine:'u
  description:{fontFamily:fonts.story,color:tint('#e6dfcd'),fontSize:17,lineHeight:26,marginVertical:12},
  member:{padding:12,marginBottom:10,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.22)'),backgroundColor:tint('rgba(255,214,224,.03)'),gap:8},
  memberTop:{flexDirection:'row',alignItems:'center',gap:12},memberName:{fontFamily:fonts.display,fontSize:16,letterSpacing:.5},memberMeta:{fontFamily:fonts.ui,fontSize:11.5,color:colors.muted,marginTop:2},
- side:{width:34,height:34,borderRadius:17,borderWidth:1,borderColor:'rgba(111,191,142,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.25)'},
+ side:{width:34,height:34,borderRadius:17,borderWidth:1,borderColor:tint('rgba(111,191,142,.6)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(0,0,0,.25)')},
  hp:{fontFamily:fonts.display,fontWeight:'800',color:colors.parchment,fontSize:18,fontVariant:['tabular-nums']},hpMax:{fontSize:12,color:colors.muted,fontWeight:'400'},
 });

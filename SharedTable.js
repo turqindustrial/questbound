@@ -46,7 +46,7 @@ export default function SharedTable({table,hero,characterChosen,onPlay}){
 const s=StyleSheet.create({lead:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:1,color:colors.gold,fontSize:24,marginBottom:10},copy:{fontFamily:fonts.ui,color:tint('#d4ced2'),lineHeight:23,fontSize:14.5,marginBottom:6},
  label:{...type.label,marginTop:10,marginBottom:6},title:{fontFamily:fonts.display,color:colors.parchment,fontSize:22,fontWeight:'700',letterSpacing:.8},
  online:{flexDirection:'row',alignItems:'center',gap:8},seat:{width:30,height:30,borderRadius:15,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),alignItems:'center',justifyContent:'center'},
- status:{padding:18,borderRadius:6,borderWidth:1,borderColor:'rgba(111,208,196,.4)',marginBottom:8},player:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:8,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.12)')},
+ status:{padding:18,borderRadius:6,borderWidth:1,borderColor:tint('rgba(111,208,196,.4)'),marginBottom:8},player:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:8,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.12)')},
  dot:{width:9,height:9,borderRadius:5},playerName:{fontFamily:fonts.display,color:colors.parchment,fontSize:15,fontWeight:'700',flex:1},playerState:{fontFamily:fonts.ui,color:colors.muted,fontSize:12},
  input:{fontFamily:fonts.story,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),borderRadius:4,padding:14,fontSize:18},
  note:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginTop:8},error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:21,marginTop:12}});

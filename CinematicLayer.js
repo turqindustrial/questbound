@@ -53,14 +53,14 @@ export default function CinematicLayer({levelReady=false}){
     {!!area.sub&&<Text style={s.areaSub}>{area.sub}</Text>}
    </View>
   </View>}
-  {!!card&&<Pressable key={finale.id} accessibilityRole="button" accessibilityLabel={card.title+'. Tap to continue.'} onPress={dismiss} dataSet={{qb:'finale'}} style={[StyleSheet.absoluteFill,s.center,{backgroundColor:dark?'rgba(10,2,2,.84)':tint('rgba(7,5,7,.78)')}]}>
+  {!!card&&<Pressable key={finale.id} accessibilityRole="button" accessibilityLabel={card.title+'. Tap to continue.'} onPress={dismiss} dataSet={{qb:'finale'}} style={[StyleSheet.absoluteFill,s.center,{backgroundColor:dark?tint('rgba(10,2,2,.84)'):tint('rgba(7,5,7,.78)')}]}>
    <View dataSet={{qb:'finale-burst',tone:dark?'dark':'gold'}} style={s.burst}/>
    {!dark&&<View dataSet={{qb:'rays-spin'}} style={s.burst}/>}
    <View dataSet={{qb:'finale-card'}} style={s.card}>
-    <View style={[s.emblem,dark&&{borderColor:'rgba(220,90,70,.8)'}]}><Icon name={card.icon} size={34} color={dark?'#ff9f86':colors.goldBright}/></View>
+    <View style={[s.emblem,dark&&{borderColor:tint('rgba(220,90,70,.8)')}]}><Icon name={card.icon} size={34} color={dark?tint('#ff9f86'):colors.goldBright}/></View>
     <Text style={[s.over,dark&&{color:tint('#d99a8a')}]}>{card.over}</Text>
     <Text dataSet={{qb:dark?undefined:'title',sheen:'on',lig:'off'}} style={[s.title,{fontSize:fit(card.title,width,56,.78),lineHeight:Math.round(fit(card.title,width,56,.78)*1.25)},dark&&{color:tint('#f0c6b8')}]}>{card.title}</Text>
-    <View style={[s.rule,dark&&{backgroundColor:'rgba(220,90,70,.6)'}]}/>
+    <View style={[s.rule,dark&&{backgroundColor:tint('rgba(220,90,70,.6)')}]}/>
     {!!card.sub&&<Text style={s.sub}>{card.sub}</Text>}
     {finale.kind==='victory'&&levelReady&&<View dataSet={{qb:'btn-primary'}} style={s.reward}><Icon name="star" size={14} color={tint('#ffeef0')}/><Text style={s.rewardText}>A new level awaits</Text></View>}
     <Text style={s.tap}>Tap to continue</Text>
@@ -73,10 +73,10 @@ const fit=(text,width,max,em)=>Math.max(26,Math.min(max,Math.floor((width-48)/Ma
 const s=StyleSheet.create({
  burst2:{fontFamily:fonts.display,fontWeight:'800',color:colors.goldBright,letterSpacing:2,textAlign:'center',...(web?{textShadow:tint('0 0 28px rgba(230,48,82,.9),0 3px 0 rgba(37,7,12,.9)')}:{})},
  area:{alignItems:'center',paddingHorizontal:40,paddingVertical:34,maxWidth:'100%'},
- areaOver:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:tint('#d26d7a'),textTransform:'uppercase',textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
+ areaOver:{fontFamily:fonts.display,fontSize:12,letterSpacing:5,color:tint('#d26d7a'),textTransform:'uppercase',textAlign:'center',...(web?{textShadow:tint('0 2px 8px rgba(0,0,0,.9)')}:{})},
  areaTitle:{fontFamily:fonts.display,fontWeight:'800',color:colors.gold,textAlign:'center',letterSpacing:3,marginTop:6},
  areaRule:{flexDirection:'row',alignItems:'center',gap:10,width:280,maxWidth:'80%',marginVertical:10},areaLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
- areaSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,color:tint('#e1d4cf'),textAlign:'center',...(web?{textShadow:'0 2px 8px rgba(0,0,0,.9)'}:{})},
+ areaSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:18,color:tint('#e1d4cf'),textAlign:'center',...(web?{textShadow:tint('0 2px 8px rgba(0,0,0,.9)')}:{})},
  // box-none must live in StyleSheet.create: react-native-web only polyfills it for compiled styles, and an inline
  // 'box-none' is invalid CSS that leaves this full-screen layer catching every tap.
  layer:{zIndex:60,pointerEvents:'box-none'},none:{pointerEvents:'none'},center:{alignItems:'center',justifyContent:'center'},

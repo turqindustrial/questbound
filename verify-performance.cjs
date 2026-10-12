@@ -35,6 +35,8 @@ assert.ok(light.some(([,sel,body])=>/data-qb=glass/.test(sel)&&/backdrop-filter\
 assert.ok(light.some(([,sel,body])=>/data-qb=fog/.test(sel)&&/animation\s*:\s*none/.test(body)),'Light stills the fog');
 assert.ok(/html\[data-covered=on\] \[data-qb=stage\] \*[^{]*\{animation-play-state:paused/.test(css),'a full-screen cover pauses the stage');
 assert.ok(/prefers-reduced-motion/.test(css),'reduced motion is still honoured');
+// The Light appearance's own style sheet (webTheme.js lightCss) animates nothing and blends nothing.
+{const at=web.indexOf('const lightCss=`'),lightCss=web.slice(at,web.indexOf('`;',at));assert.ok(at>0&&!/@keyframes|animation\s*:|mix-blend-mode/.test(lightCss),'the light style sheet adds no animation or blend');}
 
 // 2. Typefaces: one file per family, style and writing system, all present, and the pages point at the new sheet.
 const fontsCss=fs.readFileSync('public/fonts/fonts-v2.css','utf8');

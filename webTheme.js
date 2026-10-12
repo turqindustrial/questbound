@@ -1,7 +1,7 @@
 // Web-only finish: typefaces, metallic buttons, framed panels, atmosphere and motion, attached through dataSet hooks (data-qb).
 // The colours are written as the Red theme; tint() turns each into a style variable that follows the chosen theme.
 import {tint,themeVariables} from './theme';
-import {themedText,emblemFilter} from './themeRules';
+import {themedText,emblemFilter,lightPalette} from './themeRules';
 const svg=markup=>'url("data:image/svg+xml,'+encodeURIComponent(markup)+'")';
 // Corner filigree for framed panels: a rounded bracket, an inner echo, two curls and a lozenge.
 const flourishMarkup=transform=>(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${transform}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M20 1.5c3 0 4.5 1.6 4.5 3.6' stroke-opacity='.8'/><path d='M1.5 20c0 3 1.6 4.5 3.6 4.5' stroke-opacity='.8'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#be96ff' stroke='none'/></g></svg>`);
@@ -14,14 +14,16 @@ const sparkle=svg("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'
 // A picture written as text cannot read a style variable, so these are written out afresh for each theme.
 // Each theme's set is worked out once: theme.js repaints every extra whenever a colour is first used.
 const pictures={};
+// The Light tones (themeRules.js lightPalette) as "r g b", so the light style sheet below can write rgb(var(--ql-main) / .3).
+const lightTones=theme=>Object.fromEntries(Object.entries(lightPalette(theme)).filter(([,v])=>Array.isArray(v)).map(([name,rgb])=>['--ql-'+name,rgb.join(' ')]));
 themeVariables((theme,mode)=>pictures[theme+':'+mode]??={...Object.fromEntries(Object.entries(turns).map(([corner,turn])=>['--qb-corner-'+corner,svg(themedText(flourishMarkup(turn),theme,mode))])),
- // The emblem is a painting: the theme reaches it as a filter (themeRules.js), and in Light it sits on a dark disc of its
- // own, the painting's background, so it looks as it was painted.
+ // The emblem is a painting: the theme reaches it as a filter (themeRules.js), and in Light it sits on a dark medallion
+ // of its own, the painting's background with a thin crimson rim and a soft shadow on the paper (written in the
+ // painting's crimson, since the theme's filter turns the whole emblem, the rim with it).
  '--qb-emblem-filter':emblemFilter(theme),'--qb-emblem-shine':'rgba(255,240,246,.55)',
- '--qb-emblem-back':mode==='light'?'radial-gradient(circle closest-side,rgb(20,1,15) 0,rgb(20,1,15) 86%,rgba(20,1,15,0) 100%)':'none'});
+ '--qb-emblem-back':mode==='light'?'radial-gradient(circle closest-side,rgb(22,3,16) 0,rgb(30,6,22) 84%,rgb(22,3,16) 87.2%,rgb(150,40,72) 87.6%,rgb(196,74,104) 88.6%,rgb(120,28,56) 89.6%,rgba(60,30,30,.22) 90.2%,rgba(60,30,30,.08) 94%,rgba(60,30,30,0) 99%)':'none',
+ ...(mode==='light'?lightTones(theme):{})});
 const css=tint(`
-html[data-appearance=light] [data-qb=rays],html[data-appearance=light] [data-qb=grain]{opacity:.12!important;}
-html[data-appearance=light] [data-qb=gold],html[data-appearance=light] [data-qb=logo]{filter:none!important;text-shadow:none!important;}
 
 :root{--qb-gold:#e04a5c;--qb-gold-mid:#b2223a;--qb-ink:#0a070b;--qb-ease:cubic-bezier(.2,.8,.2,1);}
 html,body{background:#0a070b;color-scheme:inherit;}
@@ -357,11 +359,154 @@ html[data-covered=on] [data-qb=stage] *,html[data-covered=on] [data-qb=stage] *:
 html[data-covered=on] [data-qb=emblem]:not([data-place=story]) *{animation-play-state:paused !important;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;}}
 `);
+// Light (the Dark mode switch off): the same pieces drawn for paper rather than inverted from ink. Every colour here is
+// a Light tone of the chosen theme (--ql-*, from themeRules.js lightPalette), so these rules are written outside
+// tint(); they match only html[data-appearance=light], so Dark is untouched. Paper layers (page, panel, raised sheet,
+// sunk well), soft warm shadows instead of black ones, hairline rules in the theme's colour, deep fills with cream
+// lettering for primary actions, and no grain, light shafts or embers (on paper they read as dirt).
+const L='html[data-appearance=light] ';
+const lightCss=`
+${L}{color-scheme:light;}
+html[data-appearance=light],html[data-appearance=light] body{background:rgb(var(--ql-page));}
+${L}::selection{background:rgb(var(--ql-accent) / .22);color:rgb(var(--ql-ink));}
+${L}*{scrollbar-color:rgb(var(--ql-main) / .35) transparent;}
+${L}*::-webkit-scrollbar-thumb{background:rgb(var(--ql-main) / .3);border:2px solid rgb(var(--ql-panel));}
+${L}:focus-visible{outline-color:rgb(var(--ql-accent)) !important;}
+${L}textarea:focus,${L}input:focus{box-shadow:0 0 0 3px rgb(var(--ql-accent) / .18);}
+${L}[role=button]:not([data-qb]):not([aria-disabled=true]):hover,${L}[role=tab]:not([data-qb]):hover{filter:brightness(.97);}
+/* The scene: the painting is a faint watermark under a wash of paper; no grain, shafts, embers or heavy vignette. */
+${L}[data-qb=grain],${L}[data-qb=rays],${L}[data-qb=embers]{display:none !important;}
+${L}[data-qb=fog]{opacity:.35;}
+${L}[data-qb=backdrop]{opacity:.6;}
+${L}[data-qb=atmosphere]{background:radial-gradient(ellipse 80% 55% at 50% -8%,rgb(var(--ql-accent) / .06),transparent 60%),linear-gradient(180deg,rgb(var(--ql-page) / .84) 0%,rgb(var(--ql-page) / .92) 45%,rgb(var(--ql-page) / .97) 100%) !important;}
+${L}[data-qb=atmosphere-game]{background:radial-gradient(ellipse 90% 60% at 50% -10%,rgb(var(--ql-main) / .05),transparent 60%),linear-gradient(180deg,rgb(var(--ql-page) / .86) 0%,rgb(var(--ql-page) / .93) 60%,rgb(var(--ql-page) / .97) 100%) !important;}
+${L}[data-qb=atmosphere-home]{background:linear-gradient(90deg,rgb(var(--ql-page) / .97) 0%,rgb(var(--ql-page) / .9) 30%,rgb(var(--ql-page) / .62) 60%,rgb(var(--ql-page) / .55) 100%),radial-gradient(ellipse 70% 60% at 78% 20%,rgb(var(--ql-coin) / .08),transparent 65%) !important;}
+${L}[data-qb=atmosphere-home-narrow]{background:linear-gradient(180deg,rgb(var(--ql-page) / .8) 0%,rgb(var(--ql-page) / .6) 30%,rgb(var(--ql-page) / .9) 58%,rgb(var(--ql-page) / .98) 100%) !important;}
+${L}[data-qb=vignette],${L}[data-qb=vignette][data-home=on]{box-shadow:inset 0 0 160px 10px rgb(var(--ql-shadow) / .1);}
+${L}[data-qb=launch-glow]{background:radial-gradient(ellipse 60% 45% at 50% 42%,rgb(var(--ql-main) / .07),transparent 70%),radial-gradient(ellipse 120% 80% at 50% 110%,rgb(var(--ql-accent) / .06),transparent 70%),rgb(var(--ql-page)) !important;}
+${L}[data-qb=unveil]{background:rgb(var(--ql-page)) !important;}
+/* Paper: panels and pages are a lighter sheet on the page with a hairline in the theme's colour and a soft shadow. */
+${L}[data-qb=panel],${L}[data-qb=glass]{background:linear-gradient(180deg,rgb(var(--ql-raised)) 0%,rgb(var(--ql-panel)) 100%) !important;
+ box-shadow:0 0 0 1px rgb(var(--ql-main) / .14),inset 0 0 0 4px rgb(var(--ql-raised) / .6),inset 0 0 0 5px rgb(var(--ql-main) / .1),0 1px 2px rgb(var(--ql-shadow) / .08),0 10px 28px rgb(var(--ql-shadow) / .09);}
+${L}[data-qb=glass]{background:linear-gradient(180deg,rgb(var(--ql-raised) / .9),rgb(var(--ql-panel) / .92)) !important;}
+${L}[data-qb=panel]::before,${L}[data-qb=glass]::before,${L}[data-qb=sheet]::before{opacity:.7;}
+${L}[data-qb=panel]::after,${L}[data-qb=glass]::after{background:linear-gradient(135deg,rgb(var(--ql-accentSoft)),rgb(var(--ql-accent)));box-shadow:0 1px 3px rgb(var(--ql-shadow) / .18);}
+${L}[data-qb=sheet]{background:linear-gradient(180deg,rgb(var(--ql-raised)) 0%,rgb(var(--ql-panel)) 100%) !important;
+ box-shadow:0 0 0 1px rgb(var(--ql-main) / .16),inset 0 0 0 4px rgb(var(--ql-raised) / .6),inset 0 0 0 5px rgb(var(--ql-main) / .1),0 2px 6px rgb(var(--ql-shadow) / .08),0 24px 60px rgb(var(--ql-shadow) / .16);}
+${L}[data-qb=plate]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-panel))) !important;box-shadow:0 0 0 1px rgb(var(--ql-line) / .7),0 1px 2px rgb(var(--ql-shadow) / .06),0 6px 16px rgb(var(--ql-shadow) / .07);}
+${L}[data-qb=plate-hot]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-blush))) !important;box-shadow:0 0 0 1px rgb(var(--ql-blood) / .28),0 1px 2px rgb(var(--ql-shadow) / .06),0 6px 16px rgb(var(--ql-blood) / .08);}
+${L}[data-qb=scrim]{-webkit-backdrop-filter:blur(5px) saturate(.9);backdrop-filter:blur(5px) saturate(.9);}
+${L}[data-qb=slot]{background:linear-gradient(160deg,rgb(var(--ql-raised) / .94),rgb(var(--ql-panel) / .96)) !important;box-shadow:0 0 0 1px rgb(var(--ql-main) / .14),0 2px 6px rgb(var(--ql-shadow) / .08),0 18px 44px rgb(var(--ql-shadow) / .12);}
+${L}[data-qb=slot]:hover{box-shadow:0 0 0 1px rgb(var(--ql-accent) / .3),0 4px 10px rgb(var(--ql-shadow) / .1),0 20px 48px rgb(var(--ql-shadow) / .14);}
+${L}[data-qb=slot-shade]{background:linear-gradient(90deg,rgb(var(--ql-raised) / .97) 0%,rgb(var(--ql-raised) / .86) 55%,rgb(var(--ql-raised) / .55) 100%),linear-gradient(0deg,rgb(var(--ql-raised) / .9),transparent 60%) !important;}
+/* Buttons and chips: raised paper with a hairline; the primary action a deep fill of the theme's colour. */
+${L}[data-qb=btn]{background:linear-gradient(180deg,rgb(var(--ql-raised)) 0%,rgb(var(--ql-panel)) 100%) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),0 1px 2px rgb(var(--ql-shadow) / .1),0 3px 8px rgb(var(--ql-shadow) / .06);}
+${L}[data-qb=btn]:hover{box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),0 0 0 1px rgb(var(--ql-accent) / .18),0 4px 12px rgb(var(--ql-shadow) / .12);}
+${L}[data-qb=btn-primary]{background:linear-gradient(180deg,rgb(var(--ql-fillTop)) 0%,rgb(var(--ql-fill)) 55%,rgb(var(--ql-fillEdge)) 100%) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .28),0 1px 2px rgb(var(--ql-shadow) / .16),0 6px 16px rgb(var(--ql-main) / .2);}
+${L}[data-qb=btn-primary]:hover{filter:brightness(1.06);box-shadow:inset 0 1px 0 rgb(255 255 255 / .32),0 2px 4px rgb(var(--ql-shadow) / .16),0 8px 22px rgb(var(--ql-main) / .26);}
+${L}[data-qb=btn-primary]::after{background:linear-gradient(100deg,transparent,rgb(255 255 255 / .18),transparent);}
+${L}[data-qb=btn-primary][data-pulse=on]{box-shadow:inset 0 1px 0 rgb(255 255 255 / .28),0 0 0 1px rgb(var(--ql-fillEdge) / .5),0 4px 18px rgb(var(--ql-accent) / .3);}
+${L}[data-qb=btn-primary][data-pulse=on]::before{box-shadow:inset 0 0 14px rgb(255 255 255 / .35);}
+${L}[data-qb=btn-danger]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-blush))) !important;box-shadow:inset 0 0 0 1px rgb(var(--ql-blood) / .45),0 2px 6px rgb(var(--ql-blood) / .1);}
+${L}[data-qb=chip]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-panel))) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),0 1px 2px rgb(var(--ql-shadow) / .1),0 2px 6px rgb(var(--ql-shadow) / .05);}
+${L}[data-qb=chip]:hover{box-shadow:0 0 0 1px rgb(var(--ql-accent) / .2),0 3px 10px rgb(var(--ql-shadow) / .12);}
+${L}[data-qb=chip-hot]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-blush))) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),0 1px 2px rgb(var(--ql-shadow) / .1),0 0 0 1px rgb(var(--ql-blood) / .2);}
+${L}[data-qb=chip-hot]:hover{box-shadow:0 0 0 1px rgb(var(--ql-blood) / .35),0 3px 10px rgb(var(--ql-blood) / .14);}
+${L}[data-qb=hud-btn]{background:radial-gradient(circle at 50% 30%,rgb(var(--ql-raised)),rgb(var(--ql-panel)) 75%) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .8),0 1px 2px rgb(var(--ql-shadow) / .12),0 3px 8px rgb(var(--ql-shadow) / .07);}
+${L}[data-qb=hud-btn]:hover{box-shadow:0 0 0 1px rgb(var(--ql-accent) / .2),0 3px 10px rgb(var(--ql-shadow) / .14);color:rgb(var(--ql-accentDeep));}
+${L}[data-qb=hud-btn-hot]{background:radial-gradient(circle at 50% 30%,rgb(var(--ql-raised)),rgb(var(--ql-blush)) 75%) !important;box-shadow:0 0 0 1px rgb(var(--ql-blood) / .35),0 2px 6px rgb(var(--ql-blood) / .14);}
+${L}[data-qb=hud-btn-hot]::before{box-shadow:0 0 14px rgb(var(--ql-blood) / .3);}
+${L}[data-qb=key]{box-shadow:inset 0 -1px 0 rgb(var(--ql-shadow) / .18);}
+/* The title menu sits on paper, so its words need no dark halo; the hovered word takes the theme's colour. */
+${L}[data-qb=menu-label]{text-shadow:none;}
+${L}[data-qb=menu-item]:hover [data-qb=menu-label],${L}[data-qb=menu-item]:focus-visible [data-qb=menu-label]{color:rgb(var(--ql-main)) !important;text-shadow:none;}
+${L}[data-qb=menu-item]::before{background:linear-gradient(135deg,rgb(var(--ql-accentSoft)),rgb(var(--ql-accent)));box-shadow:none;}
+${L}[data-qb=menu-item]::after{background:linear-gradient(90deg,rgb(var(--ql-main) / .7),transparent);}
+${L}[data-qb=menu-item][data-center=on]::after{background:linear-gradient(90deg,transparent,rgb(var(--ql-main) / .7),transparent);}
+${L}[data-qb=menu-icon]{color:rgb(var(--ql-main));}
+${L}[data-qb=menu-icon][data-primary=on],${L}[data-qb=menu-item]:hover [data-qb=menu-icon],${L}[data-qb=menu-item]:focus-visible [data-qb=menu-icon]{color:rgb(var(--ql-accent)) !important;filter:none;}
+/* Lettering: the name in a deep ink of the theme's colour with a pressed edge, no glow. */
+${L}[data-qb=title]{background:linear-gradient(180deg,rgb(var(--ql-fillTop)) 0%,rgb(var(--ql-fill)) 45%,rgb(var(--ql-fillEdge)) 70%,rgb(var(--ql-fill)) 100%);-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 1px 0 rgb(255 255 255 / .85)) drop-shadow(0 3px 8px rgb(var(--ql-main) / .12));}
+${L}[data-qb=title][data-sheen=on]{background:linear-gradient(100deg,rgb(var(--ql-fillEdge)) 0%,rgb(var(--ql-fill)) 30%,rgb(var(--ql-fillTop)) 45%,rgb(var(--ql-fill)) 60%,rgb(var(--ql-fillEdge)) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;}
+${L}[data-qb=gold],${L}[data-qb=logo]{filter:none !important;text-shadow:none !important;}
+/* Crests, portraits and badges: medallions set in paper with a ring of the theme's colour. */
+${L}[data-qb=crest]{background:radial-gradient(circle at 50% 35%,rgb(var(--ql-raised)) 0%,rgb(var(--ql-panel)) 60%,rgb(var(--ql-well)) 100%) !important;box-shadow:0 0 0 1px rgb(var(--ql-shadow) / .12),0 0 0 3px rgb(var(--ql-raised)),0 0 0 4px rgb(var(--ql-main) / .55),inset 0 1px 2px rgb(255 255 255 / .8),inset 0 -4px 8px rgb(var(--ql-shadow) / .06),0 4px 12px rgb(var(--ql-shadow) / .12);}
+${L}[data-qb=crest] svg{filter:none;}
+/* The small emblem in the top bar sits on the same dark medallion as the large one. */
+${L}[data-qb=emblem-mark]{background:url(/emblem/seal-v1.webp) center/contain no-repeat,radial-gradient(circle closest-side,rgb(22,3,16) 0,rgb(30,6,22) 90%,rgb(170,50,84) 92%,rgb(120,28,56) 95%,rgba(60,30,30,0) 98%);}
+${L}[data-qb=badge]{background:linear-gradient(180deg,rgb(var(--ql-fillTop)),rgb(var(--ql-fillEdge))) !important;box-shadow:0 0 0 1.5px rgb(var(--ql-raised)),0 1px 3px rgb(var(--ql-shadow) / .25);}
+${L}[data-qb=portrait]{box-shadow:0 0 0 1px rgb(var(--ql-shadow) / .14),0 0 0 3px rgb(var(--ql-raised)),0 0 0 4px rgb(var(--ql-main) / .45),0 8px 22px rgb(var(--ql-shadow) / .14);}
+${L}[data-qb=portrait-hot]{box-shadow:0 0 0 1px rgb(var(--ql-shadow) / .14),0 0 0 3px rgb(var(--ql-raised)),0 0 0 4px rgb(var(--ql-blood) / .55),0 8px 22px rgb(var(--ql-blood) / .14);}
+${L}[data-qb=avatar]{box-shadow:0 0 0 2px rgb(var(--ql-main) / .4),0 2px 6px rgb(var(--ql-shadow) / .12);}
+${L}[data-qb=plate-shade]{background:linear-gradient(180deg,rgb(var(--ql-raised) / 0) 35%,rgb(var(--ql-raised) / .7) 62%,rgb(var(--ql-raised) / .96) 100%) !important;}
+${L}[data-qb=foe-shade]{background:linear-gradient(180deg,rgb(var(--ql-raised) / 0) 35%,rgb(var(--ql-raised) / .7) 60%,rgb(var(--ql-raised) / .97) 100%) !important;}
+${L}[data-qb=art-wait]{background:rgb(var(--ql-well)) !important;}
+${L}[data-qb=art-wait]::after{background:linear-gradient(100deg,transparent 30%,rgb(255 255 255 / .5) 50%,transparent 70%);}
+/* Choice cards and tabs. */
+${L}[data-qb=card]{background:linear-gradient(160deg,rgb(var(--ql-raised)),rgb(var(--ql-panel))) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),0 1px 2px rgb(var(--ql-shadow) / .08),0 6px 18px rgb(var(--ql-shadow) / .07);}
+${L}[data-qb=card]:hover{box-shadow:0 0 0 1px rgb(var(--ql-accent) / .2),0 10px 24px rgb(var(--ql-shadow) / .12);}
+${L}[data-qb=card][data-selected=true]{background:linear-gradient(160deg,rgb(var(--ql-raised)),rgb(var(--ql-accentSoft))) !important;box-shadow:0 0 0 1px rgb(var(--ql-accent) / .45),0 6px 18px rgb(var(--ql-accent) / .14);}
+${L}[data-qb=card][data-tone=hot]{background:linear-gradient(160deg,rgb(var(--ql-raised)),rgb(var(--ql-blush))) !important;}
+${L}[data-qb=card][data-tone=hot]:hover{box-shadow:0 0 0 1px rgb(var(--ql-blood) / .3),0 10px 24px rgb(var(--ql-blood) / .1);}
+${L}[data-qb=card][data-tone=hot][data-selected=true]{background:linear-gradient(160deg,rgb(var(--ql-raised)),rgb(var(--ql-blush))) !important;box-shadow:0 0 0 1px rgb(var(--ql-blood) / .45),0 6px 18px rgb(var(--ql-blood) / .14);}
+${L}[data-qb=seg]{background:rgb(var(--ql-well) / .8) !important;box-shadow:inset 0 1px 2px rgb(var(--ql-shadow) / .1);}
+${L}[data-qb=seg-on]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-accentSoft))) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .8),0 0 0 1px rgb(var(--ql-accent) / .35),0 1px 3px rgb(var(--ql-shadow) / .1);}
+/* Bars, rules and fields. */
+${L}[data-qb=bar]{box-shadow:inset 0 1px 2px rgb(var(--ql-shadow) / .18);}
+${L}[data-qb=bar-hp]{background:linear-gradient(180deg,#6cbf86,#3f8f5a 55%,#2d6e44) !important;box-shadow:none;}
+${L}[data-qb=bar-enemy],${L}[data-qb=bar-low]{background:linear-gradient(180deg,#e07a62,#c0452f 55%,#93301f) !important;box-shadow:none;}
+${L}[data-qb=bar-low]::before{background:rgb(255 255 255 / .25);box-shadow:none;}
+${L}[data-qb=bar-temp]{background:linear-gradient(180deg,#7fd3c6,#3c9a8d) !important;}
+${L}[data-qb=bar-gold]{background:linear-gradient(180deg,rgb(var(--ql-fillTop)),rgb(var(--ql-fillEdge))) !important;box-shadow:none;}
+${L}[data-qb=bar-ghost]{background:rgb(var(--ql-main) / .22) !important;}
+${L}[data-qb=rule-left]{background:linear-gradient(90deg,transparent,rgb(var(--ql-main) / .45)) !important;}
+${L}[data-qb=rule-right]{background:linear-gradient(90deg,rgb(var(--ql-main) / .45),transparent) !important;}
+${L}[data-qb=input]{background-color:rgb(var(--ql-raised)) !important;box-shadow:inset 0 1px 3px rgb(var(--ql-shadow) / .1);}
+${L}[data-qb=input]:focus{box-shadow:inset 0 1px 3px rgb(var(--ql-shadow) / .1),0 0 0 3px rgb(var(--ql-accent) / .16);}
+/* The story feed: each kind of line a faint wash of its own colour on the paper. */
+${L}[data-qb=feed-player]{background:linear-gradient(270deg,rgb(var(--ql-accent) / .12),rgb(var(--ql-accent) / .04)) !important;}
+${L}[data-qb=feed-roll]{background:linear-gradient(90deg,rgb(var(--ql-main) / .07),rgb(var(--ql-raised) / .4)) !important;}
+${L}[data-qb=feed-effect]{background:linear-gradient(90deg,rgb(var(--ql-arcane) / .08),rgb(var(--ql-raised) / .4)) !important;}
+${L}[data-qb=feed-dialogue]{background:linear-gradient(90deg,rgb(var(--ql-main) / .05),rgb(var(--ql-raised) / .4)) !important;}
+${L}[data-qb=feed-hurt]{background:linear-gradient(90deg,rgb(var(--ql-blood) / .09),rgb(var(--ql-raised) / .4)) !important;}
+${L}[data-qb=feed-crit]{background:linear-gradient(90deg,rgb(var(--ql-accent) / .12),rgb(var(--ql-raised) / .4)) !important;box-shadow:0 0 0 1px rgb(var(--ql-accent) / .18);}
+/* Dice: paper dice with ink numbers (the big die ringed in the theme's colour); a natural 20 in the feed is a deep
+   accent die with cream lettering, a natural 1 a blush one. */
+${L}[data-qb=die-face]{background:radial-gradient(circle at 35% 28%,rgb(var(--ql-raised)),rgb(var(--ql-panel)) 60%,rgb(var(--ql-well))) !important;box-shadow:inset 0 1px 0 rgb(255 255 255 / .9),inset 0 -2px 4px rgb(var(--ql-shadow) / .1),0 0 0 1px rgb(var(--ql-line)),0 2px 5px rgb(var(--ql-shadow) / .14);}
+${L}[data-qb=die-face][data-nat=max]{background:radial-gradient(circle at 35% 28%,rgb(var(--ql-accent)),rgb(var(--ql-accentDeep)) 70%) !important;box-shadow:0 0 0 1px rgb(var(--ql-accentDeep)),0 3px 10px rgb(var(--ql-accent) / .35);}
+${L}[data-qb=die-face][data-nat=one]{background:radial-gradient(circle at 35% 28%,rgb(var(--ql-raised)),rgb(var(--ql-blush)) 70%) !important;box-shadow:0 0 0 1px rgb(var(--ql-blood) / .55),0 2px 6px rgb(var(--ql-blood) / .18);}
+${L}[data-qb=die]{background:radial-gradient(circle at 35% 30%,rgb(var(--ql-raised)),rgb(var(--ql-panel)) 55%,rgb(var(--ql-well))) !important;box-shadow:inset 0 2px 0 rgb(255 255 255 / .9),inset 0 -6px 14px rgb(var(--ql-shadow) / .1),0 0 0 2px rgb(var(--ql-main) / .5),0 12px 28px rgb(var(--ql-shadow) / .18) !important;}
+${L}[data-qb=tray]{background:radial-gradient(ellipse at 50% 40%,rgb(var(--ql-accentSoft) / .7),rgb(var(--ql-well) / .9) 70%) !important;box-shadow:inset 0 2px 12px rgb(var(--ql-shadow) / .12),inset 0 0 0 1px rgb(var(--ql-main) / .18);}
+/* Banners and moments. */
+${L}[data-qb=banner]{background:linear-gradient(90deg,transparent,rgb(var(--ql-blood) / .12) 20%,rgb(var(--ql-blood) / .12) 80%,transparent) !important;}
+${L}[data-qb=cine-band]{background:linear-gradient(90deg,transparent,rgb(var(--ql-raised) / .95) 16%,rgb(var(--ql-raised) / .95) 84%,transparent) !important;}
+${L}[data-qb=cine-band][data-tone=gold]{background:linear-gradient(90deg,transparent,rgb(var(--ql-raised) / .95) 18%,rgb(var(--ql-raised) / .95) 82%,transparent) !important;}
+${L}[data-qb=area]{background:radial-gradient(ellipse 80% 46% at 50% 50%,rgb(var(--ql-raised) / .96),rgb(var(--ql-raised) / .86) 45%,rgb(var(--ql-page) / .6) 80%,rgb(var(--ql-page) / .4)) !important;}
+${L}[data-qb=finale-burst]{background:radial-gradient(circle at 50% 50%,rgb(var(--ql-accent) / .16),rgb(var(--ql-accent) / .05) 35%,transparent 65%) !important;}
+${L}[data-qb=finale-burst][data-tone=dark]{background:radial-gradient(circle at 50% 50%,rgb(var(--ql-blood) / .14),transparent 65%) !important;}
+${L}[data-qb=flash-hurt]{background:radial-gradient(ellipse at 50% 50%,transparent 45%,rgb(var(--ql-blood) / .3) 100%) !important;}
+${L}[data-qb=rays-spin]{background:repeating-conic-gradient(from 0deg,rgb(var(--ql-accent) / .08) 0deg 4deg,transparent 4deg 18deg) !important;}
+${L}[data-qb=shimmer]{background:rgb(var(--ql-main) / .18) !important;}
+${L}[data-qb=shimmer]::after{background:linear-gradient(90deg,transparent 0%,rgb(255 255 255 / .8) 50%,transparent 100%);}
+/* The game's frame: the bar at the top and the phone's tab bar are paper with a hairline of the theme's colour. */
+${L}[data-qb=hud],${L}[data-qb=tabbar]{box-shadow:0 2px 10px rgb(var(--ql-shadow) / .08);}
+${L}[data-qb=hud]{background:linear-gradient(180deg,rgb(var(--ql-raised) / .97),rgb(var(--ql-panel) / .95)) !important;}
+${L}[data-qb=hud]::after{background:linear-gradient(90deg,transparent,rgb(var(--ql-main) / .4) 20%,rgb(var(--ql-main) / .4) 80%,transparent);}
+${L}[data-qb=tabbar]{background:linear-gradient(180deg,rgb(var(--ql-panel) / .97),rgb(var(--ql-raised) / .98)) !important;}
+${L}[data-qb=tabbar]::before{background:linear-gradient(90deg,transparent,rgb(var(--ql-main) / .35) 20%,rgb(var(--ql-main) / .35) 80%,transparent);}
+${L}[data-qb=tab-on]{background:radial-gradient(ellipse 60% 90% at 50% 0%,rgb(var(--ql-main) / .1),transparent 70%) !important;}
+${L}[data-qb=map-frame]{box-shadow:0 0 0 1px rgb(var(--ql-shadow) / .18),0 8px 22px rgb(var(--ql-shadow) / .16);}
+${L}[data-qb=node-here]{box-shadow:0 0 0 4px rgb(var(--ql-main) / .14),0 0 12px rgb(var(--ql-main) / .35);}
+/* The Light atmosphere setting keeps these, still. */
+html[data-appearance=light][data-effects=light] [data-qb=glass]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-panel))) !important;}
+html[data-appearance=light][data-effects=light] [data-qb=hud]{background:linear-gradient(180deg,rgb(var(--ql-raised)),rgb(var(--ql-panel))) !important;}
+html[data-appearance=light][data-effects=light] [data-qb=slot]{background:linear-gradient(160deg,rgb(var(--ql-raised)),rgb(var(--ql-panel))) !important;}
+`;
 export function initializeWebTheme(){
  if(typeof document==='undefined'||document.getElementById('questbound-theme'))return;
  // The typefaces come from this host (public/fonts); the page template requests them, and this is the fallback when it did not.
  if(!document.getElementById('qb-fonts')){const fontsLink=document.createElement('link');fontsLink.id='qb-fonts';fontsLink.rel='stylesheet';fontsLink.href='/fonts/fonts-v2.css';document.head.appendChild(fontsLink);}
- const style=document.createElement('style');style.id='questbound-theme';style.textContent=css;document.head.appendChild(style);
+ const style=document.createElement('style');style.id='questbound-theme';style.textContent=css+lightCss;document.head.appendChild(style);
  document.querySelector('meta[name="theme-color"]')?.setAttribute('content','#0a070b');
  document.title='Questbound';
 }

@@ -45,7 +45,7 @@ export function Crest({icon='star',size=56,level,style,color=colors.goldBright})
 // Round icon buttons for the HUD and top bars. `tip` shows a label on hover with a mouse.
 export function IconButton({icon,label,tip,tipSide,onPress,hot=false,size=40,disabled,style,children,active=false}){
  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:tip??label,tipSide}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
-  <Icon name={icon} size={Math.round(size*.46)} color={hot?'#ffd2c2':active?colors.goldBright:colors.gold}/>{children}
+  <Icon name={icon} size={Math.round(size*.46)} color={hot?tint('#ffd2c2'):active?colors.goldBright:colors.gold}/>{children}
  </Pressable>;
 }
 // Title-screen menu entries: large engraved words with an icon; the primary one is bigger and lit violet.
@@ -136,7 +136,7 @@ const s=StyleSheet.create({
  buttonRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
  buttonNarrow:{paddingHorizontal:12},buttonTextNarrow:{fontSize:13,letterSpacing:1.1,flexShrink:1},
  primary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},
- danger:{backgroundColor:'#5a1d17',borderColor:'#c8412f'},
+ danger:{backgroundColor:tint('#5a1d17'),borderColor:tint('#c8412f')},
  pressed:{transform:[{scale:.985}]},
  disabled:{opacity:.5},
  buttonText:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
@@ -153,7 +153,7 @@ const s=StyleSheet.create({
  levelBadge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
  levelText:{fontFamily:fonts.display,fontWeight:'800',color:tint('#ffeef0')},
  iconButton:{paddingHorizontal:8,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(20,15,21,.85)'),flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},
- iconHot:{borderColor:'rgba(240,106,79,.75)',backgroundColor:'rgba(60,18,14,.85)'},
+ iconHot:{borderColor:tint('rgba(240,106,79,.75)'),backgroundColor:tint('rgba(60,18,14,.85)')},
  menuItem:{paddingVertical:9,alignSelf:'stretch'},menuRow:{flexDirection:'row',alignItems:'center',gap:12},
  menuLabel:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:3,color:tint('#dfd0ca'),textTransform:'uppercase'},
  menuPrimary:{fontSize:27,letterSpacing:3.5,color:colors.goldBright},menuSmall:{fontSize:14,letterSpacing:2.2,color:tint('#c4b5af')},menuTight:{fontSize:13,letterSpacing:1,flexShrink:1},
@@ -167,13 +167,13 @@ const s=StyleSheet.create({
  moreText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  segOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
- track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),overflow:'hidden'},
+ track:{width:'100%',borderRadius:2,backgroundColor:tint('rgba(0,0,0,.55)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),overflow:'hidden'},
  fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:tint('rgba(255,214,224,.4)')},
- floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:'0 2px 6px rgba(0,0,0,.9)'}:{})},
+ floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:tint('0 2px 6px rgba(0,0,0,.9)')}:{})},
  toggleRow:{flexDirection:'row',alignItems:'center',gap:14,minHeight:48,paddingVertical:4},toggleLabel:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.parchment},
  toggleDescription:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,marginTop:2},
  track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(10,7,11,.7)'),justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},
  knob:{width:20,height:20,borderRadius:10,backgroundColor:tint('#a0959d'),...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:tint('#ffeef0'),transform:[{translateX:20}]},
- key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
+ key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(0,0,0,.4)'),alignItems:'center',justifyContent:'center'},
  keyText:{fontFamily:fonts.ui,fontSize:10,fontWeight:'700',color:colors.muted},
 });
