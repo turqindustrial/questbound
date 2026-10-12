@@ -32,7 +32,7 @@ export default function QuickHeroes({onChoose,disabled,replacing=null}){
 }
 const s=StyleSheet.create({
  grid:{flexDirection:'row',flexWrap:'wrap',gap:12,marginBottom:14},
- card:{flexGrow:1,flexBasis:260,padding:16,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('#211822'),gap:10},confirm:{borderColor:colors.gold},
+ card:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:260,padding:16,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('#211822'),gap:10},confirm:{borderColor:colors.gold},
  top:{flexDirection:'row',gap:14,alignItems:'center'},
  role:{...type.label,fontSize:9,marginBottom:2},name:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:19,letterSpacing:.6},
  line:{fontFamily:fonts.ui,color:colors.gold,fontSize:12,marginTop:2},tagline:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#d2c7c3'),fontSize:15.5,lineHeight:21},

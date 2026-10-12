@@ -2,6 +2,7 @@
   "name": "Questbound",
   "short_name": "Questbound",
   "description": "A tabletop adventure companion with an AI Dungeon Master.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
