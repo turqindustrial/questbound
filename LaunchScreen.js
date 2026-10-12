@@ -36,7 +36,7 @@ export default function LaunchScreen({ready,onBegin}){
  // Everything scales with the smaller side so the whole card fits any window, including a phone on its side.
  const short=height<520,ring=Math.round(size*(short?.27:.34)),logo=Math.max(28,Math.min(84,Math.floor((width-48)/9),Math.floor(height/(short?8:7))));
  return <Animated.View style={[StyleSheet.absoluteFill,s.root,{opacity:exit}]}>
-  <Pressable accessibilityRole="button" accessibilityLabel="Tap to begin Questbound" onPress={begin} style={[s.fill,short&&{gap:8,padding:12}]}>
+  <Pressable accessibilityRole="button" accessibilityLabel="Tap to begin Questbound" onPress={begin} dataSet={{safe:'pad'}} style={[s.fill,short&&{gap:8,padding:12}]}>
    <View dataSet={{qb:'launch-glow'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
    <View dataSet={{qb:'rays'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>
    <View dataSet={{qb:'embers'}} style={[StyleSheet.absoluteFill,s.passThrough]}/>

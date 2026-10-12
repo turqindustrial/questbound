@@ -1,7 +1,7 @@
 import React,{useState,useEffect,useRef} from 'react';
 import {View,Text,Pressable,Modal,ScrollView,StyleSheet,useWindowDimensions} from 'react-native';
 import {CombatHealthButton} from './EncounterOverlay';
-import {FullscreenToggle} from './DisplayControls';
+import {FullscreenToggle,HomeScreenHelp} from './DisplayControls';
 import {AudioToggle} from './AudioControls';
 import {GameButton,StatBar,IconButton,Crest,useCountTo,HpFloaters,useHitReaction} from './ui';
 import Icon from './Icon';
@@ -67,7 +67,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
  </View>;
 }
 function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp,xp}){
- const [display,setDisplay]=useState(displayState),[audio,setAudioState]=useState(audioSettings);
+ const [display,setDisplay]=useState(displayState),[audio,setAudioState]=useState(audioSettings),[iphoneHelp,setIphoneHelp]=useState(false);
  useEffect(()=>subscribeDisplay(setDisplay),[]);useEffect(()=>subscribeAudio(setAudioState),[]);
  // A phone gets tighter cells and a name sized to fit; on a short screen (a phone on its side) the sheet scrolls.
  const {width,height}=useWindowDimensions(),narrow=width<430,short=height<520;
@@ -85,12 +85,14 @@ function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp,xp}){
    {cell('party','Party',()=>go('Followers'))}
    {cell('settings','Settings',()=>go('Settings'))}
    {display.supported&&cell(display.fullscreen?'shrink':'expand',display.fullscreen?'Exit full screen':'Full screen',toggleFullscreen)}
+   {/* An iPhone cannot hide its browser for a page: the cell says how to play full screen from the Home Screen. */}
+   {!display.supported&&display.ios&&!display.installed&&cell('expand','Full screen',()=>setIphoneHelp(true))}
    {cell(audio.muted?'sound':'mute',audio.muted?'Sound on':'Mute',()=>setAudio({muted:!audio.muted}))}
    {cell('feedback','Feedback',onFeedback)}
    {cell('home','Main menu',()=>go('Home'))}
   </View>
   <Text style={s.menuNote}>Your adventure is saved on this device after every turn.</Text>
- </ScrollView></Pressable></Pressable></Modal>;
+ </ScrollView></Pressable></Pressable><HomeScreenHelp visible={iphoneHelp} onClose={()=>setIphoneHelp(false)}/></Modal>;
 }
 const s=StyleSheet.create({
  bar:{position:'relative',zIndex:5,flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:16,paddingVertical:8,backgroundColor:tint('rgba(14,10,14,.9)')},

@@ -43,8 +43,8 @@ export default function CinematicLayer({levelReady=false}){
     <View dataSet={{qb:'cine-rule'}} style={s.bandRule}/>
    </View>
   </View>}
-  {!!deed&&<View key={'deed'+deed.id} dataSet={{qb:'enter'}} style={[s.none,s.deedWrap]} accessibilityLiveRegion="polite"><View dataSet={{qb:'plate'}} style={s.deed}><View style={s.deedIcon}><Icon name={deed.deed.icon??'star'} size={18} color={colors.goldBright}/></View><View style={{flexShrink:1}}><Text style={s.deedOver}>Deed earned</Text><Text style={s.deedTitle}>{deed.deed.title}</Text><Text style={s.deedLine}>{deed.deed.line}</Text></View></View></View>}
-  {!!gain&&<View key={'xp'+gain.id} dataSet={{qb:'enter'}} style={[s.none,s.deedWrap,{top:deed?172:76}]} accessibilityLiveRegion="polite"><View dataSet={{qb:'plate'}} style={s.xpCard}><Icon name="star" size={14} color={colors.goldBright}/><Text style={s.deedOver}>Experience</Text><Text numberOfLines={1} style={s.xpText}>+{Number(gain.amount).toLocaleString('en-US')}{gain.label?' · '+gain.label:''}</Text></View></View>}
+  {!!deed&&<View key={'deed'+deed.id} dataSet={{qb:'enter',safe:'top'}} style={[s.none,s.deedWrap]} accessibilityLiveRegion="polite"><View dataSet={{qb:'plate'}} style={s.deed}><View style={s.deedIcon}><Icon name={deed.deed.icon??'star'} size={18} color={colors.goldBright}/></View><View style={{flexShrink:1}}><Text style={s.deedOver}>Deed earned</Text><Text style={s.deedTitle}>{deed.deed.title}</Text><Text style={s.deedLine}>{deed.deed.line}</Text></View></View></View>}
+  {!!gain&&<View key={'xp'+gain.id} dataSet={{qb:'enter',safe:'top'}} style={[s.none,s.deedWrap,{top:deed?172:76}]} accessibilityLiveRegion="polite"><View dataSet={{qb:'plate'}} style={s.xpCard}><Icon name="star" size={14} color={colors.goldBright}/><Text style={s.deedOver}>Experience</Text><Text numberOfLines={1} style={s.xpText}>+{Number(gain.amount).toLocaleString('en-US')}{gain.label?' · '+gain.label:''}</Text></View></View>}
   {!!area&&<View key={area.id} dataSet={{qb:'area'}} style={[StyleSheet.absoluteFill,s.none,s.center]} accessibilityLiveRegion="polite">
    <View style={s.area}>
     <Text style={s.areaOver}>{area.over}</Text>

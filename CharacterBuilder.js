@@ -182,11 +182,11 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
 const s = StyleSheet.create({
   stepRow:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:10,marginBottom:10,flexWrap:'wrap'},
   progress:{...type.label},nextHint:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
-  progressTrack:{flexDirection:'row',gap:5,marginBottom:24},progressHit:{flex:1,paddingVertical:6},progressSegment:{height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.18)')},
+  progressTrack:{flexDirection:'row',gap:5,marginTop:-6,marginBottom:18},progressHit:{flex:1,paddingVertical:12},progressSegment:{height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.18)')},
   progressNow:{backgroundColor:tint('rgba(224,74,92,.55)'),height:6,marginTop:-1,borderWidth:1,borderColor:tint('rgba(240,110,128,.8)')},
   heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:30,fontWeight:'700',letterSpacing:1,marginBottom:12},intro:{fontFamily:fonts.story,color:tint('#dacec9'),fontSize:18,lineHeight:28,marginBottom:20},
   label:{fontFamily:fonts.display,color:colors.gold,fontSize:14,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:20,marginBottom:10},cards:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},
-  option:{flexGrow:1,flexBasis:300,padding:16,backgroundColor:tint('rgba(32,24,33,.92)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),borderRadius:6},selected:{borderColor:colors.gold,backgroundColor:tint('rgba(48,26,78,.92)')},
+  option:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:300,padding:16,backgroundColor:tint('rgba(32,24,33,.92)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),borderRadius:6},selected:{borderColor:colors.gold,backgroundColor:tint('rgba(48,26,78,.92)')},
   cardTitle:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:10},optionTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:19,fontWeight:'700',letterSpacing:.6},selectedText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'800',letterSpacing:1.4},
   check:{width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
   text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:15,lineHeight:24},detail:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginTop:6},note:{fontFamily:fonts.ui,color:tint('#c9aab2'),fontSize:14,lineHeight:23,marginVertical:12},

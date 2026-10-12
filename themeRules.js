@@ -108,6 +108,9 @@ export function themeSwatches(themeId){
 // amber, so the painting is first taken to its light and shade (grayscale), toned like old metal (sepia), and that tone
 // is deepened and warmed (saturate, a small hue turn) and given its shine (brightness, contrast): pale yellow-gold in
 // the highlights, deep bronze in the shadows.
+// The page's own background (the ink every screen is drawn on) in a theme and mode: the phone's browser bars take it
+// (<meta name=theme-color>, theme.js), so no light bar sits above or below the game.
+export const pageBackground=(themeId,mode='dark')=>themedText('#08060a',themeId,mode);
 export const emblemFilter=themeId=>themeChoices.find(choice=>choice.id===validTheme(themeId))?.emblem??'none';
 // What a CSS filter made of grayscale, sepia, saturate, hue-rotate, brightness and contrast (in the order written, as
 // the browser applies them) makes of a colour.
