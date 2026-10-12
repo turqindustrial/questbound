@@ -16,7 +16,9 @@ export const personToughness={frail:{maximumHP:4,ac:10},common:{maximumHP:9,ac:1
 export const isPersonId=id=>/^n(?:[1-9]|[1-8]\d|9[0-6])$/.test(String(id));
 // The first free id for someone new.
 export function freePersonId(people){for(let n=1;n<=maxPeople;n++)if(!Object.hasOwn(people??{},'n'+n))return 'n'+n;return null;}
-export const npcIdsOf=game=>[...coreNpcIds,...Object.keys(game?.people??{}).filter(isPersonId)];
+// Everyone's id (asked very often: the ids of a crowd are kept for as long as game.people is the same object).
+const peopleIds=new WeakMap();
+export const npcIdsOf=game=>{const people=game?.people;if(!people||typeof people!=='object')return [...coreNpcIds];let ids=peopleIds.get(people);if(!ids){ids=Object.keys(people).filter(isPersonId);peopleIds.set(people,ids);}return [...coreNpcIds,...ids];};
 // ---------- Trained people ----------
 // Most people are ordinary folk with no adventuring class. A few are truly trained (a veteran sellsword, a temple
 // priest, a hedge witch who works real magic), and everyone who travels with the hero as a companion fights as one:

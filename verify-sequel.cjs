@@ -5,7 +5,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // their adventures; the fallen go to the graveyard.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','rosterRules.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute,worldPlaces,mapRegions,oldPlaceLimit})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=(g,h=null)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
@@ -78,4 +78,15 @@ const buried=r.setAside(lists.roster,lists.graves,pip,dead,{current:0,temp:0},tr
 assert.equal(buried.graves.length,1);assert.ok(r.validGrave(buried.graves[0]));assert.equal(buried.graves[0].cause,'Killed by the Grey Widow');assert.equal(buried.roster.length,1,'The dead are not playable');
 const full=Array.from({length:r.maxRoster},(_,i)=>({...lists.roster[0],id:'x'+i,character:JSON.stringify({...kara,name:'Hero '+i})}));
 assert.match(r.setAside(full,[],pip,r.newAdventure(pip),null,false).error,/already has 8 heroes/);
+// ---- Lands travelled are never forgotten (2026-10-12): places the hero went to come along however far down the list
+// they are (past the twenty places only heard of that come too), as lands of their own, with the roads back ----
+{let w=g;for(let i=0;i<30;i++)w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Heard-of Cairn '+i,description:'A cairn someone spoke of, never visited.',kind:'ruin',bearing:'S',miles:1+i/10},travel:false},()=>0.5).game;
+ w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Saltglass Harbour',description:'A harbour of green glass towers across the strait.',kind:'settlement',bearing:'E',miles:120,region:{name:'The Glass Coast',terrain:'coast'}},travel:true},()=>0.9).game;
+ w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Glass Market',description:'A market of glassblowers above the harbour.',kind:'settlement',bearing:'N',miles:2},travel:true},()=>0.9).game;
+ w=r.adventureStep(w,hp,kara,{type:'travel',destination:'inn'},()=>0.5).game;assert.ok(valid(w));
+ const joined=r.joinRegion(r.freshStoryGame(kara,{...story2,id:'s3'},r.newAdventure(kara,r.carriedBase(w))),w,{sameRegion:true,bearing:'N',miles:5}),names=r.worldPlaces(joined).map(p=>p.name);
+ assert.ok(names.includes('Saltglass Harbour')&&names.includes('Glass Market'),'places visited in a far land come along');
+ {const heard=names.filter(n=>n.startsWith('Heard-of Cairn')).length;assert.ok(heard<=r.oldPlaceLimit&&heard>=r.oldPlaceLimit-2,'and up to twenty places only heard of: '+heard);}
+ assert.ok(r.mapRegions(joined).some(x=>x.name==='The Glass Coast'),'as a land of its own');
+ assert.ok(r.travelRoute(joined,'inn',r.worldPlaces(joined).find(p=>p.name==='Glass Market').id),'with the road back');assert.ok(valid(joined));}
 console.log('Passed: the next chapter keeps the region (old places joined a few miles off, people with homes, ties, memories, fates and companions, the pack and the history), somewhere new keeps only companions and the pack, names are told apart, and heroes are set aside in the roster or remembered in the graveyard.');

@@ -21,7 +21,14 @@ export const lairTemplates=['bandit','wolf','goblin','skeleton','boar','spider',
 const lairSketch=f=>!!f&&lairTemplates.includes(f.template)&&typeof f.name==='string'&&f.name.trim().length>0&&f.name.length<=60&&typeof f.appearance==='string'&&f.appearance.trim().length>0&&f.appearance.length<=400;
 const FEET_PER_MILE=5280;
 export const worldPlaces=game=>game.world?.places??[];
-export function worldPlace(game,id){return worldPlaces(game).find(p=>p.id===id)??null;}
+// Looked up by id through an index kept for as long as the list of places is the same (a map of many lands asks often).
+const placeIndexes=new WeakMap();
+export function worldPlace(game,id){
+ const places=worldPlaces(game);if(places.length<12)return places.find(p=>p.id===id)??null;
+ let index=placeIndexes.get(places);
+ if(!index||index.count!==places.length){index={count:places.length,byId:new Map(places.map(p=>[p.id,p]))};placeIndexes.set(places,index);}
+ return index.byId.get(id)??null;
+}
 // Every known place id: the three starting places (in a story), then discovered ones.
 export function knownPlaceIds(game){return [...(game.story?coreIds:[]),...worldPlaces(game).map(p=>p.id)];}
 
@@ -294,7 +301,15 @@ function taleSpeaksOf(game){
 // Everything else stays: every place visited, every land it lies in, and the roads between them.
 // Returns {places,regions} to let go so that `lands` more lands and `places` more places fit (both empty when there is
 // room already), or null when nothing may give way to make that room.
+const roomMemo=new WeakMap(),roomInputs=['world','map','followers','people','spoils','story','wildFight','stage','dungeon','party'];
 export function roomToMake(game,{lands=0,places=0}={}){
+ // The same question about the same game (the eight ways beyond, asked together) is answered once.
+ if(!game||typeof game!=='object')return roomNeeded(game,lands,places);
+ let memo=roomMemo.get(game);if(!memo||roomInputs.some(k=>memo.inputs[k]!==game[k])){memo={inputs:Object.fromEntries(roomInputs.map(k=>[k,game[k]])),answers:new Map()};roomMemo.set(game,memo);}
+ const key=lands+':'+places;if(!memo.answers.has(key))memo.answers.set(key,roomNeeded(game,lands,places));
+ const plan=memo.answers.get(key);return plan&&{places:[...plan.places],regions:[...plan.regions]};
+}
+function roomNeeded(game,lands,places){
  const regions=game?.world?.regions??[],all=worldPlaces(game);
  let landsOver=regions.length+lands-(maxRegions-1),placesOver=all.length+places-maxWorldPlaces;
  if(landsOver<=0&&placesOver<=0)return {places:[],regions:[]};
