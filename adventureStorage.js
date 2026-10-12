@@ -110,6 +110,13 @@ export function saveAdventure(value,hero) {
   adventureWrites=write;
   return write;
 }
+// The adventure of a hero laid to rest goes too, after any save still on its way.
+export function forgetAdventure() {
+  const store=AsyncStorage.scope?.()??AsyncStorage;
+  const done=adventureWrites.catch(()=>{}).then(()=>store.removeItem(ADVENTURE_KEY));
+  adventureWrites=done;
+  return done;
+}
 
 function validSpellState(g) {
   const text=(v,max)=>typeof v==='string' && v.length>0 && v.length<=max;
