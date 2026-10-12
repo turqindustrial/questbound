@@ -8,7 +8,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // never say the same thing (a later echo is dropped, never the reply). Stand-in providers only: no network, no AI.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','playbackRules.js','sceneTriggers.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,adventureStep,commitDmTurn,dmContext,npcScene,metPerson,conversationPeople,validAdventure,adventureSnapshot,validPeople,withStoryLog,sceneTrigger,introducePerson,freePersonId,maxPeople,residentsPerPlace,residentsAtStart,maxResidents})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,adventureStep,commitDmTurn,dmContext,npcScene,metPerson,conversationPeople,validAdventure,adventureSnapshot,validPeople,withStoryLog,sceneTrigger,introducePerson,canMeetPeople,roomForSomeoneNew,freePersonId,maxPeople,residentsPerPlace,residentsAtStart,maxResidents})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const hero=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=g=>r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(g)),hp,true),hero);
@@ -42,6 +42,11 @@ assert.equal(found.error,undefined,found.error);const after=r.withStoryLog(chape
 assert.equal(after.people[nettle.id].hidden,undefined);assert.equal(Object.keys(after.people).length,Object.keys(chapel.game.people).length,'found, not added again');
 assert.ok(r.npcScene(after).find(n=>n.id===nettle.id).present&&r.metPerson(after,nettle.id),'now in the scene and the People panel');
 assert.ok(after.storyLog.some(e=>e.text.startsWith('Met Old Nettle')));assert.ok(after.journal.entries.some(e=>e.title==='Met: Old Nettle'));assert.ok(valid(after));
+// A place full of people can still give up someone hiding there, but takes nobody new.
+{const crowded={...chapel.game,people:{...chapel.game.people,n40:{...chapel.game.people[byName['Brother Pell'].id],name:'Sister Ash'},n41:{...chapel.game.people[byName['Brother Pell'].id],name:'Sister Bryn'}}};
+ assert.equal(r.canMeetPeople(crowded),true,'the hermit can still be found');assert.equal(r.roomForSomeoneNew(crowded),false);
+ assert.ok(r.introducePerson(crowded,{name:'A Stranger',species:'Human',role:'A stranger here.',appearance:'A tall stranger in a long coat.',personality:'Quiet.',toughness:'common',attitude:'indifferent',foe:'neutral',tie:null},hero).error,'nobody new at a full place');
+ assert.equal(r.introducePerson(crowded,{name:'Old Nettle',species:'Human',role:'A hermit.',appearance:'A bent woman in sacking.',personality:'Whispers.',toughness:'frail',attitude:'unfriendly',foe:'neutral',tie:null},hero).error,undefined,'the hermit is found');}
 // A first arrival is greeted by someone in plain sight, never by someone hiding.
 const cue=r.sceneTrigger(game,chapel.game,{type:'travel',destination:'tower'});assert.ok(!cue||cue.speakerId!==nettle.id);
 // ---- New ids: the first free one (a forgotten land frees them) ----

@@ -228,10 +228,16 @@ export function validTies(t){
 // someone already known. Meeting someone already known (by name) brings them here instead of creating a double.
 const personText=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
 export const meetingAttitudes=['hostile','unfriendly','indifferent','friendly'];
-export function canMeetPeople(game){
- if(!game.story||!['inn','bridge','tower','wild'].includes(game.stage)||game.npcCombat?.active||game.wildFight||game.dungeon?.active||game.pendingSpell)return false;
+// Whether someone can be met here now: there is room for a new person (48 in the land, four living at a place), or
+// someone who keeps out of sight lives here and can be found (roomForSomeoneNew is the first alone).
+export function roomForSomeoneNew(game){
  const here=sceneLocation(game),people=Object.entries(game.people??{});
  return people.length<maxPeople&&people.filter(([id,p])=>p.home===here&&game.npcFate?.[id]!=='dead').length<maxPeopleHere;
+}
+export function canMeetPeople(game){
+ if(!game.story||!['inn','bridge','tower','wild'].includes(game.stage)||game.npcCombat?.active||game.wildFight||game.dungeon?.active||game.pendingSpell)return false;
+ const here=sceneLocation(game);
+ return roomForSomeoneNew(game)||Object.values(game.people??{}).some(p=>p.hidden&&p.home===here);
 }
 export function introducePerson(game,sketch,hero=null){
  if(!game.story||!['inn','bridge','tower','wild'].includes(game.stage)||game.npcCombat?.active||game.wildFight||game.dungeon?.active)return {game,error:'No one new can be met here right now.'};
@@ -249,7 +255,7 @@ export function introducePerson(game,sketch,hero=null){
   if(!isPersonId(same)||game.followers?.[same]||game.people[same].home===here)return {game,id:same,lines:[]};
   return {game:{...game,people:{...game.people,[same]:{...game.people[same],home:here}}},id:same,lines:[]};
  }
- if(!canMeetPeople(game))return {game,error:Object.keys(game.people??{}).length>=maxPeople?'The region already has as many named people as the game can remember.':'This place already has as many named people as the game can show.'};
+ if(!canMeetPeople(game)||!roomForSomeoneNew(game))return {game,error:Object.keys(game.people??{}).length>=maxPeople?'The region already has as many named people as the game can remember.':'This place already has as many named people as the game can show.'};
  const id=freePersonId(game.people);
  // Whether they are a woman or a man (for their portrait), and how they take to the hero's kind, when given.
  const regard=s.regard&&validRegard(s.regard)&&s.regard.stance!=='indifferent'?{stance:s.regard.stance,reason:s.regard.reason.trim().slice(0,200)}:null;

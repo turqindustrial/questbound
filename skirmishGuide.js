@@ -11,7 +11,8 @@ export function skirmishHint(game,health,maxHp){
   if(low)return 'Low on hit points. Retreat is always allowed: you fall back to camp, and the bandit keeps its wounds.';
   if(hurt&&(game.potions??0)>0)return 'You are hurt. A healing draught is a bonus action: tap Potion, or fight on.';
   if((game.enemyHP??0)>0&&game.enemyHP<=5)return 'The bandit is nearly down. One more good blow should do it.';
-  if(!(game.playback?.length))return 'Your first move. Tap your weapon to attack, or type what you do in your own words.';
+  // No turn played yet (the opening's own turn, with its introduction, is not one).
+  if(!(game.playback??[]).some(t=>!(t.id===1&&/^Your tale begins\./.test(String(t.events?.[0]?.text??'')))))return 'Your first move. Tap your weapon to attack, or type what you do in your own words.';
   return 'Each turn: one action and one bonus action. Attack, Dodge, cast, or try something bold in your own words.';
  }
  if(game.foeFate==='slain'||game.enemyHP===0)return 'You won. Search the body, speak to the captain or walk to Lookout Rock: whatever you type is understood. Practice fights teach a hero up to level 3; a tale does the rest.';
