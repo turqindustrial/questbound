@@ -16,7 +16,7 @@ export function StorySettings(){
   <Text style={s.label}>Brutality</Text>
   <Segmented options={brutalityLevels.map(l=>[l.id,l.label,l.icon])} value={level.id} onChange={id=>setStoryPreferences({brutality:id})}/>
   <Text accessibilityLiveRegion="polite" style={s.caption}>{level.description}</Text>
-  <Text style={s.note}>Fights are deadly either way: heroes and the people they meet can be killed, and a hero who dies stays dead.</Text>
+  <Text style={s.note}>Fights are deadly either way: heroes and the people they meet can be killed, and a hero who dies is gone for good, unless someone at their side can bring them back at once.</Text>
   <Text style={s.label}>Rules</Text>
   <Toggle value={prefs.autoShield!==false} onChange={on=>setStoryPreferences({autoShield:on})} label="Use Shield when it saves you" description="If your hero knows Shield, the game casts it as your reaction when it turns a hit into a miss, spending a spell slot. Turn this off to keep your slots."/>
  </View>;

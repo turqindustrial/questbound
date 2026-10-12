@@ -9,6 +9,7 @@ import React,{useState,useEffect,useRef,useMemo} from 'react';
 import {storyPreferences,subscribeStoryPreferences,rulesHero} from './storyPreferences';
 import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensions} from 'react-native';
 import Icon from './Icon';
+import {revivalOptions} from './deathRules';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
 import {npcScene,npcLore,metPerson,npcClassOf} from './npcRules';
@@ -51,7 +52,7 @@ function rememberSide(folded){try{globalThis.localStorage?.setItem(sideKey,JSON.
 // The story log's marks: an icon and a tone for each kind of line.
 const taleIcon={travel:'travel',place:'map',person:'people',fight:'swords',victory:'star',flight:'retreat',fall:'heart',death:'skull',deed:'speak',loot:'coin',rest:'rest',level:'starFill',quest:'scroll'};
 const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:tint('#cba6ff'),level:tint('#cba6ff'),rest:'#6fbf8e',quest:tint('#cba6ff')};
-export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping}){
+export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping,resting=false,onLetGo}){
  // The hero as the rules see them on this device: whether Shield is cast for them (Settings → Story → Rules) goes
  // with every action and every preview of one.
  const [autoShield,setAutoShield]=useState(()=>storyPreferences().autoShield!==false);
@@ -141,7 +142,12 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {layout==='wide'&&<Text style={s.dyingText}>You lie unconscious{game.dying.placeName?' at '+game.dying.placeName:''}. Roll to hold on: three successes and you live, three failures and you die.</Text>}
   <View style={s.pipRows}><View style={s.pipRow}><Icon name="check" size={13} color={colors.heal}/>{pips(game.dying.successes,'good')}</View><View style={s.pipRow}><Icon name="close" size={13} color={colors.bloodBright}/>{pips(game.dying.failures,'bad')}</View></View>
  </View>;
- // Dead: the hero's epitaph, and the way to begin again with someone new.
+ // Dead: the hero's epitaph, and the way on. Someone at their side who can bring them back (deathRules.js
+ // revivalOptions) is asked from here; otherwise (or once the player lets them go) the hero is laid to rest and the
+ // way on is a new hero. At a shared table the table keeps their seat; friends there may still bring them back.
+ const revivals=game.stage==='dead'&&!resting?revivalOptions(game,hero).filter(o=>o.ready):[];
+ const atTable=!!table?.joined,first=hero.name.split(' ')[0];
+ const deathNote=atTable?(game.party?'A friend who knows Revivify can still bring '+first+' back while the party stays where they fell. To play on with a new hero, leave the table, make your hero, and join again with the campaign invite.':'This table shares one hero. The host decides how the tale goes on.'):revivals.length?revivals.map(o=>o.name.split(' ')[0]+' knows Revivify and can bring you back, for a diamond worth '+o.cost+' gp.').join(' '):first+' is gone. Their adventure ends here; they are remembered among the fallen under Heroes.';
  const deathPanel=game.stage==='dead'&&game.death&&<View dataSet={{qb:'plate'}} style={[s.epitaph,layout!=='wide'&&s.epitaphStrip]}>
   <Icon name="skull" size={layout==='wide'?24:18} color={colors.muted}/>
   <View style={{alignItems:'center',flexShrink:1}}>
@@ -150,7 +156,10 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <PlainText style={s.epitaphLine}>Level {hero.level} {heroSpecies(hero)} {hero.class}</PlainText>
    <PlainText style={s.epitaphCause}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</PlainText>
   </View>
-  {!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
+  {!!deathNote&&<PlainText style={s.epitaphNote}>{deathNote}</PlainText>}
+  {revivals.map(o=><Pressable key={o.id} accessibilityRole="button" accessibilityLabel={'Ask '+o.name+' to bring '+first+' back with Revivify, for a diamond worth '+o.cost+' gold'} onPress={()=>act({type:'revive',by:o.id})} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="spell" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>{'Ask '+o.name.split(' ')[0]}</PlainText></Pressable>)}
+  {revivals.length>0&&!!onLetGo&&<Pressable accessibilityRole="button" onPress={onLetGo} dataSet={{qb:'btn'}} style={s.epitaphQuiet}><PlainText style={s.epitaphQuietText}>{'Let '+first+' go'}</PlainText></Pressable>}
+  {!revivals.length&&!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
  </View>;
  // The people of this story and how they feel about you: a grudge or a debt, else the last thing they remember.
  const toneColor={bad:colors.bloodBright,warn:'#e0a860',good:colors.heal,best:colors.goldBright,calm:colors.muted,dead:colors.faint};
@@ -359,4 +368,6 @@ const s=StyleSheet.create({
  epitaph:{alignItems:'center',gap:8,padding:20,marginTop:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:6},epitaphStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,padding:12,flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:10},
  epitaphOver:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.faint,textTransform:'uppercase'},epitaphName:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:1,color:colors.parchment},
  epitaphLine:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.5},epitaphCause:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:22,color:tint('#cfc6b4'),textAlign:'center',marginTop:2},
- epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:tint('#f06e80'),backgroundColor:tint('#9e1b32'),marginTop:4},epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:tint('#ffeef0'),textTransform:'uppercase'}});
+ epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:tint('#f06e80'),backgroundColor:tint('#9e1b32'),marginTop:4},epitaphNote:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,textAlign:'center',maxWidth:420},
+ epitaphQuiet:{alignItems:'center',justifyContent:'center',minHeight:38,paddingHorizontal:16,borderRadius:19,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),marginTop:2},epitaphQuietText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.4,color:colors.gold,textTransform:'uppercase'},
+ epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:tint('#ffeef0'),textTransform:'uppercase'}});

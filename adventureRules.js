@@ -1,6 +1,7 @@
 import {storyText,questState} from './storyRules';
 import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf,forgetLands} from "./npcRules";
-import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError,withDefenses,defended} from "./spellRules";
+import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError,withDefenses,defended,knownSpells} from "./spellRules";
+import {slotChoices,slotUsed} from "./spellOptions";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
@@ -10,7 +11,7 @@ import {combatBasics} from "./combatRules";
 import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack,oneHanded} from "./weaponRules";
 import {modifier} from "./characterRules";
 import {updateHealth} from "./healthRules";
-import {fallAtZero,deathSave,causeOfFall,fallPlace} from "./deathRules";
+import {fallAtZero,deathSave,causeOfFall,fallPlace,sparedBlow,reviveHero,partyRevivalError,revivalSpell} from "./deathRules";
 import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
@@ -31,7 +32,7 @@ function thrownPickedUp(pack){
 }
 // Damage past 0 HP from one blow (temporary HP soaks first): it decides an outright death.
 const overflowOf=(previous,amount)=>Math.max(0,amount-(previous?.temp??0)-(previous?.current??0));
-const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game))});
+const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum,cause:who??causeOfFall(game,source),placeName:placeName(game,fallPlace(game)),where:mapLocation(game)});
   export const lanternFoe = {
     name: 'Lantern Wisp',
     maximum: 10,
@@ -1218,7 +1219,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         const shield = hit ? shieldReaction(hero, next, attack.total, ac, attack.critical) : null;
         if (shield) { next = shield.game; entries.push(shield.line); hit = false; }
         if (hit) {
-          const damage = rollDamage(foe, attack.critical, random);
+          const damage = sparedBlow(rollDamage(foe, attack.critical, random), hp, () => rollDamage(foe, attack.critical, random), random);
           const extras = foeHitExtras(next, hero, foe, attackers, random);
           next = extras.game;
           const resisted = resistedDamage(next, foe.type, Math.max(1, damage.total + extras.extra), random);
@@ -1267,7 +1268,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           const shield = hit ? shieldReaction(hero, next, attack.total, ac, attack.critical) : null;
           if (shield) { next = shield.game; entries.push(shield.line); hit = false; }
           if (!hit) continue;
-          const damage = rollDamage(a, attack.critical, random), resisted = resistedDamage(next, a.type, Math.max(1, damage.total), random);
+          const damage = sparedBlow(rollDamage(a, attack.critical, random), hp, () => rollDamage(a, attack.critical, random), random), resisted = resistedDamage(next, a.type, Math.max(1, damage.total), random);
           next = resisted.game;
           if (resisted.line) entries.push(resisted.line);
           const ward = subclassWardRoll(hero, next, resisted.amount, random), total = ward ? ward.total : resisted.amount;
@@ -1589,7 +1590,7 @@ function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
   let hit=!attack.miss&&(attack.critical||attack.total>=defense.ac);
   const shield=hit&&!allied?shieldReaction(hero,next,attack.total,defense.ac,attack.critical):null;
   if(shield){next=shield.game;hit=false;}
-  const damageRoll=hit?rollDamage(weapon,attack.critical,random):null;let damage=damageRoll?.total??0;
+  const damageRoll=hit?(allied?rollDamage(weapon,attack.critical,random):sparedBlow(rollDamage(weapon,attack.critical,random),hp,()=>rollDamage(weapon,attack.critical,random),random)):null;let damage=damageRoll?.total??0;
   if(shield)logs.push(shield.line);
   // A subclass's Reaction may blunt the blow (subclassRules.js).
   const ward=damage&&!allied?subclassWardRoll(hero,next,damage,random):null;
@@ -1831,7 +1832,12 @@ function foeTurn(game,health,hero,id,random){
  return {game:{...back.game,...(game.pendingSpell?{pendingSpell:game.pendingSpell}:{})},health:back.health,events:result.events};
 }
 function heroStep(game,health,hero,action,random,opts={}){
- if(game.stage==='dead')return {game,health,error:'Your hero has died. Their story is over; begin a new tale with another hero.'};
+ if(game.stage==='dead'){
+  if(action?.type==='revive'&&typeof action.by==='string'){const back=reviveHero(game,health,hero,action.by);if(back.error)return back;const next={...back.game,log:[...back.events,...game.log].slice(0,40)};next.journal=appendJournal(journalForGame(next),'encounter','Brought back',hero.name+' died and was brought back by '+(back.events[0].split(' presses')[0])+'.');return {...back,game:next};}
+  return {game,health,error:'Your hero has died. Their story is over; begin a new tale with another hero.'};
+ }
+ // Revivify on a hero of the party who has just died (deathRules.js): a 3rd-level slot and a 300 gp diamond.
+ if(action?.type==='revive'&&typeof action.target==='string'&&action.target.startsWith('party:'))return reviveFriend(game,health,hero,action.target.slice(6));
  if(game.stage==='dying')return dyingStep(game,health,hero,action,random);
  // Searching the fallen: what they carried is rolled once, and goes into the looter's own pack (lootRules.js).
  if(action?.type==='loot')return takeSpoils(game,health,gearedHero(hero,game),random);
@@ -1859,6 +1865,15 @@ function heroStep(game,health,hero,action,random,opts={}){
  // "Knock them out" is an intent for this one action; it never stays on the adventure.
  if(result.game&&result.game!==game&&(result.game.subdue!==undefined||result.game.aim!==undefined)){result.game={...result.game};delete result.game.subdue;delete result.game.aim;}
  return result;
+}
+function reviveFriend(game,health,hero,pid){
+ const error=partyRevivalError(game,hero,pid,health);if(error)return {game,health,error};
+ const spell=knownSpells(hero).find(s=>s.id===revivalSpell.id),slot=Math.min(...slotChoices(hero,game,spell).filter(s=>s>=revivalSpell.level)),member=game.party.members[pid],name=partyHeroName(member);
+ const own={...(member.hero??{})};delete own.death;delete own.dying;
+ const next={...game,spellSlotsUsed:Array.from({length:9},(_,i)=>slotUsed(game,i+1)+(i+1===slot?1:0)),pack:{...(game.pack??{gold:0,items:[]}),gold:(game.pack?.gold??0)-revivalSpell.diamond},party:{...game.party,members:{...game.party.members,[pid]:{...member,status:'up',health:{current:1,temp:0},hero:own}}}};
+ next.resources={...game.resources,slots:next.spellSlotsUsed[0]};
+ const line='You press a diamond to '+name+'’s chest and cast '+revivalSpell.name+' ('+slot+(slot===3?'rd':'th')+'-level slot). The stone crumbles to dust, and '+name+' draws breath again with 1 HP.';
+ return {game:{...next,log:[line,...game.log].slice(0,40)},health,events:[line]};
 }
 // While dying the hero can do one thing: fight to hold on.
 function dyingStep(game,health,hero,action,random){

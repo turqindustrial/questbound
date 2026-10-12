@@ -117,7 +117,7 @@ table.health={current:0,temp:0};table.game={...table.game,stage:'dying',dying:{s
 assert.ok(valid('A')&&valid('B'),'a party with a hero down is valid');
 assert.equal(view('B').game.stage,'combat','the others fight on');
 assert.match(act('A',main('A'),seeded(1)).error??'',/dying|death saving throw/i,'a hero who is down can only fight to hold on');
-const held=act('A','death-save',seeded(21));assert.ok(!held.error,held.error);
+const held=act('A','death-save',seeded(22));assert.ok(!held.error,held.error);
 assert.ok(held.events.some(e=>/^Death saving throw/.test(e)),'Kara rolls her death save');
 const told=held.events.filter(e=>/: d20/.test(e)&&!/initiative|Death saving/.test(e));
 assert.ok(told.length>0,'the foe acted next');

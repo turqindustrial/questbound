@@ -20,6 +20,10 @@ export async function loadCharacter() {
   if (!isValidCharacter(character)) throw new Error('Invalid saved character');
   return character;
 }
+// A hero who died and cannot be brought back leaves the save (App.js lays them to rest).
+export async function forgetCharacter() {
+  await AsyncStorage.removeItem(KEY);
+}
 export async function saveCharacter(character) {
   if (!isValidCharacter(character)) throw new Error('Invalid character');
   await AsyncStorage.setItem(KEY, JSON.stringify(character));

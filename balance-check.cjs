@@ -1,7 +1,8 @@
 // Fight balance: every ready-made hero, at levels 1, 3 and 5, against every creature template, many times over, with a
 // plain tactic (swing the main weapon or cast the best damaging spell; drink a draught or heal when low). Prints the
-// win rate, how often the hero falls, fight length and HP left, flags fights that look deadly or trivial, and ends
-// with a summary line (mean win and fall rates, trivial and deadly cells). Plain Node, no AI calls. Options:
+// win rate, how often the hero falls and how often they die (a fallen hero rolls death saves to the end, a companion
+// helping first), fight length and HP left, flags fights that look deadly or trivial, and ends
+// with a summary line (mean win, fall and death rates, trivial and deadly cells). Plain Node, no AI calls. Options:
 //  --fights N (default 200 per cell), --levels 1,3,5, --foe key (one creature, or "story" for a written story's foe)
 //  --companion Class   a companion of that class, a level below the hero, fights beside every hero
 //  --party N           a party of N heroes (2-4) at the shared table, fighting in turns: the ready-made hero and the
@@ -88,7 +89,10 @@ function soloFight(hero,g,h,chooser){
   if(step.error||step.waiting){problems.add(hero.name+' L'+hero.level+' vs '+g.story.foe+': '+(step.error??'spell waiting for a ruling'));break;}
   g=step.game;h=step.health;
  }
- return {g,h,t,won:g.stage==='victory',fell:(h?.current??1)<=0||['dying','dead'].includes(g.stage)};
+ const fell=(h?.current??1)<=0||['dying','dead'].includes(g.stage);
+ // A fallen hero rolls death saves until they live or die (a companion at their side tries to help first).
+ for(let i=0;i<20&&g.stage==='dying';i++){const step=r.adventureStep(g,h,hero,'death-save',Math.random);if(step.error)break;g=step.game;h=step.health;}
+ return {g,h,t,won:g.stage==='victory',fell,died:g.stage==='dead'};
 }
 // A party of heroes at the shared table: each plays their own turn from their own view; the foe acts at its place.
 const plain=v=>JSON.parse(JSON.stringify(v));
@@ -112,25 +116,27 @@ function partyFight(heroes,f,chooser){
   if(step.error||step.waiting){problems.add('party '+hero.name+' L'+hero.level+' vs '+f.key+': '+(step.error??'spell waiting for a ruling'));break;}
   table=plain(r.adventureSnapshot(hero,step.game,step.health,true));
  }
- return {won:world?.stage==='victory',fell:fallen.size>0,t};
+ const dead=Object.values(r.settleParty(table).members).some(m=>m.status==='dead');
+ return {won:world?.stage==='victory',fell:fallen.size>0,died:dead,t};
 }
 // A cell: `fights` days of `day` fights each against one creature (a party plays single fights).
 function rateCell(heroes,f,chooser,opts={}){
- let wins=0,falls=0,rounds=0,hpLeft=0,n=0;
+ let wins=0,falls=0,deaths=0,rounds=0,hpLeft=0,n=0;
  for(let i=0;i<fights;i++){
-  if(heroes.length>1){const p=partyFight(heroes,f,chooser);n++;rounds+=p.t;if(p.won)wins++;if(p.fell)falls++;continue;}
+  if(heroes.length>1){const p=partyFight(heroes,f,chooser);n++;rounds+=p.t;if(p.won)wins++;if(p.fell)falls++;if(p.died)deaths++;continue;}
   const hero=heroes[0],max=r.combatBasics(hero).hp;let carry={},h=null,over=false;
   for(let d=0;d<day;d++){
    n++;if(over)continue;
    const out=soloFight(hero,{...withCompanion(fightWith(hero,f),hero.level,opts.companion??companion),...carry},h,chooser);
    rounds+=out.t;
+   if(out.died)deaths++;
    if(out.won){wins++;hpLeft+=(out.h?.current??max)/max;}else{if(out.fell)falls++;over=true;continue;}
    let g=out.g,hh=out.h;
    if(d<day-1){const rest=r.adventureStep(g,hh,hero,'short-rest',()=>0.5);if(!rest.error){g=rest.game;hh=rest.health;}}
    carry=pick(g,heroFieldsCarried);h=hh;
   }
  }
- return {win:wins/n,fall:falls/n,rounds:rounds/n,hp:wins?hpLeft/wins:0};
+ return {win:wins/n,fall:falls/n,death:deaths/n,rounds:rounds/n,hp:wins?hpLeft/wins:0};
 }
 // --subclass: every class with each of its subclasses against every creature, compared with the SRD subclass.
 if(subclassMode){
@@ -163,7 +169,7 @@ for(const [index,entry] of (subclassMode?[]:r.readyHeroes).entries())for(const l
  for(const f of [...r.hostileFoes,storyFoe].filter(f=>!only||f.key===only)){
   const start=fightWith(hero,f);if(r.encounterFoe(hero,start).maximum!==start.enemyHP)problems.add('Foe HP mismatch for '+f.key);
   const c=rateCell([hero,...others],f,choose);cells.push(c);
-  row.push(f.key.padEnd(8)+' '+String(Math.round(100*c.win)).padStart(3)+'% win '+String(Math.round(100*c.fall)).padStart(3)+'% fall ~'+c.rounds.toFixed(1).padStart(4)+(partySize>1?' steps':'r')+(c.hp?' '+String(Math.round(100*c.hp)).padStart(3)+'% HP':'        '));
+  row.push(f.key.padEnd(8)+' '+String(Math.round(100*c.win)).padStart(3)+'% win '+String(Math.round(100*c.fall)).padStart(3)+'% fall '+String(Math.round(100*c.death)).padStart(3)+'% die ~'+c.rounds.toFixed(1).padStart(4)+(partySize>1?' steps':'r')+(c.hp?' '+String(Math.round(100*c.hp)).padStart(3)+'% HP':'        '));
   const name=hero.name.split(' ')[0]+' ('+hero.class+') L'+level+(partySize>1?' +'+(partySize-1):'');
   if(c.win<0.35)flags.push('deadly   '+name+' vs '+f.foe+(f.group?' (pack)':'')+': '+Math.round(100*c.win)+'% win, '+Math.round(100*c.fall)+'% fall');
   else if(c.win>0.97&&c.fall<0.01)flags.push('trivial  '+name+' vs '+f.foe+(f.group?' (pack)':'')+': '+Math.round(100*c.win)+'% win');
@@ -172,5 +178,5 @@ for(const [index,entry] of (subclassMode?[]:r.readyHeroes).entries())for(const l
 }
 console.log('\nFlags ('+flags.length+'):');for(const flag of flags)console.log('  '+flag);
 if(!flags.length)console.log(subclassMode?'  none: every subclass sits within 12 points of its class\'s SRD subclass.':'  none: every fight sits between 35% and 97% wins.');
-if(cells.length){const mean=k=>Math.round(100*cells.reduce((a,c)=>a+c[k],0)/cells.length);console.log('\nSummary: '+cells.length+' cells, mean '+mean('win')+'% win, '+mean('fall')+'% fall; '+cells.filter(c=>c.win>0.97&&c.fall<0.01).length+' trivial, '+cells.filter(c=>c.win<0.35).length+' deadly.');}
+if(cells.length){const mean=k=>Math.round(100*cells.reduce((a,c)=>a+c[k],0)/cells.length);console.log('\nSummary: '+cells.length+' cells, mean '+mean('win')+'% win, '+mean('fall')+'% fall, '+mean('death')+'% die; '+cells.filter(c=>c.win>0.97&&c.fall<0.01).length+' trivial, '+cells.filter(c=>c.win<0.35).length+' deadly.');}
 if(problems.size){console.log('\nEngine problems:');for(const p of problems)console.log('  '+p);process.exitCode=1;}

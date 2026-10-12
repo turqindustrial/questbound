@@ -15,7 +15,7 @@ import CampaignJournal from './CampaignJournal';
 import {addJournalNote,appendJournal,appendStoryLog} from './journalRules';
 import Advancement from './Advancement';
 import {spellSelectionError} from './spellOptions';
-import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure} from './adventureStorage';
+import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure, forgetAdventure} from './adventureStorage';
 import {useSharedTable} from './useSharedTable';
 import {backupLocalSave,tableMembership} from './tableClient';
 import {isPartyGame,partyView,joinParty,soloFromParty,partyMembers} from './partyRules';
@@ -29,7 +29,7 @@ import {combatBasics} from './combatRules';
 import CharacterBuilder from './CharacterBuilder';
 import { blankBuild, buildError, makeCharacter, abilities, modifier, heroSpecies } from './characterRules';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { loadCharacter, saveCharacter, isValidCharacter } from './characterStorage';
+import { loadCharacter, saveCharacter, isValidCharacter, forgetCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, Platform, useWindowDimensions } from 'react-native';
 import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
@@ -69,7 +69,8 @@ import {CloudSaveSettings} from './CloudSaveSettings';
 import {AccountSettings} from './AccountSettings';
 import {accountState,bootstrapAccount,accountsRequired,accountsNeeded,accountsOffered} from './accountRules';
 import {currentProfile,subscribeProfile} from './playerStorage';
-import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry} from './rosterRules';
+import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry,layToRest} from './rosterRules';
+import {deathIsFinal} from './deathRules';
 import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
 import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
@@ -129,6 +130,8 @@ function QuestboundApp() {
   // Heroes set aside on this device and the fallen; a new story can carry on in the same region.
   const [roster,setRoster]=useState([]),[graves,setGraves]=useState([]),[editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
   useEffect(()=>{Promise.all([loadRoster(),loadGraveyard()]).then(([r,g])=>{setRoster(r);setGraves(g);}).catch(()=>{});},[]);
+  // A hero laid to rest (below): who it was, so nothing saves them again.
+  const restingRef=useRef(null),[restingKey,setRestingKey]=useState(null);
   useEffect(() => {
     loadCharacter().then(async saved => {
       if (saved) {
@@ -143,7 +146,7 @@ function QuestboundApp() {
       .finally(() => setLoading(false));
   }, []);
   useEffect(() => {
-    if(loading || !hero || storageError || adventureBlocked) return;
+    if(loading || !hero || storageError || adventureBlocked || restingRef.current===JSON.stringify(hero)) return;
     let current=true;
     setSaveStatus('Saving adventure...');
     const snapshot=adventureSnapshot(hero,game,health,characterChosen);
@@ -196,6 +199,28 @@ function QuestboundApp() {
   // The saved adventure is this hero's: if it ended in death, the hero cannot be played again.
   const heroFallen=!!hero&&characterChosen&&game.stage==='dead';
   const canContinue=!!hero&&characterChosen&&!heroFallen&&canContinueRegion(game),continuingNow=continueRegion&&canContinue;
+  // A hero who has died and cannot be brought back (deathRules.js deathIsFinal; or whose player lets them go) is laid
+  // to rest: a memorial line in the graveyard, and the hero and their adventure leave this device's save, so they can
+  // never be continued, set aside or chosen again. The epitaph stays on screen until the player leaves the play
+  // screen; then the way on is a new hero. Never at a shared table: the table keeps the seat (partyRules.js).
+  const finalDeath=!loading&&!storageError&&!adventureBlocked&&!!hero&&characterChosen&&!table.joined&&deathIsFinal(game,hero);
+  async function layHeroToRest(){
+    if(!hero||game.stage!=='dead'||table.joined)return;
+    const key=JSON.stringify(hero);if(restingRef.current===key)return;
+    restingRef.current=key;setRestingKey(key);
+    try{
+      const [savedRoster,savedGraves]=await Promise.all([loadRoster(),loadGraveyard()]);
+      const next=layToRest(savedRoster,savedGraves,hero,game);
+      await saveLists(next);setRoster(next.roster);setGraves(next.graves);
+      await forgetAdventure();await forgetCharacter();
+    }catch{setError('Your fallen hero could not be laid to rest on this device. Reopen the game to try again.');}
+  }
+  useEffect(()=>{if(finalDeath)layHeroToRest();},[finalDeath]);
+  // Once the player leaves the play screen, the hero laid to rest is gone from memory too.
+  useEffect(()=>{
+    if(!restingKey||!hero||JSON.stringify(hero)!==restingKey||!['Home','Character Selection','Character Creation','Adventure Opening','Multiplayer'].includes(screen))return;
+    setHero(null);setGame(newAdventure());setHealth(null);setCharacterChosen(false);setNewStoryRequested(true);setForm(blankBuild());setEditingHero(false);setShowReady(false);
+  },[screen,hero,restingKey]);
   // Before another hero takes this one's place: the living wait in the roster, the dead go to the graveyard.
   async function setCurrentAside(){
     if(!hero)return true;
@@ -415,7 +440,7 @@ function QuestboundApp() {
       {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
-      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreen('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
+      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreen('Character Selection');}} resting={!!restingKey&&restingKey===JSON.stringify(hero)} onLetGo={layHeroToRest} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
     </View>
   </View>:<View dataSet={{safe:'pad'}} style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
@@ -449,7 +474,7 @@ function QuestboundApp() {
               <Text style={s.heroBackground}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</Text>
             </View>
           </View>
-          <Text style={s.note}>{hero.name}'s story is over. Choose a ready-made hero or make a new one to begin again.</Text>
+          <Text style={s.note}>{table.joined?hero.name+' has fallen at the shared table. Leave the table to bring a new hero, then join again with the campaign invite.':hero.name+' can still be brought back: continue their adventure to ask. Or choose a ready-made hero or make a new one, and '+hero.name+' is laid to rest.'}</Text>
           {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
           <QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/>
         </> : hero ? <>

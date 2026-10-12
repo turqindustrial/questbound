@@ -2,7 +2,8 @@ import {hostileFoes,foeStatsFor} from './hostileEncounter';
 import {npcProfile,npcLore,npcScene,isAlly,npcWhereabouts} from './npcRules';
 import {withMark,boonOn,blessRoll,boonResisted} from './masteryRules';
 import {rollAttack,rollDamage} from './weaponRules';
-import {worldPlace,worldPlaces,placeName} from './mapRules';
+import {worldPlace,worldPlaces,placeName,mapLocation} from './mapRules';
+import {sparedBlow} from './deathRules';
 import {modifier} from './characterRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {magicSaveBonus} from './lootRules';
@@ -273,7 +274,7 @@ export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs ${name}’s AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),resisted=resistHere(game,'h:'+pid,foe.type,Math.max(1,damage.total),random);let total=resisted.amount;
+ const was=member.health?.current??most,damage=sparedBlow(rollDamage(foe,attack.critical,random),{current:member.status==='up'?was:0},()=>rollDamage(foe,attack.critical,random),random),resisted=resistHere(game,'h:'+pid,foe.type,Math.max(1,damage.total),random);let total=resisted.amount;
  // Their subclass's Reaction may blunt the blow (subclassRules.js), once a round while their reaction is free: the
  // round it was spent is kept on them (`reacted`), and its use counts against their own uses.
  const them=(()=>{try{return JSON.parse(member.character);}catch{return null;}})(),round=game.turnOrder?.round??game.round??0;
@@ -281,11 +282,11 @@ export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  let warded=member;
  if(ward){total=ward.total;warded={...member,reacted:round,hero:{...(member.hero??{}),resources:ward.game.resources}};lines.push(ward.line);}
  if(total<=0){lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''} − ${ward.reduced} ${ward.name} = 0 ${foe.type} damage to ${name}. No damage gets through.`);return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:warded}}},lines};}
- const was=member.health?.current??most,now=Math.max(0,was-total);
- const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300);
+ const now=Math.max(0,was-total);
+ const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300),spot=mapLocation(game),fellAt=typeof spot==='string'&&spot&&spot.length<=80?{where:spot}:{};
  let next={...warded,health:{current:now,temp:0}},fell='';
- if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
- else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
+ if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,...fellAt,fight:true}}};fell=` The blow kills ${name} outright.`;}
+ else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,...fellAt,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
  lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''}${ward?' − '+ward.reduced+' '+ward.name:''} = ${total} ${foe.type} damage to ${name}.`+fell);
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }

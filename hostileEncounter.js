@@ -1,4 +1,4 @@
-import {freshStoryGame} from './storyRules';
+import {freshStoryGame,easedBonus} from './storyRules';
 import {combatBasics} from './combatRules';
 // Written locally so combat can be tested instantly without story generation.
 // Stat blocks are tuned for a level-1 hero and scale with level; groups share one HP pool and every standing member attacks.
@@ -18,7 +18,7 @@ export const hostileFoes=[
 // attacks and armor. Tuned with balance-check.cjs so a plain hero of the level keeps a fair chance on their own.
 export function foeStatsFor(f,level=1){
  const up=Math.max(0,level-1),memberHP=Math.round((f.group?f.group.memberHP:f.hp)*(1+(f.group?0.3:0.45)*up));
- return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/3),die:f.die,count:1+Math.floor(up/5),bonus:f.bonus+Math.floor(up/3),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
+ return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/3),die:f.die,count:1+Math.floor(up/5),bonus:easedBonus(f.bonus+Math.floor(up/3),level),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
 }
 export function hostileEncounterGame(hero,base,random=Math.random){
  // Fragile low-level heroes (under 12 HP: a new wizard, rogue or cleric) meet a single foe, never a pack or the orc.
