@@ -95,4 +95,8 @@ assert.equal(r.oneHanded(sword).die,8);
 // ---- Old saves: a game with a two-hander in hand, and the ready-made heroes, load as before ----
 for(const key of ['fighter','rogue','wizard','cleric']){const h=r.readyHero(key);valid(h,r.newAdventure(h),hpOf(h));}
 valid(paladin,{...r.newAdventure(paladin),pack:foundGreatsword,wield:'Greatsword'},hpOf(paladin));
+// At a shared table the campaign server's wield edit asks the same question (rules-engine.cjs canTakeInHand).
+{const engine=require('./rules-engine.cjs').rules();assert.ok(engine.canTakeInHand(engine.gearedHero(paladin,{...engine.newAdventure(paladin),pack:foundGreatsword}),'Greatsword'),'the table lets a shield-bearer take up a found greatsword');
+ assert.ok(!engine.canTakeInHand(engine.gearedHero(paladin,engine.newAdventure(paladin)),'Greatsword'),'but not one they do not carry');
+ assert.ok(/canTakeInHand/.test(fs.readFileSync('campaigns.cjs','utf8')),'the wield edit uses it');}
 console.log('Passed: two-handed weapons take both hands (the shield slung and its armor class and magic dropped, no other hand, bows included, a shield-bearer fighting one-handed unless the two-hander is taken in hand); versatile weapons deal their larger die in both hands and their own beside a shield, thrown or with a grapple held; picker, descriptions, Dungeon Master context and old saves agree.');
