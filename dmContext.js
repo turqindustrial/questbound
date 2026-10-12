@@ -13,7 +13,7 @@ import {classActions,windLimit,shortRestLimit,surgeReady,surgeLimit,turnLeft,pot
 import {subclassAction,subclassUses,subclassShortRecharge,subclassBriefs} from './subclassRules';
 import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,mapRegions,regionOfPlace,placeCoordinates,beyondBearings,beyondError,beyondWords,mapHasRoom} from './mapRules';
 import {campaignState,earnedGold,interactionOptions} from './campaignRules';
-import {attackOptions,readyLoadout,canThrow,attacksPerAction,shieldSlung,shieldInUse} from './weaponRules';
+import {attackOptions,readyLoadout,canThrow,attacksPerAction,shieldSlung,shieldInUse,shieldStowed} from './weaponRules';
 import {offhandWeapons,masteryOf,masteredWeapons,masteryText,creatureSize,withinGrip,unarmedDC,grappledBy,markOf} from './masteryRules';
 import {fallAtZero,fallPlace,revivalOptions,partyRevivalError,revivalSpell} from './deathRules';
 import {withAttackIntent} from './dmCommands';
@@ -288,7 +288,7 @@ export function dmContext(hero,game,health) {
     masteries:masteredWeapons(hero).map(name=>{const w=weapons.find(o=>(o.base??o.name)===name);return name+': '+(w?masteryText[masteryOf(hero,w)]:'');}),
     grappleAndShove:'An Unarmed Strike can grapple or shove a creature prone instead of striking (the grapple and shove choices); it saves against DC '+unarmedDC(hero)+'.',
     twoWeapons:'After an attack with a light weapon, a second light weapon in the other hand can strike as a bonus action (the offhand: choices).',
-    hands:shieldSlung(hero)?'The shield is slung on the hero’s back while both hands hold a two-handed weapon: it adds nothing to armor class.':shieldInUse(hero)?'A shield on one arm: two-handed weapons stay on the back until the player takes one in hand.':'No shield: a versatile weapon is held in both hands for its larger die.'};
+    hands:shieldStowed(hero)?'The player has put the shield on the hero’s back to keep both hands free (a versatile weapon in both hands for its larger die): it adds nothing to armor class until they take it up again (the game does that when they say so; in a fight it takes their action).':shieldSlung(hero)?'The shield is slung on the hero’s back while both hands hold a two-handed weapon: it adds nothing to armor class.':shieldInUse(hero)?'A shield on one arm: two-handed weapons stay on the back until the player takes one in hand; the player may put the shield on their back to hold a versatile weapon in both hands (the game does that when they say so; in a fight it takes their action).':'No shield: a versatile weapon is held in both hands for its larger die.'};
   // How the creatures in this fight stand: prone, grappled, or sapped (disadvantage on their next attack).
   if(game.marks)context.fightConditions=Object.entries(game.marks).map(([k,m])=>({who:k==='foe'?foeLabel(game):k.startsWith('ally:')?(game.foeAllies?.[Number(k.slice(5))]?.name??k):(npcLore(game,k)?.name??k),conditions:[m.prone?'prone':null,m.grappled?'grappled':null,m.sapped?'sapped':null,...(m.spells??[]).map(s=>s.cond+' ('+s.id.replace(/-/g,' ')+')')].filter(Boolean)}));
   // Spells that last on the hero without concentration (Mage Armor, Barkskin, Divine Favor, Shillelagh).

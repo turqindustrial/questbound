@@ -15,7 +15,7 @@ import {Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import {playSound} from './audio';
-import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass, fixedLineage, heroSpecies, speciesProfile, baseSpeciesOf, keenSenseSkills} from './characterRules';
+import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass, fixedLineage, heroSpecies, speciesProfile, legacySpecies, speciesGroups, baseSpeciesOf, keenSenseSkills} from './characterRules';
 import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions, lineageDetails} from './characterOptions';
 
 const basePages = [
@@ -48,8 +48,9 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
   }catch(e){setPageError(e.message);}finally{setGenerating(false);}}
 
   const change = patch => {setPageError(''); setForm(previous => ({...previous, ...patch}));};
-  // A hero made as a plain Elf (before High and Wood Elves were species of their own) is edited as the elf they are.
-  useEffect(() => {if (form.species === 'Elf') {const now = heroSpecies(form); setForm(previous => ({...previous, species: now, lineage: fixedLineage[now]}));}}, [form.species]);
+  // A hero made as a plain Elf (before High and Wood Elves were species of their own), or as a Dark Elf (the Drow's
+  // name before), is edited as the elf they are.
+  useEffect(() => {if (legacySpecies.includes(form.species)) {const now = heroSpecies(form); setForm(previous => ({...previous, species: now, lineage: fixedLineage[now]}));}}, [form.species]);
   // Each species card says how fast and how far in the dark it sees and names its traits; the chosen one explains them.
   const speciesCards = Object.fromEntries(species.map(name => {const kind = speciesProfile(name), sight = kind.darkvision ? ' · Darkvision ' + kind.darkvision + ' ft' : '';
     return [name, {...speciesDetails[name], ability: 'Speed ' + kind.speed + ' ft' + sight + (kind.size !== 'Medium' ? ' · ' + kind.size : '') + ' · ' + kind.traits.map(t => t.name).join(', '), features: name === form.species ? kind.traits.map(t => ({name: t.name, brief: t.brief})) : []}];}));
@@ -62,17 +63,27 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     go(page + 1);
   }
   const action = (label, onPress, secondary = false, disabled = false, icon = null) => <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:secondary?'btn':'btn-primary'}} style={({pressed}) => [s.action, secondary && s.secondary, (disabled || pressed) && {opacity: 0.6}]}><View style={s.actionRow}>{!!icon&&<Icon name={icon} size={16} color={secondary?colors.gold:tint('#ffeef0')}/>}<Text style={[s.actionText,!secondary&&{color:tint('#ffeef0')}]}>{label}</Text></View></Pressable>;
-  function optionCards(label, options, value, onSelect, details) {
-    return <View style={s.cards}>{options.map(option => {
+  // Cards for each option; species in a group (the Elves) sit together under its heading, where the first of them falls.
+  function optionCards(label, options, value, onSelect, details, groups = []) {
+    const card = option => {
       const detail = details[option];
       const chosen = value === option, crest = label==='Class' ? classIcons[option] : label==='Background' ? 'scroll' : label==='Subclass' ? 'star' : null;
       return <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: chosen}} onPress={() => {if(!chosen)playSound('select');onSelect(option);}} dataSet={{qb:'card',selected:String(chosen)}} style={({pressed}) => [s.option, chosen && s.selected, pressed && {opacity: 0.85}]}>
-        <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option === 'Dark Elf' ? 'Dark Elf (Drow)' : option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
+        <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
         <Text style={s.text}>{detail.description}</Text>
         {(detail.features??[]).map(f=><Text key={f.name} style={s.detail}>✦ {f.name}: {f.brief}</Text>)}
         {!!detail.ability && <Text style={s.detail}>{label === 'Species' ? detail.ability : 'Key abilities: ' + detail.ability}</Text>}
         {!!detail.note && value === option && <Text style={s.detail}>{detail.note}</Text>}
       </Pressable>;
+    };
+    const grouped = new Set(groups.flatMap(g => g.members));
+    return <View style={s.cards}>{options.flatMap(option => {
+      const group = groups.find(g => g.members.find(m => options.includes(m)) === option);
+      if (group) return [<View key={'group:' + group.name} dataSet={{qb:'plate'}} style={s.group}>
+        <Text style={s.groupLabel}>{group.name}</Text><Text style={s.detail}>{group.note}</Text>
+        <View style={[s.cards, {marginTop: 10}]}>{group.members.filter(m => options.includes(m)).map(card)}</View>
+      </View>];
+      return grouped.has(option) ? [] : [card(option)];
     })}</View>;
   }
   function choices(label, options, value, onSelect) {
@@ -111,7 +122,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       <Text style={s.label}>Appearance & personality (optional)</Text><TextInput accessibilityLabel="Appearance and personality" multiline style={[s.input, {minHeight:120,textAlignVertical:'top'}]} value={form.description ?? ''} onChangeText={description => change({description})} maxLength={1500} placeholder="A green-skinned inventor with copper goggles and an endless list of questions…" placeholderTextColor={tint('#b6aeb4')}/>
       {['age','backstory'].map(key=><View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><TextInput accessibilityLabel={'Character '+key} value={form[key]??''} onChangeText={value=>change({[key]:value})} maxLength={key==='age'?60:2000} multiline={key!=='age'} editable={!generating} style={[s.input,key!=='age'&&{minHeight:80}]} /></View>)}
     </>}
-    {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:fixedLineage[value]??(speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null),keenSense:baseSpeciesOf(value)==='Elf'?(form.keenSense??'Perception'):undefined}), speciesCards)}
+    {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:fixedLineage[value]??(speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null),keenSense:baseSpeciesOf(value)==='Elf'?(form.keenSense??'Perception'):undefined}), speciesCards, speciesGroups)}
     {page === 1 && baseSpeciesOf(form.species) === 'Elf' && <>
       {choices('Keen Senses', keenSenseSkills, keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception', value => change({keenSense:value}))}
       <Text style={s.detail}>Every elf is trained in one of these skills.</Text>
@@ -159,7 +170,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {page === reviewPage && <>
       {reviewRow('Name', form.name, 0)}
       {!!form.description && <Text style={s.intro}>{form.description}</Text>}{['age','backstory'].map(key=>form[key]?<View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{form[key]}</Text></View>:null)}
-      {reviewRow('Species', (form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : !fixedLineage[form.species] && form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species) + (baseSpeciesOf(form.species) === 'Elf' ? ' · Keen Senses: ' + (keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception') : ''), 1)}
+      {reviewRow('Species', (!fixedLineage[form.species] && form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species) + (baseSpeciesOf(form.species) === 'Elf' ? ' · Keen Senses: ' + (keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception') : ''), 1)}
       {reviewRow('Class', form.class, 2)}
       {reviewRow('Planned subclass', currentSubclass(form.plannedSubclass) || 'Decide at level 3', 3)}
       {reviewRow('Background', form.background, 4)}
@@ -186,6 +197,7 @@ const s = StyleSheet.create({
   progressNow:{backgroundColor:tint('rgba(224,74,92,.55)'),height:6,marginTop:-1,borderWidth:1,borderColor:tint('rgba(240,110,128,.8)')},
   heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:30,fontWeight:'700',letterSpacing:1,marginBottom:12},intro:{fontFamily:fonts.story,color:tint('#dacec9'),fontSize:18,lineHeight:28,marginBottom:20},
   label:{fontFamily:fonts.display,color:colors.gold,fontSize:14,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:20,marginBottom:10},cards:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},
+  group:{flexBasis:'100%',width:'100%',minWidth:0,padding:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:8,backgroundColor:tint('rgba(23,17,24,.6)')},groupLabel:{fontFamily:fonts.display,color:colors.gold,fontSize:13,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
   option:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:300,padding:16,backgroundColor:tint('rgba(32,24,33,.92)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),borderRadius:6},selected:{borderColor:colors.gold,backgroundColor:tint('rgba(48,26,78,.92)')},
   cardTitle:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:10},optionTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:19,fontWeight:'700',letterSpacing:.6},selectedText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'800',letterSpacing:1.4},
   check:{width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},

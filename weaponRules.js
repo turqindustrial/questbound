@@ -40,14 +40,20 @@ export const weapons = {
 // no one-handed weapon to fight with. A versatile weapon (longsword, spear, quarterstaff) held in both hands, with no
 // shield in use, deals its larger die; one-handed (a shield on the arm, a throw, a grapple held in the other hand) it
 // deals its own. Two-weapon fighting needs two Light weapons, and no Light weapon is versatile, so the two never meet.
+// The player may also put the shield on their back by choice (game.shieldAway, the host, 2026-10-12: "a shield bearer
+// should be able to put the shield away to hold their weapon with 2 hands"): both hands are then free, a versatile
+// weapon is held in both, and the shield adds nothing until it is taken up again (inventoryRules.js setShield).
 const weaponKindOf = item => weapons[item.base] ? item.base : item.name.includes('(Quarterstaff)') ? 'Quarterstaff' : item.name;
 const carriedItems = hero => (hero?.equipment?.items ?? []).filter(item => item.quantity > 0);
 const armsOf = hero => carriedItems(hero).map(item => ({name: item.name.includes('(Quarterstaff)') ? 'Quarterstaff' : item.name, w: weapons[weaponKindOf(item)]})).filter(a => a.w);
 // The player took a two-handed weapon in hand (game.wield): both hands are on it.
 export const twoHanderInHand = hero => !!armsOf(hero).find(a => a.name === hero?.equipment?.wield)?.w.twoHands;
+// The shield is on the back because the player chose so, not because of a two-handed weapon.
+export const shieldStowed = hero => hero?.equipment?.shieldAway === true && carriedItems(hero).some(item => item.name === 'Shield');
 export function shieldSlung(hero) {
   const items = carriedItems(hero);
   if (!items.some(item => item.name === 'Shield')) return false;
+  if (hero.equipment.shieldAway === true) return true;
   const arms = armsOf(hero), chosen = arms.find(a => a.name === hero.equipment.wield);
   if (chosen) return !!chosen.w.twoHands;
   return !arms.some(a => !a.w.ranged && !a.w.twoHands) && arms.some(a => !a.w.ranged && a.w.twoHands);
@@ -106,7 +112,8 @@ export function loadoutWarnings(hero) {
   for (const w of weaponAttacks(hero)) if (w.heavyDisadvantage) notes.push(w.name + ' is a heavy weapon: with ' + (w.ranged ? 'Dexterity ' + Dexterity : 'Strength ' + Strength) + ' (under 13), attacks with it have disadvantage.');
   // Hands: a two-handed weapon and a shield do not go together.
   for (const w of weaponAttacks(hero)) if (w.handsBlocked) notes.push('The ' + w.name + ' needs both hands: with your shield on your arm it stays on your back. Take it in hand from your inventory to fight with it; your shield is then slung and adds nothing to your armor class.');
-  if (shieldSlung(hero)) notes.push('Your shield is slung on your back while both hands hold your ' + (weaponAttacks(hero).find(w => w.twoHands && !w.blocked)?.name ?? 'weapon') + ': it adds nothing to your armor class. Take a one-handed weapon in hand to raise it again.');
+  if (shieldStowed(hero)) {const held = weaponAttacks(hero).find(w => !w.ranged && !w.blocked); notes.push('Your shield is on your back by your choice' + (held?.versatile ? ', so your ' + held.name + ' is held in both hands (1d' + held.die + ' in place of 1d' + held.oneHandDie + ')' : '') + ': it adds nothing to your armor class. Take it up again from your inventory, or say so (in a fight that takes your action).');}
+  else if (shieldSlung(hero)) notes.push('Your shield is slung on your back while both hands hold your ' + (weaponAttacks(hero).find(w => w.twoHands && !w.blocked)?.name ?? 'weapon') + ': it adds nothing to your armor class. Take a one-handed weapon in hand to raise it again.');
   if (hero.class === 'Fighter') {
     const ranged = (hero.fighterKit ?? hero.equipment.kit) === 'ranged';
     if (!ranged && Dexterity >= Strength + 2) notes.push('Your Dexterity is higher than your Strength: the Ranged kit (a longbow, light armor and finesse blades) suits this hero better.');

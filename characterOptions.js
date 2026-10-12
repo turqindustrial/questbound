@@ -14,11 +14,13 @@ export const lineageDetails = {
 export const speciesDetails = {
   Dragonborn: {description: 'A draconic hero with scales and a powerful ancestral connection. Imagine the color and presence you bring to the party.'},
   Dwarf: {description: 'A sturdy, long-lived adventurer. Your story might begin among mountain halls, busy cities, or somewhere entirely unexpected.'},
-  // The elves are three species here (characterRules.js): High, Wood and Dark. 'Elf' describes heroes made before.
+  // The elves are three species here (characterRules.js), listed together: High Elf, Wood Elf and Drow. 'Elf' and
+  // 'Dark Elf' describe heroes made before.
   'High Elf': {description: 'An elf of old courts and libraries, with magic close at hand. Keen senses, a trance in place of sleep, and a little wizardry from the start.', baseSpecies: 'Elf'},
   'Wood Elf': {description: 'An elf of the deep forests, quick and quiet on the trail. Keen senses, a trance in place of sleep, and a longer stride than most.', baseSpecies: 'Elf'},
   Elf: {description: 'A long-lived person with fey ancestry. Keen senses and a trance in place of sleep; the forests, courts or wandering roads you came from are yours to decide.'},
-  'Dark Elf': {description: 'A Drow elf, of a lineage at home in the deep places under the earth. Your upbringing, loyalties, and personality are yours to define.', note: 'Dark Elf is the Drow lineage of the Elf, as High and Wood Elf are lineages of their own.', baseSpecies: 'Elf', lineage: 'Drow'},
+  Drow: {description: 'An elf of the Drow, a lineage at home in the deep places under the earth, with eyes that pierce the dark. Your upbringing, loyalties, and personality are yours to define.', baseSpecies: 'Elf', lineage: 'Drow'},
+  'Dark Elf': {description: 'A Drow: an elf of a lineage at home in the deep places under the earth. Your upbringing, loyalties, and personality are yours to define.', baseSpecies: 'Elf', lineage: 'Drow'},
   Gnome: {description: 'A small adventurer with a spark of magic. Picture a curious explorer, thoughtful scholar, or a hero who surprises everyone.'},
   // Beyond the System Reference Document, in Questbound's own words (no text from any other book).
   Goblin: {description: 'A small goblinoid with a talent for slipping out of danger. A goblin can pursue any calling, including a healer or inventor.', note: 'A Questbound option beyond the System Reference Document. Ability bonuses come only from your background.'},

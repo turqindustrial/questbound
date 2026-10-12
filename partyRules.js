@@ -9,7 +9,7 @@ import {heroSpecies} from './characterRules';
 // (adventureRules.js), and the Dungeon Master is told about them but never speaks or acts for them (dmContext.js).
 // Turning the view is not a move: the table compares snapshots in their settled form (canonicalParty), which is the
 // same from every point of view, so only real changes are sent.
-export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','xp','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
+export const heroFields=['potions','pack','wield','shieldAway','skillTraining','levelsOwed','xp','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
 // What belongs to one hero's turn and does not outlast it.
 const turnFields=['actionUsed','surged','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed','featTurn'];
 export const maxPartySize=4;

@@ -144,12 +144,13 @@ export function recordConsequences(before,after){
 // deeds still move people as before, and someone the hero has won over stops holding their kind against them.
 export const regardStances=['kin','warm','curious','indifferent','wary','scornful'];
 export const validRegard=r=>r===undefined||(!!r&&typeof r==='object'&&regardStances.includes(r.stance)&&typeof r.reason==='string'&&r.reason.length<=200);
-export const speciesPlurals={Human:'humans',Dwarf:'dwarves',Elf:'elves','High Elf':'high elves','Wood Elf':'wood elves','Dark Elf':'dark elves',Gnome:'gnomes',Goblin:'goblins',Goliath:'goliaths','Half-Elf':'half-elves',Halfling:'halflings',Orc:'orcs',Tiefling:'tieflings',Dragonborn:'dragonborn'};
+export const speciesPlurals={Human:'humans',Dwarf:'dwarves',Elf:'elves','High Elf':'high elves','Wood Elf':'wood elves',Drow:'drow','Dark Elf':'drow',Gnome:'gnomes',Goblin:'goblins',Goliath:'goliaths','Half-Elf':'half-elves',Halfling:'halflings',Orc:'orcs',Tiefling:'tieflings',Dragonborn:'dragonborn'};
 export const speciesPlural=species=>{const s=String(species??'').trim();return speciesPlurals[s]??(s?s.toLowerCase()+' folk':'strangers');};
 // How each kind is commonly met by strangers: weights for warm, curious, indifferent, wary, scornful.
-const reputations={Human:[2,1,6,1,0],Dwarf:[3,1,4,2,0],Elf:[2,3,3,2,0],'High Elf':[2,3,3,2,0],'Wood Elf':[3,3,3,1,0],'Dark Elf':[0,2,2,5,1],Gnome:[3,3,3,1,0],Goblin:[0,1,2,5,2],Goliath:[1,4,3,2,0],'Half-Elf':[2,2,5,1,0],Halfling:[4,1,4,1,0],Orc:[0,1,2,5,2],Tiefling:[0,2,2,5,1],Dragonborn:[1,4,2,3,0]};
+const reputations={Human:[2,1,6,1,0],Dwarf:[3,1,4,2,0],Elf:[2,3,3,2,0],'High Elf':[2,3,3,2,0],'Wood Elf':[3,3,3,1,0],Drow:[0,2,2,5,1],'Dark Elf':[0,2,2,5,1],Gnome:[3,3,3,1,0],Goblin:[0,1,2,5,2],Goliath:[1,4,3,2,0],'Half-Elf':[2,2,5,1,0],Halfling:[4,1,4,1,0],Orc:[0,1,2,5,2],Tiefling:[0,2,2,5,1],Dragonborn:[1,4,2,3,0]};
 const regardReasons={kin:'One of their own kind.',warm:'Has always got on well with {kind}.',curious:'Has met few {kind} and is full of questions.',indifferent:'',wary:'Has heard hard things about {kind} and keeps their guard up.',scornful:'Thinks little of {kind} and does not hide it.'};
-const sameKind=(a,b)=>{const x=String(a??'').toLowerCase(),y=String(b??'').toLowerCase();return !!x&&!!y&&(x===y||x.split(/[^a-z]+/).includes(y)||y.split(/[^a-z]+/).includes(x));};
+// A Drow is a dark elf (the name a Drow hero had before 2026-10-12), so an elf or a dark elf knows one as kin.
+const sameKind=(a,b)=>{const x=String(a??'').toLowerCase().replace(/\bdrow\b/g,'dark elf'),y=String(b??'').toLowerCase().replace(/\bdrow\b/g,'dark elf');return !!x&&!!y&&(x===y||x.split(/[^a-z]+/).includes(y)||y.split(/[^a-z]+/).includes(x));};
 export function speciesRegard(game,id,hero){
  const species=hero?.species??hero?.race??'',kind=speciesPlural(species),written=game?.story?.npcs?.[id]?.regard??game?.people?.[id]?.regard;
  const lore=game?.story?.npcs?.[id]??game?.people?.[id]??null,name=lore?.name??npcProfiles[id]?.name??id;
@@ -185,7 +186,7 @@ export function firstImpressions(game,hero){
 }
 // The first thing someone remembers about the hero when their kind already means something to them.
 export function regardMemory(r){
- const one=String(r.species||'stranger').toLowerCase(),a=/^[aeiou]/.test(one)?'An ':'A ';
+ const one=String((r.species==='Dark Elf'?'Drow':r.species)||'stranger').toLowerCase(),a=/^[aeiou]/.test(one)?'An ':'A ';
  const own={kin:'One of my own kind came by: '+a.toLowerCase()+one+'.',warm:a+one+'. I have always got on well with '+r.kind+'.',curious:a+one+'. I have met few '+r.kind+', and I have questions.',wary:a+one+'. I have heard hard things about '+r.kind+', and I am keeping my guard up.',scornful:a+one+'. I think little of '+r.kind+'.'}[r.stance]??a+one+'.';
  return (r.reason&&!Object.values(regardReasons).some(t=>t.replace('{kind}',r.kind)===r.reason)?a+one+' newcomer. '+r.reason:own).slice(0,300);
 }

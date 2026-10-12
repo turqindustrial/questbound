@@ -50,7 +50,7 @@ const rules={};vm.createContext(rules);
 vm.runInContext(['subclassOptions.js','equipmentRules.js','characterRules.js','subclassRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n;this.out={classes,legacyClasses,species,legacySpecies,subclassOptions,legacySubclassOptions,validPlannedSubclass,buildError};',rules);
 const r=rules.out;
 assert.deepEqual(JSON.parse(JSON.stringify(r.classes)),['Artificer','Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard']);
-assert.deepEqual(JSON.parse(JSON.stringify(r.species)),['Dragonborn','Dwarf','High Elf','Wood Elf','Dark Elf','Gnome','Goblin','Goliath','Half-Elf','Halfling','Human','Orc','Tiefling']);
+assert.deepEqual(JSON.parse(JSON.stringify(r.species)),['Dragonborn','Dwarf','High Elf','Wood Elf','Drow','Gnome','Goblin','Goliath','Half-Elf','Halfling','Human','Orc','Tiefling']);
 assert.ok(notice.includes('the Artificer class and its five specialities, three further subclasses for every other class, marked Questbound, and the Goblin species'),'the notice says which options go beyond the SRD');
 const srdSubclasses={Barbarian:'Path of the Berserker',Bard:'College of Lore',Cleric:'Life Domain',Druid:'Circle of the Land',Fighter:'Champion',Monk:'Warrior of the Open Hand',Paladin:'Oath of Devotion',Ranger:'Hunter',Rogue:'Thief',Sorcerer:'Draconic Sorcery',Warlock:'Fiend Patron',Wizard:'Evoker'};
 // The SRD's own subclass comes first, then three of Questbound's own (subclassRules.js plays them; verify-subclasses.cjs

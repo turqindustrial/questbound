@@ -5,11 +5,13 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // slung and adds nothing to armor class (its magic neither), and no other hand strikes; with a shield on the arm a
 // hero fights one-handed unless the player takes the two-hander in hand; a versatile weapon in both hands deals its
 // larger die, one-handed (a shield, a throw, a grapple held) its own. The engine, the Attack… picker, the descriptions,
-// the Dungeon Master's context and the campaign edit agree, and old saves still load.
+// the Dungeon Master's context and the campaign edit agree, and old saves still load. A shield-bearer may also put the
+// shield on their back to hold a versatile weapon in both hands, and take it up again (game.shieldAway, setShield):
+// from the Inventory or in their own words, free out of a fight and their action in one, solo and at a table.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','descriptions.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({weapons,weaponAttacks,attackOptions,readyLoadout,loadoutWarnings,shieldSlung,shieldInUse,canTakeInHand,thrownAttack,oneHanded,offhandWeapons,gearedHero,magicEffects,makeMagicItem,equipmentFor,readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,dmChoices,dmContext,attackActions,itemDescription,actionDescription,rollDamage})',{AsyncStorage:{}});
-const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
+const r=vm.runInNewContext(source+'\n({setShield,shieldStowed,dmCommand,startParty,settleParty,weapons,weaponAttacks,attackOptions,readyLoadout,loadoutWarnings,shieldSlung,shieldInUse,canTakeInHand,thrownAttack,oneHanded,offhandWeapons,gearedHero,magicEffects,makeMagicItem,equipmentFor,readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,dmChoices,dmContext,attackActions,itemDescription,actionDescription,rollDamage})',{AsyncStorage:{}});
+const plain=v=>JSON.parse(JSON.stringify(v));const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
 const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.length;
 const scores={Strength:16,Dexterity:14,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10};
 const make=(cls,{level=1,items=null,wield=null}={})=>{const hero={name:'Hands tester',class:cls,species:'Human',level,background:'Soldier',scores,spells:[]};hero.equipment=r.equipmentFor(hero);if(items)hero.equipment={...hero.equipment,items};if(wield)hero.equipment={...hero.equipment,wield};return hero;};
@@ -92,6 +94,75 @@ assert.equal(r.oneHanded(sword).die,8);
  const k=r.readyHero('fighter'),kg=fightFor(k),swung=r.adventureStep(kg,hpOf(k),k,'attack:Greatsword',seq([0.95,0.5,0.5,0.1,0.1]));
  assert.ok(!r.dmChoices(k,swung.game,swung.health).some(c=>/^offhand:/.test(c.id)),'no off-hand attack after a greatsword');}
 
+// ---- The shield by choice (the host, 2026-10-12: "a shield bearer should be able to put the shield away to hold their
+// weapon with 2 hands, they should make that decision before engagement in the equipment screen or specifically
+// request it themselves") ----
+{const inn=r.newAdventure(paladin),hp=hpOf(paladin);
+ const away=r.setShield(inn,paladin,true);assert.equal(away.error,undefined,away.error);
+ assert.equal(away.game.shieldAway,true);assert.equal(away.game.wield,'Longsword','the weapon in hand stays in hand');assert.match(away.line,/both hands: 1d10 in place of 1d8/,away.line);
+ const held=r.gearedHero(paladin,away.game);
+ assert.ok(r.shieldStowed(held)&&r.shieldSlung(held)&&!r.shieldInUse(held),'the shield is on the back');
+ assert.equal(r.combatBasics(held).ac,16,'armor class 18 → 16');assert.match(r.combatBasics(held).armorNote,/shield is on your back/);
+ const sword=named(held,'Longsword');assert.equal(sword.die,10,'the longsword in both hands');assert.equal(sword.grip,'two');assert.equal(sword.oneHandDie,8);
+ assert.equal(r.magicEffects(held,{items:[r.makeMagicItem('shield+1',paladin)]}).ac,0,'a +1 shield on the back adds nothing');
+ assert.ok(r.loadoutWarnings(held).some(t=>/by your choice.*Longsword is held in both hands \(1d10 in place of 1d8\)/.test(t)),r.loadoutWarnings(held).join(' | '));
+ const fightAway={...fightFor(paladin),shieldAway:true,wield:'Longsword'},geared=r.gearedHero(paladin,fightAway);
+ assert.match(r.attackActions(geared,fightAway,hp).find(a=>a.weapon==='Longsword').detail,/1d10\+3 two-handed/,'the Attack… picker follows');
+ assert.match(r.dmContext(paladin,fightAway,hp).attackOptions.hands,/put the shield on the hero’s back/,'the Dungeon Master is told');
+ assert.ok(r.dmContext(paladin,fightAway,hp).attackOptions.carried.some(t=>/Longsword \(versatile, in both hands: 1d10\)/.test(t)));
+ assert.match(r.dmContext(paladin,fightFor(paladin),hp).attackOptions.hands,/may put the shield on their back/);
+ // Twice is refused; taking it up again restores the shield and the one-handed die.
+ assert.match(r.setShield(away.game,paladin,true).error,/already on your back/);
+ const up=r.setShield(away.game,paladin,false);assert.equal(up.error,undefined,up.error);assert.equal(up.game.shieldAway,undefined);
+ assert.equal(r.combatBasics(r.gearedHero(paladin,up.game)).ac,18);assert.equal(named(r.gearedHero(paladin,up.game),'Longsword').die,8);assert.match(up.line,/back in one hand \(1d8\)/);
+ assert.match(r.setShield(inn,paladin,false).error,/already on your arm/);
+ assert.match(r.setShield(r.newAdventure(fighter),fighter,true).error,/no shield/,'no shield, nothing to put away');
+ assert.match(r.setShield(inn,paladin,true,'Greataxe').error,/carry no greataxe/);
+ // A two-handed weapon in hand still slings the shield; taking the shield up puts the two-hander on the back.
+ const big={...inn,pack:foundGreatsword,wield:'Greatsword'};assert.match(r.setShield(big,paladin,true).error,/already on your back/);
+ const raised=r.setShield(big,paladin,false);assert.equal(raised.game.wield,undefined);assert.equal(r.combatBasics(r.gearedHero(paladin,raised.game)).ac,18);
+ // Out of a fight it is free: an engine step that changes nothing else.
+ const step=r.adventureStep(inn,hp,paladin,{type:'shield',away:true},seq([0.5]));assert.equal(step.error,undefined,step.error);
+ assert.equal(step.game.shieldAway,true);assert.ok(step.events.some(t=>/sling your shield/.test(t)));assert.ok(!step.events.some(t=>/takes your action/.test(t)));valid(paladin,step.game,step.health);
+ const back=r.adventureStep(step.game,hp,paladin,{type:'shield',away:false},seq([0.5]));assert.equal(back.game.shieldAway,undefined);valid(paladin,back.game,back.health);
+ assert.match(r.adventureStep(inn,hp,paladin,{type:'shield',away:'yes'},seq([0.5])).error,/back or on your arm/);
+ // Typed by the player.
+ const said=t=>r.dmCommand(paladin,inn,t)?.action;
+ assert.deepEqual(plain(said('I put my shield on my back and grip my longsword with both hands')),{type:'shield',away:true,weapon:'Longsword'});
+ assert.deepEqual(plain(said('I sling my shield')),{type:'shield',away:true});
+ assert.deepEqual(plain(said('I hold my sword in both hands')),{type:'shield',away:true,weapon:'Longsword'});
+ assert.deepEqual(plain(r.dmCommand(paladin,step.game,'I take up my shield').action),{type:'shield',away:false});
+ assert.deepEqual(plain(r.dmCommand(paladin,step.game,'I strap my shield back on my arm.').action),{type:'shield',away:false});
+ for(const t of ['I take up my shield','Can I put my shield on my back?','I never put my shield away','I raise my shield and wait'])assert.notEqual(said(t)?.type,'shield',t+' is not a shield move here');
+ assert.notEqual(r.dmCommand(fighter,r.newAdventure(fighter),'I grip my longsword with both hands')?.action?.type,'shield','without a shield it is the Dungeon Master’s');
+ // In a fight it is the hero's action: the foe's answer meets the new armor class.
+ const g=fightFor(paladin),done=r.adventureStep(g,hp,paladin,{type:'shield',away:true},seq([0.5,0.5,0.5,0.5,0.5]));assert.equal(done.error,undefined,done.error);
+ const told=done.events.join(' | ');assert.match(told,/sling your shield.*That takes your action/,told);assert.match(told,/vs your AC 16/,'the foe strikes at armor class 16: '+told);
+ assert.equal(done.game.shieldAway,true);valid(paladin,done.game,done.health);
+ // A hurt hero still has a bonus action (Lay on Hands): the turn waits, and the shield cannot move again this turn.
+ const hurt={current:4,temp:0},paused=r.adventureStep(g,hurt,paladin,{type:'shield',away:true},seq([0.5]));assert.equal(paused.error,undefined,paused.error);
+ assert.ok(paused.game.actionUsed,'the action is spent');assert.ok(!paused.events.some(t=>/vs your AC/.test(t)),'the foe waits for the bonus action');
+ assert.match(r.adventureStep(paused.game,paused.health,paladin,{type:'shield',away:false},seq([0.5])).error,/takes your action/);
+ assert.match(r.adventureStep(paused.game,paused.health,paladin,'attack:Longsword',seq([0.5])).error,/already used your action/);
+ assert.equal(r.adventureStep(paused.game,paused.health,paladin,'end-turn',seq([0.5,0.5,0.5])).error,undefined,'ending the turn works');
+ // "I sling my shield, then attack": one action a turn, so the attack waits.
+ const turn=r.dmCommand(paladin,g,'I sling my shield, then attack the bandit');assert.equal(turn.action.type,'turn');assert.equal(turn.action.steps.length,1);assert.equal(turn.action.steps[0].type,'shield');
+ // In a brawl it ends the turn, and the people fighting answer at the new armor class.
+ const brawl=r.adventureStep(inn,hp,paladin,{type:'npc-attack',target:'keeper',weapon:'Longsword'},seq([0.2,0.5,0.5,0.5,0.5,0.5]));assert.equal(brawl.error,undefined,brawl.error);
+ if(brawl.game.npcCombat?.active){const moved=r.adventureStep(brawl.game,brawl.health,paladin,{type:'shield',away:true},seq([0.9,0.5,0.5,0.5]));assert.equal(moved.error,undefined,moved.error);
+  assert.equal(moved.game.shieldAway,true);assert.ok(moved.game.log.some(t=>/sling your shield/.test(t)),moved.game.log.slice(0,6).join(' | '));valid(paladin,moved.game,moved.health);}
+ else assert.fail('fixture: the brawl should go on after one blow');
+ // At a shared table the hero's choice is a hero field: the party sees the new armor class.
+ const snap=r.adventureSnapshot(paladin,step.game,hp,true),party=r.startParty(snap,'seat-aaaaaaaaaaaaaaaa','Al'),me=party.game.party.lead;
+ assert.equal(party.game.party.members[me].stats.ac,16,'the party sees armor class 16');
+ assert.equal(r.settleParty(party).members[me].hero.shieldAway,true,'kept with the hero, not the world');
+ // Saves: old ones without the field load; the field is only ever true.
+ valid(paladin,step.game,hp);valid(paladin,inn,hp);
+ assert.ok(!r.validAdventure(r.adventureSnapshot(paladin,{...inn,shieldAway:'yes'},hp,true),paladin),'nothing else is kept');}
+// At a table: the campaign edit asks the same rules (rules-engine.cjs setShield), never in a fight.
+{const engine=require('./rules-engine.cjs').rules();assert.equal(engine.setShield(engine.newAdventure(paladin),paladin,true).game.shieldAway,true);
+ const edits=fs.readFileSync('campaigns.cjs','utf8');assert.ok(/kind==='shield'.*r\.setShield/.test(edits),'the shield edit uses it');assert.ok(/'wield','shield'\]\.includes\(b\.kind\)/.test(edits),'a lasting choice for the host’s hero');}
+
 // ---- Old saves: a game with a two-hander in hand, and the ready-made heroes, load as before ----
 for(const key of ['fighter','rogue','wizard','cleric']){const h=r.readyHero(key);valid(h,r.newAdventure(h),hpOf(h));}
 valid(paladin,{...r.newAdventure(paladin),pack:foundGreatsword,wield:'Greatsword'},hpOf(paladin));
@@ -99,4 +170,4 @@ valid(paladin,{...r.newAdventure(paladin),pack:foundGreatsword,wield:'Greatsword
 {const engine=require('./rules-engine.cjs').rules();assert.ok(engine.canTakeInHand(engine.gearedHero(paladin,{...engine.newAdventure(paladin),pack:foundGreatsword}),'Greatsword'),'the table lets a shield-bearer take up a found greatsword');
  assert.ok(!engine.canTakeInHand(engine.gearedHero(paladin,engine.newAdventure(paladin)),'Greatsword'),'but not one they do not carry');
  assert.ok(/canTakeInHand/.test(fs.readFileSync('campaigns.cjs','utf8')),'the wield edit uses it');}
-console.log('Passed: two-handed weapons take both hands (the shield slung and its armor class and magic dropped, no other hand, bows included, a shield-bearer fighting one-handed unless the two-hander is taken in hand); versatile weapons deal their larger die in both hands and their own beside a shield, thrown or with a grapple held; picker, descriptions, Dungeon Master context and old saves agree.');
+console.log('Passed: a shield-bearer puts the shield on their back to hold a versatile weapon in both hands and takes it up again (free out of a fight, the action in one; armor class, magic, damage, picker, warnings, Dungeon Master, typed words, the party and the table edit follow); two-handed weapons take both hands (the shield slung and its armor class and magic dropped, no other hand, bows included, a shield-bearer fighting one-handed unless the two-hander is taken in hand); versatile weapons deal their larger die in both hands and their own beside a shield, thrown or with a grapple held; picker, descriptions, Dungeon Master context and old saves agree.');
