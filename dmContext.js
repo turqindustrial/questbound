@@ -15,7 +15,7 @@ import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,pla
 import {campaignState,earnedGold,interactionOptions} from './campaignRules';
 import {attackOptions,readyLoadout,canThrow,attacksPerAction} from './weaponRules';
 import {offhandWeapons,masteryOf,masteredWeapons,masteryText,creatureSize,withinGrip,unarmedDC,grappledBy,markOf} from './masteryRules';
-import {fallAtZero,fallPlace} from './deathRules';
+import {fallAtZero,fallPlace,revivalOptions,partyRevivalError,revivalSpell} from './deathRules';
 import {withAttackIntent} from './dmCommands';
 import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway} from './relationshipRules';
 import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules';
@@ -125,10 +125,13 @@ export function dmChoices(hero,game,health=null) {
   // In a party's fight, nothing can be done on someone else's turn (adventureRules.js keeps the order).
   // (Only passing the turn of a hero whose player has gone, which the screen offers after a wait.)
   {const holder=game.turnOrder?.order?.[game.turnOrder.at]?.id;if(game.party&&holder&&holder!==game.party.lead)return game.party.members[holder]?[{id:'party-pass',label:'Pass the turn of a hero whose player is away',action:{type:'party-pass'}}]:[];}
-  if(game.stage==='dead')return [];
+  // The dead can only be brought back, by a companion at their side who knows how (deathRules.js).
+  if(game.stage==='dead')return revivalOptions(game,hero).filter(o=>o.ready&&o.kind==='companion').map(o=>({id:'revive:'+o.id,label:'Ask '+o.name+' to bring you back with '+revivalSpell.name+' (a '+o.cost+' gp diamond)',action:{type:'revive',by:o.id}}));
   if(game.stage==='dying')return [{id:'death-save',label:'Roll a death saving throw',action:'death-save'}];
   if(game.pendingSpell)return [{id:'cancel-spell',label:'Cancel the pending spell',action:{type:'cancel-spell'}}];
   const choices=(game.story?[]:dungeonChoices(game)).map(c=>({...c,action:c.id})),add=(id,label,action=id)=>choices.push({id,label,action});
+  // A friend at the table who has just died, while the party is still where they fell.
+  for(const m of partyOthers(game))if(m.status==='dead'&&!partyRevivalError(game,hero,m.id,health))add('revive:party:'+m.id,'Cast '+revivalSpell.name+' on '+m.name+' (a 3rd-level slot and a '+revivalSpell.diamond+' gp diamond)',{type:'revive',target:'party:'+m.id});
   const c=campaignState(game),map=mapState(game);
   // The action is spent this turn: a bonus action, or the end of the turn, is all that remains.
   if(game.stage==='combat'&&game.actionUsed){add('end-turn','End your turn');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);return choices;}
@@ -360,7 +363,7 @@ function commitWorldCheck(hero,game,health,c,conversation,random){
  const hp={current:health?.current??combatBasics(hero).hp,temp:health?.temp??0},absorbed=Math.min(hp.temp,damage),overflow=Math.max(0,damage-absorbed-hp.current);hp.temp-=absorbed;hp.current=Math.max(0,hp.current-damage+absorbed);
  let next={...(guide?.game??game)};const maintained=concentrationAfterDamage(hero,next,damage,random);next=maintained.game;
  // A hazard can drop the hero too: they lie dying where it happened.
- const fell=hp.current===0?fallAtZero(next,{overflow,maximum:combatBasics(hero).hp,cause:'Killed by a hazard: '+c.reason,placeName:placeName(next,fallPlace(next))}):null;if(fell)next=fell.game;
+ const fell=hp.current===0?fallAtZero(next,{overflow,maximum:combatBasics(hero).hp,cause:'Killed by a hazard: '+c.reason,placeName:placeName(next,fallPlace(next)),where:mapLocation(next)}):null;if(fell)next=fell.game;
  const outcome=success?c.success:c.failure;
  const text=c.reason+': '+c.ability+(c.skill?' ('+c.skill+')':'')+' d20 ['+dice.join(', ')+']'+(modifiers.reliable&&die<10?' → 10 Reliable Talent':'')+' + '+modifiers.abilityBonus+' ability + '+modifiers.trainingBonus+(modifiers.expert?' Expertise':' training')+(modifiers.magicBonus?' + '+modifiers.magicBonus+' magic':'')+(sway.bonus?(sway.bonus>0?' + ':' - ')+Math.abs(sway.bonus)+' '+sway.note:'')+(guide?' + '+guide.die+' Guidance':'')+' = '+total+' vs DC '+c.dc+'. '+(success?'Success. ':'Failure. ')+outcome+(damageDice.length?' Damage ['+damageDice.join(', ')+'] = '+damage+'.':'');
  next.log=[text,...maintained.logs,...(fell?.entries??[]),...game.log].slice(0,40);next.worldFacts=[...(game.worldFacts??[]),outcome].slice(-60);next.journal=appendJournal(appendJournal(journalForGame(next),'ruling','Action check',text),'note','AI DM conversation','Player: '+conversation.question+'\nDungeon Master: '+conversation.narration+'\nResult: '+outcome);

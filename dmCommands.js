@@ -1,3 +1,4 @@
+import {partyRevivalError} from './deathRules';
 import {attackOptions,canThrow} from './weaponRules';
 import {gearedHero} from './inventoryRules';
 import {spoilsHere,lootError,packMagic,carriedDraughts} from './lootRules';
@@ -325,6 +326,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     const whole=others.filter(m=>target===m.name||target.startsWith(m.name+' ')),byFirst=others.filter(m=>target===m.first||target.startsWith(m.first+' '));
     const pool=whole.length?whole:byFirst.length===1?byFirst:[],named=(pool.find(m=>!m.dead)??pool[0])?.id;
     if(!pool.length&&byFirst.length>1)return {error:'More than one hero here is called '+byFirst[0].first.replace(/^./,c=>c.toUpperCase())+'. Name them in full.',soft:true};
+    // Revivify on a friend who has just died (deathRules.js): the same move as the chip.
+    if(named&&spell.id==='revivify'&&game.party.members[named].status==='dead'){const why=partyRevivalError(game,hero,named,health);return why?{error:why}:{action:{type:'revive',target:'party:'+named}};}
     if(named){if(game.party.members[named].status==='dead')return {error:'They are dead. No spell you know can bring them back.'};request.partyTarget=named;}
   }
   // A spell for friends (Bless, Aid, Shield of Faith and the like): the friends named ("on me, Bram and Mara", "on the
