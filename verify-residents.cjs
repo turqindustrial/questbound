@@ -142,5 +142,5 @@ const brief=server.sceneFor({input:'x',context:{npcSocialState:[{id:'n5',name:'C
  assert.ok(sent.instructions.includes('metHero')&&sent.instructions.includes('peopleHere')&&sent.instructions.includes('PEOPLE ANYWHERE: places are lived in'),'the Dungeon Master names people when scenes call for them');
  assert.ok(sent.instructions.includes('ERRAND: context.story.errand'),'and keeps an errand tale about its errand');
  assert.match(sent.input,/Named people here: Brom Ashby./,'the plain account of the present names who is here');
- console.log('Residents: a tale\'s people seated where they live (two at the start, never more than two a place, ties by name), met on reaching their homes (in the Log once), speaking in the opening, kept by the next tale with earlier people numbered after them, shared at the table; Easy to get into\'s errand as a lair; 24 people a region and 4 a place.');
+ console.log('Residents: a tale\'s people seated where they live (two at the start, never more than three a place, ties by name), met on reaching their homes (in the Log once), speaking in the opening, kept by the next tale with earlier people numbered after them, shared at the table; Easy to get into\'s errand as a lair; 48 people a region and 4 a place.');
 })().catch(e=>{console.error(e);process.exit(1);});

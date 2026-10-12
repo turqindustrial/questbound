@@ -336,8 +336,8 @@ function resolveDmTurn(hero,game,health,action,conversation,random){
   if(action?.type==='ai-check')return commitWorldCheck(hero,game,health,action.check,conversation,random);
   const command=dmCommand(hero,game,conversation.normalizedCommand??conversation.question,health);
   const commandMatches=command?.action&&JSON.stringify(command.action)===JSON.stringify(action);
-  // A newly revealed place is checked by the map rules themselves.
-  if(action!==null&&!['ai-spell','ai-ruling','discover','ambush'].includes(action?.type)&&!commandMatches&&!dmChoices(hero,game).some(c=>JSON.stringify(c.action)===JSON.stringify(action)))return {game,health,error:'That DM action is no longer available.'};
+  // A newly revealed place is checked by the map rules themselves; the map's own journeys (mapMoves) are always open.
+  if(action!==null&&!['ai-spell','ai-ruling','discover','ambush'].includes(action?.type)&&!commandMatches&&!dmChoices(hero,game).some(c=>JSON.stringify(c.action)===JSON.stringify(action))&&!mapMoves(game).some(c=>JSON.stringify(c.action)===JSON.stringify(action)))return {game,health,error:'That DM action is no longer available.'};
   if(action?.type==='ai-spell'){
     if(!command?.action||command.action.type!=='spell'||JSON.stringify(command.action.request)!==JSON.stringify(action.request))return {game,health,error:'Invalid spell interpretation.'};
     const prepared=adventureStep(game,health,hero,command.action,random);if(prepared.error)return prepared;
