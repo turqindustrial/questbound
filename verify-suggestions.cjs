@@ -49,7 +49,8 @@ const calm={...r.freshStoryGame(wiz,story,r.newAdventure(wiz)),spellSlotsUsed:[1
  assert.deepEqual(plain(of('missile').casts.map(c=>c.detail.split(' · ')[0])),['3 darts','4 darts','5 darts']);
  assert.deepEqual(plain(of('hold-person').casts.map(c=>c.detail.split(' · ')[0])),['1 target','2 targets']);
  assert.deepEqual(plain(of('scorching-ray').casts.map(c=>c.detail.split(' · ')[0])),['3 rays','4 rays']);
- const sense=of('detect-magic');assert.deepEqual(plain(sense.casts.map(c=>c.slot)),['ritual',1,2,3],'a ritual first out of a fight');assert.equal(sense.casts[0].question,'I cast Detect Magic on me as a ritual.');
+ // A High Elf knows Detect Magic as a species spell from level 3: that free casting comes before the ritual.
+ const sense=of('detect-magic'),free=/High Elf/.test(wiz.species)||wiz.lineage==='High Elf'?['species']:[];assert.deepEqual(plain(sense.casts.map(c=>c.slot)),[...free,'ritual',1,2,3],'a free casting, then a ritual, first out of a fight');assert.equal(sense.casts.find(c=>c.slot==='ritual').question,'I cast Detect Magic on me as a ritual.');
  assert.equal(of('fireball').casts.length,1,'one way only: the chip casts at once');
  assert.ok(chips.every(c=>!c.casts||c.casts.every(w=>w.slot==='ritual'||w.slot==='species'||w.slot==='arcanum'||w.slot>=r.knownSpells(wiz).find(s=>s.id===c.spell).level)),'never below the spell\'s level');
  // A prefilled sentence names the slot before the target; read back exactly.
