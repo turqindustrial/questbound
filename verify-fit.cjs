@@ -57,5 +57,6 @@ assert.ok(read('GameHud.js').includes("{!display.supported&&display.ios&&!displa
 // ---- Nothing in the builder or hero cards is wider than a 320-pixel phone ----
 assert.ok(read('CharacterBuilder.js').includes('option:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:300,'),'builder choices shrink to a narrow phone');
 assert.ok(read('QuickHeroes.js').includes('card:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:260,'),'hero cards shrink to a narrow phone');
+assert.ok(read('Inventory.js').includes('slot:{flexGrow:1,flexShrink:1,flexBasis:260,minWidth:0,'),'equipment slots shrink to the side column of a phone held sideways');
 assert.ok(read('CharacterBuilder.js').includes('progressHit:{flex:1,paddingVertical:12}'),'the builder\'s step track is tall enough to tap');
 console.log('Fit: the page fills the screen (viewport-fit=cover, Home Screen tags, manifest), insets kept clear by every frame and dialog, bars reach the edges, theme-coloured browser bars, the invite page fits 320 px, iPhone help.');

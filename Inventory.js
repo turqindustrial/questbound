@@ -92,7 +92,7 @@ const s=StyleSheet.create({
  heroName:{fontFamily:fonts.display,fontSize:19,fontWeight:'700',letterSpacing:.8,color:colors.parchment},heroLine:{fontFamily:fonts.ui,fontSize:12.5,color:colors.gold,marginTop:2},
  stats:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8},stat:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:'rgba(0,0,0,.25)'},statText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'700',color:tint('#dfcdc5')},
  slots:{flexDirection:'row',flexWrap:'wrap',gap:8},
- slot:{flexGrow:1,flexBasis:260,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:10,minHeight:60,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},slotOn:{borderColor:colors.goldBright},
+ slot:{flexGrow:1,flexShrink:1,flexBasis:260,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:10,minHeight:60,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},slotOn:{borderColor:colors.goldBright},
  slotIcon:{width:40,height:40,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.35)'},
  slotLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase'},
  slotName:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.4,color:colors.parchment,marginTop:1},slotStat:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b8aeb5'),marginTop:1},
