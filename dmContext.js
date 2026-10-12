@@ -11,7 +11,7 @@ import {adventureStep,encounterFoe} from './adventureRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {classActions,windLimit,shortRestLimit,surgeReady,surgeLimit,turnLeft,potionGifts,subclassTempFloor} from './classActions';
 import {subclassAction,subclassUses,subclassShortRecharge,subclassBriefs} from './subclassRules';
-import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,mapRegions,regionOfPlace,placeCoordinates,beyondBearings,beyondError,beyondWords,mapHasRoom} from './mapRules';
+import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,durationText,mapRegions,regionOfPlace,currentRegion,placeCoordinates,beyondBearings,beyondError,beyondWords,mapHasRoom} from './mapRules';
 import {campaignState,earnedGold,interactionOptions} from './campaignRules';
 import {attackOptions,readyLoadout,canThrow,attacksPerAction,shieldSlung,shieldInUse} from './weaponRules';
 import {offhandWeapons,masteryOf,masteredWeapons,masteryText,creatureSize,withinGrip,unarmedDC,grappledBy,markOf} from './masteryRules';
@@ -51,6 +51,41 @@ export function mapMoves(game){
 export function beyondChoices(game){
   const scene={...game,stage:game.stage==='victory'?'bridge':game.stage};
   return beyondBearings.filter(b=>!beyondError(scene,b));
+}
+// Known places and lands the player's own words name (a whole name; "the" may be left off): the place, or for a land
+// the nearest place in it. Lands travelled are never forgotten, so a journey back to any of them is offered to the
+// Dungeon Master when the player names it, however many lands the choices have no room for.
+const escapedText=t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const plainWords=t=>String(t??'').toLowerCase().replace(/[’`]/g,"'").replace(/\s+/g,' ').trim();
+export function placesNamed(game,input){
+  const text=plainWords(input);
+  if(!game?.story||text.length<3)return [];
+  const said=name=>{const n=plainWords(name).replace(/^the /,'');return n.length>=3&&new RegExp('(?:^|[^a-z0-9])'+escapedText(n)+'(?:$|[^a-z0-9])').test(text);};
+  const here=mapLocation(game),ids=knownPlaceIds(game).filter(id=>id!==here),found=ids.filter(id=>said(placeName(game,id)));
+  const minutes=id=>travelRoute(game,here,id)?.minutes??Infinity,land=currentRegion(game);
+  for(const r of mapRegions(game))if(r.id!==land&&said(r.name)){const near=ids.filter(id=>regionOfPlace(game,id)===r.id).sort((a,b)=>minutes(a)-minutes(b))[0];if(near&&!found.includes(near))found.push(near);}
+  return found;
+}
+// The journeys the player's words name, added to the choices offered (the farthest journeys or ways beyond give way
+// past thirty). The game itself accepts any journey on the map (mapMoves), so the chosen one can be taken.
+export function withNamedJourneys(choices,game,input){
+  if(!input)return choices;
+  const moves=mapMoves(game),named=placesNamed(game,input).map(id=>moves.find(m=>m.action.type==='travel'&&m.action.destination===id)).filter(Boolean).slice(0,4);
+  let list=[...choices];
+  for(const m of named){
+    if(list.some(c=>c.id===m.id))continue;
+    if(list.length>=30){const i=list.map(c=>/^(?:beyond|travel)-/.test(c.id)&&!named.some(n=>n.id===c.id)).lastIndexOf(true);if(i<0)break;list.splice(i,1);}
+    list.push({id:m.id,label:m.label});
+  }
+  return list;
+}
+// The land someone lives (or waits) in, when it is not the land the hero is in: they are told to the Dungeon Master in
+// brief. null for someone in this land or travelling with the hero.
+function landAwayOf(game,id){
+  const f=game.followers?.[id];if(f?.status==='following')return null;
+  const at=f?.status==='waiting'?f.location:game.people?.[id]?.home??(['keeper','mara'].includes(id)?'inn':null);if(!at)return null;
+  const land=regionOfPlace(game,at);if(land===currentRegion(game))return null;
+  return mapRegions(game).find(r=>r.id===land)?.name??null;
 }
 // Class features used as a bonus action in a fight, while they have uses left (healing ones only when hurt, if the
 // caller knows the hero's HP).
@@ -237,9 +272,11 @@ function partyOthers(game){
   const p=game?.party;if(!p?.members||typeof p.lead!=='string')return [];
   return Object.entries(p.members).filter(([id])=>id!==p.lead).map(([id,m])=>{let h={};try{h=JSON.parse(m.character)??{};}catch{}const maxHp=m.stats?.hp??1,hp=m.status==='up'?(m.health?.current??maxHp):0;return {id,name:h.name??'A hero',species:h.species||h.race?heroSpecies(h):null,heroClass:h.class??null,level:h.level??1,description:typeof h.description==='string'?h.description.slice(0,240):null,status:m.status,hp,maxHp};});
 }
-export function dmContext(hero,game,health) {
+// input: the player's words, when known (a journey they name is offered: withNamedJourneys).
+export function dmContext(hero,game,health,input='') {
   hero=gearedHero(hero,game);
   const context={npcCombat:game.npcCombat??null,skillChecks:Object.entries(skillAbilities).map(([skill,ability])=>skillCheckBonus(hero,game,ability,skill)),npcSocialState:npcScene(game),resolvedActionEvents:(game.actionEvents??[]).slice(-8),actionContract:{actions: 'Use choices for supported attacks, abilities and travel; castCommand for spells; check for uncertain noncombat attempts; all other mechanical actions require clarification. Never invent an action ID.',movement:game.story?'Known places are reached with their travel choices (travelRoutes). Going anywhere new (a direction, a landmark, a rumoured place) is fully supported: reveal it with discovery and travel true, as described under OPEN WORLD. Precise tactical positioning and opportunity attacks are not implemented.':'Only supplied travelRoutes and dungeon choices are implemented. Precise tactical positioning and opportunity attacks are not implemented.',witnesses:'Only NPCs present and conscious witness attacks. Recorded npcCombat contains actual initiative and sides. NPC attacks and defender help resolve in the engine after player turns; narrate those results without inventing additional damage. Distant acquaintances learn nothing until informed. Recorded NPC memories override contradictory story notes.'},encounter:game.stage==='combat'?{...encounterFoe(hero,game),currentHP:game.enemyHP,distance:game.castingConditions?.targetDistance??5,clearPath:game.castingConditions?.clearPath!==false}:null,turnResources:{actionUsed:!!game.actionUsed,bonusActionUsed:!!game.bonusUsed,reactionUsed:!!game.reactionUsed,spellSlotSpentThisTurn:!!game.slotSpentThisTurn,left:turnLeft(hero,game),attacksPerAction:attacksPerAction(hero),actionSurge:surgeLimit(hero)>0?{left:surgeLimit(hero)-(game.resources?.surge??0),usedThisTurn:!!game.surged}:null},shortRests:{left:shortRestsLeft(hero,game),of:shortRestLimit(hero)},spellSaveDC:8+proficiencyBonus(hero.level)+modifier(hero.scores[spellAbility[hero.class]]??10),spellAttackBonus:proficiencyBonus(hero.level)+modifier(hero.scores[spellAbility[hero.class]]??10),npcDefenses:Object.fromEntries(npcIdsOf(game).map(id=>[id,{ac:npcProfile(game,id).ac,saveModifiers:0}])),castingConditions:game.castingConditions??{},equipment:hero.equipment,loadout:readyLoadout(hero),loadoutGuidance:'Use the class loadout mainWeapon for an unspecified close-range attack. Explicitly named weapons take priority. Only owned gear is available. The focus is available for eligible material components; it does not waive costly or consumed components or hand requirements. Ranged attacks are bow shots (each spends an arrow) and throws of a dagger, handaxe, javelin or spear (throw: choices; the weapon is gathered up after the fight); both have disadvantage once the foe is within 5 feet. Use only supplied choices.',worldFacts:(game.worldFacts??[]).slice(-12),npcHP:{...Object.fromEntries(npcIdsOf(game).map(id=>[id,npcMaxHP(id,game)])),...game.npcHP},dungeon:game.dungeon?.active?{room:dungeonRooms[game.dungeon.room].name,description:dungeonRooms[game.dungeon.room].text,complete:game.dungeon.complete}:null,travelRoutes:(game.story?knownPlaceIds(game):['inn','bridge','tower']).filter(id=>id!==mapLocation(game)).map(id=>({destination:id,name:placeName(game,id),...travelRoute(game,mapLocation(game),id)})).filter(r=>Number.isFinite(r.feet)),castingHelp:'Cast through Send to DM: I cast [spell] on [target]. The game automatically checks casting requirements. Add level N slot for upcasting. You may adjudicate pending spells using the provided spell description and recorded scene. Do not direct players to casting buttons.',spellReference:knownSpells(hero).map(spell=>({name:spell.name,components:spell.components,material:spell.material,level:spell.level,castingTime:spell.castingTime,range:spell.range,availableCosts:spellCostOptions(hero,game,spell)})),nearbyNPCs:game.dungeon?.active?(game.stage==='combat'?[{name:dungeonRooms[game.dungeon.room].foe,voice:'An ancient guardian; speak in terse solemn warnings.'}]:[]):game.stage==='inn'?[{name:'The keeper',voice:'Practical, warm, worried about travelers; never promises unearned rewards.'},{name:'Mara',voice:'A thoughtful traveling medicine courier; knows the road, not undiscovered tower secrets.'}]:['bridge','combat'].includes(game.stage)?[{name:'Lantern Wisp',voice:'Flickers and wordless musical tones; only call it Ember if the logbook was read.'}]:[],conversationHistory:(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').slice(-6).map(e=>({...e,text:briefText(e.text,1000)})),player:{age:hero.age,backstory:hero.backstory,connections:hero.connections,description:hero.description,name:hero.name,species:heroSpecies(hero),speciesTraits:(p=>({size:p.size,speed:combatBasics(hero).speed??p.speed,darkvision:p.darkvision,traits:p.traits.map(t=>t.name+': '+t.brief+(t.played==='game'?' (applied by the game)':''))}))(speciesProfile(hero)),subclass:currentSubclass(hero.plannedSubclass),subclassFeatures:subclassBriefs(hero),background:hero.background,class:hero.class,level:hero.level,scores:hero.scores,spells:hero.spells??[],health:health??{current:combatBasics(hero).hp,temp:0}},stage:game.stage,map:mapState(game),campaign:campaignState(game),earnedGold:earnedGold(game),enemyHP:game.enemyHP,spellSlotsUsed:game.spellSlotsUsed??[],pendingSpell:game.pendingSpell?{...game.pendingSpell,engineDamage:!!game.pendingSpell.npcTarget&&!!['attack','save','missile','inflict','trueStrike'].some(k=>automaticEffects[game.pendingSpell.id]?.[k]),damageMost:spellDamageMax(hero,knownSpells(hero).find(s=>s.id===game.pendingSpell.id),game.pendingSpell.slot),spell:knownSpells(hero).find(s=>s.id===game.pendingSpell.id)}:null,concentration:game.concentration??null,recentEvents:game.log.slice(0,8),journal:(game.journal?.entries??[]).filter(e=>e.title!=='AI DM conversation').slice(-6).map(e=>({...e,text:briefText(e.text,500)})),choices:offeredChoices(dmChoices(hero,game,health)).map(({id,label})=>({id,label}))};
+  context.choices=withNamedJourneys(context.choices,game,input);
   // A level earned and not yet taken: the player takes it with the Level up button. No experience numbers are sent.
   if((hero.level??1)<20&&heroXp(game,hero)>=xpForLevel((hero.level??1)+1))context.levelReady=true;
   if(game.story){
@@ -250,18 +287,26 @@ export function dmContext(hero,game,health) {
      // People elsewhere are told in brief, so a land of many people still fits in one request (the Dungeon Master's
      // server reads the same brief): who and where they are, how they feel, and their last two memories. Someone who
      // keeps out of sight where they live is `unnoticed` until the player finds them.
-     .map(n=>n.present!==false?n:{id:n.id,name:n.name,role:briefText(n.role,100),livesAt:n.livesAt,present:false,metHero:n.metHero,...(n.hidden?{unnoticed:true}:{}),attitude:n.attitude,...(n.grudge?{grudge:n.grudge}:{}),...(n.grudge&&n.forgiveness?{forgiveness:n.forgiveness}:{}),...(n.forgave?{forgave:n.forgave}:{}),...(n.bond?{bond:n.bond}:{}),...(n.fate?{fate:n.fate}:{}),...(n.ties?.all?.length||(n.ties?.toFoe&&n.ties.toFoe!=='neutral')?{ties:n.ties}:{}),...(n.standing?{standing:n.standing}:{}),...(n.trainedAs?{trainedAs:n.trainedAs}:{}),...(n.metHero!==false?{memories:(n.memories??[]).slice(-2).map(m=>briefText(m,140))}:{})});context.campaign=null;context.journal=context.journal.map(e=>({...e,text:storyText(game,e.text)}));context.recentEvents=context.recentEvents.map(t=>storyText(game,t));if(context.encounter)context.encounter.name=foeLabel(game);
+     .map(n=>n.present!==false?n:landAwayOf(game,n.id)?{id:n.id,name:n.name,role:briefText(n.role,60),livesAt:n.livesAt,land:landAwayOf(game,n.id),present:false,metHero:n.metHero,...(n.hidden?{unnoticed:true}:{}),attitude:n.attitude,...(n.grudge?{grudge:briefText(n.grudge,80)}:{}),...(n.bond?{bond:briefText(n.bond,80)}:{}),...(n.fate?{fate:n.fate}:{}),...(n.standing?{standing:n.standing}:{}),...(n.trainedAs?{trainedAs:n.trainedAs}:{})}:{id:n.id,name:n.name,role:briefText(n.role,100),livesAt:n.livesAt,present:false,metHero:n.metHero,...(n.hidden?{unnoticed:true}:{}),attitude:n.attitude,...(n.grudge?{grudge:n.grudge}:{}),...(n.grudge&&n.forgiveness?{forgiveness:n.forgiveness}:{}),...(n.forgave?{forgave:n.forgave}:{}),...(n.bond?{bond:n.bond}:{}),...(n.fate?{fate:n.fate}:{}),...(n.ties?.all?.length||(n.ties?.toFoe&&n.ties.toFoe!=='neutral')?{ties:n.ties}:{}),...(n.standing?{standing:n.standing}:{}),...(n.trainedAs?{trainedAs:n.trainedAs}:{}),...(n.metHero!==false?{memories:(n.memories??[]).slice(-2).map(m=>briefText(m,140))}:{})});context.campaign=null;context.journal=context.journal.map(e=>({...e,text:storyText(game,e.text)}));context.recentEvents=context.recentEvents.map(t=>storyText(game,t));if(context.encounter)context.encounter.name=foeLabel(game);
     // The wider region: where the hero is, what they know of, and whether a new place can be revealed now.
     const here=mapLocation(game),visited=mapState(game).visited;
     // Lands: the one the hero is in, and every one they know (each has its own map).
     const lands=mapRegions(game),landOf=id=>lands.find(r=>r.id===regionOfPlace(game,id))??lands[0];
     // Which way each known place lies from here (within the same land), so "north" and "along the shore south" can be told from places already known.
+    // Places told in full: those of the land the hero is in, the journeys on offer (and any the player named), and the
+    // errand's place; every other land is told in brief (farLands), so a map of many lands stays inside one request.
+    const onOffer=new Set([here,game.story.errand?.place,...context.choices.filter(c=>c.id.startsWith('travel-')).map(c=>c.id.slice(7))].filter(Boolean));
+    const nearby=id=>regionOfPlace(game,id)===regionOfPlace(game,here)||onOffer.has(id);
+    const farLands=lands.filter(l=>l.id!==regionOfPlace(game,here)).map(l=>{const ids=knownPlaceIds(game).filter(id=>regionOfPlace(game,id)===l.id),routes=ids.map(id=>({id,r:travelRoute(game,here,id)})).filter(x=>x.r).sort((a,b)=>a.r.minutes-b.r.minutes),near=routes[0];
+     const rest=ids.filter(id=>!nearby(id));return rest.length?{name:l.name,terrain:l.terrain,visited:ids.some(id=>visited.includes(id)),...(near?{road:distanceText(near.r.feet)+', '+durationText(near.r.minutes)+' on the road to '+placeName(game,near.id)}:{}),places:rest.map(id=>placeName(game,id)+(visited.includes(id)?'':' (heard of)'))}:null;}).filter(Boolean);
     const from=placeCoordinates(game,here),wayTo=id=>{const to=placeCoordinates(game,id);if(!from||!to||id===here||regionOfPlace(game,id)!==regionOfPlace(game,here)||(to.x===from.x&&to.y===from.y))return null;return ['N','NE','E','SE','S','SW','W','NW'][Math.round(Math.atan2(to.x-from.x,to.y-from.y)/(Math.PI/4)+8)%8];};
     context.world={current:{id:here,name:placeName(game,here),description:placeDescription(game,here),kind:worldPlace(game,here)?.kind??game.story.locations?.[here]?.kind??null},
      region:{name:landOf(here).name,terrain:landOf(here).terrain},regions:lands.map(r=>r.name),
-     knownPlaces:knownPlaceIds(game).map(id=>{const r=id===here?{feet:0,minutes:0}:travelRoute(game,here,id);return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:briefText(placeDescription(game,id),id===here?300:120),distance:r?distanceText(r.feet):'unknown',bearing:wayTo(id),minutes:r?.minutes??null,visited:visited.includes(id),...(worldPlace(game,id)?.cleared?{cleared:true}:{}),...(lands.length>1?{land:landOf(id).name}:{})};}),
+     knownPlaces:knownPlaceIds(game).filter(nearby).map(id=>{const r=id===here?{feet:0,minutes:0}:travelRoute(game,here,id);return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:briefText(placeDescription(game,id),id===here?300:120),distance:r?distanceText(r.feet):'unknown',bearing:wayTo(id),minutes:r?.minutes??null,visited:visited.includes(id),...(worldPlace(game,id)?.cleared?{cleared:true}:{}),...(lands.length>1?{land:landOf(id).name}:{})};}),
      canDiscover:['inn','bridge','tower','wild'].includes(game.stage)&&!game.pendingSpell&&!game.npcCombat?.active&&(health?.current??1)>0&&mapHasRoom(game),placesLeft:maxWorldPlaces-worldPlaces(game).length,
-     // Lands remembered (up to twelve; the one longest unvisited is forgotten when a new one opens).
+     // Other lands, in brief: how far the road is (to the nearest place there) and the places known there by name.
+     ...(farLands.length?{farLands}:{}),
+     // Lands on the map (every land travelled is kept).
      landsRemembered:lands.length,
      canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length,peopleHere:npcScene(game).filter(n=>n.present&&n.hp>0&&n.fate!=='dead'&&game.followers?.[n.id]?.status!=='following').length};
     // Distances are in world.knownPlaces.

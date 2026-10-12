@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // Who is here, and what they say (2026-10-11, the host's words: "have npcs appear as they are discovered as well as the
 // ones that are immediately noticeable at any given location, not all locations need multiple people, but many should"
 // and "make sure npcs have different things to say when interacting with multiple"). A tale seats more people where
-// people gather (up to three a place, two at the start, twelve residents, 48 people in all); someone the writer marks
+// people gather (up to three a place, two at the start, twelve residents, 96 people in all); someone the writer marks
 // noticed:false keeps out of sight (`hidden`) until the Dungeon Master has the player find them; arriving somewhere
 // peopled with nobody named there asks the Dungeon Master once more for someone to meet; and two people in one reply
 // never say the same thing (a later echo is dropped, never the reply). Stand-in providers only: no network, no AI.
@@ -21,7 +21,7 @@ const written={id:'here-1',title:'The Reed Crown',premise:'A drowned barrow wake
   person('Old Nettle','tower',{noticed:false,role:'A hermit hiding in the chapel crypt.'}),person('Brother Pell','tower',{gender:'man'}),person('Hidden Child','inn',{noticed:false})]};
 const game=r.freshStoryGame(hero,written,r.newAdventure(hero)),byName=Object.fromEntries(Object.entries(game.people).map(([id,p])=>[p.name,{id,...p}]));
 // ---- How many a place holds: two residents at the start, three at a peopled landmark ----
-assert.equal(r.residentsAtStart,2);assert.equal(r.residentsPerPlace,3);assert.equal(r.maxResidents,12);assert.equal(r.maxPeople,48);
+assert.equal(r.residentsAtStart,2);assert.equal(r.residentsPerPlace,3);assert.equal(r.maxResidents,12);assert.equal(r.maxPeople,96);
 assert.ok(byName['Tilda Marsh']&&byName['Brom Ashby']&&!byName['Third Stall'],'two at the starting place, where keeper and mara are too');
 assert.ok(byName['Ferry Ann']&&byName['Ferry Bo']&&byName['Ferry Cy']&&!byName['Ferry Four'],'three at the ferry, never a fourth resident');
 assert.equal(byName['Hidden Child'],undefined,'the starting place has no room left (and nobody hides in the opening)');
@@ -50,7 +50,7 @@ assert.ok(after.storyLog.some(e=>e.text.startsWith('Met Old Nettle')));assert.ok
 // A first arrival is greeted by someone in plain sight, never by someone hiding.
 const cue=r.sceneTrigger(game,chapel.game,{type:'travel',destination:'tower'});assert.ok(!cue||cue.speakerId!==nettle.id);
 // ---- New ids: the first free one (a forgotten land frees them) ----
-assert.equal(r.freePersonId({n1:{},n2:{},n4:{}}),'n3');assert.equal(r.freePersonId(Object.fromEntries(Array.from({length:48},(_,i)=>['n'+(i+1),{}]))),null);
+assert.equal(r.freePersonId({n1:{},n2:{},n4:{}}),'n3');assert.equal(r.freePersonId(Object.fromEntries(Array.from({length:96},(_,i)=>['n'+(i+1),{}]))),null);
 (async()=>{
  const server=require('./dm-server.cjs'),{secondLook}=require('./dm-intent.cjs');
  const quiet={narration:'You reach the ferry.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,suggestions:[]};
@@ -78,5 +78,5 @@ assert.equal(r.freePersonId({n1:{},n2:{},n4:{}}),'n3');assert.equal(r.freePerson
  const cueCalls=[];await server.generate({input:'You arrive.',context:{...crowd,sceneTrigger:{id:'arrive:inn',cue:'The player arrives.'}}},{apiKey:'test-only',model:'test-model',fetchImpl:async(url,options)=>{cueCalls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...quiet,narration:'They look up.',dialogue:[{speakerId:'keeper',text:'There you are.'}]})}]}]})};}});
  assert.match(cueCalls[0].instructions,/each speaker saying something different \(never two greetings alike\)/);
  const gen=fs.readFileSync('adventure-generator.cjs','utf8');assert.ok(gen.includes('noticed:{type:\'boolean\'}')&&gen.includes('noticed: true for someone in plain sight')&&gen.includes('six to ten further named people (never more than twelve)'),'the writer seats people where they would be');
- console.log('Who is here: people seated where they gather (two at the start, three at a peopled place, 48 in all), noticed at once or found by looking (hidden until introduced by name, then met and in the People panel), arrivals at peopled places with nobody named asked again for someone to meet, and different words from different people (echoes dropped, greetings never alike).');
+ console.log('Who is here: people seated where they gather (two at the start, three at a peopled place, 96 in all), noticed at once or found by looking (hidden until introduced by name, then met and in the People panel), arrivals at peopled places with nobody named asked again for someone to meet, and different words from different people (echoes dropped, greetings never alike).');
 })().catch(e=>{console.error(e);process.exit(1);});

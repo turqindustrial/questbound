@@ -19,7 +19,7 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  const target=greet?request.npcId:r.conversationTarget(game,question,people.some(p=>p.id===request.npcId)?request.npcId:null),talkingTo=people.find(p=>p.id===target);
  const toDm=!greet&&(request.direct===true||/^(?:dm[, :]|\(ooc\))/i.test(question));
  const post=async(scene=game,hp=health,extra={})=>{
-  const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...extra}});
+  const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp,question),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...extra}});
   if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');return body;
  };
  function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
@@ -72,7 +72,8 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  if(body.ruling)return finish({type:'ai-ruling',ruling:body.ruling},body);
  if(body.discovery){const {travel,...place}=body.discovery;return finish({type:'discover',place,travel},body);}
  if(body.ambush)return finish({type:'ambush',foe:body.ambush},body);
- const choice=body.actionId==null?null:r.dmChoices(ruled,game,health).find(c=>c.id===body.actionId);
+ // A journey the player named may be one the choices had no room for: any journey on the map can be taken (mapMoves).
+ const choice=body.actionId==null?null:[...r.dmChoices(ruled,game,health),...r.mapMoves(game)].find(c=>c.id===body.actionId);
  if(body.actionId!=null&&!choice)throw fail('That action is no longer available.');
  return choice?cast({action:choice.action},body.narration):finish(null,body);
 }

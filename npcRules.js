@@ -1,4 +1,4 @@
-import {mapLocation,forgetLand} from './mapRules';
+import {mapLocation} from './mapRules';
 // Authored campaign relationships, not a universal D&D rule that all witnesses fight.
 export const npcProfiles={
  keeper:{name:'The keeper',maximumHP:12,ac:10,knows:['mara'],response:'Defends the inn, refuses hospitality, and calls for help.'},
@@ -6,14 +6,15 @@ export const npcProfiles={
 };
 // Every story has its two residents; a written tale seats a few more people who live in its country (residents:
 // `resident:true`, met when the player first reaches where they live), and the Dungeon Master can bring more named
-// people into the region as the player meets them (game.people: n1…n48, each living at the place where they were met).
+// people into the region as the player meets them (game.people: n1…n96, each living at the place where they were met;
+// lands travelled are never forgotten, so neither are the people met there).
 // Places are lived in: up to four living people at one place, up to three of a tale's residents seated at one (two at
 // the starting place, where keeper and mara are too).
 export const coreNpcIds=['keeper','mara'];
-export const maxPeople=48,maxPeopleHere=4,maxResidents=12,residentsPerPlace=3,residentsAtStart=2;
+export const maxPeople=96,maxPeopleHere=4,maxResidents=12,residentsPerPlace=3,residentsAtStart=2;
 export const personToughness={frail:{maximumHP:4,ac:10},common:{maximumHP:9,ac:10},tough:{maximumHP:16,ac:13}};
-export const isPersonId=id=>/^n(?:[1-9]|[1-3]\d|4[0-8])$/.test(String(id));
-// The first free id for someone new (ids freed when a far land is forgotten are used again).
+export const isPersonId=id=>/^n(?:[1-9]|[1-8]\d|9[0-6])$/.test(String(id));
+// The first free id for someone new.
 export function freePersonId(people){for(let n=1;n<=maxPeople;n++)if(!Object.hasOwn(people??{},'n'+n))return 'n'+n;return null;}
 export const npcIdsOf=game=>[...coreNpcIds,...Object.keys(game?.people??{}).filter(isPersonId)];
 // ---------- Trained people ----------
@@ -204,31 +205,4 @@ export function npcServiceError(game,action){
  if(npc.hp<=0)return npc.name+(npc.fate==='dead'?' is dead.':' is unconscious and cannot offer this service.');
  if(npc.attitude==='hostile')return npc.name+' refuses to help after the attack. You can leave or talk about what happened; an apology does not automatically restore trust.';
  return '';
-}
-
-// ---------- Lands forgotten ----------
-// When the atlas is full and a new land opens, the land longest unvisited is forgotten (mapRules.js landsToForget,
-// forgetLand): its places leave the map, and with them the people who lived there and were not travelling with the
-// hero (their memories, wounds and fates, and anything said of them). A companion who follows the hero stays.
-// Returns the game, the lines for the log ("The memory of … fades.") and every land, place and person id let go.
-export function forgetLands(game,regionIds){
- let next=game;const lines=[],places=[],people=[],regions=[];
- for(const id of regionIds??[]){
-  const gone=forgetLand(next,id);if(!gone.name)continue;
-  next=gone.game;places.push(...gone.places);regions.push(id);lines.push('The memory of '+gone.name+' fades.');
- }
- if(!regions.length)return {game,lines,places,people,regions};
- const out=new Set(places),following=id=>next.followers?.[id]?.status==='following';
- for(const [id,p] of Object.entries(next.people??{}))if(out.has(p.home)&&!following(id))people.push(id);
- next={...next};
- // Someone dismissed or waiting out there is let go of too (keeper and mara go home to the starting place).
- if(next.followers){const f={...next.followers};for(const [id,v] of Object.entries(f))if(people.includes(id)||(out.has(v?.location)&&v?.status!=='following'))delete f[id];next.followers=f;if(!Object.keys(f).length)delete next.followers;}
- if(next.people){const p={};for(const [id,v] of Object.entries(next.people)){if(people.includes(id))continue;let q=v;if(out.has(q.home))q={...q,home:mapLocation(next)};if(q.tie&&people.includes(q.tie.to)){const {tie,...rest}=q;q=rest;}p[id]=q;}next.people=p;if(!Object.keys(p).length)delete next.people;}
- const drop=key=>{if(!next[key])return;const v=Object.fromEntries(Object.entries(next[key]).filter(([k])=>!people.includes(k)));if(Object.keys(v).length)next[key]=v;else delete next[key];};
- for(const key of ['npcMemory','npcHP','npcFate','npcClasses','joinOffers','marks','boons','aided'])drop(key);
- if(next.spoils){next.spoils=next.spoils.filter(e=>!people.includes(e.person));if(!next.spoils.length)delete next.spoils;}
- if(next.actionEvents)next.actionEvents=next.actionEvents.filter(e=>!people.includes(e.target)&&!out.has(e.location)).map(e=>({...e,witnesses:(e.witnesses??[]).filter(w=>!people.includes(w))}));
- if(people.includes(next.concentration?.target))delete next.concentration;
- next.log=[...lines,...(next.log??[])].slice(0,40);
- return {game:next,lines,places,people,regions};
 }

@@ -3,7 +3,7 @@ import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import React,{useState,useEffect,useRef} from 'react';
 import {View,Image,Pressable,Platform,StyleSheet,Modal,ScrollView,useWindowDimensions} from 'react-native';
-import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords,maxRegions} from './mapRules';
+import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords} from './mapRules';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {WrapRow} from './ui';
@@ -108,7 +108,7 @@ function BeyondCard({land,beyond,onBeyond,close}){
   <View style={s.rose}>{roseRows.map((row,i)=><View key={i} style={s.roseRow}>{row.map(b=>b?<Pressable key={b} accessibilityRole="button" accessibilityLabel={'Beyond the map to the '+beyondWords[b]} accessibilityState={{selected:aim===b,disabled:!ok(b)}} disabled={!ok(b)} onPress={()=>setAim(aim===b?null:b)} dataSet={{qb:aim===b?'seg-on':'chip'}} style={[s.roseCell,aim===b&&s.roseOn,!ok(b)&&{opacity:.35}]}><PlainText style={[s.roseText,aim===b&&{color:colors.goldBright}]}>{b}</PlainText></Pressable>:<View key="centre" style={s.roseCentre}><Icon name="compass" size={16} color={colors.goldMid}/></View>)}</View>)}</View>
   <View style={{flex:1,minWidth:0}}>
    <Text style={s.detailName}>Beyond the map</Text>
-   <PlainText style={s.beyondText}>{aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, up to '+maxRegions+'.'}</PlainText>
+   <PlainText style={s.beyondText}>{aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, and you can always travel back.'}</PlainText>
    {!!aim&&<Pressable accessibilityRole="button" accessibilityLabel={'Set out '+beyondWords[aim]+', beyond the map'} onPress={()=>{onBeyond(aim);setAim(null);close?.();}} dataSet={{qb:'chip'}} style={[s.travel,{alignSelf:'flex-start',marginTop:8}]}><View style={s.travelRow}><Icon name="travel" size={14} color={colors.gold}/><PlainText style={s.travelText}>Set out</PlainText></View></Pressable>}
   </View>
  </View>;

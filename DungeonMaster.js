@@ -20,7 +20,7 @@ import {KeyHint,IconButton,WrapRow} from './ui';
 import {chipLayout} from './fitRules';
 import {shortcutsBlocked} from './keyboard';
 import {View,Text as PlainText,TextInput,Pressable,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
-import {dmContext,dmChoices,commitDmTurn} from './dmContext';
+import {dmContext,dmChoices,commitDmTurn,mapMoves} from './dmContext';
 import {fonts,colors,type,tint} from './theme';
 import {playSound} from './audio';
 import {speakTurn,stopNarrator} from './narrator';
@@ -104,7 +104,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
   const [draft,setDraft]=useState('');
   // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
-  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(gearedHero(hero,scene)).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(gearedHero(hero,scene)).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp,input),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(table?.joined||!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -273,7 +273,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       if(protocol>=3&&body.discovery){const {travel,...place}=body.discovery;await finish({type:'discover',place,travel},body);return;}
       // A creature the DM sprang on the player out in the wilds: the fight starts, and the player moves first.
       if(protocol>=3&&body.ambush){await finish({type:'ambush',foe:body.ambush},body);return;}
-      const choice=body.actionId===null?null:dmChoices(hero,game).find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
+      const choice=body.actionId===null?null:[...dmChoices(hero,game),...mapMoves(game)].find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
       if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration);return;}
       const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
       if(protocol<2&&choice)setReply({narration:body.narration,pending:choice,snapshot:JSON.stringify({hero,game:result.game,health:result.health})});
