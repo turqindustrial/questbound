@@ -5,11 +5,12 @@ import HeroPortrait from './HeroPortrait';
 import {weaponIcon} from './iconPaths';
 import {fonts,colors,type,tint} from './theme';
 import {combatBasics,signed} from './combatRules';
-import {attackOptions,readyLoadout,weapons} from './weaponRules';
+import {attackOptions,readyLoadout,weapons,shieldInUse,shieldSlung,canTakeInHand} from './weaponRules';
 import {gearedHero,packOf,arrowsLeft} from './inventoryRules';
 import {magicItems,rarityLabel} from './lootRules';
 import {itemDescription,goldDescription,draughtDescription,defenceText} from './descriptions';
 import {playSound} from './audio';
+import {heroSpecies} from './characterRules';
 // The Inventory tab: what the hero has equipped (weapon in hand, off hand, armour, bow, focus) around their
 // portrait, then everything they carry. Every slot and every item explains itself when tapped, and a carried
 // weapon can be taken in hand from here.
@@ -25,11 +26,16 @@ export default function Inventory({hero,game,onWield,onAttune}){
  // A carried magic item (its pack entry: rarity, attunement, charges) by name; a weapon's base kind for its icon.
  const packItem=name=>pack.items.find(i=>i.name===name&&i.magic)??null,baseOf=name=>geared.equipment?.items?.find(i=>i.name===name)?.base??name;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
- const twoHanded=!!main?.twoHands,offhand=loadout.shield?'Shield':null;
+ // Hands (weaponRules.js): a shield on the arm, or both hands on a two-handed weapon (the shield slung on the back), or
+ // both hands on a versatile weapon for its larger die.
+ const twoHanded=!!main?.twoHands,bothOnVersatile=!!main?.versatile&&main.grip==='two',slung=shieldSlung(geared),offhand=shieldInUse(geared)?'Shield':null;
+ const offName=offhand??(twoHanded||bothOnVersatile?'Both hands on the '+main.name:'Free');
+ const offStat=offhand?'+2 armor class':slung?'Shield on your back':bothOnVersatile?'1d'+main.die+' two-handed':'';
+ const offText=offhand?itemDescription('Shield'):twoHanded?'This weapon takes both hands.'+(slung?' Your shield is slung on your back and adds nothing to your armor class; take a one-handed weapon in hand to raise it again.':''):bothOnVersatile?'You hold it in both hands, so it strikes harder: 1d'+main.die+' in place of 1d'+main.oneHandDie+'. A shield on your arm would take that hand.':'Your other hand is free: for a torch, a door, a spell’s gestures.';
  // Equipment slots: [id, label, icon, name, stat, description].
  const slots=[
   ['main',main?.ranged?'In hand (ranged)':'Main hand',main?(main.unarmed?'fist':weaponIcon(main.base??main.name)):'hand',main?main.name:'Empty',main?damageOf(main)+(main.magic?'+'+main.magic:'')+' '+main.type.toLowerCase()+' · '+signed(main.attackBonus)+' to hit':'',main?(main.unarmed?'Your fists, feet and elbows. Everyone can fight unarmed.':itemDescription(main.name,'weapon',null,packItem(main.name))):'Nothing in hand.'],
-  ['off','Off hand',offhand?'shield':'hand',offhand??(twoHanded?'Both hands on the '+main.name:'Free'),offhand?'+2 armor class':'',offhand?itemDescription('Shield'):twoHanded?'This weapon takes both hands.':'Your other hand is free: for a torch, a door, a spell’s gestures.'],
+  ['off','Off hand',offhand?'shield':'hand',offName,offStat,offText],
   ['armor','Armor','armor',loadout.armor??'No armor',basics.ac!==null?'Armor class '+basics.ac:'',(loadout.armor?itemDescription(loadout.armor)+' ':'You wear no armor. ')+(defenceText(hero)?'Your armor class: '+defenceText(hero)+'.':'')+(basics.armorNote?' '+basics.armorNote:'')],
   ...(ranged?[['ranged','Ranged',weaponIcon(ranged.base??ranged.name),ranged.name,damageOf(ranged)+(ranged.magic?'+'+ranged.magic:'')+' '+ranged.type.toLowerCase()+' · '+arrows+' arrows',itemDescription(ranged.name,'weapon',null,packItem(ranged.name))]]:[]),
   ...(loadout.focus?[['focus','Focus',/Lute|Flute|Drum/.test(loadout.focus)?'lute':'spell',loadout.focus.replace(/^(Arcane|Druidic) Focus \((.*)\)$/,'$2 focus'),'For your spells',itemDescription(loadout.focus)]]:[]),
@@ -39,7 +45,7 @@ export default function Inventory({hero,game,onWield,onAttune}){
  const equipped=new Set([main?.name,offhand,loadout.armor,ranged?.name,loadout.focus].filter(Boolean));
  const kit=(geared.equipment?.items??[]).filter(i=>i.quantity>0&&i.name!=='Arrow').map(i=>{const kind=i.base??i.name;return {key:'kit:'+i.name,name:i.name,qty:i.quantity,kind:weapons[kind.includes('(Quarterstaff)')?'Quarterstaff':kind]?'weapon':'gear',icon:kitIcon(kind),weapon:weapons[kind]?i.name:i.name.includes('(Quarterstaff)')?'Quarterstaff':null,magic:packItem(i.name)};});
  const found=pack.items.filter(i=>i.name!=='Arrow'&&!(i.kind==='weapon'&&weapons[i.base??i.name])).map(i=>({key:'pack:'+i.name,name:i.name,qty:i.qty,kind:i.kind,icon:i.base&&i.kind==='armor'?kitIcon(i.base):i.magic?.charges!==undefined?'staff':kindIcon[i.kind]??'bag',note:i.note,value:i.value,magic:i.magic?i:null}));
- const row=item=>{const on=open===item.key,worn=equipped.has(item.name)||(item.weapon&&equipped.has(item.weapon)),usable=item.weapon&&attacks.some(w=>w.name===item.weapon),inHand=item.weapon&&main?.name===item.weapon;
+ const row=item=>{const on=open===item.key,worn=equipped.has(item.name)||(item.weapon&&equipped.has(item.weapon)),usable=item.weapon&&canTakeInHand(geared,item.weapon),inHand=item.weapon&&main?.name===item.weapon;
   return <View key={item.key} style={[s.item,on&&s.itemOn]}>
    <Pressable accessibilityRole="button" accessibilityState={{expanded:on}} accessibilityLabel={item.name+(item.qty>1?', '+item.qty:'')+'. Show what it is'} onPress={()=>setOpen(on?null:item.key)} style={s.itemHead}>
     <View style={[s.itemIcon,worn&&{borderColor:colors.gold}]}><Icon name={item.icon} size={17} color={worn?colors.goldBright:colors.gold}/></View>
@@ -59,7 +65,7 @@ export default function Inventory({hero,game,onWield,onAttune}){
     <HeroPortrait hero={hero} size={84} level={hero.level}/>
     <View style={{flex:1,minWidth:0}}>
      <Text numberOfLines={1} style={s.heroName}>{hero.name}</Text>
-     <Text numberOfLines={1} style={s.heroLine}>{hero.species??hero.race} {hero.class}</Text>
+     <Text numberOfLines={1} style={s.heroLine}>{heroSpecies(hero)} {hero.class}</Text>
      <View style={s.stats}>
       <View style={s.stat}><Icon name="shield" size={13} color={colors.gold}/><Text style={s.statText}>AC {basics.ac??'–'}</Text></View>
       {!!main&&<View style={s.stat}><Icon name="swords" size={13} color={colors.gold}/><Text style={s.statText}>{signed(main.attackBonus)} to hit</Text></View>}

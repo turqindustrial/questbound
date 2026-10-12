@@ -1,5 +1,6 @@
 import {combatBasics} from './combatRules';
 import {gearedHero} from './inventoryRules';
+import {heroSpecies} from './characterRules';
 // A party at the shared table: every player brings their own hero into one adventure. The world (the story, the map,
 // the people, the fight) is shared; each hero's own state (hit points, draughts, pack, slots, deeds, dying...) is kept
 // per hero in game.party.members. A snapshot always has one hero in the lead: the one whose device sent it. Every
@@ -96,5 +97,5 @@ export function soloFromParty(snapshot,level=null){
 // The others, for the screen and the Dungeon Master: name, player, condition and hit points.
 export function partyMembers(game){
  if(!isPartyGame(game))return [];
- return (game.party.order??Object.keys(game.party.members)).filter(id=>game.party.members[id]).map(id=>{const m=game.party.members[id],hero=parse(m.character)??{};return {id,lead:id===game.party.lead,name:hero.name??'A hero',player:m.name||null,species:hero.species??hero.race??'',heroClass:hero.class??'',level:hero.level??1,status:m.status,hp:m.health?.current??m.stats?.hp??null,maxHp:m.stats?.hp??null};});
+ return (game.party.order??Object.keys(game.party.members)).filter(id=>game.party.members[id]).map(id=>{const m=game.party.members[id],hero=parse(m.character)??{};return {id,lead:id===game.party.lead,name:hero.name??'A hero',player:m.name||null,species:heroSpecies(hero),heroClass:hero.class??'',level:hero.level??1,status:m.status,hp:m.health?.current??m.stats?.hp??null,maxHp:m.stats?.hp??null};});
 }

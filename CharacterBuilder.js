@@ -8,14 +8,14 @@ import { equipmentFor, instruments } from './equipmentRules';
 import LoadoutSummary from './LoadoutSummary';
 import DeveloperOptions from './DeveloperOptions';
 import StoryLoading from './StoryLoading';
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {View, Text, TextInput, Pressable, StyleSheet, Modal} from 'react-native';
 import {fonts,colors,type,tint} from './theme';
 import {Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import {playSound} from './audio';
-import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass} from './characterRules';
+import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass, fixedLineage, heroSpecies, speciesProfile, baseSpeciesOf, keenSenseSkills} from './characterRules';
 import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions, lineageDetails} from './characterOptions';
 
 const basePages = [
@@ -48,6 +48,11 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
   }catch(e){setPageError(e.message);}finally{setGenerating(false);}}
 
   const change = patch => {setPageError(''); setForm(previous => ({...previous, ...patch}));};
+  // A hero made as a plain Elf (before High and Wood Elves were species of their own) is edited as the elf they are.
+  useEffect(() => {if (form.species === 'Elf') {const now = heroSpecies(form); setForm(previous => ({...previous, species: now, lineage: fixedLineage[now]}));}}, [form.species]);
+  // Each species card says how fast and how far in the dark it sees and names its traits; the chosen one explains them.
+  const speciesCards = Object.fromEntries(species.map(name => {const kind = speciesProfile(name), sight = kind.darkvision ? ' · Darkvision ' + kind.darkvision + ' ft' : '';
+    return [name, {...speciesDetails[name], ability: 'Speed ' + kind.speed + ' ft' + sight + (kind.size !== 'Medium' ? ' · ' + kind.size : '') + ' · ' + kind.traits.map(t => t.name).join(', '), features: name === form.species ? kind.traits.map(t => ({name: t.name, brief: t.brief})) : []}];}));
   const go = next => {setPageError(''); setPage(next); onPageChange?.();};
   const scores = finalScores(form);
   const bg = backgrounds[form.background];
@@ -65,7 +70,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
         <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option === 'Dark Elf' ? 'Dark Elf (Drow)' : option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
         <Text style={s.text}>{detail.description}</Text>
         {(detail.features??[]).map(f=><Text key={f.name} style={s.detail}>✦ {f.name}: {f.brief}</Text>)}
-        {!!detail.ability && <Text style={s.detail}>Key abilities: {detail.ability}</Text>}
+        {!!detail.ability && <Text style={s.detail}>{label === 'Species' ? detail.ability : 'Key abilities: ' + detail.ability}</Text>}
         {!!detail.note && value === option && <Text style={s.detail}>{detail.note}</Text>}
       </Pressable>;
     })}</View>;
@@ -106,8 +111,13 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       <Text style={s.label}>Appearance & personality (optional)</Text><TextInput accessibilityLabel="Appearance and personality" multiline style={[s.input, {minHeight:120,textAlignVertical:'top'}]} value={form.description ?? ''} onChangeText={description => change({description})} maxLength={1500} placeholder="A green-skinned inventor with copper goggles and an endless list of questions…" placeholderTextColor={tint('#b6aeb4')}/>
       {['age','backstory'].map(key=><View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><TextInput accessibilityLabel={'Character '+key} value={form[key]??''} onChangeText={value=>change({[key]:value})} maxLength={key==='age'?60:2000} multiline={key!=='age'} editable={!generating} style={[s.input,key!=='age'&&{minHeight:80}]} /></View>)}
     </>}
-    {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:value!=='Dark Elf'&&speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null}), speciesDetails)}
-    {page === 1 && form.species !== 'Dark Elf' && !!speciesLineages[form.species] && <>
+    {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:fixedLineage[value]??(speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null),keenSense:baseSpeciesOf(value)==='Elf'?(form.keenSense??'Perception'):undefined}), speciesCards)}
+    {page === 1 && baseSpeciesOf(form.species) === 'Elf' && <>
+      <Text style={s.label}>Keen Senses</Text>
+      <Text style={s.detail}>Every elf is trained in one of these skills.</Text>
+      {choices('Keen Senses', keenSenseSkills, keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception', value => change({keenSense:value}))}
+    </>}
+    {page === 1 && !fixedLineage[form.species] && !!speciesLineages[form.species] && <>
       <Text style={s.label}>{form.species === 'Tiefling' ? 'Fiendish legacy' : 'Lineage'}</Text>
       {form.species === 'Tiefling' && <Text style={s.detail}>Every Tiefling knows Thaumaturgy.</Text>}
       {optionCards('Lineage', speciesLineages[form.species], form.lineage, value => change({lineage:value}), lineageDetails)}
@@ -150,7 +160,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {page === reviewPage && <>
       {reviewRow('Name', form.name, 0)}
       {!!form.description && <Text style={s.intro}>{form.description}</Text>}{['age','backstory'].map(key=>form[key]?<View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{form[key]}</Text></View>:null)}
-      {reviewRow('Species', form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species, 1)}
+      {reviewRow('Species', (form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : !fixedLineage[form.species] && form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species) + (baseSpeciesOf(form.species) === 'Elf' ? ' · Keen Senses: ' + (keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception') : ''), 1)}
       {reviewRow('Class', form.class, 2)}
       {reviewRow('Planned subclass', currentSubclass(form.plannedSubclass) || 'Decide at level 3', 3)}
       {reviewRow('Background', form.background, 4)}

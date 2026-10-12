@@ -4,6 +4,7 @@ import {encounterFoe} from './adventureRules';
 import {spellDefense} from './spellRules';
 import {dungeonRooms} from './dungeonRules';
 import {npcArtSubject,creatureArtSubject} from './worldArtRules';
+import {heroSpecies} from './characterRules';
 const scoreNames=['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
 // Only trained people have a class and level; everyone else is shown by who they are (their role).
 function entityNote(game,n){
@@ -23,8 +24,8 @@ export function encounterEntities(hero,game,health){
  };
  const main=creature({...game,dungeon:undefined},'foe');
  if(game.dungeon?.active){main.hp=null;for(const room of [2,6])if(game.dungeon.visited.includes(room)){const guardian=creature({...game,stage:'combat',dungeon:{...game.dungeon,room}},'guardian-'+room);guardian.hp=game.dungeon.cleared.includes(room)?0:game.stage==='combat'&&game.dungeon.room===room?game.enemyHP:null;npcs.push(guardian);}}
- const companions=Object.entries(game.party?.members??{}).filter(([id])=>id!==game.party.lead).flatMap(([id,m])=>{try{const h=JSON.parse(m.character),b=combatBasics(h);return [{id:'party:'+id,name:h.name,aliases:[],species:h.species??h.race,className:h.class,level:h.level,ac:spellDefense(m.hero??{},b.ac).ac,hp:m.status==='up'?(m.health?.current??b.hp):0,maximum:b.hp,temp:m.health?.temp??0,scores:h.scores,description:h.description??'',note:'Party member'}];}catch{return [];}});
- return [{id:'player',name:hero.name,aliases:[],species:hero.species??hero.race,className:hero.class,level:hero.level,ac:spellDefense(game,stats.ac).ac,hp:health?.current??stats.hp,maximum:stats.hp,temp:health?.temp??0,scores:hero.scores,description:hero.description??'',note:''},...companions,...npcs,main];
+ const companions=Object.entries(game.party?.members??{}).filter(([id])=>id!==game.party.lead).flatMap(([id,m])=>{try{const h=JSON.parse(m.character),b=combatBasics(h);return [{id:'party:'+id,name:h.name,aliases:[],species:heroSpecies(h),className:h.class,level:h.level,ac:spellDefense(m.hero??{},b.ac).ac,hp:m.status==='up'?(m.health?.current??b.hp):0,maximum:b.hp,temp:m.health?.temp??0,scores:h.scores,description:h.description??'',note:'Party member'}];}catch{return [];}});
+ return [{id:'player',name:hero.name,aliases:[],species:heroSpecies(hero),className:hero.class,level:hero.level,ac:spellDefense(game,stats.ac).ac,hp:health?.current??stats.hp,maximum:stats.hp,temp:health?.temp??0,scores:hero.scores,description:hero.description??'',note:''},...companions,...npcs,main];
 }
 export function combatRoster(entities,game){
  if(game.party&&game.turnOrder){return game.turnOrder.order.map(actor=>{const member=!!game.party.members[actor.id],mine=actor.id===game.party.lead,id=mine?'player':member?'party:'+actor.id:actor.id.startsWith('npc:')?actor.id.slice(4):actor.id==='foe'&&game.dungeon?.active?'guardian-'+game.dungeon.room:actor.id;return {...entities.find(e=>e.id===id),side:mine?'player':member?'ally':game.npcCombat?.order?.find(a=>a.id===id)?.side??'enemy',initiative:actor.init};}).filter(e=>e.id);}

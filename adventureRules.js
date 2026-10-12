@@ -7,7 +7,7 @@ import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules
 import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace,travelRoute,timePasses} from "./mapRules";
 import {resolveClassAction,bonusOptions,shortRestLimit,surgeReady,turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
-import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack} from "./weaponRules";
+import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack,oneHanded} from "./weaponRules";
 import {modifier} from "./characterRules";
 import {updateHealth} from "./healthRules";
 import {fallAtZero,deathSave,causeOfFall,fallPlace} from "./deathRules";
@@ -376,7 +376,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
           if (held) next = contest === 'grapple' ? withMark(next, victim.id, {grappled: heroIdOf(next)}) : withMark(next, victim.id, {prone: true});
           continue;
         }
-        const w = contest ? followUp : weapon;
+        // A hand that holds a grapple leaves one for the weapon: a versatile weapon strikes one-handed (its own die).
+        const w = holding(next) ? oneHanded(contest ? followUp : weapon) : contest ? followUp : weapon;
         if (w.ranged) {
           if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }
           next = spendArrow(next, hero);
@@ -989,7 +990,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
             if (held) next = contest === 'grapple' ? withMark(next, key, {grappled: heroIdOf(next)}) : withMark(next, key, {prone: true});
             continue;
           }
-          const w = contest ? followUp : weapon;
+          // A hand that holds a grapple leaves one for the weapon: a versatile weapon strikes one-handed (its own die).
+          const w = holding(next) ? oneHanded(contest ? followUp : weapon) : contest ? followUp : weapon;
           // Each bow shot uses an arrow, and each throw one of the weapons thrown; with none left, there is no shot.
           if (w.ranged) {
             if (arrowsLeft(next, hero) <= 0) { entries.push('You are out of arrows.'); break; }

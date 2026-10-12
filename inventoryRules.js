@@ -5,7 +5,7 @@ import {magicItems,magicEffects,magicScores,makeMagicItem,magicSuits,attunedCoun
 // can be fought with at once.
 export const itemKinds=['weapon','armor','potion','ammunition','treasure','gear','quest'];
 // Prices in gold (SRD), for the Dungeon Master's trades and for selling treasure at half value.
-export const priceList={'Potion of Healing':50,Arrow:0.05,Dagger:2,Handaxe:5,Javelin:0.5,Mace:5,Quarterstaff:0.2,Sickle:1,Spear:1,Greataxe:30,Greatsword:50,Flail:10,Longsword:15,Scimitar:25,Shortsword:10,Shortbow:25,Longbow:50};
+export const priceList={'Potion of Healing':50,Arrow:0.05,Dagger:2,Handaxe:5,Javelin:0.5,Mace:5,Quarterstaff:0.2,Sickle:1,Spear:1,Greataxe:30,Greatsword:50,Flail:10,Longsword:15,Battleaxe:10,Trident:5,Maul:10,Glaive:20,Halberd:20,Scimitar:25,Shortsword:10,Shortbow:25,Longbow:50};
 const startingGold=hero=>Math.max(0,Math.floor(hero?.equipment?.totalGold??0));
 export function packOf(game,hero){return game.pack??{gold:startingGold(hero),items:[],spent:{}};}
 // A geared hero remembers its starting kit, so arrows are never counted twice.

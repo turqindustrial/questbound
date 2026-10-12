@@ -27,7 +27,7 @@ import CharacterSheet from './CharacterSheet';
 import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
 import CharacterBuilder from './CharacterBuilder';
-import { blankBuild, buildError, makeCharacter, abilities, modifier } from './characterRules';
+import { blankBuild, buildError, makeCharacter, abilities, modifier, heroSpecies } from './characterRules';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { loadCharacter, saveCharacter, isValidCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
@@ -444,7 +444,7 @@ function QuestboundApp() {
             <View style={{flex:1,minWidth:0}}>
               <Eyebrow style={{color:colors.bloodBright}}>Fallen</Eyebrow>
               <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
-              <Text style={s.heroLine}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+              <Text style={s.heroLine}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
               <Text style={s.heroBackground}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</Text>
             </View>
           </View>
@@ -457,7 +457,7 @@ function QuestboundApp() {
             <View style={{flex:1,minWidth:0}}>
               <Eyebrow>Your hero</Eyebrow>
               <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
-              <Text style={s.heroLine}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+              <Text style={s.heroLine}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
               {!!hero.background && <Text style={s.heroBackground}>{hero.background}</Text>}
             </View>
           </View>
@@ -487,7 +487,7 @@ function QuestboundApp() {
         {characterChosen && heroStats?.available && <View dataSet={{qb:'plate'}} style={s.hud}>
           <View style={s.hudIdentity}>
             <EntityText style={s.hudName}>{hero.name}</EntityText>
-            <Text style={s.hudClass}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+            <Text style={s.hudClass}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
           </View>
           <View style={s.hudVitals}>
             <View style={s.hudRow}><Text style={s.hudLabel}>HIT POINTS</Text><Text style={s.hudValue}>{health?.current ?? heroStats.hp}<Text style={s.hudMax}> / {heroStats.hp}</Text>{(health?.temp??0)>0?<Text style={s.hudTemp}>  +{health.temp} temp</Text>:null}</Text></View>

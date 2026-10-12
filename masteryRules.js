@@ -1,5 +1,5 @@
 import {modifier,proficiencyBonus} from './characterRules';
-import {weapons,weaponAttacks} from './weaponRules';
+import {weapons,weaponAttacks,shieldInUse,twoHanderInHand} from './weaponRules';
 import {subclassPassive} from './subclassRules';
 // Weapon Mastery, two-weapon fighting, and grappling and shoving: the 2024 rules (SRD 5.2) in Questbound's own words.
 // Each weapon kind has one mastery property (weaponRules.js); a hero uses it only for kinds they have mastered, and only
@@ -47,10 +47,11 @@ export function masteryOf(hero,weapon){
 // ---------- Two-weapon fighting (the Light property) ----------
 export const isLight=weapon=>!!weapons[weapon?.base??weapon?.name]?.light;
 // After attacking with a Light weapon (`used`), the other hand can make one extra attack with a different Light weapon
-// (a second of the same kind counts) as a bonus action. Both hands must be free of a shield.
+// (a second of the same kind counts) as a bonus action. Both hands must be free of a shield, and a two-handed weapon is
+// never one of them (no Light weapon needs two hands); no feature lets a hero fight with two weapons that are not Light.
 export function offhandWeapons(hero,used){
  const items=hero.equipment?.items??[];
- if(!used||items.some(i=>i.name==='Shield'&&i.quantity>0))return [];
+ if(!used||shieldInUse(hero)||twoHanderInHand(hero))return [];
  const held=name=>items.filter(i=>i.name===name).reduce((n,i)=>n+(i.quantity??0),0);
  return weaponAttacks(hero).filter(w=>!w.blocked&&!w.ranged&&isLight(w)&&(w.name!==used||held(used)>=2));
 }

@@ -38,6 +38,7 @@ import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
 import {rememberTurn} from './turnMemory';
 import {useVisualViewport} from './webLayout';
 import {fonts,colors,type,tint} from './theme';
+import {heroSpecies} from './characterRules';
 // The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
 const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
 // The story log's marks: an icon and a tone for each kind of line.
@@ -132,7 +133,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <View style={{alignItems:'center',flexShrink:1}}>
    <PlainText style={s.epitaphOver}>Here lies</PlainText>
    <PlainText numberOfLines={1} style={[s.epitaphName,layout!=='wide'&&{fontSize:19}]}>{hero.name}</PlainText>
-   <PlainText style={s.epitaphLine}>Level {hero.level} {hero.species??hero.race} {hero.class}</PlainText>
+   <PlainText style={s.epitaphLine}>Level {hero.level} {heroSpecies(hero)} {hero.class}</PlainText>
    <PlainText style={s.epitaphCause}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</PlainText>
   </View>
   {!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}

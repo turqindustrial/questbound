@@ -126,7 +126,7 @@ export function attackActions(hero,game,health=null,targetKey=null){
   const base=options.find(o=>o.name===move.weapon);if(!base)continue;
   const w=move.thrown?thrownAttack(base):base,count=w.ranged?arrowsLeft(game,hero):move.thrown?held(w.name):null;
   const question=w.unarmed?'I attack '+the+' with my bare hands.':move.thrown?'I throw my '+w.name.toLowerCase()+' at '+the+'.':w.ranged?'I shoot '+the+' with my '+w.name.toLowerCase()+'.':'I attack '+the+' with my '+w.name.toLowerCase()+'.';
-  (w.ranged||move.thrown?ranged:melee).push({key:move.choice.id,glyph:'⚔',icon:w.unarmed?'fist':move.thrown?'spear':weaponIcon(w.name),label:w.unarmed?'Unarmed':w.name,detail:signed(w.attackBonus)+' · '+dice(w)+(count!==null?' · ×'+count:'')+(masteryOf(armed,w)?' · '+masteryOf(armed,w):''),question,action:move.choice.action,weapon:w.name,mastery:masteryOf(armed,w)});
+  (w.ranged||move.thrown?ranged:melee).push({key:move.choice.id,glyph:'⚔',icon:w.unarmed?'fist':move.thrown?'spear':weaponIcon(w.name),label:w.unarmed?'Unarmed':w.name,detail:signed(w.attackBonus)+' · '+dice(w)+(w.versatile&&!move.thrown?(w.grip==='two'?' two-handed':' one-handed'):'')+(count!==null?' · ×'+count:'')+(masteryOf(armed,w)?' · '+masteryOf(armed,w):''),question,action:move.choice.action,weapon:w.name,mastery:masteryOf(armed,w)});
  }
  row.push({key:'heading:melee',heading:'Melee'},...melee,{key:'heading:ranged',heading:'Ranged'},...(ranged.length?ranged:[{key:'heading:no-ranged',heading:'Nothing to shoot or throw',quiet:true}]));
  return row;

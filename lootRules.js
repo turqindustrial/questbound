@@ -1,4 +1,4 @@
-import {weapons,weaponAttacks} from './weaponRules';
+import {weapons,weaponAttacks,shieldSlung} from './weaponRules';
 import {packOf,packWith} from './inventoryRules';
 import {sceneLocation,npcIdsOf,npcLore} from './npcRules';
 import {worldPlace} from './mapRules';
@@ -103,7 +103,8 @@ const working=it=>!!it?.magic&&!!magicItems[it.magic.id]&&(!magicItems[it.magic.
 // What the hero's magic items do, all together. `hero` carries the kit (worn armour, a shield).
 export function magicEffects(hero,pack){
  const out={ac:0,acText:[],saves:0,checks:0,advantage:[],spellAttack:0,scores:{},stabilise:false,any:false};
- const armour=wornArmour(hero),shield=carriesShield(hero);
+ // A shield slung on the back for a two-handed weapon (weaponRules.js) lends none of its magic.
+ const armour=wornArmour(hero),shield=carriesShield(hero)&&!shieldSlung(hero);
  for(const it of pack?.items??[]){
   if(!working(it))continue;
   const item=magicItems[it.magic.id],id=it.magic.id;out.any=true;

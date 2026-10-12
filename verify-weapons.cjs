@@ -8,7 +8,8 @@ assert.equal(list({scores:{...base.scores,Strength:18}})[0].ability,'Strength');
 for(const name of r.classes) {const items=list({class:name});assert.ok(items.length>0,name);assert.ok(items.every(w=>w.proficient),name);}
 assert.equal(list({class:'Monk'}).find(w=>w.name==='Dagger').die,6);
 assert.equal(list({class:'Monk'})[0].ability,'Dexterity');
-assert.equal(list({class:'Wizard'}).find(w=>w.name==='Quarterstaff').die,6);
+// A staff in both hands (no shield) deals its versatile 1d8; a druid's beside a shield its own 1d6 (verify-hands.cjs).
+assert.equal(list({class:'Wizard'}).find(w=>w.name==='Quarterstaff').die,8);assert.equal(list({class:'Druid'}).find(w=>w.name==='Quarterstaff').die,6);
 assert.equal(list({class:'Paladin'})[0].die,8);
 const axe=list({class:'Barbarian',scores:{...base.scores,Strength:8}})[0];assert.ok(axe.heavyDisadvantage);
 let values=[0.99,0];const low=r.rollAttack(axe,'normal',()=>values.shift());assert.equal(low.natural,1);assert.ok(low.miss);

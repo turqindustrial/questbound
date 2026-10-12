@@ -11,7 +11,7 @@ import FeaturePanel from './FeaturePanel';
 import React, {useState} from 'react';
 import LoadoutSummary from './LoadoutSummary';
 import {View, Text as PlainText, Pressable, StyleSheet, useWindowDimensions} from 'react-native';
-import {abilities, modifier, currentSubclass} from './characterRules';
+import {abilities, modifier, currentSubclass, heroSpecies, speciesProfile} from './characterRules';
 import {combatBasics, signed} from './combatRules';
 import HealthTracker from './HealthTracker';
 import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
@@ -36,7 +36,7 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         <PlainText style={s.overline}>Character sheet</PlainText>
         {/* On a phone the name is set a size that lets its longest word fit the line. */}
         <PlainText numberOfLines={2} style={[s.name,narrow&&{fontSize:nameSize,lineHeight:Math.round(nameSize*1.2)}]}>{hero.name}</PlainText>
-        <Text style={s.subtitle}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+        <Text style={s.subtitle}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
         {!!hero.background && <View style={s.tags}><View style={s.tag}><Icon name="scroll" size={12} color={colors.gold}/><Text style={s.tagText}>{hero.background}</Text></View>{!!hero.originFeat&&<View style={s.tag}><Icon name="star" size={12} color={colors.gold}/><Text style={s.tagText}>{hero.originFeat}</Text></View>}</View>}
       </View>
     </View>
@@ -58,6 +58,8 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         <Text style={s.caption}>{xp.max?'Level 20: the highest a hero can reach.':xp.ready?'Level '+(xp.level+1)+' is yours to take: use Level up when you are out of a fight.':'Level '+(xp.level+1)+' at '+n(xp.next)+'. Fights won, chapters finished, leads seen through and new places all count.'}</Text>
       </View>;})(experienceView(game,hero))}
       <View dataSet={{qb:'plate'}} style={s.panel}><Section icon="shield" title="Defense" style={{marginTop:0}}/><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>With your armor worn and any shield on your arm. A protective spell in effect is counted in the armor class above.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
+      {/* The hero's species (characterRules.js speciesTraits): speed, darkvision, size and traits. */}
+      {(kind=><View dataSet={{qb:'plate'}} style={s.panel}><Section icon="leaf" title={kind.species} style={{marginTop:0}}/><Text style={s.text}>Speed {stats.speed} ft{kind.darkvision?' · Darkvision '+kind.darkvision+' ft':''} · {kind.size}</Text>{kind.traits.map(t=><Text key={t.name} style={s.caption}>✦ {t.name}: {t.brief}</Text>)}</View>)(speciesProfile(hero))}
       {/* Weapon Mastery (masteryRules.js): the kinds this hero has mastered and what each one's property does. */}
       {masteryCount(hero)>0&&(mastered=>mastered.length>0&&<View dataSet={{qb:'plate'}} style={s.panel}><Section icon="swords" title="Weapon mastery" style={{marginTop:0}}/>{mastered.map(name=><Text key={name} style={s.text}>{name} · {masteryText[weapons[name].mastery]}</Text>)}<Text style={s.caption}>A {hero.class} masters {masteryCount(hero)} kinds of weapon at level {hero.level}, chosen from the weapons you carry: your main weapon first, then one for range.</Text></View>)(masteredWeapons(game?gearedHero(hero,game):hero))}
       <GameButton icon="info" label={showCalculations ? 'Hide calculations' : 'How are these calculated?'} onPress={() => setShowCalculations(!showCalculations)}/>
@@ -66,6 +68,7 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         <Text style={s.text}>Hit Point Die: {stats.hitDie}</Text>
         <Text style={s.text}>Armor class: {stats.ac === null ? 'Equipment not saved yet.' : `${stats.acFormula}${spellDefense(game,stats.ac).ac!==stats.ac?' + 2 Shield of Faith':''} = ${spellDefense(game,stats.ac).ac}`}</Text>
         <Text style={s.text}>Initiative: {stats.initiativeFormula} = {signed(stats.initiative)}</Text>
+        <Text style={s.text}>Speed: {stats.speedFormula} = {stats.speed} ft</Text>
         <Text style={s.text}>Proficiency: +{stats.proficiency} at level {hero.level}.</Text>
       </View>}
       <HealthTracker maximum={stats.hp} health={health} setHealth={setHealth} readOnly={true}/>

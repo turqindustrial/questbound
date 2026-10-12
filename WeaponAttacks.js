@@ -13,7 +13,7 @@ function WeaponCard({weapon}) {
     <Text style={s.title}>{weapon.name}</Text>
     <Text style={s.text}>Attack {signed(weapon.attackBonus)} · Damage {weapon.count}d{weapon.die}{signed(weapon.bonus)} {weapon.type.toLowerCase()}</Text>
     <Text style={s.caption}>{weapon.ability} {signed(weapon.bonus)}{weapon.proficient ? ` +${weapon.attackBonus-weapon.bonus} proficiency to hit` : ' · Not proficient'}{weapon.monk ? ' · Martial Arts' : ''}</Text>
-    <Text style={s.caption}>{weapon.ranged ? weapon.range : `Melee reach 5 ft.${weapon.range ? ` · ${weapon.range}` : ''}`}{weapon.versatile ? ' · One-handed damage' : weapon.twoHands ? ' · Two-handed' : ''}</Text>
+    <Text style={s.caption}>{weapon.ranged ? weapon.range : `Melee reach 5 ft.${weapon.range ? ` · ${weapon.range}` : ''}`}{weapon.versatile ? (weapon.grip === 'two' ? ` · Both hands (1d${weapon.oneHandDie} in one)` : ' · One-handed: your shield is on your arm') : weapon.twoHands ? ' · Two-handed' : ''}</Text>
     {weapon.heavyDisadvantage && <Text style={s.notice}>Heavy weapon: disadvantage because {weapon.ranged ? 'Dexterity' : 'Strength'} is below 13.</Text>}
     {!!weapon.blocked && <Text style={s.notice}>{weapon.blocked}</Text>}
     <View style={s.row}>{['normal','advantage','disadvantage'].map(value=>button(value[0].toUpperCase()+value.slice(1),()=>{setMode(value);setAttack(null);setDamage(null);},mode===value))}</View>

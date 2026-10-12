@@ -1,6 +1,6 @@
 import catalog from './spellCatalog.json';
 import progression from './spellProgression.json';
-import {speciesLineages} from './characterRules';
+import {speciesLineages,fixedLineage,heroSpecies} from './characterRules';
 export const spellLibrary=catalog;
 export function spellLimits(hero) {
   const level=hero.level ?? 1;
@@ -49,7 +49,7 @@ export function automaticSpells(hero) {
 // Spells a hero's species or lineage grants (SRD 5.2): a cantrip at once, and spells at character levels 3 and 5. Each
 // spell of level 1 or more can be cast without a slot once per long rest (a Forest Gnome's Speak with Animals as many
 // times as their proficiency bonus), and with spell slots by a hero who has them. These never count against the
-// spells a class chooses. A Dark Elf is the Drow lineage; an Elf, a Gnome or a Tiefling chooses a lineage when made
+// spells a class chooses. A Dark, High or Wood Elf is its own lineage; a Gnome or a Tiefling chooses a lineage when made
 // (hero.lineage), and a hero made before that has none. Every Tiefling knows Thaumaturgy.
 export const lineageSpells={
   Drow:[[1,'dancing-lights'],[3,'faerie-fire'],[5,'darkness']],
@@ -61,7 +61,9 @@ export const lineageSpells={
   Chthonic:[[1,'chill-touch'],[3,'false-life'],[5,'ray-of-enfeeblement']],
   Infernal:[[1,'fire-bolt'],[3,'hellish-rebuke'],[5,'darkness']],
 };
-export const heroLineage=hero=>{const species=hero?.species??hero?.race;if(species==='Dark Elf')return 'Drow';return speciesLineages[species]?.includes(hero?.lineage)?hero.lineage:null;};
+// A Dark, High or Wood Elf has its own lineage; an old 'Elf' the one it chose, or a High Elf's when it chose none
+// (characterRules.js heroSpecies).
+export const heroLineage=hero=>{const species=hero?.species??hero?.race;if(fixedLineage[species])return fixedLineage[species];if(species==='Elf')return fixedLineage[heroSpecies(hero)];return speciesLineages[species]?.includes(hero?.lineage)?hero.lineage:null;};
 export function speciesSpells(hero) {
   const level=hero?.level??1,species=hero?.species??hero?.race,lineage=heroLineage(hero);
   const ids=[...(species==='Tiefling'?['thaumaturgy']:[]),...(lineageSpells[lineage]??[]).filter(([from])=>level>=from).map(([,id])=>id)];

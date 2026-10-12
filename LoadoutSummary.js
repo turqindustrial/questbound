@@ -2,7 +2,7 @@ import React from 'react';
 import {View,Text,StyleSheet} from 'react-native';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
-import {readyLoadout,loadoutWarnings,weaponAttacks} from './weaponRules';
+import {readyLoadout,loadoutWarnings,weaponAttacks,shieldInUse,shieldSlung} from './weaponRules';
 
 // What this hero has ready: the close-range weapon that suits their abilities best, what they wear, and anything
 // in the kit that sits badly with them.
@@ -10,8 +10,8 @@ export default function LoadoutSummary({hero}) {
   const gear=readyLoadout(hero),main=weaponAttacks(hero).find(w=>w.name===gear.mainWeapon),warnings=loadoutWarnings(hero);
   const signed=n=>(n>=0?'+':'')+n;
   const rows=[
-    ['Close-range weapon',gear.mainWeapon?gear.mainWeapon+(main?' · '+signed(main.attackBonus)+' to hit, '+main.count+'d'+main.die+(main.bonus?signed(main.bonus):'')+' '+main.type.toLowerCase()+' ('+main.ability+')':''):null],
-    ['Protection',(gear.armor??'Unarmored')+(gear.shield?' + Shield':'')],
+    ['Close-range weapon',gear.mainWeapon?gear.mainWeapon+(main?' · '+signed(main.attackBonus)+' to hit, '+main.count+'d'+main.die+(main.bonus?signed(main.bonus):'')+' '+main.type.toLowerCase()+' ('+main.ability+')'+(main.versatile?(main.grip==='two'?', in both hands':', one-handed'):main.twoHands?', two-handed':''):''):null],
+    ['Protection',(gear.armor??'Unarmored')+(shieldInUse(hero)?' + Shield':shieldSlung(hero)?' (shield slung on your back)':'')],
     ['Spellcasting focus',gear.focus],
     ['Bow & ammunition',gear.rangedWeapon?gear.rangedWeapon+' · '+gear.ammunition+' arrows':null],
     ['Tools',gear.tools.join(' · ')],

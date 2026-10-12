@@ -13,6 +13,7 @@ import {audioSettings,subscribeAudio,setAudio,playSound} from './audio';
 import {useShownHp} from './cinematics';
 import {shortcutsBlocked} from './keyboard';
 import {fonts,colors,type,tint} from './theme';
+import {heroSpecies} from './characterRules';
 // The in-game heads-up display: always on screen, never scrolls away. HP follows the story as a turn plays out.
 // Experience as the screen shows it ("1,240/2,700"); xp is experienceView(game,hero) from experienceRules.js.
 const xpShort=n=>String(Math.round(n??0)).replace(/\B(?=(\d{3})+(?!\d))/g,',');
@@ -75,7 +76,7 @@ function GameMenu({visible,onClose,go,onFeedback,hero,hp,maxHp,xp}){
  return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}><Pressable accessibilityLabel="Close menu" onPress={onClose} dataSet={{qb:'scrim'}} style={[s.scrim,(narrow||short)&&{padding:10}]}><Pressable onPress={()=>{}} dataSet={{qb:'sheet'}} style={[s.sheet,short&&{maxWidth:640}]} accessibilityViewIsModal><ScrollView style={s.sheetScroll} contentContainerStyle={[s.sheetBody,narrow&&{padding:16},short&&{paddingVertical:12}]}>
   <View style={s.menuHead}>
    <HeroPortrait hero={hero} size={short?40:52} level={hero.level}/>
-   <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={[s.menuTitle,{fontSize:nameSize}]}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {hero.species??hero.race} {hero.class} · {hp}/{maxHp} HP{xp&&!xp.max?' · '+xpText(xp):''}</Text></View>
+   <View style={{flex:1,minWidth:0}}><Text style={s.overline}>Paused</Text><Text numberOfLines={1} style={[s.menuTitle,{fontSize:nameSize}]}>{hero.name}</Text><Text style={s.menuMeta}>Level {hero.level} {heroSpecies(hero)} {hero.class} · {hp}/{maxHp} HP{xp&&!xp.max?' · '+xpText(xp):''}</Text></View>
   </View>
   <GameButton variant="primary" icon="play" label="Resume" onPress={onClose}/>
   <View style={s.grid}>

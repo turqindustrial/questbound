@@ -1,4 +1,4 @@
-import {weapons,attackOptions,attacksPerAction,canThrow} from './weaponRules';
+import {weapons,attackOptions,attacksPerAction,canThrow,thrownAttack} from './weaponRules';
 import {masteryOf,masteryText,unarmedDC} from './masteryRules';
 import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
@@ -16,11 +16,12 @@ const weaponNotes={
  Quarterstaff:'A stout wooden staff, used in one hand or two.',Sickle:'A curved harvesting blade pressed into service.',Spear:'A long shaft with an iron point, for thrusting or throwing.',
  Greataxe:'A huge two-handed axe that cleaves through whatever it meets.',Greatsword:'A two-handed blade as long as its wielder is tall.',Flail:'A spiked weight on a chain.',Longsword:'A straight, double-edged blade, used in one hand or two.',
  Scimitar:'A light curved blade, made for quick cuts.',Shortsword:'A short stabbing blade for close work.',Shortbow:'A small bow, quick to draw.',Longbow:'A tall war bow with a long reach.',
+ Battleaxe:'A broad axe head on a stout haft, swung in one hand or two.',Trident:'A three-pronged fishing spear made for war, thrust or thrown.',Maul:'A massive two-handed hammer that knocks the strongest off their feet.',Glaive:'A heavy blade on a long pole, reaching past the front rank.',Halberd:'An axe blade and spike on a long pole, for sweeping wide cuts.',
 };
 // How a weapon reads on its own (no hero): what kind it is, its damage and its properties.
 export function weaponSummary(name){
  const w=weapons[name];if(!w)return '';
- const traits=[w.finesse?'finesse (Strength or Dexterity)':null,w.light?'light (one in each hand)':null,w.versatile?'versatile':null,w.heavy?'heavy':null,w.twoHands?'two-handed':null,w.range?w.range.replace(/\.$/,'').toLowerCase():null].filter(Boolean);
+ const traits=[w.finesse?'finesse (Strength or Dexterity)':null,w.light?'light (one in each hand)':null,w.versatile?'versatile ('+(w.count??1)+'d'+w.versatile+' in both hands)':null,w.heavy?'heavy':null,w.twoHands?'two-handed':null,w.reach?'reach':null,w.range?w.range.replace(/\.$/,'').toLowerCase():null].filter(Boolean);
  return (w.martial?'Martial ':'Simple ')+(w.ranged?'ranged':'melee')+' weapon: '+(w.count??1)+'d'+w.die+' '+w.type.toLowerCase()+' damage'+(traits.length?'; '+traits.join(', '):'')+'.';
 }
 const gearNotes={
@@ -28,7 +29,7 @@ const gearNotes={
  'Chain Shirt':'A shirt of mail worn between layers of cloth: armor class 13 + Dexterity (at most +2).',
  'Studded Leather Armor':'Tough leather set with close rivets: armor class 12 + Dexterity.',
  'Leather Armor':'Boiled leather shaped to the body: armor class 11 + Dexterity.',
- Shield:'Carried on one arm: +2 to armor class. It leaves one hand free for a weapon.',
+ Shield:'Carried on one arm: +2 to armor class. It leaves one hand free for a weapon; with a two-handed weapon in hand it goes on your back and adds nothing.',
  Robe:'Plain robes with deep pockets. No protection at all.',
  Arrow:'Ammunition for a bow. Each shot spends one.',
  Quiver:'Keeps your arrows at your hip, ready to draw.',
@@ -81,7 +82,8 @@ export const draughtDescription=gearNotes['Potion of Healing'];
 const damageText=w=>w.flat?(1+w.bonus)+' bludgeoning':(w.count>1?w.count:1)+'d'+w.die+(w.bonus?' '+(w.bonus>0?'+ ':'− ')+Math.abs(w.bonus):'')+' '+w.type.toLowerCase();
 // A throw: the same roll and damage as a ranged attack, and the weapon lands where it falls until the fight is over.
 function throwText(hero,name){
- const w=attackOptions(hero).find(o=>o.name===name&&canThrow(o));if(!w)return 'Throw it. Uses your action.';
+ const found=attackOptions(hero).find(o=>o.name===name&&canThrow(o));if(!found)return 'Throw it. Uses your action.';
+ const w=thrownAttack(found);
  const swings=attacksPerAction(hero);
  return 'Throw it: roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage. A ranged attack: with the foe right beside you it has disadvantage. The '+w.name.toLowerCase()+' stays where it lands until you gather it up after the fight. Uses your action'+(swings>1?' ('+swings+' throws)':'')+'.';
 }
@@ -89,7 +91,7 @@ function attackText(hero,name){
  const w=attackOptions(hero).find(o=>o.name===name);if(!w)return 'Attack with it. Uses your action.';
  const swings=attacksPerAction(hero);
  const mastery=masteryOf(hero,w);
- return 'Roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage'+(w.heavyDisadvantage?' (disadvantage: this weapon is too heavy for you)':'')+(w.ranged?', and each shot spends an arrow':'')+'. Uses your action'+(swings>1?' ('+swings+' attacks)':'')+'.'+(mastery?' Your mastery: '+masteryText[mastery]:'');
+ return 'Roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage'+(w.versatile?(w.grip==='two'?' (both hands on it; '+w.count+'d'+w.oneHandDie+' in one hand)':' (one-handed, with your shield on your arm)'):'')+(w.heavyDisadvantage?' (disadvantage: this weapon is too heavy for you)':'')+(w.ranged?', and each shot spends an arrow':'')+'. Uses your action'+(swings>1?' ('+swings+' attacks)':'')+'.'+(mastery?' Your mastery: '+masteryText[mastery]:'');
 }
 // Grapple or Shove: an Unarmed Strike that seizes or knocks down instead of striking.
 function unarmedText(hero,kind){
