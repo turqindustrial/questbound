@@ -15,7 +15,7 @@ import {fallAtZero,deathSave,causeOfFall,fallPlace,sparedBlow,reviveHero,partyRe
 import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
-import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing} from "./inventoryRules";
+import {gearedHero,arrowsLeft,spendArrow,spendThrown,gatherThrown,potionHealing,setShield} from "./inventoryRules";
 import {heroConditions,shieldBlow,undeadFortitude,companionsAttack,companionBrawlWeapon,foeRoundMoves,foeAttackMode,pickFoeTarget,partyHeroName,foeHitsCompanion,foeHitExtras,startWildFight,endWildFight,validFoeSketch,allFoeTemplates,companionAid,naturalAllies,allyStats,livingAllies,aimedAlly,hurtAlly,alliesScatter,partyTargets,foeHitsPartyHero,fightingCompanions,sideStrength,brawlStrength,foeScaleKey,foeScaleOf,scaledFoe,foeOffense} from "./encounterRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {boonKeyOf,masteryOf,isLight,offhandWeapons,creatureSize,withinGrip,unarmedDC,unarmedSave,heroIdOf,markOf,withMark,grappledBy,letGo,holding,heroEdge,edgeMode,foeEdge,creatureTurnStarts,sapSpent,sapsEnd,endHeroTurn,fightOver} from "./masteryRules";
@@ -957,6 +957,9 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
       } else if (action === 'dodge') {
         dodge = true;
         entries.push(game.wildFight ? `You dodge. The ${foe.name} attacks with disadvantage this turn.` : 'You dodge. The wisp attacks with disadvantage this turn.');
+      } else if (action?.type === 'shield') {
+        // The shield put on the back or taken up (heroStep has already changed it): that is the action.
+        entries.push(action.line);
       } else {
         // An attack: with a weapon (attack:, throw:), with the other hand's Light weapon after a Light one (offhand:,
         // two-weapon fighting), or an Unarmed Strike that grapples or shoves instead of striking (grapple, shove).
@@ -1467,7 +1470,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
   if(action==='npc-flee'){delete next.npcCombat;return travelTo(next,health??{current:stats.hp,temp:0},away);}
   return {game:next,health};
  }
- const special=active&&['npc-dodge','npc-wait'].includes(action);
+ const special=active&&(['npc-dodge','npc-wait'].includes(action)||action?.type==='shield');
  const trial=special?{game:{...game},health}:adventureStepCore(game,health,hero,action,()=>0.5);
  if(trial.error||trial.waiting||trial.game===game)return trial;
  if(action?.type==='cancel-spell'||action?.type==='end-concentration')return adventureStepCore(game,health,hero,action,random);
@@ -1502,7 +1505,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
   return {game:next,health:hp,events};
  }
  if(target&&next.npcCombat)next={...next,npcCombat:{...next.npcCombat,order:next.npcCombat.order.map(n=>n.id===target?{...n,side:'enemy',role:'attack'}:n)}};
- let result=special?{game:{...next,log:[action==='npc-dodge'?'You take the Dodge action.':'You hold your ground.',...next.log].slice(0,40)},health:hp}:adventureStepCore(next,hp,hero,action,random);
+ let result=special?{game:{...next,log:[action==='npc-dodge'?'You take the Dodge action.':action?.type==='shield'?action.line:'You hold your ground.',...next.log].slice(0,40)},health:hp}:adventureStepCore(next,hp,hero,action,random);
  if(result.error)return {game:next,health:hp,events,error:active?result.error:undefined};
  if(result.waiting)return result;
  // A bonus action (a bonus-action spell, or a healing draught given to someone) leaves the turn going: the action
@@ -1851,8 +1854,24 @@ function heroStep(game,health,hero,action,random,opts={}){
   return {game:done.game,health,events:done.events};
  }
  if(action?.type==='accept-offer'){const done=acceptOffer(hero,game,action.id);return done.error?{game,health,error:done.error}:{game:done.game,health,events:done.events};}
+ // The shield put on the back to hold a weapon in both hands, or taken up again (inventoryRules.js setShield; typed,
+ // dmCommands.js shieldCommand). Out of a fight it is free. In one it is the hero's action (donning or doffing a shield
+ // takes an action in the rules), on their own turn: the shield changes first, so the foe's answer meets the new
+ // armor class, and the turn goes on as after a Dodge (a bonus action may follow; then the foe acts).
+ const before=game,shieldMove=action?.type==='shield';
+ if(shieldMove){
+  if(typeof action.away!=='boolean'||(action.weapon!=null&&(typeof action.weapon!=='string'||action.weapon.length>60)))return {game,health,error:'Say whether the shield goes on your back or on your arm.'};
+  const fight=game.stage==='combat'||!!game.npcCombat?.active;
+  if(fight&&game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
+  if(fight&&game.actionUsed)return {game,health,error:'Putting a shield on or off takes your action, and you have already used it this turn. Use a bonus action or end your turn.'};
+  const done=setShield(game,hero,action.away,action.weapon??null);
+  if(done.error)return {game,health,error:done.error};
+  if(!fight)return {game:{...done.game,log:[done.line,...(game.log??[])].slice(0,40)},health,events:[done.line]};
+  game=done.game;action={type:'shield',away:action.away,line:done.line+' That takes your action.'};
+ }
  // The rules see the hero as they are now: found weapons in hand, arrows already spent gone.
  const result=livingStep(game,health,gearedHero(hero,game),action,random,opts);
+ if(shieldMove&&result.error)return {...result,game:before,health};
  // Once no fight is on, weapons thrown in it are gathered up again, and nothing of the fight (a grip, a creature lying
  // prone, Vex) outlasts it.
  // A concentration spell's marks end with it (a failed concentration save, a fall, a new spell).

@@ -5,19 +5,20 @@ import HeroPortrait from './HeroPortrait';
 import {weaponIcon} from './iconPaths';
 import {fonts,colors,type,tint} from './theme';
 import {combatBasics,signed} from './combatRules';
-import {attackOptions,readyLoadout,weapons,shieldInUse,shieldSlung,canTakeInHand} from './weaponRules';
-import {gearedHero,packOf,arrowsLeft} from './inventoryRules';
+import {attackOptions,readyLoadout,weapons,weaponAttacks,shieldInUse,shieldSlung,shieldStowed,canTakeInHand} from './weaponRules';
+import {gearedHero,packOf,arrowsLeft,setShield} from './inventoryRules';
 import {magicItems,rarityLabel} from './lootRules';
 import {itemDescription,goldDescription,draughtDescription,defenceText} from './descriptions';
 import {playSound} from './audio';
 import {heroSpecies} from './characterRules';
 // The Inventory tab: what the hero has equipped (weapon in hand, off hand, armour, bow, focus) around their
 // portrait, then everything they carry. Every slot and every item explains itself when tapped, and a carried
-// weapon can be taken in hand from here.
+// weapon can be taken in hand from here. A shield-bearer can put the shield on their back to hold a weapon in both
+// hands, and take it up again (onShield; free out of a fight, the hero's action in one, so then it is said instead).
 const damageOf=w=>w.flat?String(1+w.bonus):(w.count>1?w.count:1)+'d'+w.die+(w.bonus?(w.bonus>0?'+':'−')+Math.abs(w.bonus):'');
 const kindIcon={weapon:'sword',armor:'armor',ammunition:'bow',treasure:'gem',gear:'bag',quest:'key',potion:'potion'};
 const kitIcon=name=>weapons[name]?weaponIcon(name):/Armor|Chain|Robe/.test(name)?'armor':name==='Shield'?'shield':/Focus|Holy Symbol/.test(name)?'spell':/book/i.test(name)?'book':/Lute|Flute|Drum/.test(name)?'lute':/Tools|Kit/.test(name)?'cog':name==='Arrow'||name==='Quiver'?'bow':'bag';
-export default function Inventory({hero,game,onWield,onAttune}){
+export default function Inventory({hero,game,onWield,onAttune,onShield}){
  const [open,setOpen]=useState(null);
  // Armor class and to-hit as the rules see the hero now: found weapons and magic items counted.
  const geared=gearedHero(hero,game),basics=combatBasics(geared),loadout=readyLoadout(geared),attacks=attackOptions(geared);
@@ -28,10 +29,16 @@ export default function Inventory({hero,game,onWield,onAttune}){
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
  // Hands (weaponRules.js): a shield on the arm, or both hands on a two-handed weapon (the shield slung on the back), or
  // both hands on a versatile weapon for its larger die.
- const twoHanded=!!main?.twoHands,bothOnVersatile=!!main?.versatile&&main.grip==='two',slung=shieldSlung(geared),offhand=shieldInUse(geared)?'Shield':null;
+ const twoHanded=!!main?.twoHands,bothOnVersatile=!!main?.versatile&&main.grip==='two',slung=shieldSlung(geared),offhand=shieldInUse(geared)?'Shield':null,stowed=shieldStowed(geared);
  const offName=offhand??(twoHanded||bothOnVersatile?'Both hands on the '+main.name:'Free');
  const offStat=offhand?'+2 armor class':slung?'Shield on your back':bothOnVersatile?'1d'+main.die+' two-handed':'';
- const offText=offhand?itemDescription('Shield'):twoHanded?'This weapon takes both hands.'+(slung?' Your shield is slung on your back and adds nothing to your armor class; take a one-handed weapon in hand to raise it again.':''):bothOnVersatile?'You hold it in both hands, so it strikes harder: 1d'+main.die+' in place of 1d'+main.oneHandDie+'. A shield on your arm would take that hand.':'Your other hand is free: for a torch, a door, a spell’s gestures.';
+ const offText=offhand?itemDescription('Shield'):stowed?'You put your shield on your back to keep both hands free'+(bothOnVersatile?': your '+main.name+' strikes for 1d'+main.die+' in place of 1d'+main.oneHandDie:'')+'. It adds nothing to your armor class until you take it up again.':twoHanded?'This weapon takes both hands.'+(slung?' Your shield is slung on your back and adds nothing to your armor class; take a one-handed weapon in hand to raise it again.':''):bothOnVersatile?'You hold it in both hands, so it strikes harder: 1d'+main.die+' in place of 1d'+main.oneHandDie+'. A shield on your arm would take that hand.':'Your other hand is free: for a torch, a door, a spell’s gestures.';
+ // The shield by choice: on the back for both hands, or taken up again, with what it changes (inventoryRules.js setShield).
+ const shieldMove=(()=>{if(!geared.equipment?.items?.some(i=>i.name==='Shield'&&i.quantity>0))return null;const away=!slung,done=setShield(game,hero,away);if(done.error)return null;
+  const after=gearedHero(hero,done.game),acAfter=combatBasics(after).ac,held=weaponAttacks(after).find(w=>w.name===(away?done.game.wield:main?.name)&&!w.ranged);
+  const label=away?(held?.versatile?'Hold the '+held.name+' in both hands':'Put your shield on your back'):'Take up your shield';
+  const change=(away&&held?.versatile?'1d'+held.die+' in place of 1d'+held.oneHandDie+', ':'')+'armor class '+basics.ac+' → '+acAfter+(!away&&held?.versatile?', your '+held.name+' in one hand (1d'+held.die+')':'');
+  return {away,label,note:(away?'Your shield goes on your back: ':'Back on your arm: ')+change+'.'};})();
  // Equipment slots: [id, label, icon, name, stat, description].
  const slots=[
   ['main',main?.ranged?'In hand (ranged)':'Main hand',main?(main.unarmed?'fist':weaponIcon(main.base??main.name)):'hand',main?main.name:'Empty',main?damageOf(main)+(main.magic?'+'+main.magic:'')+' '+main.type.toLowerCase()+' · '+signed(main.attackBonus)+' to hit':'',main?(main.unarmed?'Your fists, feet and elbows. Everyone can fight unarmed.':itemDescription(main.name,'weapon',null,packItem(main.name))):'Nothing in hand.'],
@@ -77,6 +84,10 @@ export default function Inventory({hero,game,onWield,onAttune}){
      <View style={{flex:1,minWidth:0}}><Text style={s.slotLabel}>{label}</Text><Text numberOfLines={2} style={[s.slotName,empty&&{color:colors.muted}]}>{name}</Text>{!!stat&&<Text numberOfLines={1} style={s.slotStat}>{stat}</Text>}</View>
     </Pressable>;})}</View>
    {!!shown&&<View style={s.slotBody} accessibilityLiveRegion="polite"><Text style={s.description}>{shown[5]}</Text></View>}
+   {!!shieldMove&&!!onShield&&<View style={s.grip}>
+    {!fighting&&<Pressable accessibilityRole="button" accessibilityLabel={shieldMove.label} onPress={()=>{playSound('select');onShield(shieldMove.away);}} dataSet={{qb:'chip'}} style={s.wield}><Icon name="shield" size={14} color={colors.gold}/><Text style={[s.wieldText,{flexShrink:1}]}>{shieldMove.label}</Text></Pressable>}
+    <Text style={s.gripNote}>{fighting?'In a fight, say it ("'+(shieldMove.away?'I put my shield on my back':'I take up my shield')+'"): it takes your action. ':''}{shieldMove.note}</Text>
+   </View>}
   </View>
   <View dataSet={{qb:'plate'}} style={s.panel}>
    <View style={s.labelRow}><Icon name="bag" size={14} color={colors.goldMid}/><Text style={s.label}>Pack</Text></View>
@@ -113,6 +124,7 @@ const s=StyleSheet.create({
  itemBody:{paddingHorizontal:12,paddingBottom:12,gap:8},
  wield:{alignSelf:'flex-start',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.5)'),backgroundColor:tint('rgba(31,24,32,.92)')},wieldText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
  inHand:{fontFamily:fonts.ui,fontSize:12,color:colors.goldBright},
+ grip:{gap:6},gripNote:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:tint('#b8aeb5')},
  foundHead:{flexDirection:'row',alignItems:'center',gap:10,marginTop:4},foundLabel:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},foundRule:{flex:1,height:1},
  empty:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:colors.muted},
 });

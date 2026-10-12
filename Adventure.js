@@ -33,7 +33,7 @@ import {mapState,mapLocation,placeDescription,placeName,beyondWords,mapRegions,c
 import {mapMoves} from './dmContext';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
-import {gearedHero} from './inventoryRules';
+import {gearedHero,setShield} from './inventoryRules';
 import {attuneItem} from './lootRules';
 import {encounterFoe,foeStanding} from './adventureRules';
 import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction,IconButton} from './ui';
@@ -191,7 +191,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'btn'}} style={s.shareButton}><Icon name="send" size={14} color={colors.gold}/><PlainText style={s.shareText}>Share your tale</PlainText></Pressable>
  </View>;
  // What you wear, wield and carry; a carried weapon can be taken in hand from here.
- const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>table?.joined?table.edit({kind:'wield',name}).catch(e=>setError(e.message)):setGame({...game,wield:name})} onAttune={name=>{if(table?.joined){table.edit({kind:'attune',name}).catch(e=>setError(e.message));return;}const done=attuneItem(game,hero,name);if(done.error){setError(done.error);return;}if(done.game)setGame({...done.game,log:[...done.lines,...(done.game.log??[])].slice(0,40)});}}/>;
+ const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>table?.joined?table.edit({kind:'wield',name}).catch(e=>setError(e.message)):setGame({...game,wield:name})} onShield={away=>{if(table?.joined){table.edit({kind:'shield',away}).catch(e=>setError(e.message));return;}const done=setShield(game,hero,away);if(done.error){setError(done.error);return;}setGame({...done.game,log:[done.line,...(done.game.log??[])].slice(0,40)});}} onAttune={name=>{if(table?.joined){table.edit({kind:'attune',name}).catch(e=>setError(e.message));return;}const done=attuneItem(game,hero,name);if(done.error){setError(done.error);return;}if(done.game)setGame({...done.game,log:[...done.lines,...(done.game.log??[])].slice(0,40)});}}/>;
  const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color={tint('#ffd9c9')}/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color={tint('#ffd9c9')}/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}

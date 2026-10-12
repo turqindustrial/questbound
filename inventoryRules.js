@@ -1,4 +1,4 @@
-import {weapons} from './weaponRules';
+import {weapons,weaponAttacks,readyLoadout,shieldSlung,twoHanderInHand} from './weaponRules';
 import {magicItems,magicEffects,magicScores,makeMagicItem,magicSuits,attunedCount,maxAttuned} from './lootRules';
 // What the hero carries beyond their starting kit: gold, things found, bought or given, and arrows used up. The
 // starting kit stays on the character; the adventure keeps the pack, so a found sword or a bought quiver of arrows
@@ -22,16 +22,44 @@ export function gearedHero(base,game){
  let hero=game?.buffs?.shillelagh&&base&&!base.shillelagh?{...base,shillelagh:game.buffs.shillelagh.ability}:base;
  // Aid raises the hero's hit point maximum while it lasts (spellRules.js; combatBasics reads hero.aid).
  if(hero&&game?.buffs?.aid?.amount>0&&!hero.aid)hero={...hero,aid:game.buffs.aid.amount};
- if((!game?.pack&&!game?.wield)||!hero?.equipment||hero.equipment.startingItems)return hero;
+ if((!game?.pack&&!game?.wield&&!game?.shieldAway)||!hero?.equipment||hero.equipment.startingItems)return hero;
  const items=(hero.equipment.items??[]).filter(i=>i.name!=='Arrow').map(i=>({...i}));
  for(const it of game.pack?.items??[]){const base=weaponBaseOf(it);if(!base)continue;const plus=it.magic?.plus??0,have=items.find(i=>i.name===it.name);if(have)have.quantity+=it.qty;else items.push({name:it.name,quantity:it.qty,...(base!==it.name?{base}:{}),...(plus?{plus}:{})});}
  // Weapons thrown in a fight and not yet gathered up are not in hand.
  for(const [name,n] of Object.entries(game.pack?.spent??{}))if(name!=='Arrow'){const have=items.find(i=>i.name===name);if(have)have.quantity=Math.max(0,have.quantity-n);}
  const arrows=arrowsLeft(game,hero);if(arrows>0)items.push({name:'Arrow',quantity:arrows});
- const geared={...hero,equipment:{...hero.equipment,items,startingItems:hero.equipment.items,...(game.wield?{wield:game.wield}:{})}};
+ const geared={...hero,equipment:{...hero.equipment,items,startingItems:hero.equipment.items,...(game.wield?{wield:game.wield}:{}),...(game.shieldAway===true?{shieldAway:true}:{})}};
  const magic=magicEffects(geared,game.pack);
  if(magic.any){geared.equipment.magic=magic;if(Object.keys(magic.scores).length&&hero.scores)geared.scores=magicScores(hero.scores,magic);}
  return geared;
+}
+// The shield by choice (the host, 2026-10-12: "a shield bearer should be able to put the shield away to hold their
+// weapon with 2 hands, they should make that decision before engagement in the equipment screen or specifically request
+// it themselves"): `away` puts it on the back (game.shieldAway), so both hands are free and a versatile weapon is held
+// in both for its larger die, at the cost of the shield's armor class and any magic in it; the weapon in hand stays
+// in hand (game.wield), or the one named. Taken up again, the shield goes back on the arm, and a two-handed weapon in
+// hand goes on the back. Out of a fight it is free; in one it is the hero's action (the rules make donning or doffing
+// a shield an action), which the engine accounts for (adventureRules.js heroStep). Returns {game, line} or {error}.
+export function setShield(game,hero,away,weapon=null){
+ const geared=gearedHero(hero,game);
+ if(!(geared?.equipment?.items??[]).some(i=>i.name==='Shield'&&i.quantity>0))return {error:'You carry no shield.'};
+ if(away){
+  if(shieldSlung(geared))return {error:'Your shield is already on your back.'};
+  const all=weaponAttacks(geared),named=weapon?all.find(w=>w.name.toLowerCase()===String(weapon).toLowerCase()||(w.base??'').toLowerCase()===String(weapon).toLowerCase()):null;
+  if(weapon&&!named)return {error:'You carry no '+String(weapon).toLowerCase()+'.'};
+  if(named?.ranged)return {error:'Name the close-range weapon to hold in both hands.'};
+  const keep=named?.name??(twoHanderInHand(geared)?geared.equipment.wield:readyLoadout(geared).mainWeapon),held=all.some(w=>w.name===keep)?keep:null;
+  const next={...game,shieldAway:true,...(held?{wield:held}:{})},now=weaponAttacks(gearedHero(hero,next)).find(w=>w.name===held);
+  const line=now?.versatile?'You sling your shield on your back and grip your '+now.name+' in both hands: 1d'+now.die+' in place of 1d'+now.oneHandDie+', and your shield adds nothing to your armor class.':'You sling your shield on your back. Both hands are free'+(now?' for your '+now.name:'')+', and your shield adds nothing to your armor class.';
+  return {game:next,line};
+ }
+ if(!shieldSlung(geared))return {error:'Your shield is already on your arm.'};
+ const next={...game};delete next.shieldAway;
+ if(twoHanderInHand(geared))delete next.wield;
+ const after=gearedHero(hero,next);
+ if(shieldSlung(after))return {error:'You have no one-handed weapon to fight with beside a shield.'};
+ const main=weaponAttacks(after).find(w=>!w.ranged&&!w.blocked);
+ return {game:next,line:'You take your shield up on your arm'+(main?.versatile?': your '+main.name+' is back in one hand (1d'+main.die+').':'.')};
 }
 // A bow shot uses an arrow.
 export function spendArrow(game,hero){const p=packOf(game,hero);return {...game,pack:{...p,spent:{...p.spent,Arrow:(p.spent?.Arrow??0)+1}}};}

@@ -1,5 +1,5 @@
 import {partyRevivalError} from './deathRules';
-import {attackOptions,canThrow} from './weaponRules';
+import {attackOptions,canThrow,weaponAttacks,shieldSlung} from './weaponRules';
 import {gearedHero} from './inventoryRules';
 import {spoilsHere,lootError,packMagic,carriedDraughts} from './lootRules';
 import {offhandWeapons} from './masteryRules';
@@ -83,6 +83,28 @@ function twoMoves(hero,game,text,health,currentTarget){
   const why=!fight?'one thing at a time':!next?'send it on its own':costs[0]==='bonus'&&costs[1]==='bonus'?'a turn has only one bonus action':'a turn has one action and one bonus action';
   return {action:{type:'turn',steps:[first.action],rest,why}};
 }
+// The shield on the back, or taken up again, in the player's own words ("I put my shield on my back and grip my
+// longsword with both hands", "I sling my shield", "I take up my shield"): {type:'shield', away, weapon?}, played by
+// the engine (adventureRules.js heroStep: free out of a fight, the hero's action in one). Only for a hero who carries a
+// shield and only when it changes something; questions, negatives and anything else are left to the Dungeon Master.
+const shieldUpWords=/\b(?:take up|takes up|pick up|picks up|raise|raises|ready|readies|lift|lifts|unsling|unslings|strap on|straps on|back on|on (?:my|your|his|her|their) arm|onto (?:my|your|his|her|their) arm|to (?:my|your|his|her|their) arm|off (?:my|your|his|her|their) back|from (?:my|your|his|her|their) back)\b/i;
+const shieldAwayWords=/\b(?:on|onto|over|across|to) (?:my|your|his|her|their) (?:back|shoulders?)\b|\b(?:sling|slings|stow|stows|tuck|tucks|strap|straps|hang|hangs)\b.*\bshield\b|\bshield\b.*\b(?:away|aside)\b/i;
+const bothHandsWords=/\b(?:in|with|using) both hands\b|\btwo-?handed\b|\btwo hands\b|\bdouble-?handed\b/i;
+export function shieldCommand(hero,game,text){
+  const said=String(text??'').trim();
+  if(!said||said.length>200||/\?\s*$/.test(said)||/^(?:why|how|what|who|when|where|did|does|do|is|was|were|has|have|can|could|should|would|may|might|if)\b/i.test(said)||/\b(?:don'?t|do not|never|no longer|without)\b/i.test(said))return null;
+  if(!(hero?.equipment?.items??[]).some(i=>i.name==='Shield'&&i.quantity>0))return null;
+  const shield=/\bshield\b/i.test(said),slung=shieldSlung(hero);
+  const away=shield?!shieldUpWords.test(said)&&shieldAwayWords.test(said):/^(?:I )?(?:grip|grips|hold|holds|wield|wields|take|takes|grasp|grasps|heft|hefts|seize|seizes)\b/i.test(said)&&bothHandsWords.test(said);
+  const up=shield&&shieldUpWords.test(said);
+  if(up)return slung?{action:{type:'shield',away:false}}:null;
+  if(!away||slung)return null;
+  // The weapon to hold in both hands, when one is named ("my longsword", "the spear", "my sword").
+  const lower=said.toLowerCase(),carried=weaponAttacks(hero).filter(w=>!w.ranged);
+  const named=carried.find(w=>lower.includes(w.name.toLowerCase())||(w.base&&lower.includes(w.base.toLowerCase())))
+    ??['sword','axe','staff','spear','trident','hammer','maul','glaive','halberd'].map(word=>new RegExp('\\b'+word+'\\b').test(lower)?carried.find(w=>w.name.toLowerCase().includes(word)):null).find(Boolean);
+  return {action:{type:'shield',away:true,...(named?{weapon:named.name}:{})}};
+}
 // Orders to companions, said in the player's own words: "Mara, wait here.", "Everyone stay behind.", "Tobin, follow
 // me." (to one waiting here), "Send word to Mara." (one waiting elsewhere catches up), "Mara, we part ways here.";
 // and a yes to someone who offered to come along ("Yes, Tobin, come with us."). Out of a fight only, and only when
@@ -156,6 +178,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   // Searching the fallen ("I search the bandit's body", "loot the lair", "skin the wolf"), while something lies here
   // that has not been searched; otherwise the words go to the Dungeon Master as before.
   if(lootWords.test(text)&&spoilsHere(game).length&&!lootError(game,health))return {action:{type:'loot'}};
+  // The shield on the back to hold a weapon in both hands, or taken up again.
+  {const shield=shieldCommand(hero,game,text);if(shield)return shield;}
   // Orders to companions (wait here, follow me, send word) and a yes to someone's offer to come along.
   {const order=followerCommand(game,text);if(order)return order;}
   // A stronger healing draught by name ("I drink the potion of greater healing", "quaff a superior potion").

@@ -82,7 +82,7 @@ try{
  // 6. A one-hero campaign (party:false): every member plays the host's hero, but its lasting choices are the host's.
  {const ready={...r.newAdventure(fighter),xp:r.xpForLevel(2)},made=c.create(A,{snapshot:snapshotOf(fighter,ready),party:false,name:'Al'});
   const guest=c.join(B,{invite:made.invite,name:'Bo'}),at2={id:made.campaignId,version:guest.version};
-  for(const change of [{kind:'advance',character:{...fighter,level:2}},{kind:'wield',name:'Greatsword'},{kind:'attune',name:'Rope'},{kind:'training',training:{}}])
+  for(const change of [{kind:'advance',character:{...fighter,level:2}},{kind:'wield',name:'Greatsword'},{kind:'shield',away:true},{kind:'attune',name:'Rope'},{kind:'training',training:{}}])
    assert.throws(()=>edit(B,at2,change),e=>e.status===403,'a guest cannot make '+change.kind+' choices for the host');
   const noted=edit(B,at2,{kind:'note',text:'Ask the miller.'});assert.equal(noted.version,at2.version+1,'a guest may still write in the journal');
   const own=edit(A,{id:at2.id,version:noted.version},{kind:'advance',character:{...fighter,level:2}});assert.equal(JSON.parse(own.snapshot.character).level,2,'the host levels their own hero');}
@@ -109,5 +109,22 @@ try{
   assert.ok(!JSON.stringify(migrated).includes(A.id)&&!JSON.stringify(migrated).includes(B.id),'an older table is given seats');
   assert.equal(migrated.snapshot.game.turnOrder.order[0].id,migrated.you,'the turn order follows the seats');
   assert.ok(!JSON.parse(stored).snapshot.game.party.members[A.id]&&JSON.parse(stored).receipts[0].by===migrated.you,'the stored table and its receipts are rewritten once');}
- console.log('Campaign edits: send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, a one-hero campaign’s lasting choices are the host’s, an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
+ // 9. The shield on the back (both hands free) or taken up again: the hero's own choice, kept with their hero, free out
+ // of a fight and refused in one (there it takes the hero's action, as a turn).
+ {const cleric=r.readyHero('cleric'),ac=h=>r.combatBasics(h).ac;
+  let at=solo(cleric,r.newAdventure(cleric),'Cy');
+  refused(()=>edit(A,at,{kind:'shield',away:'yes'}),/back or on your arm/);refused(()=>edit(A,at,{kind:'shield',away:false}),/already on your arm/);
+  const away=edit(A,at,{kind:'shield',away:true});assert.equal(away.snapshot.game.shieldAway,true,'the shield goes on the back');
+  assert.ok(away.snapshot.game.log.some(t=>/sling your shield/.test(t)),'and the log says so');assert.equal(ac(r.gearedHero(cleric,away.snapshot.game)),ac(cleric)-2,'armor class drops by 2');
+  const up=edit(A,{id:at.id,version:away.version},{kind:'shield',away:false});assert.equal(up.snapshot.game.shieldAway,undefined,'and comes back to the arm');
+  const fighting=rewrite(at.id,camp=>{camp.snapshot.game={...camp.snapshot.game,npcCombat:{active:true,round:1}};});
+  refused(()=>edit(A,{id:at.id,version:fighting},{kind:'shield',away:true}),/takes your action/);
+  // At a party table each hero's shield is their own: the others' armor class shows the change, their own games do not.
+  const table=c.create(A,{snapshot:snapshotOf(fighter,r.newAdventure(fighter)),party:true,name:'Al'});
+  const bo=c.join(B,{invite:table.invite,snapshot:snapshotOf(cleric,r.newAdventure(cleric)),name:'Bo'});
+  const stowed=edit(B,{id:table.campaignId,version:bo.version},{kind:'shield',away:true});assert.equal(stowed.snapshot.game.shieldAway,true);
+  const seen=c.poll(A,{campaignId:table.campaignId,knownVersion:-1});assert.equal(seen.snapshot.game.shieldAway,undefined,'Al’s own hero is untouched');
+  assert.equal(seen.snapshot.game.party.members[bo.you].stats.ac,ac(cleric)-2,'Al sees Bo’s armor class drop');assert.equal(seen.snapshot.game.party.members[bo.you].hero.shieldAway,true);
+  refused(()=>edit(A,{id:table.campaignId,version:seen.version},{kind:'shield',away:true}),/no shield/);}
+ console.log('Campaign edits: the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, a one-hero campaign’s lasting choices are the host’s, an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
 }finally{fs.rmSync(dir,{recursive:true,force:true});}
