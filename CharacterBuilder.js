@@ -113,9 +113,8 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     </>}
     {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:fixedLineage[value]??(speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null),keenSense:baseSpeciesOf(value)==='Elf'?(form.keenSense??'Perception'):undefined}), speciesCards)}
     {page === 1 && baseSpeciesOf(form.species) === 'Elf' && <>
-      <Text style={s.label}>Keen Senses</Text>
-      <Text style={s.detail}>Every elf is trained in one of these skills.</Text>
       {choices('Keen Senses', keenSenseSkills, keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception', value => change({keenSense:value}))}
+      <Text style={s.detail}>Every elf is trained in one of these skills.</Text>
     </>}
     {page === 1 && !fixedLineage[form.species] && !!speciesLineages[form.species] && <>
       <Text style={s.label}>{form.species === 'Tiefling' ? 'Fiendish legacy' : 'Lineage'}</Text>
