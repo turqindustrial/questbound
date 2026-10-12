@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // Loads the rules the way the other checks do, plus the story modules and the quick-action builder.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js','iconPaths.js','quickActions.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({quickActions,dmChoices,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,commitDmTurn,equipmentFor,combatBasics,validAdventure,adventureSnapshot})',{AsyncStorage:{}});
+const r=vm.runInNewContext(source+'\n({quickActions,inBattle,speakAction,dmChoices,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,commitDmTurn,equipmentFor,combatBasics,validAdventure,adventureSnapshot})',{AsyncStorage:{}});
 const make=(cls,scores,spells=[])=>{const hero={name:'Chip tester',class:cls,species:'Human',level:1,background:'Soldier',scores,spells};hero.equipment=r.equipmentFor(hero);return hero;};
 const fighter=make('Fighter',{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10});
 const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.length;
@@ -61,6 +61,10 @@ for(const q of inside.filter(q=>q.action)){const s=r.adventureStep(entered.game,
 const wizard=make('Wizard',{Strength:8,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},['fire-bolt','magic-missile']);
 const cast=r.quickActions(wizard,r.hostileEncounterGame(wizard,r.newAdventure(wizard),pick('bandit'))).find(q=>q.key==='cast');
 assert.ok(cast&&cast.prefill==='I cast '&&!cast.action,'Casters get a Cast… prefill chip');
+// Out of battle (Suggestions in DungeonMaster.js) the chips split between Speak and Actions, each in one of them; in
+// a fight every chip stays a button.
+{const won={...bandit,stage:'victory',enemyHP:0},calm=r.quickActions(fighter,won,{current:6,temp:0});assert.ok(!r.inBattle(won)&&r.inBattle(bandit),'a won fight is not battle');
+ assert.equal(calm.filter(a=>r.speakAction(a.key)).length+calm.filter(a=>!r.speakAction(a.key)).length,calm.length);assert.ok(calm.some(a=>a.key==='short-rest')&&!r.speakAction('short-rest')&&!r.speakAction('loot'),'a rest and the Loot chip are actions');}
 // A spell waiting on a ruling offers only the way out.
 assert.equal(JSON.stringify(keys(r.quickActions(fighter,{...bandit,pendingSpell:{id:'fire-bolt'}}))),'["cancel-spell"]');
 console.log('Passed: combat chips (attack first, dodge, retreat, potion) resolve through the engine and the DM commit; travel chips use story place names, follow the travel rules (stories never strand a hero at camp) and save validly; vault chips stay in the crossroads adventure with short labels; casters get Cast…; pending spells offer only Cancel.');
