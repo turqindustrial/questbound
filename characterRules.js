@@ -9,23 +9,30 @@ export const standardArray = [15, 14, 13, 12, 10, 8];
 export const classes = ['Artificer', 'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk', 'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard'];
 export const legacyClasses = [];
 // The elves are offered as three species of their own (the host, 2026-10-11: "make sure wood elf and high elf are two
-// different classes with their respective values"): High Elf, Wood Elf and Dark Elf, each the SRD 5.2 Elf with its
-// lineage. A plain 'Elf' (offered until then, its lineage chosen in the builder) stays valid for saved heroes and
-// reads as the species its lineage names (`heroSpecies`); one made before lineages reads as a High Elf.
-export const species = ['Dragonborn', 'Dwarf', 'High Elf', 'Wood Elf', 'Dark Elf', 'Gnome', 'Goblin', 'Goliath', 'Half-Elf', 'Halfling', 'Human', 'Orc', 'Tiefling'];
-export const legacySpecies = ['Elf'];
-// Lineages a species can choose (SRD 5.2); each grants its own spells (spellOptions.js lineageSpells). A Dark Elf is
-// always of the Drow lineage, a High Elf and a Wood Elf of their own (`fixedLineage`); a Gnome or Tiefling chooses,
-// and one made before lineages were offered has none.
-export const speciesLineages = {'Dark Elf':['Drow'], 'High Elf':['High Elf'], 'Wood Elf':['Wood Elf'], Elf:['High Elf','Wood Elf'], Gnome:['Forest Gnome','Rock Gnome'], Tiefling:['Abyssal','Chthonic','Infernal']};
-export const fixedLineage = {'Dark Elf':'Drow', 'High Elf':'High Elf', 'Wood Elf':'Wood Elf'};
+// different classes with their respective values"): High Elf, Wood Elf and Drow, each the SRD 5.2 Elf with its
+// lineage, listed together as the Elves (`speciesGroups`; the host, 2026-10-12: "maybe drow should be listed under
+// the elves with the others."). A plain 'Elf' (offered until then, its lineage chosen in the builder) stays valid for
+// saved heroes and reads as the species its lineage names (`heroSpecies`); one made before lineages reads as a High
+// Elf. A 'Dark Elf' (the Drow's name until 2026-10-12) stays valid too and reads as a Drow; neither is rewritten.
+export const species = ['Dragonborn', 'Dwarf', 'High Elf', 'Wood Elf', 'Drow', 'Gnome', 'Goblin', 'Goliath', 'Half-Elf', 'Halfling', 'Human', 'Orc', 'Tiefling'];
+export const legacySpecies = ['Elf', 'Dark Elf'];
+// Species shown together in the builder under one heading, at the place of the first.
+export const speciesGroups = [{name: 'Elves', members: ['High Elf', 'Wood Elf', 'Drow'], note: 'One long-lived people of three lineages: keen senses, fey ancestry and a trance in place of sleep.'}];
+// Lineages a species can choose (SRD 5.2); each grants its own spells (spellOptions.js lineageSpells). A Drow (or an
+// old Dark Elf) is always of the Drow lineage, a High Elf and a Wood Elf of their own (`fixedLineage`); a Gnome or
+// Tiefling chooses, and one made before lineages were offered has none.
+export const speciesLineages = {Drow:['Drow'], 'Dark Elf':['Drow'], 'High Elf':['High Elf'], 'Wood Elf':['Wood Elf'], Elf:['High Elf','Wood Elf'], Gnome:['Forest Gnome','Rock Gnome'], Tiefling:['Abyssal','Chthonic','Infernal']};
+export const fixedLineage = {Drow:'Drow', 'Dark Elf':'Drow', 'High Elf':'High Elf', 'Wood Elf':'Wood Elf'};
 // The kind a species belongs to, for whatever is keyed on it (elves do not sleep, portraits, how strangers see them).
-export const baseSpeciesOf = name => ['Dark Elf','High Elf','Wood Elf'].includes(name) ? 'Elf' : name;
+export const baseSpeciesOf = name => ['Drow','Dark Elf','High Elf','Wood Elf'].includes(name) ? 'Elf' : name;
+// A species as players see it: an old 'Dark Elf' is called a Drow (a name alone, as in a roster's summary).
+export const speciesName = name => name === 'Dark Elf' ? 'Drow' : name;
 // The species a hero is, as the game shows and plays it: an old 'Elf' is the species its lineage names, and one
-// without a lineage (made before lineages) a High Elf, the elf who keeps a speed of 30 feet as before.
+// without a lineage (made before lineages) a High Elf, the elf who keeps a speed of 30 feet as before; an old
+// 'Dark Elf' is a Drow.
 export function heroSpecies(hero) {
   const name = hero?.species ?? hero?.race ?? '';
-  if (name !== 'Elf') return name;
+  if (name !== 'Elf') return speciesName(name);
   return hero?.lineage === 'Wood Elf' ? 'Wood Elf' : 'High Elf';
 }
 // What each species is, as the game plays it (SRD 5.2, the Half-Elf of SRD 5.1; the Goblin is Questbound's own), in
@@ -41,7 +48,7 @@ export const speciesTraits = {
   Dwarf: {speed:30,darkvision:120,traits:[['Dwarven Resilience','Resistance to poison damage, and advantage on saving throws against being poisoned.'],['Dwarven Toughness','One more hit point at every level.',true],['Stonecunning','As a bonus action, sense through stone within 60 feet; as many uses as your proficiency bonus each long rest.']]},
   'High Elf': {speed:30,darkvision:60,traits:[...elfTraits,['High Elf lineage','You know Prestidigitation; at level 3 Detect Magic and at level 5 Misty Step, each once a long rest without a slot.',true]]},
   'Wood Elf': {speed:35,darkvision:60,traits:[...elfTraits,['Wood Elf lineage','Your speed is 35 feet. You know Druidcraft; at level 3 Longstrider and at level 5 Pass without Trace, each once a long rest without a slot.',true]]},
-  'Dark Elf': {speed:30,darkvision:120,traits:[...elfTraits,['Drow lineage','Darkvision out to 120 feet. You know Dancing Lights; at level 3 Faerie Fire and at level 5 Darkness, each once a long rest without a slot.',true]]},
+  Drow: {speed:30,darkvision:120,traits:[...elfTraits,['Drow lineage','Darkvision out to 120 feet. You know Dancing Lights; at level 3 Faerie Fire and at level 5 Darkness, each once a long rest without a slot.',true]]},
   Gnome: {size:'Small',speed:30,darkvision:60,traits:[['Gnomish Cunning','Advantage on Intelligence, Wisdom and Charisma saving throws.'],['Gnomish Lineage','Forest or Rock Gnome: the spells your lineage gives.',true]]},
   Goblin: {size:'Small',speed:30,darkvision:60,traits:[['Slippery','A knack for slipping out of danger, which the Dungeon Master weighs in your favour.']]},
   Goliath: {speed:35,darkvision:0,traits:[['Giant Ancestry','A boon from your giant forebears, usable a few times each long rest.'],['Large Form','From level 5, grow to Large for 10 minutes once a long rest.'],['Powerful Build','Advantage on escaping a grapple, and you carry as one size larger.']]},

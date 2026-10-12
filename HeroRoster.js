@@ -4,6 +4,7 @@ import {GameButton,Section} from './ui';
 import Icon from './Icon';
 import HeroPortrait from './HeroPortrait';
 import {fonts,colors,tint} from './theme';
+import {heroSpecies,speciesName} from './characterRules';
 // The heroes set aside on this device (switch to any of them) and the ones who died (remembered, not playable).
 const when=iso=>{try{return new Date(iso).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});}catch{return '';}};
 export default function HeroRoster({roster,graves,onPlay,onRetire,busy,compact}){
@@ -17,7 +18,7 @@ export default function HeroRoster({roster,graves,onPlay,onRetire,busy,compact})
      {!!hero&&<HeroPortrait hero={hero} size={compact?46:56} level={sum.level}/>}
      <View style={{flex:1,minWidth:150}}>
       <Text numberOfLines={1} style={s.name}>{sum.name}</Text>
-      <Text style={s.line}>Level {sum.level} · {sum.species} · {sum.class}</Text>
+      <Text style={s.line}>Level {sum.level} · {hero?heroSpecies(hero):speciesName(sum.species)} · {sum.class}</Text>
       {!!sum.story&&<Text numberOfLines={2} style={s.story}>{sum.story}{sum.place?' · '+sum.place:''}</Text>}
       <Text style={s.date}>Set aside {when(e.savedAt)}</Text>
      </View>
