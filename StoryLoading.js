@@ -29,7 +29,7 @@ export const primer=[
  ['quill','You are the hero','Say what you do in your own words: search the room, bargain, sneak, start a fight. There are no wrong commands, and you can always ask what you notice.'],
  ['swords','Quick actions','The buttons above the message box are things you can do at once: speak to someone, travel, attack, rest. Tap one, or type instead.'],
  ['d20','The dice decide','When something is uncertain the game rolls real dice and adds your hero\'s skill. The Dungeon Master tells you what the roll means.'],
- ['heart','Fights are deadly','On your turn you have one action and one bonus action. Watch your hit points: drink a healing draught, or retreat. A hero who dies stays dead.'],
+ ['heart','Fights are deadly','On your turn you have one action and one bonus action. Watch your hit points: drink a healing draught, or retreat. A hero who dies is gone for good, unless someone at their side can bring them back at once.'],
  ['people','People remember','Tap Speak to talk to someone. They remember how you treat them: some will help, some will travel with you, and some will not forgive you easily.'],
  ['map','Your tale','The Quest tab shows the chapter under way and the Map where you can go. If something goes wrong, tap DM beside the message box and tell the Dungeon Master.'],
 ];

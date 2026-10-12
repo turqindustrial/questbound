@@ -33,7 +33,8 @@ assert.ok(r.dmChoices(fighter,twenty.game).some(c=>c.id==='approach'),'The foe c
 let stable=down;for(let i=0;i<3;i++)stable=r.adventureStep(stable.game,stable.health,fighter,'death-save',()=>0.6);
 assert.equal(stable.game.stage,'inn');assert.equal(stable.health.current,1);assert.equal(stable.game.journal.entries.at(-1).title,'Survived');
 // Damage past 0 HP of at least the hero's maximum kills outright.
-const massive=r.adventureStep(open,{current:1,temp:0},fighter,'dodge',()=>0.99);
+// (A level-1 hero meets a foe a point softer, storyRules.js foeEase: this one hits as hard as it would at 3rd level.)
+const massive=r.adventureStep({...open,story:{...open.story,foeStats:{...open.story.foeStats,bonus:1}}},{current:1,temp:0},fighter,'dodge',()=>0.99);
 assert.equal(massive.game.stage,'dead');assert.equal(massive.game.death.massive,true);assert.ok(massive.events.some(t=>t.startsWith('The blow is so savage that it kills you outright')));assert.ok(valid(fighter,massive.game,massive.health));
 // A dead or dying save that was tampered with is refused.
 assert.ok(!valid(fighter,{...down.game,dying:{...down.game.dying,failures:3}},down.health));

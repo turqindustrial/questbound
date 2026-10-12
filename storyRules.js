@@ -80,11 +80,16 @@ export function foeForLevel(game,level){
  const grown=storyFoeStats(level,stats.type);
  return grown.maximum<=stats.maximum?game:{...game,story:{...game.story,foeStats:grown},enemyHP:grown.maximum};
 }
+// A new hero's first steps: up to 2nd level, a foe's blows (the creatures by the road, a pack's members, the tale's
+// own foe) land a point softer, so there is room to learn while death stays real. Worked into a stat block when a
+// fight or a tale begins. Tuned with balance-check.cjs together with survivalOdds (deathRules.js).
+export const foeEase={upToLevel:2,damage:1};
+export const easedBonus=(bonus,level)=>(level??1)<=foeEase.upToLevel?Math.max(0,bonus-foeEase.damage):bonus;
 // A written story's main foe: the climax of the tale, so sturdier than a creature met by the road, and scaled to
 // the hero's level when the story begins. (Stories from before this have no stat block and keep the old, lighter one.)
 export function storyFoeStats(level=1,type='Slashing'){
  const up=Math.max(0,Math.min(19,(level??1)-1));
- return {maximum:18+10*up,ac:12+Math.floor(up/4),attackBonus:3+Math.floor(up/2),die:6,count:1+Math.floor(up/5),bonus:1+Math.floor(up/3),type:damageTypes.includes(type)?type:'Slashing',saves:{Strength:1,Dexterity:2+Math.floor(up/4),Constitution:1,Intelligence:0,Wisdom:Math.floor(up/4),Charisma:0}};
+ return {maximum:18+10*up,ac:12+Math.floor(up/4),attackBonus:3+Math.floor(up/2),die:6,count:1+Math.floor(up/5),bonus:easedBonus(1+Math.floor(up/3),level),type:damageTypes.includes(type)?type:'Slashing',saves:{Strength:1,Dexterity:2+Math.floor(up/4),Constitution:1,Intelligence:0,Wisdom:Math.floor(up/4),Charisma:0}};
 }
 // What the story writer may add that the game checks piece by piece: anything malformed is dropped, not refused.
 function tidyStory(written){

@@ -39,7 +39,8 @@ assert.ok(valid(start,null),'A new story with its own land is a valid save');
 assert.equal(start.story.layout,undefined);assert.equal(start.story.landmarks,undefined,'The hints are used, not stored');
 assert.ok(r.validGeography(start.story.geography));assert.ok(start.story.geography.at.bridge.x<-6000,'West, as written');
 // The story's main foe is sturdier than a creature met by the road, sized to the hero when the story begins.
-same(r.storyFoeStats(1,'Piercing'),{maximum:18,ac:12,attackBonus:3,die:6,count:1,bonus:1,type:'Piercing',saves:{Strength:1,Dexterity:2,Constitution:1,Intelligence:0,Wisdom:0,Charisma:0}});
+// (Up to 2nd level its blows land a point softer: storyRules.js foeEase.)
+same(r.storyFoeStats(1,'Piercing'),{maximum:18,ac:12,attackBonus:3,die:6,count:1,bonus:0,type:'Piercing',saves:{Strength:1,Dexterity:2,Constitution:1,Intelligence:0,Wisdom:0,Charisma:0}});
 assert.equal(r.storyFoeStats(5).maximum,58);assert.equal(r.storyFoeStats(5,'Sonic').type,'Slashing');assert.ok(r.validStory({...start.story,foeStats:r.storyFoeStats(20)}));
 const told=r.freshStoryGame(kara,{...written,foeStats:undefined,foeDamageType:'Poison'},r.newAdventure(kara));assert.equal(told.story.foeStats.type,'Poison');assert.equal(told.enemyHP,18);assert.equal(r.encounterFoe(kara,{...told,stage:'combat'}).maximum,18);
 assert.equal(r.freshStoryGame(kara,{...written,foeStats:undefined,foeDamageType:'Sonic'},r.newAdventure(kara)).story.foeDamageType,undefined,'An unknown kind of harm is dropped');

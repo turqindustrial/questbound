@@ -14,7 +14,8 @@ export const deathStages=['dying','dead'];
 // death, fortune leans a little toward the hero: a blow that would drop them is now and then rolled again and the
 // lower kept, and a failed death save is now and then rolled again and the better kept. Only the roll that counts is
 // ever written down, so the feed, the log and the Dungeon Master see an ordinary roll. Never mention this to players.
-export const survivalOdds={blow:0.5,save:0.3};
+// (The other half of making a new hero's first fights survivable is foeEase in storyRules.js.)
+export const survivalOdds={blow:0.5,save:0.25};
 // A blow that would take the hero from `current` (with `temp`) to 0: sometimes rolled again (`again` rolls it), the
 // lower kept. Returns the roll to use. Draws from the engine's own random(), so a campaign server's dice agree.
 export function sparedBlow(roll,{current,temp=0},again,random=Math.random){
