@@ -41,6 +41,12 @@ assert.equal(r.dmContext(kara,out,big).world.canAmbush,true);assert.equal(r.dmCo
 // ---- Falling out there ----
 const doomed=r.adventureStep({...found.game,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',()=>0.9);
 assert.equal(doomed.game.stage,'dying');assert.equal(doomed.game.dying.place,'wild');assert.equal(r.mapLocation(doomed.game),'p1');assert.equal(doomed.game.wildFight,undefined);assert.ok(doomed.game.world.places[0].threat);assert.ok(valid(doomed.game,doomed.health));
+// Dead out there, then brought back by a companion who knows Revivify (deathRules.js): on their feet where they fell.
+{let st=doomed;for(let i=0;i<3&&st.game.stage==='dying';i++)st=r.adventureStep(st.game,st.health,kara,'death-save',()=>0);
+ assert.equal(st.game.stage,'dead');assert.equal(st.game.death.where,'p1');
+ const helped={...st.game,followers:{mara:{status:'following',location:'inn',reason:'Test.',terms:''}},npcClasses:{mara:{class:'Druid',level:5}},pack:{...(st.game.pack??{items:[],spent:{}}),gold:300}};
+ const back=r.adventureStep(helped,st.health,kara,{type:'revive',by:'mara'});assert.equal(back.error,undefined,back.error);
+ assert.equal(back.game.stage,'wild');assert.equal(r.mapLocation(back.game),'p1');assert.equal(back.game.pack.gold,0);assert.ok(valid(back.game,back.health));}
 // ---- Signature moves ----
 const kinds=key=>({...r.hostileEncounterGame(kara,r.newAdventure(kara),()=>[ 'bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'].indexOf(key)/9+0.01),openingAttackAvailable:false});
 const foe=g=>({name:g.story.foe,saves:g.story.foeStats.saves,ac:g.story.foeStats.ac});
