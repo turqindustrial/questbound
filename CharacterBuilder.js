@@ -173,7 +173,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
 const s = StyleSheet.create({
   stepRow:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:10,marginBottom:10,flexWrap:'wrap'},
   progress:{...type.label},nextHint:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
-  progressTrack:{flexDirection:'row',gap:5,marginBottom:24},progressHit:{flex:1,paddingVertical:6},progressSegment:{height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.18)')},
+  progressTrack:{flexDirection:'row',gap:5,marginTop:-6,marginBottom:18},progressHit:{flex:1,paddingVertical:12},progressSegment:{height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.18)')},
   progressNow:{backgroundColor:tint('rgba(224,74,92,.55)'),height:6,marginTop:-1,borderWidth:1,borderColor:tint('rgba(240,110,128,.8)')},
   heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:30,fontWeight:'700',letterSpacing:1,marginBottom:12},intro:{fontFamily:fonts.story,color:tint('#dacec9'),fontSize:18,lineHeight:28,marginBottom:20},
   label:{fontFamily:fonts.display,color:colors.gold,fontSize:14,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:20,marginBottom:10},cards:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},

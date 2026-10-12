@@ -404,7 +404,7 @@ function QuestboundApp() {
   </View>
   <EncounterProvider hero={hero} game={game} health={health}>
   <StatusBar style="light" />
-  {playing?<View style={s.shell}>
+  {playing?<View dataSet={{safe:'pad'}} style={s.shell}>
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. While the
         player types on a small phone, the HUD gives its row to the story too. */}
     <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} xp={experienceView(game,hero)} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
@@ -416,7 +416,7 @@ function QuestboundApp() {
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
       <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreen('Character Selection');}} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
     </View>
-  </View>:<View style={s.shell}>
+  </View>:<View dataSet={{safe:'pad'}} style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
     <View style={[s.topBar,compact&&{paddingHorizontal:12},home&&{minHeight:48}]}>
       {home?<View/>:inGame&&!['Level Up','Adventure'].includes(screen)?<Pressable accessibilityRole="button" accessibilityLabel="Back to the adventure" onPress={backToGame} dataSet={{qb:'chip'}} style={s.backChip}><Icon name="back" size={15} color={colors.gold}/><Text style={s.backChipText}>Adventure</Text></Pressable>:<Pressable accessibilityRole="button" accessibilityLabel="Main menu" onPress={()=>setScreen('Home')} style={s.brand}><EmblemMark size={42}/>{windowWidth>=380&&<Text dataSet={{qb:'title'}} style={[s.logoSmall,compact&&{fontSize:17,letterSpacing:2}]}>Questbound</Text>}</Pressable>}

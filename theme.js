@@ -1,5 +1,5 @@
 import {Platform} from 'react-native';
-import {defaultTheme,validTheme,mapColours,writtenColour,themedText} from './themeRules';
+import {defaultTheme,validTheme,mapColours,writtenColour,themedText,pageBackground} from './themeRules';
 // Shared visual language: a dark theme in the player's colour (Settings → Theme; dark red on black with purple accents
 // unless they choose another), engraved display type and storybook serif narration.
 //
@@ -27,6 +27,10 @@ function paint(){
  let rules='';for(const [key,colour] of written)rules+='--qb-'+key+':'+writtenColour(colour,current,mode)+';';
  for(const extra of extras)for(const [name,value] of Object.entries(extra(current,mode)))rules+=name+':'+value+';';
  sheet.textContent=':root{'+rules+'color-scheme:'+mode+';}';document.documentElement.setAttribute('data-theme',current);document.documentElement.setAttribute('data-appearance',mode);
+ // The phone's own bars (Android's address and status bar, Safari's) take the page's background in this theme.
+ let bar=document.querySelector('meta[name="theme-color"]');
+ if(!bar){bar=document.createElement('meta');bar.setAttribute('name','theme-color');document.head.appendChild(bar);}
+ bar.setAttribute('content',pageBackground(current,mode));
 }
 const schedule=()=>{if(queued)return;queued=true;(globalThis.queueMicrotask??(run=>Promise.resolve().then(run)))(paint);};
 // A colour, or any text holding colours (a shadow, a gradient, a whole style sheet), ready to follow the theme.

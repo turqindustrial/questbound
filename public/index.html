@@ -2,7 +2,16 @@
 <html lang="%LANG_ISO_CODE%">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- The whole screen is the game's: the browser's bars take its background (theme.js follows the player's theme),
+         and from the Home Screen it opens with no browser at all (manifest.json on Android; these tags on iPhone, where
+         the status bar sits over the game and webLayout.js keeps the controls clear of it, the notch and the home bar). -->
+    <meta name="theme-color" content="#08060a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Questbound" />
+    <meta name="format-detection" content="telephone=no" />
     <title>%WEB_TITLE%</title>
     <meta name="description" content="A fantasy tabletop adventure with an AI Dungeon Master, for phone and computer." />
     <link rel="manifest" href="/manifest.json" />
