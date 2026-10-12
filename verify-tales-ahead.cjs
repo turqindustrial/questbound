@@ -8,16 +8,16 @@ const tick=(ms=5)=>new Promise(resolve=>setTimeout(resolve,ms));
 const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',regard:{stance:'wary',reason:'I lost a brother to your kind.'},ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',regard:{stance:'warm',reason:'Travellers bring news.'},ties:{other:'friend',foe:'neutral',note:'n'}}}};
 (async()=>{
  // ---- The stock ----
- assert.equal(revision,3);assert.equal(generation,3);assert.equal(stockFor('surprise'),2);assert.equal(stockFor('easy'),2,'Easy to get into is meant to start fast');assert.equal(stockFor('crown'),1);
+ assert.equal(revision,4);assert.equal(generation,4);assert.equal(stockFor('surprise'),2);assert.equal(stockFor('easy'),2,'Easy to get into is meant to start fast');assert.equal(stockFor('crown'),1);
  // Tales stocked by an earlier story writer (no residents, no errands) are cleared away and never served.
- fs.mkdirSync(path.join(tmp,'stock'),{recursive:true});const legacy=path.join(tmp,'stock','crown-0f8fad5b-d9cb-469f-a165-70867728950e.json'),older=path.join(tmp,'stock','crown-g2-0f8fad5b-d9cb-469f-a165-70867728950f.json'),other=path.join(tmp,'stock','notes.txt');
+ fs.mkdirSync(path.join(tmp,'stock'),{recursive:true});const legacy=path.join(tmp,'stock','crown-0f8fad5b-d9cb-469f-a165-70867728950e.json'),older=path.join(tmp,'stock','crown-g3-0f8fad5b-d9cb-469f-a165-70867728950f.json'),other=path.join(tmp,'stock','notes.txt');
  for(const file of [legacy,older])fs.writeFileSync(file,JSON.stringify({story:{...story,title:'Legacy'}}));fs.writeFileSync(other,'kept');
  let clock=1000;const pantry=createPantry({dir:path.join(tmp,'stock'),now:()=>clock});
  assert.ok(!fs.existsSync(legacy)&&!fs.existsSync(older)&&fs.existsSync(other),'old generations removed, nothing else touched');assert.equal(pantry.count('crown'),0);
  assert.equal(JSON.stringify(pantry.wanted(['surprise','crown'])),JSON.stringify(['surprise','crown']));assert.equal(pantry.take('crown'),null,'nothing in stock yet');
  let wrote=[];const write=async id=>{wrote.push(id);return {story:{...story,title:'Tale '+wrote.length}};};
  assert.equal(pantry.topUp(['surprise','crown'],write),true);assert.equal(pantry.topUp(['surprise','crown'],write),false,'one tale at a time');
- await pantry.settled();assert.equal(pantry.count('surprise'),1);assert.ok(fs.readdirSync(path.join(tmp,'stock')).some(f=>/^surprise-g3-[0-9a-f-]{36}.json$/.test(f)),'stocked as <opening>-g3-<uuid>.json');
+ await pantry.settled();assert.equal(pantry.count('surprise'),1);assert.ok(fs.readdirSync(path.join(tmp,'stock')).some(f=>/^surprise-g4-[0-9a-f-]{36}.json$/.test(f)),'stocked as <opening>-g4-<uuid>.json');
  for(let i=0;i<3;i++){pantry.topUp(['surprise','crown'],write);await pantry.settled();}
  assert.equal(pantry.count('surprise'),2);assert.equal(pantry.count('crown'),1);assert.equal(JSON.stringify(wrote),JSON.stringify(['surprise','surprise','crown']));
  assert.equal(pantry.topUp(['surprise','crown'],write),false,'full: nothing more is written');
@@ -74,7 +74,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  for(const field of ['residents','errand','openingDialogue'])assert.ok(easySchema.required.includes(field),'an errand tale must have '+field);
  assert.match(easyCall.instructions,/EASY TO GET INTO/);assert.match(easyCall.instructions,/RESIDENTS:/);assert.ok(!easyCall.instructions.includes('Only the two specified NPCs'),'the writer may put more than two people at the start');
  assert.ok(errandDirections.some(d=>easyInput.creativeDirection.endsWith(d)),'an errand from the list');assert.ok(openingScenes.includes(easyInput.openingScene),'a kind of opening moment');
- assert.deepEqual(easySchema.properties.openingDialogue.items.properties.speakerId.enum.slice(0,3),['keeper','mara','resident1']);assert.equal(easySchema.properties.residents.maxItems,8);
+ assert.deepEqual(easySchema.properties.openingDialogue.items.properties.speakerId.enum.slice(0,3),['keeper','mara','resident1']);assert.equal(easySchema.properties.residents.maxItems,12);
  assert.equal(easySchema.properties.errand.properties.threat.properties.ally.type.join(),'object,null');
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
  const fate=calls.at(-1);assert.ok(fate.text.format.schema.required.includes('residents')&&!fate.text.format.schema.required.includes('errand'),'every tale has residents; only Easy to get into has an errand');assert.ok(openingScenes.includes(JSON.parse(fate.input).openingScene));assert.ok(!fate.instructions.includes('EASY TO GET INTO'));
@@ -91,7 +91,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await assert.rejects(easyFor({introId:'hostile',easyStart:true}),/without the AI/,'the Skirmish is never written, easy or not');
  {const truthy=await easyFor({introId:'crown',easyStart:'yes'});assert.ok(!truthy.schema.required.includes('errand'),'only easyStart:true counts');}
  // Written ahead, residents' views of the hero's kind are dropped too; their lines are kept by residentN.
- const peopled={...story,residents:[{name:'Old Tam',regard:{stance:'scornful',reason:'x'}}],openingDialogue:[{speakerId:'resident1',text:'Orders are orders.'},{speakerId:'resident9',text:'No.'},{speakerId:'keeper',text:'Go now.'}]};
+ const peopled={...story,residents:[{name:'Old Tam',regard:{stance:'scornful',reason:'x'}}],openingDialogue:[{speakerId:'resident1',text:'Orders are orders.'},{speakerId:'resident13',text:'No.'},{speakerId:'keeper',text:'Go now.'}]};
  const peopledFetch=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(peopled)}]}]})};};
  const aheadEasy=await generateAdventure({input:'Create',context:{mode:'adventure',introId:'easy',ahead:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl:peopledFetch});
  assert.equal(aheadEasy.story.residents[0].regard,undefined,'written ahead, what the residents think of the hero\'s kind is left to the game');assert.deepEqual(aheadEasy.story.openingDialogue.map(l=>l.speakerId),['resident1','keeper'],'only known voices');

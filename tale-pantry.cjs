@@ -8,9 +8,10 @@
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs);
 // bump `revision` when it changes and the server loads it afresh.
 // Each stocked tale's file name carries the generation of the story writer that wrote it (`<opening>-g3-<uuid>.json`):
-// tales from an earlier generation (written before tales had residents, errands and varied openings) are never served
+// tales from an earlier generation (written before tales had residents, errands and varied openings; generation 4:
+// before every tale carried its introduction and residents who keep out of sight) are never served
 // and are cleared away once when the pantry is made.
-const revision=3,generation=3;
+const revision=4,generation=4;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const stockFor=id=>id==='surprise'||id==='easy'?2:1,failurePause=10*60*1000;
 function createPantry({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-tales'),now=Date.now}={}){

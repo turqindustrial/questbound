@@ -27,7 +27,7 @@ assert.ok(r.turnToRewind(asked.game),'Still the last turn');
 const undone=play(asked.game,asked.health,null,{question:'To the Dungeon Master: I meant to dodge.',narration:'My mistake. Your last turn has been taken back.',dialogue:[],direct:true},r.turnToRewind(asked.game));
 r.forgetTurn();
 assert.equal(undone.game.enemyHP,start.enemyHP);assert.equal(undone.game.round,start.round);assert.equal(undone.game.openingAttackAvailable,true);assert.equal(undone.health.current,12);
-assert.equal(undone.game.playback.length,1,'The undone turn leaves the feed; the exchange stays');assert.ok(valid(undone.game,undone.health));
+assert.equal(undone.game.playback.length,2,'The undone turn leaves the feed; the opening and the exchange stay');assert.ok(valid(undone.game,undone.health));
 assert.equal(r.turnToRewind(undone.game),null);
 // Another story, or a turn too long ago, is never taken back.
 r.rememberTurn(start,hp);assert.equal(r.turnToRewind({...swing.game,story:{...swing.game.story,id:'other'}}),null);

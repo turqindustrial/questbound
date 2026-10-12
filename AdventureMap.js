@@ -3,7 +3,7 @@ import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import React,{useState,useEffect,useRef} from 'react';
 import {View,Image,Pressable,Platform,StyleSheet,Modal,ScrollView,useWindowDimensions} from 'react-native';
-import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion} from './mapRules';
+import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords,maxRegions} from './mapRules';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {WrapRow} from './ui';
@@ -14,11 +14,11 @@ const web=Platform.OS==='web';
 const landscape=require('./assets/map/crossroads-landscape.jpg');
 const centers={inn:{x:0.14,y:0.60},bridge:{x:0.80,y:0.66},tower:{x:0.80,y:0.015},dungeon:{x:0.78,y:0.90}};
 const artCenters={inn:{x:0.14,y:0.73},bridge:{x:0.80,y:0.78},tower:{x:0.80,y:0.11}};
-export default function AdventureMap({game,travelTo=[],onTravel}){
+export default function AdventureMap({game,travelTo=[],onTravel,beyond=[],onBeyond}){
  const [width,setWidth]=useState(280),[hovered,setHovered]=useState(null),[focused,setFocused]=useState(null),[pinned,setPinned]=useState(null);
  const map=mapState(game),location=mapLocation(game),active=hovered??focused??pinned,w=Math.min(width,640),h=w*8/7;
  const place=active?mapPlaces[active]:null,route=active?mapRoute(location,active):null;
- if(game.story)return <RegionMap game={game} travelTo={travelTo} onTravel={onTravel}/>;
+ if(game.story)return <RegionMap game={game} travelTo={travelTo} onTravel={onTravel} beyond={beyond} onBeyond={onBeyond}/>;
  return <View dataSet={{qb:'plate'}} style={s.panel} onLayout={e=>setWidth(Math.max(180,e.nativeEvent.layout.width-24))}>
   <Text style={s.eyebrow}>THE LANTERN ROAD</Text><Text style={s.heading}>The Crossroads</Text>
   <Text style={s.caption}>At {mapPlaces[location].name} · Hover, focus, or tap a name to explore.</Text>
@@ -99,7 +99,21 @@ function RegionSheet({game,w,h,selected,onSelect,region,onRegion}){
   </View>
  </View>;
 }
-function RegionMap({game,travelTo,onTravel}){
+// Beyond the edge of the map: a compass of the ways out of the land the hero stands in. A direction is picked first and
+// then confirmed (the road takes days), and the game opens a new land out there (mapRules.js goBeyond).
+const roseRows=[['NW','N','NE'],['W',null,'E'],['SW','S','SE']];
+function BeyondCard({land,beyond,onBeyond,close}){
+ const [aim,setAim]=useState(null),ok=b=>beyond.includes(b);
+ return <View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLabel={'Beyond the map of '+land}>
+  <View style={s.rose}>{roseRows.map((row,i)=><View key={i} style={s.roseRow}>{row.map(b=>b?<Pressable key={b} accessibilityRole="button" accessibilityLabel={'Beyond the map to the '+beyondWords[b]} accessibilityState={{selected:aim===b,disabled:!ok(b)}} disabled={!ok(b)} onPress={()=>setAim(aim===b?null:b)} dataSet={{qb:aim===b?'seg-on':'chip'}} style={[s.roseCell,aim===b&&s.roseOn,!ok(b)&&{opacity:.35}]}><PlainText style={[s.roseText,aim===b&&{color:colors.goldBright}]}>{b}</PlainText></Pressable>:<View key="centre" style={s.roseCentre}><Icon name="compass" size={16} color={colors.goldMid}/></View>)}</View>)}</View>
+  <View style={{flex:1,minWidth:0}}>
+   <Text style={s.detailName}>Beyond the map</Text>
+   <PlainText style={s.beyondText}>{aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, up to '+maxRegions+'.'}</PlainText>
+   {!!aim&&<Pressable accessibilityRole="button" accessibilityLabel={'Set out '+beyondWords[aim]+', beyond the map'} onPress={()=>{onBeyond(aim);setAim(null);close?.();}} dataSet={{qb:'chip'}} style={[s.travel,{alignSelf:'flex-start',marginTop:8}]}><View style={s.travelRow}><Icon name="travel" size={14} color={colors.gold}/><PlainText style={s.travelText}>Set out</PlainText></View></Pressable>}
+  </View>
+ </View>;
+}
+function RegionMap({game,travelTo,onTravel,beyond=[],onBeyond}){
  const [width,setWidth]=useState(300),[selected,setSelected]=useState(null),[open,setOpen]=useState(false);
  const {width:winW,height:winH}=useWindowDimensions();
  const map=mapState(game),here=mapLocation(game),ids=knownPlaceIds(game),visited=new Set(map.visited);
@@ -127,6 +141,8 @@ function RegionMap({game,travelTo,onTravel}){
  // One line of lands; when they do not fit, a More chip shows the rest (nothing scrolls sideways).
  const regionTabs=(inline=false)=>regions.length>1&&<WrapRow rows={1} rowHeight={34} gap={6} resetKey={shown.id} label="Lands" accessibilityRole="tablist" style={[s.regionBar,inline&&s.regionInline]}>{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</WrapRow>;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
+ // The ways off the edge of the land the hero stands in, on that land's own sheet.
+ const beyondCard=close=>shown.id===home&&!!onBeyond&&beyond.length>0&&<BeyondCard land={shown.name} beyond={beyond} onBeyond={onBeyond} close={close}/>;
  const pickCard=close=>pick&&<View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLiveRegion="polite">
    <View style={{flex:1,minWidth:0}}>
     <Text style={s.detailName}>{placeName(game,pick)}</Text>
@@ -154,12 +170,14 @@ function RegionMap({game,travelTo,onTravel}){
      <ScrollView style={s.bigScroll} contentContainerStyle={s.bigBody}>
       {open&&<RegionSheet game={game} w={bigW} h={bigH} selected={pick} onSelect={setSelected} region={shown.id} onRegion={turnTo}/>}
       {pickCard(()=>setOpen(false))}
+      {beyondCard(()=>setOpen(false))}
      </ScrollView>
     </View>
    </View>
   </Modal>
   {!open&&pickCard()}
-  <Text style={s.caption}>{fighting?'Finish or flee the fight before travelling.':game.stage==='dying'?'You cannot travel while dying.':game.stage==='dead'?'Your journey has ended.':'Tap a place, or tell the Dungeon Master where you want to go: a direction, a landmark on the horizon, somewhere you heard about. New places appear on this map as you find them.'}</Text>
+  {!open&&beyondCard()}
+  <Text style={s.caption}>{fighting?'Finish or flee the fight before travelling.':game.stage==='dying'?'You cannot travel while dying.':game.stage==='dead'?'Your journey has ended.':'Tap a place, or tell the Dungeon Master where you want to go: a direction, a landmark on the horizon, somewhere you heard about, or past the edge of the map. New places appear on this map as you find them.'}</Text>
   <View style={s.places}>{places.map(id=>{const isHere=id===here,route=routeTo(id),go=canGo(id);return <View key={id} dataSet={{qb:'card',selected:String(isHere)}} style={[s.place,isHere&&s.placeHere]}>
    <Pressable accessibilityRole="button" accessibilityLabel={placeName(game,id)+' — location details'} onPress={()=>setSelected(pick===id?null:id)} style={s.placeInfo}><View style={[s.placeIcon,isHere&&{borderColor:colors.gold}]}><Icon name={iconFor(id)} size={18} color={isHere?colors.goldBright:colors.gold}/></View><View style={{flex:1}}><Text style={s.detailName}>{placeName(game,id)}</Text><Text style={[s.distance,isHere&&{color:colors.goldBright}]}>{isHere?'You are here':route?distanceText(route.feet)+' · '+durationText(route.minutes)+' walk':'No known path'}{visited.has(id)&&!isHere?'  ·  Visited':''}</Text></View></Pressable>
    {go&&<Pressable accessibilityRole="button" accessibilityLabel={'Travel to '+placeName(game,id)} onPress={()=>onTravel(id)} dataSet={{qb:'chip'}} style={s.travel}><View style={s.travelRow}><Icon name="travel" size={14} color={colors.gold}/><PlainText style={s.travelText}>Travel</PlainText></View></Pressable>}
@@ -173,7 +191,8 @@ const s=StyleSheet.create({
  bigScroll:{flexGrow:0,flexShrink:1},bigBody:{gap:4},
  regionBar:{flexGrow:0,flexShrink:0,marginTop:10},regionInline:{marginTop:0,flexShrink:1,maxWidth:'50%'},regionTab:{flexDirection:'row',alignItems:'center',gap:6,height:34,maxWidth:230,paddingHorizontal:12,borderRadius:17,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(31,24,32,.92)')},regionTabOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
  regionTabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:.9,color:colors.gold,flexShrink:1},regionDot:{width:7,height:7,borderRadius:4,backgroundColor:'#c8412f'},
- tools:{position:'absolute',right:8,bottom:8,gap:6},tool:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(59,42,23,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'#eddeb6'},toolText:{fontFamily:fonts.display,fontSize:20,lineHeight:24,fontWeight:'800',color:tint('#3b2a17')},
+ tools:{position:'absolute',right:8,bottom:8,gap:6},
+ rose:{gap:4},roseRow:{flexDirection:'row',gap:4},roseCell:{width:36,height:34,borderRadius:17,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(31,24,32,.92)'),alignItems:'center',justifyContent:'center'},roseOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},roseCentre:{width:36,height:34,alignItems:'center',justifyContent:'center'},roseText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:.6,color:colors.gold},beyondText:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:19,marginTop:4},tool:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:'rgba(59,42,23,.6)',alignItems:'center',justifyContent:'center',backgroundColor:'#eddeb6'},toolText:{fontFamily:fonts.display,fontSize:20,lineHeight:24,fontWeight:'800',color:tint('#3b2a17')},
  scrim:{flex:1,backgroundColor:tint('rgba(5,3,5,.82)'),alignItems:'center',justifyContent:'center',padding:8},bigSheet:{maxWidth:'100%',maxHeight:'100%',padding:12,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(22,16,23,.98)'),gap:4},
  compassMark:{position:'absolute',top:8,right:10,fontFamily:fonts.display,fontSize:11,letterSpacing:1.5,color:'rgba(233,223,192,.7)'},
  path:{position:'absolute',height:2,borderRadius:1,backgroundColor:tint('rgba(224,74,92,.75)')},

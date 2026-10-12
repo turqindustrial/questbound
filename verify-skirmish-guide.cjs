@@ -5,6 +5,8 @@ const {skirmishHint}=ctx.out;
 const skirmish={story:{introId:'hostile'},stage:'combat',enemyHP:16,potions:1,playback:[]};
 assert.match(skirmishHint(skirmish,{current:12},12),/first move/i);
 assert.match(skirmishHint({...skirmish,playback:[{id:1}]},{current:12},12),/one action and one bonus action/i);
+// The opening's own turn (its introduction card) is not a move: the first-move line still shows.
+assert.match(skirmishHint({...skirmish,playback:[{id:1,events:[{kind:'effect',text:'Your tale begins.\nYou: A hired escort.'},{kind:'narration',text:'A bandit lunges.'}]}]},{current:12},12),/first move/i);
 assert.match(skirmishHint({...skirmish,actionUsed:true},{current:12},12),/action is spent/i);
 assert.match(skirmishHint(skirmish,{current:6},12),/healing draught/i);
 assert.match(skirmishHint({...skirmish,potions:0,playback:[{id:1}]},{current:6},12),/one action and one bonus action/i,'no draught, no draught hint');

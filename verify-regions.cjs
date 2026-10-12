@@ -60,7 +60,7 @@ assert.match(r.adventureStep(camp,hp,kara,{type:'discover',place:{...voyage,regi
 assert.match(r.adventureStep(camp,hp,kara,{type:'discover',place:{...voyage,region:{name:'X',terrain:'hills'}},travel:true},()=>0.5).error,/new land/);
 assert.match(r.adventureStep(camp,hp,kara,{type:'discover',place:{...voyage,region:{name:'Somewhere',terrain:'jungle'}},travel:true},()=>0.5).error,/new land/);
 const sailed=r.adventureStep(camp,hp,kara,{type:'discover',place:voyage,travel:true},()=>0.5);
-assert.equal(sailed.error,undefined);assert.equal(sailed.game.world.at,'p3');same(sailed.game.world.regions,[{id:'r1',name:'The Halloway Shore',terrain:'hills'}]);assert.equal(sailed.game.world.places[2].region,'r1');
+assert.equal(sailed.error,undefined);assert.equal(sailed.game.world.at,'p3');same(sailed.game.world.regions,[{id:'r1',name:'The Halloway Shore',terrain:'hills',last:sailed.game.map.minutes}],'a land remembers when it was last reached');assert.equal(sailed.game.world.places[2].region,'r1');
 assert.match(sailed.events[0],/in a land new to you: The Halloway Shore\.$/);assert.match(sailed.events[1],/140 miles; [\d.]+ days pass/);assert.ok(valid(sailed.game));
 assert.equal(r.currentRegion(sailed.game),'r1');same(r.mapRegions(sailed.game).map(x=>x.name),['The Brinefold','The Halloway Shore']);
 assert.ok(r.storyEvents(camp,sailed.game,kara,{}).some(([kind,text])=>text==='Set out for a new land: The Halloway Shore.'),'The log notes the new land');

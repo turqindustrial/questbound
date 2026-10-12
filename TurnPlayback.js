@@ -118,6 +118,11 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
     <Text style={s.cardOutcome}>{view.text}</Text>
    </View>
   </>,[s.card,s.taleCard],{qb:'feed-roll'});}
+  // How the tale begins: its introduction, one plain line to each question a new player has.
+  case 'intro':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="scroll" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>Your tale begins</PlainText>{view.rows.map(([label,line],i)=><PlainText key={i} style={[s.cardOutcome,{marginTop:i?6:2}]}>{label?<PlainText style={s.introLabel}>{label}: </PlainText>:null}<Text>{line}</Text></PlainText>)}</View>
+  </>,[s.card,s.taleCard],{qb:'feed-intro'});
   case 'lead':return wrap(<>
    <View style={s.dmgIcon}><Icon name="check" size={18} color={colors.goldBright}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>Lead seen through</PlainText><Text style={s.cardTitle}>{view.title}</Text></View>
@@ -226,6 +231,7 @@ const s=StyleSheet.create({panel:{marginBottom:6},
  header:{minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},skipSlot:{minWidth:95,height:44},historyToggle:{height:44},
  title:{flexShrink:1,fontFamily:fonts.display,color:colors.goldMid,fontSize:11,fontWeight:'700',letterSpacing:2.4,textTransform:'uppercase',marginVertical:10},
  scroll:{flexGrow:0,overscrollBehavior:'auto',overflowAnchor:'none'},history:{maxHeight:320},
+ introLabel:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:.8,color:colors.gold,textTransform:'uppercase'},
  opening:{fontFamily:fonts.story,color:tint('#efe7d4'),fontSize:19,lineHeight:31,paddingVertical:12},
  // Result cards: die, title and arithmetic, verdict.
  card:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},

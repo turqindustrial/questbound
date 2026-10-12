@@ -28,7 +28,8 @@ import {playSound} from './audio';
 import DungeonMaster from './DungeonMaster';
 import AdventureMap from './AdventureMap';
 import {campaignState,earnedGold} from './campaignRules';
-import {mapState,mapLocation,placeDescription,placeName} from './mapRules';
+import {mapState,mapLocation,placeDescription,placeName,beyondWords,mapRegions,currentRegion} from './mapRules';
+import {mapMoves} from './dmContext';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
 import {gearedHero} from './inventoryRules';
@@ -56,6 +57,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const [autoShield,setAutoShield]=useState(()=>storyPreferences().autoShield!==false);
  useEffect(()=>subscribeStoryPreferences(p=>setAutoShield(p.autoShield!==false)),[]);
  const ruled=useMemo(()=>rulesHero(hero,{autoShield}),[hero,autoShield]);
+ // Every journey and road beyond the edge the map can send (dmContext.js mapMoves).
+ const moves=useMemo(()=>mapMoves(game),[game]);
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
  // While the player types on a phone, everything but the story and the message box steps aside.
@@ -98,8 +101,12 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Whose move it is: the player's action, or (once it is spent) a bonus action or the end of the turn.
  // In a party's fight the turn may be someone else's (adventureRules.js keeps the order).
   const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':game.surged?'One more action':'Your turn';
- const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
- const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
+ // The map sends a journey to any place a road reaches (a chip's own words when it has one) and a road beyond the edge
+ // of the map, through the same Dungeon Master turn.
+ const travel=id=>{const move=moves.find(m=>m.action.destination===id),trip=quick.find(a=>a.destination===id)??(move?{key:move.id,glyph:'➜',icon:'travel',label:placeName(game,id),question:'I travel to '+placeName(game,id)+'.',action:move.action,destination:id}:null);if(!trip)return;setTab('story');sendRef.current?.(trip);};
+ const travelTo=moves.filter(m=>m.action.type==='travel').map(m=>m.action.destination);
+ const beyond=moves.filter(m=>m.action.type==='beyond').map(m=>m.action.bearing);
+ const goBeyond=bearing=>{const move=moves.find(m=>m.action.bearing===bearing);if(!move)return;const land=mapRegions(game).find(r=>r.id===currentRegion(game))?.name??'this land';setTab('story');sendRef.current?.({key:move.id,glyph:'➜',icon:'travel',label:'Beyond the map',question:'I leave '+land+' and head '+beyondWords[bearing]+', beyond the edge of the map.',action:move.action});};
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
  const foeName=game.wildFight?foe.name:game.story?.foe??foe.name,foeHp=shown.foe??game.enemyHP,creature=creatureArtSubject(game),hitDice=foe.count+'d'+foe.die+(foe.bonus?'+'+foe.bonus:'');
  const combatStrip=game.stage==='combat'&&<Pressable accessibilityRole="button" accessibilityLabel="Show everyone's combat HP" disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} dataSet={{qb:'plate-hot'}} style={s.strip}>
@@ -221,7 +228,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={ruled} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
  // With the keyboard up there is little height left: the side column, strips and tabs give it to the story.
  const cramped=typing&&(visibleHeight||windowHeight)<560;
- const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel}/>;
+ const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel} beyond={beyond} onBeyond={goBeyond}/>;
  const share=<ShareTale visible={sharing} onClose={()=>setSharing(false)} hero={hero} game={game}/>;
  const toast=!!error&&<Pressable accessibilityRole="alert" accessibilityHint="Tap to dismiss" onPress={()=>setError('')} dataSet={{qb:'enter'}} style={s.toast}><Icon name="info" size={16} color={tint('#ffb39e')}/><Text style={s.toastText}>{error}</Text><Icon name="close" size={14} color={tint('#ffd2c2')}/></Pressable>;
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the

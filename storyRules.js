@@ -14,14 +14,50 @@ function validFoeStats(f){
 export function validHoard(h){return h===undefined||(!!h&&typeof h==='object'&&!!magicItems[h.item]&&!magicItems[h.item].heal&&[[h.name,60],[h.note,160]].every(([v,max])=>typeof v==='string'&&v.trim().length>0&&v.length<=max)&&Object.keys(h).length===3);}
 export function validStory(s){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
- return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&validHoard(s.hoard)&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&/^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(l.speakerId))&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&(s.npcs[id].class===undefined||npcClassList.includes(s.npcs[id].class))&&validRegard(s.npcs[id].regard))
+ return !!s&&text(s.id,100)&&text(s.title,100)&&text(s.premise,800)&&text(s.opening,1000)&&text(s.objective,400)&&text(s.resolution,600)&&text(s.secret,800)&&text(s.foe,80)&&(s.foeSpecies===undefined||text(s.foeSpecies,80))&&(s.foeAppearance===undefined||text(s.foeAppearance,600))&&validHoard(s.hoard)&&(s.foeStats===undefined||validFoeStats(s.foeStats))&&(s.foeDamageType===undefined||damageTypes.includes(s.foeDamageType))&&(s.openingDialogue===undefined||(Array.isArray(s.openingDialogue)&&s.openingDialogue.length>=1&&s.openingDialogue.length<=4&&s.openingDialogue.every(l=>l&&/^(?:keeper|mara|n(?:[1-9]|[1-3]\d|4[0-8]))$/.test(String(l.speakerId))&&text(l.text,300))))&&['active','complete'].includes(s.status)&&['inn','bridge','tower'].every(id=>s.locations?.[id]&&text(s.locations[id].name,80)&&text(s.locations[id].description,500)&&(s.locations[id].kind===undefined||placeKinds.includes(s.locations[id].kind)))&&['keeper','mara'].every(id=>s.npcs?.[id]&&text(s.npcs[id].name,60)&&text(s.npcs[id].role,300)&&text(s.npcs[id].motive,400)&&(s.npcs[id].species===undefined||text(s.npcs[id].species,80))&&(s.npcs[id].appearance===undefined||text(s.npcs[id].appearance,600))&&(s.npcs[id].personality===undefined||text(s.npcs[id].personality,300))&&validTies(s.npcs[id].ties)&&(s.npcs[id].gender===undefined||genders.includes(s.npcs[id].gender))&&(s.npcs[id].class===undefined||npcClassList.includes(s.npcs[id].class))&&validRegard(s.npcs[id].regard))
   // The story's own land: where its places lie, what the country is called and what kind of country it is.
   &&(s.geography===undefined||validGeography(s.geography))&&(s.region===undefined||text(s.region,60))&&(s.terrain===undefined||terrains.includes(s.terrain))
   // A long tale: its chapters, the one under way, and its leads.
   &&validChapters(s)&&validLeads(s)
   // An Easy to get into tale: the errand the hero accepted before it began.
-  &&(s.errand===undefined||validErrand(s.errand));
+  &&(s.errand===undefined||validErrand(s.errand))
+  // The tale's introduction: who the hero is here, where, what is going on, who is in front of them, what to do first.
+  &&(s.introduction===undefined||validIntroduction(s.introduction));
 }
+// ---------- The introduction ----------
+// Every tale, however it begins (a written opening, Let fate decide, Easy to get into, the player's own idea, the next
+// tale in a region, a tale written ahead, the Skirmish, with or without Easy start), opens with a clear introduction:
+// who the hero is in this place, where they are (the place and the land), what is going on, who is in front of them
+// (by name) and what they could do first. The story writer states it (`introduction`); a tale without one (written
+// before, or written badly) gets one built from its own fields (introductionFor). It opens the journal and the feed.
+export const introductionFields=[['you','You',200],['place','Where',200],['trouble','What is happening',300],['people','Who is here',300],['first','What you could do first',240]];
+export function validIntroduction(i){
+ return !!i&&typeof i==='object'&&!Array.isArray(i)&&Object.keys(i).length===introductionFields.length&&introductionFields.every(([k,,max])=>typeof i[k]==='string'&&i[k].trim().length>0&&i[k].length<=max);
+}
+const plainLine=(v,max)=>{const t=String(v??'').replace(/\s+/g,' ').trim();if(t.length<=max)return t;const cut=t.slice(0,max-1),stop=Math.max(cut.lastIndexOf('. '),cut.lastIndexOf('; '),cut.lastIndexOf(', '));return (stop>max*.5?cut.slice(0,stop+1):cut.replace(/\s+\S*$/,'')+'…').trim();};
+const firstSentence=(v,max)=>plainLine((String(v??'').replace(/\s+/g,' ').trim().match(/^.+?[.!?](?=\s|$)/)?.[0])??v,max);
+const roleShort=role=>String(role??'').replace(/\s+/g,' ').trim().split(/[,;:(]| who | that | which /)[0].replace(/[.\s]+$/,'').slice(0,70);
+// Built from the story's own fields: the starting place and its land, the premise, the people at the starting place
+// (keeper, mara and residents seated there) and the errand, the first chapter's goal or the objective.
+export function introductionFor(story,people={}){
+ const s=story,inn=s.locations.inn,keeper=s.npcs.keeper,land=typeof s.region==='string'&&s.region.trim()?s.region.trim():null;
+ const here=[['keeper',keeper],['mara',s.npcs.mara],...Object.entries(people??{}).filter(([,p])=>p?.home==='inn'&&!p.hidden)].map(([,n])=>n.name+(roleShort(n.role)?', '+roleShort(n.role)[0].toLowerCase()+roleShort(n.role).slice(1):''));
+ const e=s.errand,ch=s.chapters?.[s.chapter??0];
+ const intro={you:e?'You are here on '+keeper.name+'\'s orders: '+e.title.replace(/[.\s]+$/,'')+'.':'You have just come to '+inn.name+', a stranger here, and its trouble finds you at once.',
+  place:inn.name+(land?', in '+land:'')+'. '+firstSentence(inn.description,200),
+  trouble:firstSentence(s.premise,300),
+  people:here.join('; ')+'.',
+  first:e?e.task.replace(/[.\s]+$/,'')+(e.reward?', then return to '+keeper.name+' for '+e.reward.replace(/[.\s]+$/,'')[0].toLowerCase()+e.reward.replace(/[.\s]+$/,'').slice(1):'')+'.':ch?ch.goal:s.objective};
+ return Object.fromEntries(introductionFields.map(([k,,max])=>[k,plainLine(intro[k],max)]));
+}
+// The tale's introduction as the game keeps it: the writer's, or one built from the story (saves from before).
+export function storyIntroduction(game){
+ const s=game?.story;if(!s?.locations?.inn||!s?.npcs?.keeper)return null;
+ return validIntroduction(s.introduction)?s.introduction:introductionFor(s,game.people);
+}
+// The lines the feed and the journal show, one field to a line: "Where: …".
+export function introductionLines(intro){return intro?introductionFields.map(([k,label])=>label+': '+intro[k]):[];}
+export const introductionCard=intro=>['Your tale begins.',...introductionLines(intro)].join('\n');
 // ---------- The errand (Easy to get into) ----------
 // The hero starts with orders in hand: someone with authority (keeper) has sent them to deal with one plain trouble
 // close by. The errand's place is a landmark held by a creature (a lair on the map), and chapter 1 is the errand.
@@ -103,6 +139,8 @@ function tidyStory(written){
  for(const id of ['inn','bridge','tower'])if(story.locations[id]){story.locations[id]={...story.locations[id]};if(!placeKinds.includes(story.locations[id].kind))delete story.locations[id].kind;}
  for(const id of ['keeper','mara'])if(story.npcs[id]){const n=story.npcs[id]={...story.npcs[id]};if(!genders.includes(n.gender))delete n.gender;if(!npcClassList.includes(n.class))delete n.class;if(n.regard===undefined||n.regard===null||!validRegard(n.regard)||n.regard.stance==='indifferent')delete n.regard;else n.regard={stance:n.regard.stance,reason:n.regard.reason.trim()};}
  if(!validGeography(story.geography))story.geography=makeGeography(story.id,layout);
+ // The introduction: kept when every field is there (trimmed to its limit), else built from the story once it is seated.
+ if(story.introduction!==undefined){const i=story.introduction,clean=i&&typeof i==='object'?Object.fromEntries(introductionFields.map(([k,,max])=>[k,plainLine(i[k],max)])):null;if(clean&&validIntroduction(clean))story.introduction=clean;else delete story.introduction;}
  return {story,landmarks,lands};
 }
 export function storyText(game,text){
@@ -144,15 +182,17 @@ export function freshStoryGame(hero,written,base){
  // The few who are truly trained (the writer's `class`) fight as that class, a step behind the hero.
  {const trained=Object.fromEntries([...['keeper','mara'].filter(id=>story.npcs[id]?.class).map(id=>[id,story.npcs[id].class]),...Object.entries(game.people??{}).filter(([,p])=>p.class).map(([id,p])=>[id,p.class])].map(([id,c])=>[id,{class:c,level:companionLevelFor(hero)}]));
   game={...game};if(Object.keys(trained).length)game.npcClasses=trained;else delete game.npcClasses;}
- // Opening dialogue plays as the first turn, so the people here are already talking when the player arrives: the two
- // residents and anyone seated at the starting place (`residentN` is the Nth written resident).
- const voice=id=>id==='keeper'||id==='mara'?id:Object.hasOwn(seated.ids,id)&&game.people[seated.ids[id]].home==='inn'?seated.ids[id]:null;
- const lines=(Array.isArray(said)?said:[]).map(l=>l&&typeof l==='object'&&typeof l.text==='string'&&l.text.trim()?{speakerId:voice(String(l.speakerId)),text:l.text.trim().slice(0,300)}:null).filter(l=>l?.speakerId).slice(0,4);
- if(lines.length){
-  story.openingDialogue=lines;
-  const nameOf=id=>story.npcs[id]?.name??game.people[id].name,here=Object.keys(game.people??{}).filter(id=>game.people[id].home==='inn');
-  game.playback=[{id:1,npcId:null,participants:['keeper','mara',...here],events:[{kind:'narration',text:story.opening},...lines.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:nameOf(l.speakerId),text:l.text}))]}];
- }
+ // The introduction (the writer's, or one built from the story now that its people are seated) opens the journal.
+ if(!story.introduction)story.introduction=introductionFor(story,game.people);
+ game.journal.entries[0].text=(game.journal.entries[0].text+'\n\n'+introductionLines(story.introduction).join('\n')).slice(0,3000);
+ // The opening plays as the first turn: the introduction's card, the opening itself and the people here already
+ // talking when the player arrives: the two residents and anyone seated at the starting place (`residentN` is the Nth
+ // written resident). Two people never open with the same words.
+ const voice=id=>id==='keeper'||id==='mara'?id:Object.hasOwn(seated.ids,id)&&game.people[seated.ids[id]].home==='inn'&&!game.people[seated.ids[id]].hidden?seated.ids[id]:null;
+ const lines=(Array.isArray(said)?said:[]).map(l=>l&&typeof l==='object'&&typeof l.text==='string'&&l.text.trim()?{speakerId:voice(String(l.speakerId)),text:l.text.trim().slice(0,300)}:null).filter(l=>l?.speakerId).filter((l,i,all)=>!all.slice(0,i).some(o=>o.text.toLowerCase()===l.text.toLowerCase())).slice(0,4);
+ if(lines.length)story.openingDialogue=lines;
+ {const nameOf=id=>story.npcs[id]?.name??game.people[id].name,here=Object.keys(game.people??{}).filter(id=>game.people[id].home==='inn'&&!game.people[id].hidden);
+  game.playback=[{id:1,npcId:null,participants:['keeper','mara',...here],events:[{kind:'effect',text:introductionCard(story.introduction)},{kind:'narration',text:story.opening},...lines.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:nameOf(l.speakerId),text:l.text}))]}];}
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
  // Everyone has already formed a view of the hero's kind.
  return firstImpressions(game,hero);

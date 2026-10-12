@@ -55,7 +55,7 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  }
  let command=r.dmCommand(ruled,game,question,health,target);
  if(request.action!==undefined){
-  const offered=[...r.dmChoices(ruled,game,health),...r.quickActions(ruled,game,health),...r.attackTargets(ruled,game,health).flatMap(t=>r.attackActions(ruled,game,health,t.key)),...r.attackActions(ruled,game,health,null),...r.spellActions(ruled,game).flatMap(c=>[c,...(c.casts??[])])];
+  const offered=[...r.dmChoices(ruled,game,health),...r.quickActions(ruled,game,health),...r.attackTargets(ruled,game,health).flatMap(t=>r.attackActions(ruled,game,health,t.key)),...r.attackActions(ruled,game,health,null),...r.spellActions(ruled,game).flatMap(c=>[c,...(c.casts??[])]),...r.mapMoves(game)];
   const selected=offered.find(c=>JSON.stringify(c.action)===JSON.stringify(request.action));
   if(!selected?.action)throw fail('That action is not available to your character.');command={action:selected.action};
  }

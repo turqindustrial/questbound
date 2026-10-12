@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // A tale's people: besides keeper and mara, a written tale names residents who live in its country (two at the
 // starting place, so the opening is never two people alone; others where the tale puts them). They are seated in
 // game.people, met when the hero first reaches where they live, carried into the next tale, and an Easy to get into
-// tale begins with an errand whose place is a lair on the map. People caps: 24 in a region, 4 at a place.
+// tale begins with an errand whose place is a lair on the map. People caps: 48 in a region, 4 at a place.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','playbackRules.js','sceneTriggers.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,adventureStep,commitDmTurn,validAdventure,adventureSnapshot,freshStoryGame,joinRegion,carriedBase,npcScene,metPerson,seatResidents,validStory,validPeople,introducePerson,canMeetPeople,isPersonId,maxPeople,maxPeopleHere,maxResidents,dmContext,storyEvents,withStoryLog,sceneTrigger,validMarks,startParty,joinParty,partyView,canonicalParty,conversationPeople})',{AsyncStorage:{}});
@@ -48,8 +48,8 @@ assert.ok(valid(game),'a tale with residents saves');assert.ok(r.validPeople(gam
 const opening=r.npcScene(game).filter(n=>n.present).map(n=>n.id);
 same(opening,['keeper','mara','n1','n2'],'the opening scene has four people in it');
 same(game.story.openingDialogue.map(l=>l.speakerId),['keeper','n2','mara'],'resident lines go to the right people; anyone not at the start is dropped');
-same(game.playback[0].participants,['keeper','mara','n1','n2']);assert.equal(game.playback[0].events[2].speakerName,'Brom Ashby');
-assert.ok(r.validStory(game.story));assert.ok(!r.validStory({...game.story,openingDialogue:[{speakerId:'n25',text:'x'}]}));
+same(game.playback[0].participants,['keeper','mara','n1','n2']);assert.equal(game.playback[0].events[3].speakerName,'Brom Ashby');
+assert.ok(r.validStory(game.story));assert.ok(!r.validStory({...game.story,openingDialogue:[{speakerId:'n49',text:'x'}]}));
 const ctx=r.dmContext(kara,game,hp);
 assert.equal(ctx.world.peopleHere,4,'the Dungeon Master is told how many named people are here');
 same(ctx.nearbyNPCs.map(n=>n.name),['Reeve Ormund','Wren Halloway','Tilda Marsh','Brom Ashby']);
@@ -84,15 +84,16 @@ const misnamed=r.freshStoryGame(kara,{...written,id:'reeds-4',errand:{...written
 assert.equal(misnamed.story.errand.place,'p2');assert.equal(misnamed.world.places.find(p=>p.id==='p2').danger,'lair');
 const plain=r.freshStoryGame(kara,{...written,id:'reeds-5',errand:{...written.errand,threat:{template:'dragon',name:'x',appearance:'y'}}},r.newAdventure(kara));
 assert.equal(plain.story.errand,undefined);assert.ok(plain.world.places.every(p=>p.danger!=='lair'));
-// A tale without residents, errand or opening lines (an older story writer) starts as before.
+// A tale without residents, errand or opening lines (an older story writer) starts as before, with its introduction
+// built from its own fields as the first card of the feed.
 const {residents,errand,openingDialogue,...older}=written;const old=r.freshStoryGame(kara,{...older,id:'reeds-6'},r.newAdventure(kara));
-assert.equal(old.people,undefined);assert.equal(old.playback,undefined);assert.ok(valid(old));
-// ---- Caps: 24 people in a region, 4 at a place; ids n1…n24 ----
-assert.equal(r.maxPeople,24);assert.equal(r.maxPeopleHere,4);assert.equal(r.maxResidents,8);
-assert.ok(r.isPersonId('n13')&&r.isPersonId('n24')&&!r.isPersonId('n25')&&!r.isPersonId('n0'));
-const many={...game,people:{...game.people}};for(let i=6;i<=24;i++)many.people['n'+i]={...game.people.n3,name:'Villager '+i,home:'p1'};
-assert.ok(r.validPeople(many),'twenty-four people');assert.ok(!r.validPeople({...many,people:{...many.people,n25:{...game.people.n3,name:'One Too Many'}}}),'never a twenty-fifth');
-assert.ok(r.validMarks({marks:{n15:{prone:true}}})&&!r.validMarks({marks:{n25:{prone:true}}}),'marks on people up to n24');
+assert.equal(old.people,undefined);same(old.playback[0].events.map(e=>e.kind),['effect','narration']);assert.match(old.playback[0].events[0].text,/^Your tale begins\.\nYou: /);assert.ok(valid(old));
+// ---- Caps: 48 people in a region, 4 at a place, residents three to a place (two at the start); ids n1…n48 ----
+assert.equal(r.maxPeople,48);assert.equal(r.maxPeopleHere,4);assert.equal(r.maxResidents,12);
+assert.ok(r.isPersonId('n13')&&r.isPersonId('n24')&&r.isPersonId('n39')&&r.isPersonId('n48')&&!r.isPersonId('n49')&&!r.isPersonId('n0')&&!r.isPersonId('n50'));
+const many={...game,people:{...game.people}};for(let i=6;i<=48;i++)many.people['n'+i]={...game.people.n3,name:'Villager '+i,home:'p1'};
+assert.ok(r.validPeople(many),'forty-eight people');assert.ok(!r.validPeople({...many,people:{...many.people,n49:{...game.people.n3,name:'One Too Many'}}}),'never a forty-ninth');
+assert.ok(r.validMarks({marks:{n15:{prone:true}}})&&r.validMarks({marks:{n41:{prone:true}}})&&!r.validMarks({marks:{n49:{prone:true}}}),'marks on people up to n48');
 assert.ok(valid({...game,playback:[{id:2,npcId:'n20',participants:['n20'],events:[{kind:'dialogue',speakerId:'n20',speakerName:'Brom Ashby',text:'Hello.'}]}],people:{...game.people,n20:{...game.people.n2,name:'Someone Twenty'}}}),'a speaker n20 is accepted in saves');
 // Four people may live at one place: a third and fourth may still be met at the market, not a fifth.
 let market=game;
@@ -126,7 +127,7 @@ const viewB=r.partyView(both,'B');
 assert.equal(JSON.stringify(viewB.game.people),JSON.stringify(game.people),'every hero sees the same people');
 assert.equal(JSON.stringify(r.canonicalParty(both)),JSON.stringify(r.canonicalParty(viewB)));
 assert.ok(r.validAdventure(viewB,ilyra),'the party save is valid with residents');
-// ---- The Dungeon Master: people elsewhere told in brief, residents and peopleHere explained, ids up to n24 ----
+// ---- The Dungeon Master: people elsewhere told in brief, residents and peopleHere explained, ids up to n48 ----
 const server=require('./dm-server.cjs');
 const told=server.sceneFor({input:'I look around.',context:JSON.parse(JSON.stringify(ctx))},{}).context;
 const away=told.npcSocialState.find(n=>n.id==='n3'),near=told.npcSocialState.find(n=>n.id==='n1');
@@ -141,5 +142,5 @@ const brief=server.sceneFor({input:'x',context:{npcSocialState:[{id:'n5',name:'C
  assert.ok(sent.instructions.includes('metHero')&&sent.instructions.includes('peopleHere')&&sent.instructions.includes('PEOPLE ANYWHERE: places are lived in'),'the Dungeon Master names people when scenes call for them');
  assert.ok(sent.instructions.includes('ERRAND: context.story.errand'),'and keeps an errand tale about its errand');
  assert.match(sent.input,/Named people here: Brom Ashby./,'the plain account of the present names who is here');
- console.log('Residents: a tale\'s people seated where they live (two at the start, never more than two a place, ties by name), met on reaching their homes (in the Log once), speaking in the opening, kept by the next tale with earlier people numbered after them, shared at the table; Easy to get into\'s errand as a lair; 24 people a region and 4 a place.');
+ console.log('Residents: a tale\'s people seated where they live (two at the start, never more than three a place, ties by name), met on reaching their homes (in the Log once), speaking in the opening, kept by the next tale with earlier people numbered after them, shared at the table; Easy to get into\'s errand as a lair; 48 people a region and 4 a place.');
 })().catch(e=>{console.error(e);process.exit(1);});

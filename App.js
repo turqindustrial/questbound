@@ -362,7 +362,8 @@ function QuestboundApp() {
     const previous=seenArea.current;seenArea.current=areaName;
     if(!areaName||previous)return;
     const stamp=Date.now();setUnveil(stamp);setTimeout(()=>setUnveil(value=>value===stamp?0:value),1600);
-    const hostile=game.story?.introId==='hostile',fresh=!(game.playback?.length);
+    // A tale nobody has played a turn of yet (its first turn is the opening itself: storyRules.js freshStoryGame).
+    const hostile=game.story?.introId==='hostile',fresh=!(game.playback??[]).some(t=>t.events?.some(e=>e.kind==='player'));
     cue('area',fresh?(hostile?{over:'Steel is drawn',title:areaName}:{over:'A new tale begins',title:game.story?.title??areaName,sub:game.story?areaName:null}):{over:game.story?.title??'The Lantern at the Crossroads',title:areaName});
   },[areaName,launched]);
   const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;

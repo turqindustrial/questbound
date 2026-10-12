@@ -1,4 +1,4 @@
-import {mapLocation} from './mapRules';
+import {mapLocation,forgetLand} from './mapRules';
 // Authored campaign relationships, not a universal D&D rule that all witnesses fight.
 export const npcProfiles={
  keeper:{name:'The keeper',maximumHP:12,ac:10,knows:['mara'],response:'Defends the inn, refuses hospitality, and calls for help.'},
@@ -6,11 +6,15 @@ export const npcProfiles={
 };
 // Every story has its two residents; a written tale seats a few more people who live in its country (residents:
 // `resident:true`, met when the player first reaches where they live), and the Dungeon Master can bring more named
-// people into the region as the player meets them (game.people: n1…n24, each living at the place where they were met).
+// people into the region as the player meets them (game.people: n1…n48, each living at the place where they were met).
+// Places are lived in: up to four living people at one place, up to three of a tale's residents seated at one (two at
+// the starting place, where keeper and mara are too).
 export const coreNpcIds=['keeper','mara'];
-export const maxPeople=24,maxPeopleHere=4,maxResidents=8,residentsPerPlace=2;
+export const maxPeople=48,maxPeopleHere=4,maxResidents=12,residentsPerPlace=3,residentsAtStart=2;
 export const personToughness={frail:{maximumHP:4,ac:10},common:{maximumHP:9,ac:10},tough:{maximumHP:16,ac:13}};
-export const isPersonId=id=>/^n(?:[1-9]|1\d|2[0-4])$/.test(String(id));
+export const isPersonId=id=>/^n(?:[1-9]|[1-3]\d|4[0-8])$/.test(String(id));
+// The first free id for someone new (ids freed when a far land is forgotten are used again).
+export function freePersonId(people){for(let n=1;n<=maxPeople;n++)if(!Object.hasOwn(people??{},'n'+n))return 'n'+n;return null;}
 export const npcIdsOf=game=>[...coreNpcIds,...Object.keys(game?.people??{}).filter(isPersonId)];
 // ---------- Trained people ----------
 // Most people are ordinary folk with no adventuring class. A few are truly trained (a veteran sellsword, a temple
@@ -99,8 +103,11 @@ export function mentionsName(text,name,atStart=false){
 export const sceneLocation=game=>game.dungeon?.active?'dungeon:'+game.dungeon.room:['wild','dying','dead'].includes(game.stage)?mapLocation(game):['combat','victory'].includes(game.stage)?(game.wildFight?game.wildFight.place:'bridge'):['defeat','escaped'].includes(game.stage)?'inn':game.stage;
 // Whether the hero has met someone: everyone the Dungeon Master introduced has been met; a tale's residents are met
 // once the hero has been where they live (or they are here, or travel with the hero).
+// Someone who keeps out of sight (`hidden`: a hermit in the back room, a prisoner below, a watcher in the reeds) is met
+// only once they are found: the Dungeon Master introduces them by name when the player searches or asks around.
 export function metPerson(game,id){
  const p=game?.people?.[id];
+ if(p?.hidden)return !!game.followers?.[id];
  return !p?.resident||(game.map?.visited??[]).includes(p.home)||!!game.followers?.[id]||sceneLocation(game)===p.home;
 }
 // ---------- Forgiveness ----------
@@ -129,9 +136,9 @@ export function npcScene(game){
  return npcIdsOf(game).map(id=>{
   const p=npcProfile(game,id),person=game.people?.[id];
   // Followers go where the player goes; people met on the road stay where they live, and step aside from a fight.
-  const present=game.followers?.[id]?game.followers[id].status==='following'||game.followers[id].location===location:person?person.home===location&&!['combat','dying','dead'].includes(game.stage)&&!game.dungeon?.active:game.stage==='inn'&&!game.dungeon?.active;
+  const present=game.followers?.[id]?game.followers[id].status==='following'||game.followers[id].location===location:person?person.home===location&&!person.hidden&&!['combat','dying','dead'].includes(game.stage)&&!game.dungeon?.active:game.stage==='inn'&&!game.dungeon?.active;
   const f=game.followers?.[id]?.status,standing=f==='following'?'companion':f==='waiting'?'waiting companion':game.npcMemory?.[id]?.allegiance==='player'?'ally':null;
-  return {id,...p,standing,fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,forgave:game.npcMemory?.[id]?.forgave??null,forgiveness:forgivenessOf(game,id),present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
+  return {id,...p,standing,...(person?.hidden?{hidden:true}:{}),fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,forgave:game.npcMemory?.[id]?.forgave??null,forgiveness:forgivenessOf(game,id),present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
  });
 }
 export function recordNpcAggression(before,after,target,kind){
@@ -197,4 +204,31 @@ export function npcServiceError(game,action){
  if(npc.hp<=0)return npc.name+(npc.fate==='dead'?' is dead.':' is unconscious and cannot offer this service.');
  if(npc.attitude==='hostile')return npc.name+' refuses to help after the attack. You can leave or talk about what happened; an apology does not automatically restore trust.';
  return '';
+}
+
+// ---------- Lands forgotten ----------
+// When the atlas is full and a new land opens, the land longest unvisited is forgotten (mapRules.js landsToForget,
+// forgetLand): its places leave the map, and with them the people who lived there and were not travelling with the
+// hero (their memories, wounds and fates, and anything said of them). A companion who follows the hero stays.
+// Returns the game, the lines for the log ("The memory of … fades.") and every land, place and person id let go.
+export function forgetLands(game,regionIds){
+ let next=game;const lines=[],places=[],people=[],regions=[];
+ for(const id of regionIds??[]){
+  const gone=forgetLand(next,id);if(!gone.name)continue;
+  next=gone.game;places.push(...gone.places);regions.push(id);lines.push('The memory of '+gone.name+' fades.');
+ }
+ if(!regions.length)return {game,lines,places,people,regions};
+ const out=new Set(places),following=id=>next.followers?.[id]?.status==='following';
+ for(const [id,p] of Object.entries(next.people??{}))if(out.has(p.home)&&!following(id))people.push(id);
+ next={...next};
+ // Someone dismissed or waiting out there is let go of too (keeper and mara go home to the starting place).
+ if(next.followers){const f={...next.followers};for(const [id,v] of Object.entries(f))if(people.includes(id)||(out.has(v?.location)&&v?.status!=='following'))delete f[id];next.followers=f;if(!Object.keys(f).length)delete next.followers;}
+ if(next.people){const p={};for(const [id,v] of Object.entries(next.people)){if(people.includes(id))continue;let q=v;if(out.has(q.home))q={...q,home:mapLocation(next)};if(q.tie&&people.includes(q.tie.to)){const {tie,...rest}=q;q=rest;}p[id]=q;}next.people=p;if(!Object.keys(p).length)delete next.people;}
+ const drop=key=>{if(!next[key])return;const v=Object.fromEntries(Object.entries(next[key]).filter(([k])=>!people.includes(k)));if(Object.keys(v).length)next[key]=v;else delete next[key];};
+ for(const key of ['npcMemory','npcHP','npcFate','npcClasses','joinOffers','marks','boons','aided'])drop(key);
+ if(next.spoils){next.spoils=next.spoils.filter(e=>!people.includes(e.person));if(!next.spoils.length)delete next.spoils;}
+ if(next.actionEvents)next.actionEvents=next.actionEvents.filter(e=>!people.includes(e.target)&&!out.has(e.location)).map(e=>({...e,witnesses:(e.witnesses??[]).filter(w=>!people.includes(w))}));
+ if(people.includes(next.concentration?.target))delete next.concentration;
+ next.log=[...lines,...(next.log??[])].slice(0,40);
+ return {game:next,lines,places,people,regions};
 }
