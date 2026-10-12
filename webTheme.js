@@ -146,7 +146,6 @@ input::placeholder,textarea::placeholder{font-style:italic;}
 [data-qb=hud-btn-hot]::before{content:"";position:absolute;inset:-1px;border-radius:inherit;box-shadow:0 0 22px rgba(240,106,79,.55);pointer-events:none;animation:qb-pulse-glow 2.4s ease-in-out infinite;}
 @keyframes qb-pulse-glow{0%,100%{opacity:0;}50%{opacity:1;}}
 @media (hover:hover) and (pointer:fine){
- [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;padding:5px 9px;border-radius:4px;border:1px solid rgba(178,34,58,.45);background:rgba(14,10,14,.96);color:#e8dbd5;font:600 11px/1.2 Inter,system-ui,sans-serif;letter-spacing:.4px;box-shadow:0 8px 20px rgba(0,0,0,.5);pointer-events:none;z-index:50;animation:qb-fade .15s ease both;}
 }
 
 /* Title-screen menu: engraved words that light up, with a lozenge marker and a crimson underline. */

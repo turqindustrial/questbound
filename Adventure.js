@@ -244,8 +244,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
   {wide&&folded&&<View dataSet={{qb:'side-rail'}} style={[s.rail,cramped&&{display:'none'}]}>
-   <IconButton icon="forward" label="Show the side panel" size={36} onPress={()=>setFolded(false)}/>
-   {sideTabs.map(([id,icon,label])=><IconButton key={id} icon={icon} label={'Show '+label} tip={label} size={36} onPress={()=>{setSideTab(id);setFolded(false);}}/>)}
+   <IconButton icon="forward" label="Show the side panel" tipSide="right" size={36} onPress={()=>setFolded(false)}/>
+   {sideTabs.map(([id,icon,label])=><IconButton key={id} icon={icon} label={'Show '+label} tip={label} tipSide="right" size={36} onPress={()=>{setSideTab(id);setFolded(false);}}/>)}
    {(game.stage==='combat'||game.npcCombat?.active||game.stage==='dying'||game.stage==='dead')&&<View accessibilityLabel={game.stage==='dying'?'Dying':game.stage==='dead'?'Fallen':'In a fight'} style={s.railAlert}><Icon name={game.stage==='dying'||game.stage==='dead'?'skull':'swords'} size={16} color={tint('#ffb39e')}/></View>}
   </View>}
   {wide&&!folded&&<View style={[s.side,{width:sideWidth},cramped&&{display:'none'}]}>

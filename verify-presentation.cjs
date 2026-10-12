@@ -135,4 +135,14 @@ for(const file of ['public/manifest.json','public/index.html','fullscreen.js','p
  for(const file of ['public/manifest.json','public/index.html','fullscreen.js','phone-server.cjs',...sources])assert.ok(!read(file).includes('next-icon'),file+' does not use the stored icon yet');}
 // The desktop side column folds to a rail (remembered per device) so a conversation can take the whole width.
 {const adv=read('Adventure.js');assert.ok(adv.includes("const sideKey='questbound.side.v1'")&&adv.includes('label="Hide the side panel"')&&adv.includes('label="Show the side panel"')&&adv.includes("qb:'side-rail'")&&/wide&&folded&&/.test(adv)&&/wide&&!folded&&/.test(adv),'the side column can be folded and unfolded on wide screens');}
+// Hover tooltips live in one element on <body> above every layer (tooltips.js), kept inside the window, beside the
+// button for the folded side rail; no CSS ::after tooltip is left to be clipped by a panel.
+{const t=read('tooltips.js'),entry=read('index.js');assert.ok(entry.includes("import {initializeTooltips} from './tooltips';")&&entry.includes('initializeTooltips();'),'the tooltip layer starts with the game');
+ assert.ok(t.includes('z-index:2147483647')&&t.includes('document.body.appendChild(tip)')&&!read('webTheme.js').includes('content:attr(data-tip)'),'one tooltip, on body, above everything');
+ const placeTip=new Function(t.match(/const gap=\d+,edge=\d+;/)[0]+t.match(/export function placeTip[\s\S]*?\n\}/)[0].replace('export ','')+';return placeTip;')();
+ const view={width:1400,height:860},tip={width:140,height:26};
+ const below=placeTip({left:1360,right:1400,top:10,bottom:50,width:40,height:40},tip,view);assert.ok(below.below&&below.left+tip.width<=view.width-8,'kept inside the window at the right edge');
+ const above=placeTip({left:600,right:640,top:820,bottom:856,width:40,height:36},tip,view);assert.ok(!above.below&&above.top+tip.height<=820,'above when there is no room below');
+ const right=placeTip({left:20,right:56,top:80,bottom:116,width:36,height:36},tip,view,'right');assert.ok(right.left>=56&&right.top<116&&right.top+tip.height>80,'beside the rail button');
+ assert.ok(read('Adventure.js').split('tipSide="right"').length===3,'the folded rail\'s buttons put their tooltips beside them');}
 console.log('Presentation: tips and primer roll, nothing scrolls sideways in '+sources.length+' files, the valley painting, and the emblem in seven places.');
