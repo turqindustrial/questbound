@@ -24,7 +24,7 @@ export default function DiceRoller(){
   <Text style={s.intro}>A die for your next moment of fate.</Text>
   <View accessibilityRole="radiogroup" dataSet={{qb:'seg'}} style={s.picker}>{dice.map(n=>{const on=n===sides;return <Pressable key={n} accessibilityRole="radio" accessibilityState={{checked:on}} accessibilityLabel={'d'+n} onPress={()=>choose(n)} dataSet={{qb:on?'seg-on':undefined}} style={[s.pick,on&&s.pickOn]}><Text style={[s.pickText,on&&{color:colors.goldBright}]}>d{n}</Text></Pressable>;})}</View>
   <View dataSet={{qb:'tray'}} style={s.tray} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-   <Animated.View dataSet={{qb:'die'}} style={[s.die,crit&&{borderColor:tint('#eadaff')},fumble&&{borderColor:'#f06a4f'},!reduced&&{transform:[{translateY:motion.interpolate({inputRange:[0,.25,.5,.75,1],outputRange:[0,-24,0,-9,0]})},{rotate:motion.interpolate({inputRange:[0,1],outputRange:['0deg','720deg']})},{scale:motion.interpolate({inputRange:[0,.5,1],outputRange:[1,1.12,1]})}]}]}>
+   <Animated.View dataSet={{qb:'die'}} style={[s.die,crit&&{borderColor:tint('#eadaff')},fumble&&{borderColor:tint('#f06a4f')},!reduced&&{transform:[{translateY:motion.interpolate({inputRange:[0,.25,.5,.75,1],outputRange:[0,-24,0,-9,0]})},{rotate:motion.interpolate({inputRange:[0,1],outputRange:['0deg','720deg']})},{scale:motion.interpolate({inputRange:[0,.5,1],outputRange:[1,1.12,1]})}]}]}>
     <View style={s.facet}/><Text style={[s.face,sides===100&&{fontSize:38}]}>{result==null&&!rolling?sides:face}</Text>
    </Animated.View>
    <Text style={s.dieName}>d{sides}</Text>
@@ -41,11 +41,11 @@ const s=StyleSheet.create({panel:{alignItems:'center',paddingVertical:4},intro:{
  tray:{height:240,width:'100%',alignItems:'center',justifyContent:'center',marginTop:16,borderRadius:8,backgroundColor:tint('rgba(23,13,24,.6)')},
  die:{width:120,height:120,backgroundColor:tint('#452d49'),borderWidth:3,borderColor:colors.gold,borderRadius:26,alignItems:'center',justifyContent:'center'},
  facet:{position:'absolute',width:84,height:84,borderWidth:1,borderColor:tint('rgba(224,74,92,.55)'),transform:[{rotate:'45deg'}]},
- face:{fontFamily:fonts.display,fontSize:48,fontWeight:'800',color:tint('#f5e6e0'),...Platform.select({web:{textShadow:'0 2px 6px rgba(0,0,0,.6)'},default:{textShadowColor:'rgba(0,0,0,.6)',textShadowRadius:6,textShadowOffset:{width:0,height:2}}})},
+ face:{fontFamily:fonts.display,fontSize:48,fontWeight:'800',color:tint('#f5e6e0'),...Platform.select({web:{textShadow:tint('0 2px 6px rgba(0,0,0,.6)')},default:{textShadowColor:tint('rgba(0,0,0,.6)'),textShadowRadius:6,textShadowOffset:{width:0,height:2}}})},
  dieName:{position:'absolute',bottom:12,fontFamily:fonts.display,fontSize:11,letterSpacing:3,color:tint('rgba(224,74,92,.6)'),textTransform:'uppercase'},
  result:{minHeight:58,padding:16,fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.4,fontSize:21,color:colors.gold,textAlign:'center'},
  history:{alignSelf:'stretch',marginTop:18,gap:8,alignItems:'center'},historyLabel:{fontFamily:fonts.display,fontSize:10,letterSpacing:2.4,color:colors.goldMid,textTransform:'uppercase'},
  historyRow:{flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:6},
- chip:{flexDirection:'row',alignItems:'baseline',gap:5,paddingHorizontal:10,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:'rgba(0,0,0,.25)'},
+ chip:{flexDirection:'row',alignItems:'baseline',gap:5,paddingHorizontal:10,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(0,0,0,.25)')},
  chipDie:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted},chipValue:{fontFamily:fonts.display,fontSize:15,fontWeight:'800',color:colors.parchment},
 });

@@ -4,8 +4,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // carries the same colours, and that the emblem's tint lands on each theme's colour. `node verify-theme.cjs --write`
 // rewrites the loading card's table after a change to the themes.
 const ctx={};vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('themeRules.js','utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.out={themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,writtenColour,themedText,themeSwatches,emblemFilter,filteredRgb};',ctx);
-const {themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,themedText,themeSwatches,emblemFilter,filteredRgb}=ctx.out;
+vm.runInContext(fs.readFileSync('themeRules.js','utf8').replace(/^export (const|function)/gm,'$1')+'\n;this.out={themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,writtenColour,themedText,themeSwatches,emblemFilter,filteredRgb,appearanceRgb,writtenColour,lightPalette};',ctx);
+const {themeChoices,defaultTheme,themeIds,validTheme,rgbToOklch,oklchToRgb,colourFamily,themedRgb,mapColours,themedText,themeSwatches,emblemFilter,filteredRgb,appearanceRgb,writtenColour,lightPalette}=ctx.out;
 const plain=value=>JSON.parse(JSON.stringify(value));
 // The six choices the host asked for, Red first (the look the game is written in).
 assert.deepEqual(plain(themeIds),['red','orange','gold','green','blue','purple']);assert.equal(defaultTheme,'red');
@@ -96,6 +96,48 @@ const controls=fs.readFileSync('ThemeControls.js','utf8');assert.ok(controls.inc
 // Body text and principal labels remain readable on each light page surface.
 const lightLuminance=hex=>{const rgb=hex.slice(1).match(/../g).map(h=>parseInt(h,16)/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
 for(const id of themeIds){const bg=lightLuminance(themedText('#08060a',id,'light'));for(const color of ['#ddd6db','#a99fa7','#e04a5c','#b08cf5','#ffb3ac']){const ink=lightLuminance(themedText(color,id,'light'));assert.ok((Math.max(bg,ink)+.05)/(Math.min(bg,ink)+.05)>=4.5,id+' light '+color);}}
+// Light, designed for paper (2026-10-12, the host: "light mode looks horrible, rework that to not be so harsh on the
+// eyes"; lightPalette in themeRules.js, the light style sheet in webTheme.js). For every theme: the page is a soft
+// paper, never pure white; panels are a lighter sheet; ink is dark but not black; the main colour and the accent are
+// deep and quiet (never neon); every kind of lettering reads at WCAG AA on the paper it sits on.
+{const relLum=rgb=>luminance(rgb),L=rgb=>rgbToOklch(...rgb)[0],C=rgb=>rgbToOklch(...rgb)[1];
+ const lightOf=(hex,id)=>appearanceRgb(...[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),id,'light');
+ for(const id of themeIds){
+  const p=lightPalette(id);
+  assert.ok(L(p.page)>=.9&&L(p.page)<=.95,id+' light page is soft paper ('+L(p.page).toFixed(3)+')');
+  for(const name of ['page','panel','raised','well'])assert.ok(p[name].some(v=>v<250)&&C(p[name])<=.03,id+' light '+name+' is paper, not pure white or tinted');
+  assert.ok(L(p.panel)>L(p.page)&&L(p.raised)>L(p.panel)&&L(p.well)<L(p.page),id+' paper layers: well < page < panel < raised sheet');
+  assert.ok(L(p.ink)>=.2&&contrast(p.ink,p.page)>=7,id+' ink is dark but not black');
+  assert.ok(C(p.main)<=.15&&C(p.accent)<=.15,id+' main and accent are quiet, not neon');
+  {const ink=themedText('#08060a',id,'light');assert.ok([1,3,5].every((i,k)=>Math.abs(parseInt(ink.slice(i,i+2),16)-p.page[k])<=3),id+' the page ink becomes the page paper '+ink);}
+  // Lettering on the paper it sits on: body, muted and faint text, the main colour and the accent, and the meanings.
+  for(const [hex,min] of [['#ddd6db',7],['#ece4e2',7],['#a99fa7',4.5],['#7a707a',4.5],['#e04a5c',4.5],['#b08cf5',4.5],['#6fbf8e',4.5],['#f06a4f',4.5],['#c8412f',4.5],['#ffb3ac',4.5],['#6fd0c4',4.5],['#e8c77b',4.5],['#e0a860',4.5]])
+   for(const bg of ['page','panel','raised','well'])assert.ok(contrast(lightOf(hex,id),p[bg])>=min,id+' light '+hex+' on '+bg+' '+contrast(lightOf(hex,id),p[bg]).toFixed(2));
+  // Surfaces written for ink become paper; greys between them soft rules; the selected accent a pale wash with deep lettering.
+  for(const hex of ['#08060a','#130e15','#1f1821','#271e29','#181218'])assert.ok(L(lightOf(hex,id))>=.9,id+' surface '+hex);
+  assert.ok(L(lightOf('#3a2c3c',id))>.7&&L(lightOf('#3a2c3c',id))<.88,id+' a grey rule stays a soft rule');
+  assert.ok(contrast(lightOf('#eadaff',id),lightOf('#301a4e',id))>=4.5,id+' selected lettering on the selected wash');
+  // The primary button keeps a deep fill with cream lettering; dark warm plates (a fight's banner) become a blush.
+  assert.deepEqual(plain(lightOf('#9e1b32',id)),plain(p.fill));assert.deepEqual(plain(lightOf('#ffeef0',id)),plain(p.onFill));
+  assert.ok(contrast(p.onFill,p.fill)>=4.5&&contrast(p.onFill,p.fillTop)>=4.5&&contrast(p.onFill,p.fillEdge)>=4.5,id+' primary lettering on its fill');
+  for(const hex of ['#3c120e','#781810','#5a1d17'])assert.ok(L(lightOf(hex,id))>=.9,id+' dark plate '+hex+' becomes a pale wash');
+  // Black shadows are a soft warm brown at under half their strength; white highlights and the parchment map stay.
+  assert.match(writtenColour({r:0,g:0,b:0,alpha:.6,hex:false,alphaText:'.6'},id,'light'),/^rgba\(\d+,\d+,\d+,0\.252\)$/);
+  for(const rgb of [[255,255,255],[59,42,23],[237,222,182]])assert.deepEqual(plain(appearanceRgb(...rgb,id,'light')),rgb);
+  // The main colour lands on the theme's hue (Gold's on bronze).
+  const want={red:16,orange:52,gold:74,green:152,blue:252,purple:300}[id];
+  assert.ok(near(hue(p.main),want,18)&&near(hue(lightOf('#e04a5c',id)),want,18),id+' light main hue '+hue(p.main).toFixed(0));
+ }
+ // Dark is the colours as they were: Light changes nothing there.
+ for(const id of themeIds)for(const rgb of [[224,74,92],[8,6,10],[158,27,50],[255,238,240],[0,0,0],[111,191,142],[60,18,14]])assert.deepEqual(plain(appearanceRgb(...rgb,id,'dark')),plain(themedRgb(...rgb,id)));
+ // The light style sheet: only Light's rules, drawn with Light's tones, after the main sheet, and no endless animation of its own.
+ const lightSheet=web.slice(web.indexOf('const lightCss=`'),web.indexOf('`;',web.indexOf('const lightCss=`')));
+ assert.ok(lightSheet.length>2000&&web.includes('style.textContent=css+lightCss;')&&web.includes("const L='html[data-appearance=light] ';"),'webTheme.js adds the light style sheet');
+ const rules=[...lightSheet.slice(lightSheet.indexOf('`')+1).split('${L}').join('html[data-appearance=light] ').replace(/\/\*[\s\S]*?\*\//g,'').matchAll(/([^{}]+)\{[^{}]*\}/g)].map(m=>m[1].trim());
+ assert.ok(rules.length>60&&rules.every(sel=>sel.split(',').every(part=>/^html\[data-appearance=light\]/.test(part.trim()))),'every light rule matches only html[data-appearance=light]');
+ assert.ok(!/@keyframes|infinite/.test(lightSheet)&&/var\(--ql-page\)/.test(lightSheet)&&/var\(--ql-fill\)/.test(lightSheet),'the light sheet uses the light tones and adds no animation');
+ assert.ok(/\[data-qb=grain\],\$\{L\}\[data-qb=rays\],\$\{L\}\[data-qb=embers\]\{display:none/.test(lightSheet),'no grain, light shafts or embers on paper');
+ assert.ok(web.includes("...(mode==='light'?lightTones(theme):{})"),'the light tones are written as --ql-* variables');}
 // The loading card (shown before the game script runs) reads the saved theme itself: its colours are written as
 // var(--bN, <the Red colour>), and a small script sets the variables from a table that must match themeRules.js.
 const pagePath='public/index.html',page=fs.readFileSync(pagePath,'utf8');

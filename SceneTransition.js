@@ -55,7 +55,7 @@ const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'cen
  rule:{flexDirection:'row',alignItems:'center',gap:8,width:'70%',marginVertical:16},ruleLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
  items:{alignSelf:'stretch',gap:8,marginBottom:18},item:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,paddingVertical:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.18)'),backgroundColor:tint('rgba(23,17,24,.7)')},
  itemName:{flex:1,fontFamily:fonts.story,fontSize:16,color:tint('#aba1a8')},
- track:{alignSelf:'stretch',height:3,borderRadius:2,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden'},fill:{height:'100%',backgroundColor:tint('#e04a5c')},
+ track:{alignSelf:'stretch',height:3,borderRadius:2,backgroundColor:tint('rgba(255,255,255,.08)'),overflow:'hidden'},fill:{height:'100%',backgroundColor:tint('#e04a5c')},
  note:{fontFamily:fonts.ui,color:tint('#a2979f'),fontSize:12,lineHeight:19,textAlign:'center',marginTop:12},
  button:{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,minHeight:44,marginTop:8,justifyContent:'center'},
  label:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:2,fontSize:12,textTransform:'uppercase',color:colors.gold,textAlign:'center'}});

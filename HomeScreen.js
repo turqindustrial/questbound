@@ -108,5 +108,5 @@ const s=StyleSheet.create({
  notice:{maxWidth:460,marginTop:4},
  protect:{flexDirection:'row',alignItems:'center',gap:8,minHeight:36,marginTop:6,paddingLeft:22},
  legalLinks:{flexDirection:'row',alignItems:'center',gap:6},legalLink:{minHeight:36,justifyContent:'center',paddingHorizontal:4},legalText:{fontFamily:fonts.display,fontSize:10.5,letterSpacing:2,color:tint('rgba(221,214,219,.6)'),textTransform:'uppercase'},legalDot:{color:tint('rgba(221,214,219,.4)'),fontSize:12},
- protectText:{fontFamily:fonts.ui,fontSize:12.5,color:tint('#c4b5af'),textShadowColor:'rgba(0,0,0,.9)',textShadowRadius:6},protectLink:{color:colors.goldBright,fontWeight:'600',textDecorationLine:'underline'},
+ protectText:{fontFamily:fonts.ui,fontSize:12.5,color:tint('#c4b5af'),textShadowColor:tint('rgba(0,0,0,.9)'),textShadowRadius:6},protectLink:{color:colors.goldBright,fontWeight:'600',textDecorationLine:'underline'},
 });

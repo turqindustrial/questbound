@@ -89,12 +89,12 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
    <View style={{flex:1,minWidth:0}}><PlainText style={s.dmgLabel}>{view.damageType||'damage'} damage</PlainText>{!!view.math&&<PlainText numberOfLines={1} style={s.cardMath}>{view.math}</PlainText>}</View>
   </>,[s.card,s.dmgCard],{qb:'feed-roll'});
   case 'hurt':return wrap(<>
-   <View style={[s.dmgIcon,{borderColor:'rgba(240,106,79,.6)'}]}><Icon name={damageIcon(view.damageType)} size={20} color={tint('#ffb39e')}/></View>
+   <View style={[s.dmgIcon,{borderColor:tint('rgba(240,106,79,.6)')}]}><Icon name={damageIcon(view.damageType)} size={20} color={tint('#ffb39e')}/></View>
    <RollNumber value={view.amount} live={live} prefix="−" style={[s.dmgNum,{color:colors.bloodBright}]}/>
    <View style={{flex:1,minWidth:0}}><PlainText style={[s.dmgLabel,{color:tint('#ffc9b8')}]}>HP lost{view.damageType?' · '+view.damageType:''}{view.absorbed?' · '+view.absorbed+' absorbed':''}</PlainText>{!!view.math&&<PlainText numberOfLines={1} style={s.cardMath}>{view.math}</PlainText>}</View>
   </>,[s.card,s.cardFoe],{qb:'feed-hurt'});
   case 'heal':return wrap(<>
-   <View style={[s.dmgIcon,{borderColor:'rgba(111,191,142,.6)'}]}><Icon name="heal" size={18} color={colors.heal}/></View>
+   <View style={[s.dmgIcon,{borderColor:tint('rgba(111,191,142,.6)')}]}><Icon name="heal" size={18} color={colors.heal}/></View>
    <RollNumber value={view.amount} live={live} prefix="+" style={[s.dmgNum,{color:colors.heal}]}/>
    <View style={{flex:1,minWidth:0}}><PlainText style={[s.dmgLabel,{color:tint('#bfe8cd')}]}>HP restored</PlainText><PlainText numberOfLines={1} style={s.cardMath}>{view.title}</PlainText></View>
   </>,[s.card,s.healCard],{qb:'feed-effect'});
@@ -102,7 +102,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
    <Icon name="heart" size={13} color={down?colors.bloodBright:colors.heal}/>
    <Text numberOfLines={1} style={s.hpName}>{view.name}</Text>
    <PlainText style={s.hpChange}>{view.from} → <PlainText style={{color:colors.parchment,fontWeight:'800'}}>{view.to}</PlainText> HP</PlainText>
-   <View style={[s.delta,{borderColor:down?'rgba(240,106,79,.6)':'rgba(111,191,142,.6)'}]}><PlainText style={[s.deltaText,{color:down?colors.bloodBright:colors.heal}]}>{down?'−':'+'}{Math.abs(view.to-view.from)}</PlainText></View>
+   <View style={[s.delta,{borderColor:down?tint('rgba(240,106,79,.6)'):tint('rgba(111,191,142,.6)')}]}><PlainText style={[s.deltaText,{color:down?colors.bloodBright:colors.heal}]}>{down?'−':'+'}{Math.abs(view.to-view.from)}</PlainText></View>
   </>,s.hpRow);}
   case 'round':return wrap(<><View dataSet={{qb:'rule-left'}} style={s.roundRule}/><Icon name="swords" size={15} color={colors.bloodBright}/><PlainText style={s.roundText}>Round {view.round}</PlainText><Icon name="swords" size={15} color={colors.bloodBright}/><View dataSet={{qb:'rule-right'}} style={s.roundRule}/></>,s.round);
   case 'turn':return wrap(<View style={s.turnPill}><Icon name="star" size={11} color={colors.goldBright}/><PlainText style={s.turnText}>{view.name?view.name+'’s turn':'Your turn'}</PlainText></View>,s.turnRow);
@@ -235,7 +235,7 @@ const s=StyleSheet.create({panel:{marginBottom:6},
  opening:{fontFamily:fonts.story,color:tint('#efe7d4'),fontSize:19,lineHeight:31,paddingVertical:12},
  // Result cards: die, title and arithmetic, verdict.
  card:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:12,marginBottom:6,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},
- cardFoe:{borderColor:'rgba(240,106,79,.38)'},cardCrit:{borderColor:tint('rgba(201,140,255,.8)')},
+ cardFoe:{borderColor:tint('rgba(240,106,79,.38)')},cardCrit:{borderColor:tint('rgba(201,140,255,.8)')},
  cardBody:{flex:1,minWidth:0},cardSide:{alignItems:'flex-end',gap:6},
  cardOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
  cardTitle:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',color:colors.parchment,letterSpacing:.4,marginTop:1},
@@ -246,8 +246,8 @@ const s=StyleSheet.create({panel:{marginBottom:6},
  verdict:{paddingHorizontal:9,paddingVertical:3,borderRadius:3,borderWidth:1.5},verdictText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1.6,textTransform:'uppercase'},
  total:{fontFamily:fonts.display,fontSize:22,fontWeight:'800',color:colors.goldBright,fontVariant:['tabular-nums']},
  inlineDamage:{flexDirection:'row',alignItems:'center',gap:4},inlineDamageText:{fontFamily:fonts.display,fontSize:15,fontWeight:'800',color:colors.goldBright},
- dmgCard:{borderColor:tint('rgba(224,74,92,.4)')},healCard:{borderColor:'rgba(111,191,142,.45)'},taleCard:{alignItems:'flex-start',borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(40,22,62,.6)')},
- dmgIcon:{width:36,height:36,borderRadius:18,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
+ dmgCard:{borderColor:tint('rgba(224,74,92,.4)')},healCard:{borderColor:tint('rgba(111,191,142,.45)')},taleCard:{alignItems:'flex-start',borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(40,22,62,.6)')},
+ dmgIcon:{width:36,height:36,borderRadius:18,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(0,0,0,.3)')},
  dmgNum:{fontFamily:fonts.display,fontSize:28,fontWeight:'800',color:colors.goldBright,minWidth:34,fontVariant:['tabular-nums'],...shadow},
  dmgLabel:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.4,color:tint('#dfcdc5'),textTransform:'uppercase'},
  hpRow:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:5,paddingHorizontal:12,marginBottom:4},

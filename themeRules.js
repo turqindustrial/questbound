@@ -5,12 +5,12 @@
 // belong to no family and are the same in every theme.
 // The sums are done in OKLCH (lightness, chroma, hue), where turning the hue keeps a colour as light as it looked.
 export const themeChoices=[
- {id:'red',label:'Red',swatch:'#e04a5c',accentSwatch:'#b08cf5'},
- {id:'orange',label:'Orange',main:{hue:52,chroma:.95,lift:.09},accent:{hue:88,chroma:.6,lift:.1},neutral:{hue:55,chroma:1},emblem:'hue-rotate(62deg) saturate(0.95) brightness(1.25)'},
- {id:'gold',label:'Gold',main:{hue:88,chroma:.62,lift:.19},accent:{hue:62,chroma:.6,lift:.08},neutral:{hue:265,chroma:1.5},emblem:'grayscale(1) sepia(1) saturate(2.4) hue-rotate(-2deg) brightness(1.4) contrast(1.25)'},
- {id:'green',label:'Green',main:{hue:152,chroma:.82,lift:.12},accent:{hue:92,chroma:.55,lift:.1},neutral:{hue:165,chroma:1.1},emblem:'hue-rotate(181deg) saturate(1.22) brightness(1.25)'},
- {id:'blue',label:'Blue',main:{hue:252,chroma:.82,lift:.06},accent:{hue:300,chroma:.9,lift:0},neutral:{hue:262,chroma:1.5},emblem:'hue-rotate(223deg) saturate(1.33) brightness(1.17)'},
- {id:'purple',label:'Purple',main:{hue:300,chroma:.95,lift:.05},accent:{hue:8,chroma:.8,lift:.04},neutral:{hue:300,chroma:1.1},emblem:'hue-rotate(294deg) saturate(0.8) brightness(1.25)'},
+ {id:'red',label:'Red',swatch:'#e04a5c',accentSwatch:'#b08cf5',paper:{hue:62,chroma:.017}},
+ {id:'orange',label:'Orange',main:{hue:52,chroma:.95,lift:.09},accent:{hue:88,chroma:.6,lift:.1},neutral:{hue:55,chroma:1},paper:{hue:70,chroma:.019},emblem:'hue-rotate(62deg) saturate(0.95) brightness(1.25)'},
+ {id:'gold',label:'Gold',main:{hue:88,chroma:.62,lift:.19},accent:{hue:62,chroma:.6,lift:.08},neutral:{hue:265,chroma:1.5},paper:{hue:86,chroma:.021,main:74},emblem:'grayscale(1) sepia(1) saturate(2.4) hue-rotate(-2deg) brightness(1.4) contrast(1.25)'},
+ {id:'green',label:'Green',main:{hue:152,chroma:.82,lift:.12},accent:{hue:92,chroma:.55,lift:.1},neutral:{hue:165,chroma:1.1},paper:{hue:112,chroma:.016},emblem:'hue-rotate(181deg) saturate(1.22) brightness(1.25)'},
+ {id:'blue',label:'Blue',main:{hue:252,chroma:.82,lift:.06},accent:{hue:300,chroma:.9,lift:0},neutral:{hue:262,chroma:1.5},paper:{hue:240,chroma:.009},emblem:'hue-rotate(223deg) saturate(1.33) brightness(1.17)'},
+ {id:'purple',label:'Purple',main:{hue:300,chroma:.95,lift:.05},accent:{hue:8,chroma:.8,lift:.04},neutral:{hue:300,chroma:1.1},paper:{hue:64,chroma:.014},emblem:'hue-rotate(294deg) saturate(0.8) brightness(1.25)'},
 ];
 export const defaultTheme='red';
 export const themeIds=themeChoices.map(choice=>choice.id);
@@ -77,20 +77,74 @@ export function mapColours(text,replace,all=false){
  });
 }
 // The same colour written out for a theme, in the form it was written in.
+// Light (Settings, Theme, the Dark mode switch off; 2026-10-12, the host: "light mode looks horrible, rework that to
+// not be so harsh on the eyes ... I want light mode to actually look good"): the game is still written once, as dark
+// Red, and Light works out what each written colour is for from its family and its lightness. Dark surfaces become
+// layers of warm paper (the page a soft parchment, raised panels a lighter sheet, never pure white), greys between
+// them soft rules, light lettering ink (dark but never black, in the theme's own neutral), the main colour and the
+// accent deeper and quieter (never neon), and the primary fill stays deep with cream lettering, as it is in Dark.
+// Meanings keep their hue, deepened to read on paper. Black shadows become a soft warm brown at under half their
+// strength. Each theme names its paper (`paper`: hue and chroma; Blue's is a cool stone, the rest warm parchment), and
+// Gold takes its main colour to bronze (`paper.main`), since a deep yellow reads as olive. `lightPalette` names the
+// tones (verify-theme.cjs checks their contrast), and webTheme.js reads them as --ql-* variables for the pieces drawn
+// in its style sheet.
+export function lightPalette(themeId){
+ const theme=themeChoices.find(choice=>choice.id===validTheme(themeId)),paper=theme.paper??{hue:62,chroma:.017};
+ const hueOf=rgb=>rgbToOklch(...rgb)[2],main=paper.main??hueOf(themedRgb(224,74,92,theme.id)),accent=hueOf(themedRgb(176,140,245,theme.id)),neutral=hueOf(themedRgb(39,30,41,theme.id));
+ const tone=(L,C,h)=>oklchToRgb(L,C,h);
+ return {theme:theme.id,hues:{main,accent,neutral,paper:paper.hue},mainShift:paper.main===undefined?0:paper.main-hueOf(themedRgb(224,74,92,theme.id)),paperChroma:paper.chroma,
+  page:tone(.936,paper.chroma,paper.hue),panel:tone(.962,paper.chroma*.8,paper.hue),raised:tone(.977,paper.chroma*.6,paper.hue),well:tone(.915,paper.chroma*1.1,paper.hue),
+  line:tone(.84,paper.chroma*1.3,paper.hue),ink:tone(.27,.022,neutral),muted:tone(.42,.02,neutral),faint:tone(.5,.018,neutral),
+  main:tone(.47,.13,main),mainSoft:tone(.9,.035,main),fill:tone(.47,.135,main),fillTop:tone(.53,.13,main),fillEdge:tone(.39,.11,main),onFill:tone(.985,.012,main),
+  accent:tone(.47,.12,accent),accentSoft:tone(.915,.03,accent),accentDeep:tone(.38,.11,accent),
+  shadow:tone(.3,.03,paper.hue),blush:tone(.925,.03,32),blood:tone(.5,.15,32),heal:tone(.47,.11,155),arcane:tone(.48,.08,190),coin:tone(.5,.1,78)};
+}
+const paletteCache=new Map();
+const paletteOf=themeId=>{if(!paletteCache.has(themeId))paletteCache.set(themeId,lightPalette(themeId));return paletteCache.get(themeId);};
+// The primary fill (#9e1b32), its edge (#f06e80) and its lettering (#ffeef0) are written only for primary buttons and
+// badges, so in Light they keep their roles: a deep fill, a deeper edge and cream lettering. The map's brown ink and
+// parchment tools sit on the parchment map, which is the same in both appearances.
+const lightRoles={'158,27,50':'fill','240,110,128':'fillEdge','255,238,240':'onFill'};
+const keptInLight=new Set(['59,42,23','237,222,182','246,235,203','255,255,255']);
+function lightRgb(r,g,b,themeId){
+ const key=r+','+g+','+b,p=paletteOf(validTheme(themeId));
+ if(lightRoles[key])return p[lightRoles[key]];
+ if(keptInLight.has(key))return [r,g,b];
+ if(r===0&&g===0&&b===0)return p.shadow;
+ const family=colourFamily(r,g,b);let [L,C,h]=rgbToOklch(...themedRgb(r,g,b,themeId)),paper=p.hues.paper,ink=p.hues.neutral;
+ if(family==='neutral'||(!family&&C<.035)){
+  // Surfaces: the darker the written surface, the deeper the paper (the page), the lighter it was, the brighter the sheet.
+  if(L<.3){const t=Math.max(-.15,Math.min(1,(L-.128)/.17));return oklchToRgb(.936+t*.042,p.paperChroma*(1-.35*Math.max(0,t)),paper);}
+  if(L<.52)return oklchToRgb(.86-(L-.3)*.5,p.paperChroma*1.4,paper);
+  return oklchToRgb(Math.max(.24,.25+(.96-L)*.62),Math.min(C,.022)+.004,ink);
+ }
+ if(family==='main'){
+  h+=p.mainShift;
+  if(L<.3)return oklchToRgb(.925,.03,h);
+  if(L<.56)return oklchToRgb(.52,Math.min(C,.12),h);
+  if(L<.85)return oklchToRgb(Math.max(.4,.47-(L-.62)*.25),Math.min(C,.14),h);
+  return oklchToRgb(.4,Math.min(C,.12),h);
+ }
+ if(family==='accent'){
+  if(L<.35)return oklchToRgb(.915,.03,h);
+  if(L<.6)return oklchToRgb(.5,Math.min(C,.13),h);
+  if(L<.85)return oklchToRgb(.47,Math.min(C,.13),h);
+  return oklchToRgb(.38,Math.min(C,.12),h);
+ }
+ // Colours that mean something keep their hue: dark fills (written only as backgrounds on ink) become a pale wash, mid tones are deepened a little to
+ // read on paper, and light lettering becomes ink of its own colour.
+ if(L<.45)return oklchToRgb(.925,Math.min(C,.04),h);
+ if(L<.62)return L<=.5?[r,g,b]:oklchToRgb(.5,Math.min(C,.17),h);
+ return oklchToRgb(Math.max(.39,.46-(L-.62)*.2),Math.min(C,.14),h);
+}
 export function appearanceRgb(r,g,b,themeId,mode='dark'){
- const rgb=themedRgb(r,g,b,themeId);if(mode!=='light')return rgb;
- const [L,C,h]=rgbToOklch(...rgb),family=colourFamily(r,g,b);
- // Keep true black shadows black; surfaces acquire a pale tint of their palette.
- if(r===0&&g===0&&b===0)return rgb;
- if(family==='neutral'||C<.035)return oklchToRgb(L<.48?.985-L*.12:.26+(1-L)*.42,Math.min(C,.025),h);
- if(family==='main'||family==='accent')return oklchToRgb(L<.55?.90:Math.min(.47,.36+(1-L)*.24),Math.min(C,L<.55?.055:.18),h);
- // Warm reading text and semantic labels retain their hue, with ink-dark contrast.
- if(L>.6)return oklchToRgb(.40,Math.min(C,.14),h);
- return rgb;
+ return mode==='light'?lightRgb(r,g,b,themeId):themedRgb(r,g,b,themeId);
 }
 export function writtenColour(colour,themeId,mode='dark'){
  const [r,g,b]=appearanceRgb(colour.r,colour.g,colour.b,themeId,mode);
- return colour.alpha<1||!colour.hex?(colour.alphaText===undefined?'rgb('+r+','+g+','+b+')':'rgba('+r+','+g+','+b+','+colour.alphaText+')'):'#'+hexOf(r,g,b);
+ // A black shadow on paper is a soft brown one at under half its strength.
+ const alphaText=mode==='light'&&colour.r===0&&colour.g===0&&colour.b===0&&colour.alpha<1?String(+(colour.alpha*.42).toFixed(3)):colour.alphaText;
+ return colour.alpha<1||!colour.hex?(alphaText===undefined?'rgb('+r+','+g+','+b+')':'rgba('+r+','+g+','+b+','+alphaText+')'):'#'+hexOf(r,g,b);
 }
 // A piece of text with every family colour written out for a theme (used where a style variable cannot reach: inside
 // pictures written as text, and on devices without style variables).

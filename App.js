@@ -597,7 +597,7 @@ const s = StyleSheet.create({
   quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.9)'),justifyContent:'center'},
   quickTabText:{fontFamily:fonts.display,color:tint('#dfcdc5'),fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
   quickGlyph:{color:colors.gold},
-  tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,208,196,.35)',marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:tint('#9fe3d8'),fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:tint('#ffd49a'),fontSize:13,lineHeight:19},
+  tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(111,208,196,.35)'),marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:tint('#9fe3d8'),fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:tint('#ffd49a'),fontSize:13,lineHeight:19},
   saveStatus:{fontFamily:fonts.ui,color:colors.goldMid,fontSize:12,letterSpacing:.4,marginBottom:16},
   error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
   note:{fontFamily:fonts.ui,color:tint('#c9aab2'),fontSize:13,lineHeight:20,marginBottom:18},
