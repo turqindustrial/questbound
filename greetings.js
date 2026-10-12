@@ -41,11 +41,27 @@ export function shouldGreet(game,id){
  const last=game?.playback?.at(-1);
  return !last||!last.events.some(e=>e.kind==='dialogue'&&(e.speakerId??last.npcId)===id);
 }
+// A stand-in line from someone's pool, skipping any line in `avoid` (one already said, or one another person here will
+// say): when every line of their own kind is taken, a plain one nobody has said.
+function poolLine(game,id,hero,avoid){
+ const mood=greetingMood(game,id,hero),pool=greetingPools[mood];
+ const start=Math.floor(seededRandom('greeting:'+id+':'+(game.playback?.at(-1)?.id??0)+':'+(game.story?.id??''))()*pool.length);
+ for(let i=0;i<pool.length;i++){const line=pool[(start+i)%pool.length];if(!avoid.has(line))return {mood,line};}
+ return {mood,line:greetingPools.plain.find(line=>!avoid.has(line))??pool[start]};
+}
+// Everyone here gets a different stand-in line, and none repeats what was said in the last two turns: two people
+// greeting in the same scene never say the same words (people in the order the scene lists them).
+export function standInGreetings(game,hero){
+ const said=new Set((game?.playback??[]).slice(-2).flatMap(t=>t.events.filter(e=>e.kind==='dialogue').map(e=>e.text))),lines={};
+ for(const n of npcScene(game).filter(x=>x.present)){const p=poolLine(game,n.id,hero,said);lines[n.id]=p;said.add(p.line);}
+ return lines;
+}
 export function greeting(game,id,hero){
- const name=npcLore(game,id)?.name??npcScene(game).find(n=>n.id===id)?.name??'them',mood=greetingMood(game,id,hero),pool=greetingPools[mood];
- // The same person does not say the same stand-in line twice running.
- const pick=Math.floor(seededRandom('greeting:'+id+':'+(game.playback?.at(-1)?.id??0)+':'+(game.story?.id??''))()*pool.length);
- return {mood,scene:'You turn to '+name+'.',aside:name+' looks up.',fallback:pool[pick],
+ const name=npcLore(game,id)?.name??npcScene(game).find(n=>n.id===id)?.name??'them';
+ // The same person does not say the same stand-in line twice running, and nobody says another's line.
+ const said=new Set((game?.playback??[]).slice(-2).flatMap(t=>t.events.filter(e=>e.kind==='dialogue').map(e=>e.text)));
+ const {mood,line}=standInGreetings(game,hero)[id]??poolLine(game,id,hero,said);
+ return {mood,scene:'You turn to '+name+'.',aside:name+' looks up.',fallback:line,
   cue:'The player has walked up to '+name+' and turned to them to talk, and has not said anything yet. In narration give one short sentence of what '+name+' is doing as the player comes up. Only '+name+' speaks: one or two sentences that open the conversation in their own voice, true to their personality, to what they are doing here and what is on their mind right now (the trouble at hand, their own worry or want), and to how they feel about the player: their attitude, any grudge or bond, what they remember of the player, and how they take to the player\'s kind (regardsYourKind). Someone meeting the player for the first time says who they take them for or asks what they want; someone who knows them picks up where they left off; a companion speaks as one who shares the road. A hostile or grudging person is curt, cold or tells them to leave, but answers in words of their own; nobody greets a stranger like an old friend. Give them something of their own to say (a worry, a piece of news, a question) rather than a bare hello, do not reveal secrets they would keep, do not answer for the player, and do not repeat an opening line they have used before (conversationHistory).'};
 }
 
@@ -79,11 +95,22 @@ export function replyIdeas(game,hero,personId=null){
   if(mood==='forgiven'||mood==='following')return ideaPick(ideaPools[mood],seed);
   const foe=game.story?.foe,lead=(game.story?.leads??[]).find(l=>l&&!l.done);
   const leadName=lead?plain(lead.title).replace(/^(The|A|An) /,w=>w.toLowerCase()):null;
-  return [ideaFits('What do you know about '+foe+'?')&&foe?'What do you know about '+foe+'?':'What do you know about the trouble here?',
-   leadName&&ideaFits('Have you heard anything about '+leadName+'?')?'Have you heard anything about '+leadName+'?':'What is the news around here?',
-   'Is there anything you need?'];
+  // Things to ask this person in particular: about the trouble, what they do here, who they are, so two people
+  // turned to one after the other are not asked the same three things.
+  const lore=npcLore(game,personId),role=String(lore?.role??'').toLowerCase(),home=game.people?.[personId]?.home,place=plain(placeName(game,mapLocation(game))),own=[
+   /\b(?:trader|merchant|smith|peddler|seller|stall|shop|cook|baker|brewer|innkeeper|tavern)/.test(role)?'What do you have to sell?':null,
+   /\b(?:guard|captain|soldier|sergeant|watch|warden|sentry)/.test(role)?'Have you seen anything strange on your watch?':null,
+   /\b(?:priest|priestess|temple|shrine|abbess|abbot|monk|nun|cleric|healer)/.test(role)?'What do the faithful make of all this?':null,
+   /\b(?:guide|hunter|scout|ferry|boat|bargee|tracker|ranger|carter)/.test(role)?'Could you show me the way?':null,
+   home===mapLocation(game)?'How long have you lived in '+place+'?':'What brings you to '+place+'?',
+   'Who else should I talk to around here?','What is your part in all this?'].filter(t=>t&&ideaFits(t));
+  const trouble=ideaFits('What do you know about '+foe+'?')&&foe?'What do you know about '+foe+'?':'What do you know about the trouble here?';
+  const rumour=leadName&&ideaFits('Have you heard anything about '+leadName+'?')?'Have you heard anything about '+leadName+'?':'What is the news around here?';
+  return [trouble,...ideaPick([rumour,'Is there anything you need?',...own],seed+':own:'+personId).slice(0,2)];
  }
  const here=npcScene(game).filter(n=>n.present&&n.hp>0);
+ // Several people here: a different thing to say to two of them, so nobody is offered one line for everyone.
+ if(here.length>1){const [a,b]=ideaPick(here.map(n=>n.id),seed+':who').map(id=>ideaName(npcLore(game,id)?.name??here.find(n=>n.id===id).name)),foe=game.story?.foe,askA='I ask '+a+' what is going on here.',askB=foe&&ideaFits('I ask '+b+' what they know about '+foe+'.')?'I ask '+b+' what they know about '+foe+'.':'I ask '+b+' who else I should talk to.';return [ideaFits(askA)?askA:'I ask what is going on here.',ideaFits(askB)?askB:'I ask around.','I look around.'];}
  if(here.length){const who=ideaName(npcLore(game,here[0].id)?.name??here[0].name),ask='I ask '+who+' what is going on here.';return ['I look around.',ideaFits(ask)?ask:'I ask what is going on here.','I search the area for anything useful.'];}
  // Nobody about: the nearest place the hero knows of is somewhere to go.
  let nearest=null;

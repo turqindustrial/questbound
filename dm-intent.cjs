@@ -21,6 +21,10 @@ const hedged=text=>/\b(tell|tells|told|ask|asks|asked|say|says|said|suggest|sugg
 const moving=text=>/\b(go|goes|going|walk|walking|head|heading|travel|return|returning|ride|run|climb|hike|march|journey|hurry|sneak|proceed|trek|wander|stroll|jog|sprint|sail|row|swim|set (?:out|off)|make (?:my|our) way|making (?:my|our) way|leave|depart|follow|cross|enter|approach|move|get back|come back|make for|strike out|press on|venture)\b/.test(text);
 const exploring=text=>/\b(north|south|east|west|northeast|northwest|southeast|southwest|northward|southward|eastward|westward|beyond|until i (?:find|reach|come)|what lies|explore|exploring|deeper|further|farther|onward|upstream|downstream|uphill|downhill|inland|horizon|somewhere new|new place|strike out|into the (?:wilds|wild|woods|forest|hills|mountains|marsh|swamp|desert|dunes|unknown|dark|depths)|follow(?:ing)? the [a-z' -]{3,40}|along the (?:shore|coast|river|road|trail|ridge|path|track|tracks|stream|cliffs?))\b/.test(text);
 const compass=text=>(/\b(north|south|east|west)(?:-| )?(east|west)?(?:ward|wards)?\b/.exec(text)?.[0])??null;
+// Leaving the land on the map altogether, in a direction (the game's beyond choices: mapRules.js goBeyond).
+const offLand=text=>/\b(?:beyond|past|off|over) the (?:edge of (?:the |my |our |this )?)?map\b|\b(?:off|past|beyond|over) the edge\b|\bleav(?:e|ing) (?:this|the) (?:land|country|region|realm|valley|map)\b|\bout of (?:this|the) (?:land|country|region)\b|\b(?:a|some) new (?:land|country)\b|\bbeyond (?:this|the) (?:land|country|region|borders?)\b/.test(text);
+const compassIds={north:'N',northeast:'NE',east:'E',southeast:'SE',south:'S',southwest:'SW',west:'W',northwest:'NW'};
+const bearingOf=text=>{const m=/\b(north|south)[- ]?(east|west)\b|\b(north|south|east|west)(?:ward|wards)?\b/.exec(text);return m?compassIds[m[3]??(m[1]+m[2])]:null;};
 const fighting=context=>['combat','dying','dead'].includes(context?.stage)||!!context?.encounter||!!context?.npcCombat?.active;
 // The journeys on offer right now: each travel choice with the place it leads to.
 function journeys(context){
@@ -60,6 +64,9 @@ function situation(context){
  if(offered.length&&!inFight)lines.push('The player may set out at once for any of: '+offered.map(j=>j.name+' ('+j.actionId+')').join(', ')+'. Nothing has to happen first.');
  return lines;
 }
+// Places where people would be found: arriving at one with nobody named there is a scene with no one to talk to.
+const busyKinds=['settlement','camp','road','water','shrine','starting place'];
+const arrivedAt=context=>(context?.engineResolved??[]).some(t=>/^You (?:travel to|arrive at|return to|reach) /.test(String(t)));
 const started=reply=>[reply?.actionId,reply?.castCommand,reply?.check,reply?.discovery,reply?.ambush,reply?.ruling].some(v=>v!=null);
 const offers=(context,id)=>(context?.choices??[]).some(c=>c?.id===id);
 const phantomFight=text=>/\b(ambush|fight|encounter|battle|combat|attack|attacker)\b[^.!?]{0,70}\b(still|remains?)\b[^.!?]{0,40}\b(underway|in progress|active|unresolved|ongoing|unfinished|going on)\b|\b(?:can(?:no|')t|cannot|unable to)\s+(?:leave|abandon|walk away from|slip away from)\s+the\s+(?:fight|encounter|battle|ambush)\b|\bleaving the (?:fight|encounter|battle)\b/i.test(String(text??''));
@@ -102,6 +109,10 @@ function unrecordedJoin(context,reply){
 }
 function secondLook(body,reply,{canDiscover=false}={}){
  const context=body?.context??{},text=tidyInput(body?.input);
+ // Arriving somewhere people live (a town, a camp, a landing, a crossing, a shrine) and finding nobody named there:
+ // the player is shown someone to talk to (never settled by the game: the Dungeon Master names them).
+ {const here=context.world?.current,lonely=here&&busyKinds.includes(here.kind??'starting place')&&context.world?.peopleHere===0&&context.world?.canIntroduce===true&&!reply?.introduce&&!fighting(context)&&!context.sceneTrigger&&!context.outOfCharacter&&!context.pendingSpell;
+  if(lonely&&arrivedAt(context))return {kind:'nobody here',sure:false,note:'Your telling brings the player to '+String(here.name).slice(0,60)+', '+(here.kind?'a '+here.kind:'a place')+' where people would be, but nobody is named there (context.world.peopleHere is 0). Tell the same moment again, and this time return introduce for the one person the player would notice first on arriving (who they are, what they are doing), and let them speak if it fits. Keep everything else as you told it; all mechanical fields stay null.'};}
  if(!text||text.length>400||fighting(context)||context.engineResolved||context.sceneTrigger||context.outOfCharacter||context.pendingSpell)return null;
  const asking=question(text),plain=!asking&&!negated(text)&&!hedged(text)&&text.length<=200;
  const none=!started(reply),goes=!asking&&!negated(text)&&moving(text),named=goes?namedJourneys(text,context):[];
@@ -109,6 +120,14 @@ function secondLook(body,reply,{canDiscover=false}={}){
   const j=named[0];
   return {kind:'known place',actionId:j.actionId,sure:plain&&j.strong,say:'You set out for '+j.name+'.',
    note:'Your last reply started no game action. The player\'s message reads as setting out for '+j.name+' now, and '+j.actionId+' is on offer and allowed (context.now says so). If they are setting out, select actionId '+j.actionId+' and narrate them leaving: no obstacle, warning or condition in the way, and nobody stopping them. Only if the message is plainly not a decision to go now (a question, a plan for later, something said to someone) answer it without the journey.'};
+ }
+ // Off the edge of this land's map: the beyond choice that way (the game opens the new land).
+ if(none&&!asking&&!negated(text)&&offLand(text)){
+  const b=bearingOf(text),id=b?'beyond-'+b:null,ways=(context.choices??[]).filter(c=>typeof c?.id==='string'&&c.id.startsWith('beyond-')).map(c=>c.id);
+  const word=b?Object.keys(compassIds).find(k=>compassIds[k]===b).replace(/^(north|south)(east|west)$/,'$1-$2'):null;
+  if(id&&ways.includes(id))return {kind:'beyond the map',actionId:id,sure:plain,say:'You set out '+word+', beyond the edge of your map.',
+   note:'Your last reply started no game action. The player\'s message reads as leaving this land altogether, '+word+', past the edge of the map, and '+id+' is on offer. Select actionId '+id+' and narrate them setting out on the long road; the game opens the new land. Only if the message is plainly not a decision to go now answer it without the journey.'};
+  if(!b&&ways.length)return {kind:'beyond the map',sure:false,note:'Your last reply started no game action. The player\'s message reads as leaving this land altogether, past the edge of the map. Select the beyond choice ('+ways.join(', ')+') nearest the way their words point (ask which way only if nothing in the scene suggests one), or use discovery with region for a land they name.'};
  }
  const wandering=goes&&!named.length&&exploring(text)&&canDiscover,toward=compass(text);
  if(wandering&&none)return {kind:'new place',sure:false,

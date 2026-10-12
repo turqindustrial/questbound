@@ -1,4 +1,4 @@
-import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,maxPeople,maxPeopleHere,personToughness,sceneLocation,genders,maxResidents,residentsPerPlace,grudgeWeight,amendsNeeded,forgivenessOf,npcClassList,companionLevelFor} from './npcRules';
+import {npcProfiles,npcProfile,npcIdsOf,coreNpcIds,isPersonId,freePersonId,maxPeople,maxPeopleHere,residentsAtStart,personToughness,sceneLocation,genders,maxResidents,residentsPerPlace,grudgeWeight,amendsNeeded,forgivenessOf,npcClassList,companionLevelFor} from './npcRules';
 import {appendJournal,journalForGame} from './journalRules';
 import {seededRandom} from './mapRules';
 // How each named character feels about the player, and why. Attitudes run from hostile to devoted; deeds move them.
@@ -244,11 +244,13 @@ export function introducePerson(game,sketch,hero=null){
  const same=known.find(id=>npcName(game,id).trim().toLowerCase()===key);
  if(same){
   if(game.npcFate?.[same]==='dead')return {game,error:npcName(game,same)+' is dead.'};
+  // Someone who kept out of sight is found (and met) where they live.
+  if(isPersonId(same)&&game.people[same].hidden){const {hidden,...found}=game.people[same],next={...game,people:{...game.people,[same]:{...found,home:game.followers?.[same]?found.home:here}}};next.journal=appendJournal(journalForGame(next),'encounter','Met: '+found.name,found.name+', '+found.role.replace(/[.\s]+$/,'')+'.');return {game:next,id:same,lines:[]};}
   if(!isPersonId(same)||game.followers?.[same]||game.people[same].home===here)return {game,id:same,lines:[]};
   return {game:{...game,people:{...game.people,[same]:{...game.people[same],home:here}}},id:same,lines:[]};
  }
  if(!canMeetPeople(game))return {game,error:Object.keys(game.people??{}).length>=maxPeople?'The region already has as many named people as the game can remember.':'This place already has as many named people as the game can show.'};
- const id='n'+(Math.max(0,...Object.keys(game.people??{}).map(k=>Number(k.slice(1))))+1);
+ const id=freePersonId(game.people);
  // Whether they are a woman or a man (for their portrait), and how they take to the hero's kind, when given.
  const regard=s.regard&&validRegard(s.regard)&&s.regard.stance!=='indifferent'?{stance:s.regard.stance,reason:s.regard.reason.trim().slice(0,200)}:null;
  const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{}),...(genders.includes(s.gender)?{gender:s.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(s.class)?{class:s.class}:{})};
@@ -272,13 +274,14 @@ export function validPeople(game){
  const ids=Object.keys(p),known=npcIdsOf(game);
  return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,2})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)))&&(x.gender===undefined||genders.includes(x.gender))&&validRegard(x.regard);})
   // A tale's residents carry `resident` (met once the hero reaches their home) and may carry what they want.
-  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].class===undefined||npcClassList.includes(p[id].class))&&(p[id].motive===undefined||personText(p[id].motive,0,400)))
+  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].hidden===undefined||p[id].hidden===true)&&(p[id].class===undefined||npcClassList.includes(p[id].class))&&(p[id].motive===undefined||personText(p[id].motive,0,400)))
   &&new Set(ids.map(id=>p[id].name.toLowerCase())).size===ids.length;
 }
 // ---------- The people who live in a tale's country ----------
 // Besides its two residents, a written tale names a few people who live in its country (the story writer's
 // `residents`): two at the starting place, so the opening is never two people alone, others at the place to
-// investigate and at landmarks. They are seated in game.people (n1…, `resident:true`) where they live, before the
+// investigate and at landmarks (up to three at a place). Someone the writer marks `noticed:false` keeps out of sight
+// (`hidden`) until the Dungeon Master has the player find them; never at the starting place. They are seated in game.people (n1…, `resident:true`) where they live, before the
 // hero has met them; the hero meets them on first reaching that place (metPerson). Anything malformed is left out.
 // `places` are the landmarks marked on the map (p1…); a resident's `at` may name one of them, a starting place by its
 // id (inn, bridge, tower) or by its name. Returns the game and which written resident became whom
@@ -301,10 +304,10 @@ export function seatResidents(game,residents,places=[]){
   if(name.length<2||role.length<3||appearance.length<10||taken.has(name.toLowerCase()))return;
   // Where they live: a place the tale knows, else the starting place when it has room; never more than two to a place.
   const home=where[key(r.at)]??'inn';
-  if((count[home]??0)>=residentsPerPlace)return;
-  const id='n'+(Math.max(0,...Object.keys(people).map(k=>Number(k.slice(1)))) +1);
+  if((count[home]??0)>=(home==='inn'?residentsAtStart:residentsPerPlace))return;
+  const id=freePersonId(people);
   const regard=r.regard&&validRegard(r.regard)&&r.regard.stance!=='indifferent'?{stance:r.regard.stance,reason:r.regard.reason.trim().slice(0,200)}:null,motive=clean(r.motive,300),personality=clean(r.personality,200);
-  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(r.class)?{class:r.class}:{}),resident:true};
+  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(r.class)?{class:r.class}:{}),resident:true,...(r.noticed===false&&home!=='inn'?{hidden:true}:{})};
   // How they take to a stranger, when the writer says so; otherwise their view of the hero's kind decides it.
   if(['unfriendly','friendly'].includes(r.attitude))memory[id]={attitude:r.attitude,response:responses[r.attitude],memories:[]};
   taken.add(name.toLowerCase());count[home]=(count[home]??0)+1;ids['resident'+(i+1)]=id;written[id]=r.tie;

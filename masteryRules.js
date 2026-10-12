@@ -163,7 +163,7 @@ export function fightOver(game){
 const spellMarkConds=['asleep','drowsy','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned','acid','burning','aflame','scorched'];
 const validSpellMark=m=>!!m&&typeof m==='object'&&typeof m.id==='string'&&m.id.length>0&&m.id.length<=60&&spellMarkConds.includes(m.cond)&&typeof m.by==='string'&&m.by.length>0&&m.by.length<=80&&Number.isInteger(m.dc)&&m.dc>=1&&m.dc<=40&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(m.save)&&(m.rounds===undefined||(Number.isInteger(m.rounds)&&m.rounds>=1&&m.rounds<=100000))&&(m.level===undefined||(Number.isInteger(m.level)&&m.level>=0&&m.level<=9))&&Object.keys(m).every(k=>['id','cond','by','dc','save','rounds','level'].includes(k));
 export function validMarks(g){
- const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/;
+ const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|[1-3]\d|4[0-8]))$/;
  return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)||(f==='spells'&&Array.isArray(v)&&v.length>=1&&v.length<=4&&v.every(validSpellMark))))))
   &&(g.vex===undefined||(!!g.vex&&keys.test(String(g.vex.target))&&(g.vex.fresh===undefined||g.vex.fresh===true)))
   &&(g.lightAttack===undefined||(!!g.lightAttack&&typeof g.lightAttack.weapon==='string'&&g.lightAttack.weapon.length<=30&&keys.test(String(g.lightAttack.target))))
@@ -193,7 +193,7 @@ export function boonResisted(game,key,type,amount,random=Math.random){
 }
 const boonSpells=['bless','heroism','guidance','resistance','shield-of-faith','protection-from-evil-and-good','longstrider'];
 const boonTypes=['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'];
-const personKey=/^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/;
+const personKey=/^(?:keeper|mara|n(?:[1-9]|[1-3]\d|4[0-8]))$/;
 const validBoon=e=>!!e&&typeof e==='object'&&boonSpells.includes(e.id)&&typeof e.by==='string'&&e.by.length>0&&e.by.length<=80&&(e.amount===undefined||(Number.isInteger(e.amount)&&e.amount>=0&&e.amount<=40))&&(e.type===undefined||boonTypes.includes(e.type))&&(e.used===undefined||e.used===true)&&Object.keys(e).every(k=>['id','by','amount','type','used'].includes(k));
 // Boons, and Aid on companions (game.aided: how much it raised each one's hit point maximum).
 export function validBoons(g){

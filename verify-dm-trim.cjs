@@ -28,7 +28,15 @@ assert.ok(Array.isArray(s.world.creatureTemplates)&&s.world.creatureTemplates.ev
 assert.equal(s.world.knownPlaces.find(p=>p.id==='inn').description,undefined,'The current place is described in world.current');assert.ok(s.world.knownPlaces.filter(p=>p.id!=='inn').every(p=>p.description.length<=140));
 assert.equal(s.travelRoutes,undefined,'Distances are in world.knownPlaces');assert.equal(s.npcDefenses,undefined,'No fight, no defenses');
 assert.ok(s.spellReference.length>0,'An ordinary turn keeps the spell list');assert.ok(s.choices.length>0);
-assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.75,'At least a quarter smaller: '+JSON.stringify(sent).length+' of '+JSON.stringify(body).length);
+assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.85,'Smaller again on the server: '+JSON.stringify(sent).length+' of '+JSON.stringify(body).length);
+// The device already sends the conversation once and briefly, without the old travel list, so a land of many people
+// and places stays well inside the 64 kB request limit.
+assert.equal(full.conversationHistory.length,6);assert.ok(full.conversationHistory.every(e=>e.text.length<=1000));assert.ok(!full.journal.some(e=>e.title==='AI DM conversation'));assert.equal(full.travelRoutes,undefined);
+{const crowd={...game,people:{},npcMemory:{},world:{at:null,places:Array.from({length:40},(_,i)=>({id:'p'+(i+1),name:'Place number '+(i+1),description:'A long description of a place that runs on about stone and moss and the river and the old roads and the people who once lived there. '.repeat(3).slice(0,300),kind:'settlement',x:(i+1)*3000,y:(i+1)*900,from:i?'p'+i:'inn'}))}};
+ for(let i=1;i<=48;i++){crowd.people['n'+i]={name:'Person Named '+i,species:'Human',role:('A role that runs to some length for person '+i+'. ').repeat(4).slice(0,200),appearance:'A face '.repeat(60).slice(0,400),personality:'Calm and slow. '.repeat(14).slice(0,200),motive:'Wants things. '.repeat(22).slice(0,300),toughness:'common',home:'p'+(1+i%40),foe:'neutral',resident:true};crowd.npcMemory['n'+i]={attitude:'friendly',response:'Warm toward the player.',memories:['I remember the player helped me carry the nets up from the quay in the rain and the wind.','They asked about my brother and listened to the whole of it.','They paid fair for the bread and asked after my mother.']};}
+ const big={input:'I look around the camp.',context:{...r.dmContext(hero,crowd,hp),storyPreferences:{brutality:'gritty'},conversationWith:null,conversationParticipants:[]}},bytes=Buffer.byteLength(JSON.stringify(big));
+ assert.ok(bytes<60000,'48 people and 40 places fit in one request: '+bytes+' bytes');
+ const away=big.context.npcSocialState.find(n=>n.id==='n7');assert.equal(away.present,false);assert.ok(away.role.length<=100&&away.metHero===false&&away.memories===undefined&&away.appearance===undefined,'someone elsewhere, not yet met, is sent in brief');}
 // The fallen not yet searched reach the model as they are (lootRules.js).
 {const spoils=[{name:'Grey Widow',kind:'creature',what:'Giant spider',lair:true,feature:'A satchel under the webs.'}];assert.deepEqual(sceneFor({...body,context:{...full,spoils}},{}).context.spoils,spoils,'context.spoils survives the trim');}
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');

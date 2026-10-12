@@ -23,6 +23,8 @@ export function storyEvents(before,after,hero,{action=null}={}){
  // ---- New places and new lands ----
  const knownBefore=new Set(worldPlaces(before).map(p=>p.id)),found=worldPlaces(after).filter(p=>!knownBefore.has(p.id));
  const landsBefore=new Set(mapRegions(before).map(r=>r.id));
+ // A land forgotten to make room for a new one (mapRules.js landsToForget), then the new one.
+ {const landsAfter=new Set(mapRegions(after).map(r=>r.id));for(const land of mapRegions(before))if(!landsAfter.has(land.id))add('place','The memory of '+land.name+' fades.');}
  for(const land of mapRegions(after))if(!landsBefore.has(land.id))add('place','Set out for a new land: '+land.name+'.');
  for(const p of found){
   if(p.id===here)continue;

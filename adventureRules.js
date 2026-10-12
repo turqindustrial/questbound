@@ -1,10 +1,10 @@
 import {storyText,questState} from './storyRules';
-import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf} from "./npcRules";
+import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf,forgetLands} from "./npcRules";
 import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError,withDefenses,defended} from "./spellRules";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
-import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace,travelRoute,timePasses} from "./mapRules";
+import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace,travelRoute,timePasses,beyondError,goBeyond,landsToForget,knownLand} from "./mapRules";
 import {resolveClassAction,bonusOptions,shortRestLimit,surgeReady,turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack} from "./weaponRules";
@@ -187,7 +187,7 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     }
     // Arriving somewhere new can be dangerous: a lair's creature (or one you fled from) is waiting, and a risky
     // place may hide an ambush the first time you set foot there.
-    if ((action?.type === 'travel' || action?.type === 'discover') && result.game.stage === 'wild' && !result.game.wildFight) {
+    if ((action?.type === 'travel' || action?.type === 'discover' || action?.type === 'beyond') && result.game.stage === 'wild' && !result.game.wildFight) {
       const place = worldPlace(result.game, result.game.world.at), first = !mapState(game).visited.includes(place.id);
       let foe = place.threat ? {template: place.threat.template, name: place.threat.name, appearance: place.threat.appearance, ...(place.threat.ally ? {ally: place.threat.ally} : {})} : null, hpLeft = place.threat?.hp ?? null;
       if (!foe && first && place.danger === 'risky' && random() < 0.4) {
@@ -534,7 +534,23 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         health,
         error: 'You need to recover before exploring.'
       };
-      const exploring={...game};delete exploring.npcCombat;return discoverPlace(exploring, hp, action);
+      const exploring={...game};delete exploring.npcCombat;
+      // A place in a new land when the atlas is full: the land longest unvisited is forgotten first (mapRules.js).
+      const far=action.place?.region&&!knownLand(game,action.place.region.name);
+      const room=forgetLands(exploring,landsToForget(exploring,{places:1,lands:far?1:0})??[]);
+      const found=discoverPlace(room.game, hp, action, room);
+      return room.lines.length&&!found.error?{...found,events:[...room.lines,...(found.events??[])]}:found;
+    }
+    // Beyond the edge of the map: a new land opens that way (forgetting the land longest unvisited when the atlas is
+    // full) and the hero walks there; the trip takes days.
+    if (action?.type === 'beyond') {
+      const error = beyondError(game, action.bearing);
+      if (error) return {game, health, error};
+      if (hp.current <= 0) return {game, health, error: 'You need to recover before traveling.'};
+      const leaving={...game};delete leaving.npcCombat;
+      const room=forgetLands(leaving,landsToForget(leaving,{lands:1,places:1})??[]);
+      const trip=goBeyond(room.game, hp, action.bearing, room);
+      return {game:trip.game, health:trip.health, events:[...room.lines, ...trip.events]};
     }
     // A healing draught for someone else: a companion lying senseless comes round (and owes you their life).
     const givePotion = () => {
@@ -1440,7 +1456,7 @@ function adventureStepEngine(game,health,hero,action,random=Math.random,opts={})
   const events=[line,'You still have your action: attack, cast, dodge, wait, surrender or flee.'];
   return {game:{...next,bonusUsed:true,log:[...events,...game.log].slice(0,40)},health:hp,events};
  }
- if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)&&!/^(again|move-mark):/.test(action)||action?.type==='travel'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
+ if(active&&(typeof action==='string'&&!['npc-dodge','npc-flee','npc-wait','npc-surrender'].includes(action)&&!/^(again|move-mark):/.test(action)||action?.type==='travel'||action?.type==='beyond'))return {game,health,error:'Combat is underway. Attack, cast, dodge, surrender, or flee through Send to DM.'};
  if(active&&['npc-flee','npc-surrender'].includes(action)){
   if(game.pendingSpell)return {game,health,error:'Cancel the pending spell first.'};
   const away=game.stage==='inn'?'bridge':game.stage==='wild'?worldPlace(game,game.world?.at)?.from??'inn':'inn';
@@ -1896,7 +1912,7 @@ function livingStep(game,health,hero,action,random,opts={}){
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','class:surge','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  const ownFeat=subclassAction(hero);if(ownFeat)allowed.push('class:'+ownFeat.id);
  if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item|again|move-mark):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
- const scene=action?.type==='travel'&&game.stage==='victory'?{...game,stage:'bridge'}:game;
+ const scene=(action?.type==='travel'||action?.type==='beyond')&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};
  // Stories continue after a lost fight: the player is back at the starting location and the foe keeps its HP.

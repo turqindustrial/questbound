@@ -39,6 +39,8 @@ export function quickActions(hero,game,health=null){
   if(id==='end-turn'){(game.actionUsed?primary:last).push({key:id,glyph:'⧗',icon:'forward',label:'End turn',question:'I end my turn.',action:c.action,primary:!!game.actionUsed});continue;}
   // Attacking townsfolk and declaring the story finished stay deliberate, typed decisions.
   if(/^(npc-attack|story-complete|story-advance|lead-done|restart-adventure)/.test(id))continue;
+  // Going beyond the edge of the map is chosen on the map (or asked for in words), never a chip.
+  if(id.startsWith('beyond-'))continue;
   // Passing an absent player's turn is offered by the play screen's waiting row, after a wait.
   if(id==='party-pass')continue;
   // Orders to companions are given in words or on the Companions screen; an offer to come along gets a chip.

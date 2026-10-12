@@ -31,6 +31,8 @@ export function describeEvent(event){
  // The long tale's own moments: a chapter finished (with what it revealed), the next begun (with its goal), a lead
  // seen through, a level earned. (Read before anything else: their words may mention saves or damage.)
  if(kind!=='player'&&kind!=='dialogue'&&kind!=='narration'){
+  // How the tale begins (storyRules.js introductionCard): who you are here, where, what is happening, who is here, what first.
+  if(/^Your tale begins\.\n/.test(text))return {type:'intro',rows:text.split('\n').slice(1).map(l=>{const at=l.indexOf(': ');return at>0?[l.slice(0,at),l.slice(at+2)]:['',l];}).filter(([,v])=>v.trim())};
   const done=text.match(/^Chapter (\d+) complete: (.+?)\. ([\s\S]+)$/);if(done)return {type:'chapter-done',number:Number(done[1]),title:done[2],text:done[3]};
   const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
   const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};

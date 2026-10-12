@@ -19,8 +19,8 @@ import {combatBasics} from './combatRules';
 
 const ADVENTURE_KEY = 'questbound.adventure.v1';
 const integerBetween = (n,min,max) => Number.isInteger(n) && n>=min && n<=max;
-// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n24).
-const someone = id => /^(?:keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(id));
+// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n48).
+const someone = id => /^(?:keeper|mara|n(?:[1-9]|[1-3]\d|4[0-8]))$/.test(String(id));
 export function adventureSnapshot(hero,game,health,chosen) {
   return {version:1,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
 }
@@ -121,7 +121,7 @@ function validSpellState(g) {
     && (g.arcanumUsed===undefined || (Array.isArray(g.arcanumUsed) && new Set(g.arcanumUsed).size===g.arcanumUsed.length && g.arcanumUsed.every(n=>integerBetween(n,6,9))))
     && (g.concentration===undefined || (spellTime(g.concentration) && text(g.concentration.duration,150) && (g.concentration.automaticProtection===undefined || (g.concentration.automaticProtection===true && ['blur','shield-of-faith'].includes(g.concentration.id) && integerBetween(g.concentration.remaining,1,g.concentration.id==='blur'?10:100)))
       // Hex or Hunter's Mark on a creature or person; Resistance's damage type and its once-a-turn use (spellRules.js).
-      && (g.concentration.target===undefined || /^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1\d|2[0-4]))$/.test(String(g.concentration.target)))
+      && (g.concentration.target===undefined || /^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|[1-3]\d|4[0-8]))$/.test(String(g.concentration.target)))
       && (g.concentration.damageType===undefined || ['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'].includes(g.concentration.damageType))
       && (g.concentration.used===undefined || g.concentration.used===true)
       // A spell held only for others (self:false); a lasting spell's slot level, save DC and whether it was cast this

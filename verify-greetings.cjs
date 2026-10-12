@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // about the hero is always ready, and someone who has only just spoken is not made to greet again.
 const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','greetings.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,greeting,shouldGreet,greetingPools,commitDmTurn,recordedTurn,conversationPeople,validAdventure,adventureSnapshot,replyIdeas,speakingPeople,adventureStep})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,greeting,standInGreetings,npcScene,shouldGreet,greetingPools,commitDmTurn,recordedTurn,conversationPeople,validAdventure,adventureSnapshot,replyIdeas,speakingPeople,adventureStep})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('fighter');
 const fight=r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),game={...fight,stage:'inn',enemyHP:0,foeFate:'slain'};delete game.openingAttackAvailable;
 const people=r.conversationPeople(game);assert.ok(people.length>=2,'Two people are here to talk to');
@@ -46,8 +46,24 @@ for(const g of [grudging,game,{...game,npcMemory:{...game.npcMemory,[first.id]:{
  const lines=ideas(g,first.id);assert.ok(lines.length>=2&&lines.length<=3,JSON.stringify(lines));assert.equal(new Set(lines).size,lines.length);for(const t of lines)assert.ok(goodLine(t),t);
 }
 assert.ok(ideas(grudging,first.id).some(t=>/set this right|what I did|leave you be|excuses/.test(t)),'A grudge-holder is offered amends, not small talk');
-const neutral=ideas(game,first.id);assert.ok(neutral.includes('What do you know about '+game.story.foe+'?'),JSON.stringify(neutral));assert.ok(neutral.includes('Is there anything you need?'));
-const around=ideas(game);assert.equal(around[0],'I look around.');assert.ok(around.some(t=>/^I ask \S+ what is going on here\.$/.test(t)),JSON.stringify(around));
+const neutral=ideas(game,first.id);assert.ok(neutral.includes('What do you know about '+game.story.foe+'?'),JSON.stringify(neutral));assert.equal(neutral.length,3);
+// Different people are offered different things to say to them (their role, whether they live here), and with several
+// people here the ideas speak to two of them, by name.
+assert.notDeepEqual(ideas(game,first.id),ideas(game,second.id),'Two people are not offered the same three lines');
+const around=ideas(game),firstName=n=>n.split(' ').filter(w=>!/^(?:captain|lady|lord|sir|dame|master|mistress|old|elder|brother|sister|father|mother|doctor|healer|aunt|uncle|young)$/i.test(w))[0];
+assert.ok(/^I ask \S+ what is going on here\.$/.test(around[0]),JSON.stringify(around));assert.ok(/^I ask \S+ (?:what they know about|who else)/.test(around[1]),JSON.stringify(around));
+assert.notEqual(around[0].split(' ')[2],around[1].split(' ')[2],'The two ideas speak to two different people');assert.ok(around.includes('I look around.'));
+const lonely={...game,people:{},npcMemory:{}};const one=ideas({...lonely,stage:'inn',story:{...game.story}},null);assert.ok(one.length>=2);
+// ---- Two people greeting in one scene never say the same words ----
+const present=r.npcScene(game).filter(n=>n.present).map(n=>n.id);assert.ok(present.length>=2);
+for(const attitude of ['friendly','indifferent','unfriendly']){
+ const alike={...game,npcMemory:Object.fromEntries(present.map(id=>[id,{attitude,response:'Same mood.',memories:[]}]))};
+ const lines=present.map(id=>r.greeting(alike,id,hero).fallback);assert.equal(new Set(lines).size,lines.length,attitude+': '+JSON.stringify(lines));
+ const table=r.standInGreetings(alike,hero);assert.deepEqual(present.map(id=>table[id].line),lines);
+}
+// Nor repeat a line said in the last turn.
+const heard=r.greeting(game,first.id,hero).fallback,after={...game,playback:[{id:7,npcId:null,events:[{kind:'dialogue',speakerId:second.id,text:heard}]}]};
+assert.notEqual(r.greeting(after,first.id,hero).fallback,heard,'A line just said by someone else is not said again');
 const alone=ideas({...game,stage:'bridge'});assert.ok(alone.includes('I look around.'));assert.ok(alone.some(t=>/^I head toward .+\.$/.test(t)),JSON.stringify(alone));for(const t of alone)assert.ok(goodLine(t),t);
 for(const g of [{...game,stage:'combat',enemyHP:5},{...game,npcCombat:{active:true}},{...game,stage:'dying'},{...game,stage:'dead'},{...game,pendingSpell:{id:'x'}}])assert.deepEqual(ideas(g,first.id),[]);
 const varied=new Set(Array.from({length:12},(_,i)=>ideas({...grudging,playback:[{id:i+1,npcId:null,events:[{kind:'narration',text:'x'}]}]},first.id).join('|')));assert.ok(varied.size>=2,'The picks change from turn to turn');

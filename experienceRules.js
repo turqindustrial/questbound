@@ -104,7 +104,8 @@ export function experienceEvents(before,after,hero,{action=null}={}){
  const roomFor=Math.max(0,limits.places-tally.places),paid=fresh.slice(0,roomFor);
  if(paid.length){sources.push({share:a.place*paid.length,label:paid.length===1?'Reached '+placeName(after,paid[0]):paid.length+' new places reached'});tally.places+=paid.length;}
  const landsSeen=new Set([...seen].map(id=>regionOfPlace(before,id)));
- for(const land of [...new Set(fresh.map(id=>regionOfPlace(after,id)))])if(land!=='home'&&!landsSeen.has(land)){const r=mapRegions(after).find(x=>x.id===land);sources.push({share:a.land,label:'First steps in '+(r?.name??'a new land')});}
+ // (a land counts only with a place that was paid for, so walking off the map again and again is no way to grow)
+ for(const land of [...new Set(paid.map(id=>regionOfPlace(after,id)))])if(land!=='home'&&!landsSeen.has(land)){const r=mapRegions(after).find(x=>x.id===land);sources.push({share:a.land,label:'First steps in '+(r?.name??'a new land')});}
  return {sources,tally};
 }
 const xpGain=(shares,xp,level)=>{
