@@ -1,7 +1,8 @@
 // Fight balance: every ready-made hero, at levels 1, 3 and 5, against every creature template, many times over, with a
 // plain tactic (swing the main weapon or cast the best damaging spell; drink a draught or heal when low). Prints the
-// win rate, how often the hero falls, fight length and HP left, flags fights that look deadly or trivial, and ends
-// with a summary line (mean win and fall rates, trivial and deadly cells). Plain Node, no AI calls. Options:
+// win rate, how often the hero falls and how often they die (a fallen hero rolls death saves to the end, a companion
+// helping first), fight length and HP left, flags fights that look deadly or trivial, and ends
+// with a summary line (mean win, fall and death rates, trivial and deadly cells). Plain Node, no AI calls. Options:
 //  --fights N (default 200 per cell), --levels 1,3,5, --foe key (one creature, or "story" for a written story's foe)
 //  --companion Class   a companion of that class, a level below the hero, fights beside every hero
 //  --party N           a party of N heroes (2-4) at the shared table, fighting in turns: the ready-made hero and the
