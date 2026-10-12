@@ -300,7 +300,7 @@ export function seatResidents(game,residents,places=[]){
  // Lookups by written name (never the object's own properties, whatever the writer called someone).
  const where=Object.create(null),core=Object.create(null),byName=Object.create(null);
  for(const id of ['inn','bridge','tower']){where[id]=id;const n=key(story.locations?.[id]?.name);if(n)where[n]=id;}
- for(const p of Array.isArray(places)?places:[])if(p&&/^p\d{1,2}$/.test(p.id)&&typeof p.name==='string'){where[p.id]=p.id;where[key(p.name)]=p.id;}
+ for(const p of Array.isArray(places)?places:[])if(p&&/^p\d{1,3}$/.test(p.id)&&typeof p.name==='string'){where[p.id]=p.id;where[key(p.name)]=p.id;}
  for(const id of coreNpcIds){core[id]=id;const n=key(story.npcs?.[id]?.name);if(n)core[n]=id;}
  const people={...game.people},memory={...game.npcMemory},count={},written={};
  const taken=new Set([...Object.keys(core).filter(k=>!coreNpcIds.includes(k)),key(story.foe),...Object.values(people).map(p=>key(p.name))].filter(Boolean));

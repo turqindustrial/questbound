@@ -74,7 +74,7 @@ assert.equal(again.world.regions.length,1);assert.equal(again.world.places.at(-1
 // The way back is a long road: walked eight hours a day.
 const back=r.travelRoute(inland,'p3','inn');assert.ok(Math.abs(back.feet-140*5280)<3);assert.equal(back.minutes,Math.round(140*5280/300)*3);assert.match(r.durationText(back.minutes),/days$/);
 // The Dungeon Master is told which land the hero is in and which they know.
-const world=r.dmContext(kara,inland,hp).world;same(world.region,{name:'The Halloway Shore',terrain:'hills'});same(world.regions,['The Brinefold','The Halloway Shore']);assert.equal(world.knownPlaces.find(p=>p.id==='p1').land,'The Brinefold');assert.equal(world.knownPlaces.find(p=>p.id==='bridge').kind,'road');
+const world=r.dmContext(kara,inland,hp).world;same(world.region,{name:'The Halloway Shore',terrain:'hills'});same(world.regions,['The Brinefold','The Halloway Shore']);assert.equal(world.knownPlaces.find(p=>p.id==='p1').land,'The Brinefold');{const b=world.knownPlaces.find(p=>p.id==='bridge');assert.ok(!b||(b.land==='The Brinefold'&&b.description===undefined),'a place in another land is told in brief');const home=world.farLands.find(l=>l.name==='The Brinefold');assert.ok(home&&/on the road to /.test(home.road),'with how far the road is');}
 // Saves refuse a place in a land that does not exist, and more lands than the atlas holds.
 assert.ok(!valid({...inland,world:{...inland.world,places:inland.world.places.map(p=>p.id==='p4'?{...p,region:'r5'}:p)}}));
 assert.ok(!valid({...inland,world:{...inland.world,regions:Array.from({length:r.maxRegions},(_,i)=>({id:'r'+(i+1),name:'Land '+i,terrain:'plains'}))}}));

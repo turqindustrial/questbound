@@ -3,7 +3,7 @@ import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import React,{useState,useEffect,useRef} from 'react';
 import {View,Image,Pressable,Platform,StyleSheet,Modal,ScrollView,useWindowDimensions} from 'react-native';
-import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords,maxRegions} from './mapRules';
+import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords} from './mapRules';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {WrapRow} from './ui';
@@ -108,7 +108,7 @@ function BeyondCard({land,beyond,onBeyond,close}){
   <View style={s.rose}>{roseRows.map((row,i)=><View key={i} style={s.roseRow}>{row.map(b=>b?<Pressable key={b} accessibilityRole="button" accessibilityLabel={'Beyond the map to the '+beyondWords[b]} accessibilityState={{selected:aim===b,disabled:!ok(b)}} disabled={!ok(b)} onPress={()=>setAim(aim===b?null:b)} dataSet={{qb:aim===b?'seg-on':'chip'}} style={[s.roseCell,aim===b&&s.roseOn,!ok(b)&&{opacity:.35}]}><PlainText style={[s.roseText,aim===b&&{color:colors.goldBright}]}>{b}</PlainText></Pressable>:<View key="centre" style={s.roseCentre}><Icon name="compass" size={16} color={colors.goldMid}/></View>)}</View>)}</View>
   <View style={{flex:1,minWidth:0}}>
    <Text style={s.detailName}>Beyond the map</Text>
-   <PlainText style={s.beyondText}>{aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, up to '+maxRegions+'.'}</PlainText>
+   <PlainText style={s.beyondText}>{aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, and you can always travel back.'}</PlainText>
    {!!aim&&<Pressable accessibilityRole="button" accessibilityLabel={'Set out '+beyondWords[aim]+', beyond the map'} onPress={()=>{onBeyond(aim);setAim(null);close?.();}} dataSet={{qb:'chip'}} style={[s.travel,{alignSelf:'flex-start',marginTop:8}]}><View style={s.travelRow}><Icon name="travel" size={14} color={colors.gold}/><PlainText style={s.travelText}>Set out</PlainText></View></Pressable>}
   </View>
  </View>;
@@ -138,8 +138,11 @@ function RegionMap({game,travelTo,onTravel,beyond=[],onBeyond}){
  const pick=selected&&ids.includes(selected)?selected:null,pickRoute=pick?routeTo(pick):null,canGo=id=>id!==here&&!!onTravel&&travelTo.includes(id);
  const places=[...sheetIds].sort((a,b)=>(a===here?-1:b===here?1:(routeTo(a)?.feet??0)-(routeTo(b)?.feet??0)));
  // The regions the hero knows, as a row of sheets to turn to (shown once there is more than one).
- // One line of lands; when they do not fit, a More chip shows the rest (nothing scrolls sideways).
- const regionTabs=(inline=false)=>regions.length>1&&<WrapRow rows={1} rowHeight={34} gap={6} resetKey={shown.id} label="Lands" accessibilityRole="tablist" style={[s.regionBar,inline&&s.regionInline]}>{regions.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</WrapRow>;
+ // One line of lands; when they do not fit, a More chip shows the rest (nothing scrolls sideways; opened, at most four
+ // lines, then it scrolls up and down). Lands travelled are never forgotten, so there may be many: the land the hero is
+ // in comes first, then the one on show, the home land, and the rest by the last time the hero was there.
+ const tabOrder=[...new Map([home,shown.id,'home',...regions.map((r,i)=>({r,i})).sort((a,b)=>(b.r.last??-1)-(a.r.last??-1)||a.i-b.i).map(({r})=>r.id)].map(id=>[id,regions.find(r=>r.id===id)]).filter(([,r])=>r)).values()];
+ const regionTabs=(inline=false)=>regions.length>1&&<WrapRow rows={1} openRows={4} rowHeight={34} gap={6} resetKey={shown.id} label="Lands" accessibilityRole="tablist" style={[s.regionBar,inline&&s.regionInline]}>{tabOrder.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</WrapRow>;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
  // The ways off the edge of the land the hero stands in, on that land's own sheet.
  const beyondCard=close=>shown.id===home&&!!onBeyond&&beyond.length>0&&<BeyondCard land={shown.name} beyond={beyond} onBeyond={onBeyond} close={close}/>;

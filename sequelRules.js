@@ -7,6 +7,8 @@ import {appendJournal,appendStoryLog} from './journalRules';
 // way). Setting out somewhere new, only the hero's companions and pack come along. Gold, draughts and training
 // always stay with the hero.
 export const sequelBearings=Object.keys(bearings);
+// Lands travelled are never forgotten: every place of the earlier country the hero went to comes along, with the
+// roads back to it; of the places only heard of, up to oldPlaceLimit come too.
 export const oldPlaceLimit=20;
 // What a new story starts from: the hero's own things, nothing tied to the old region.
 export function carriedBase(previous){
@@ -31,7 +33,7 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  if(!previous?.story)return next;
  const old=previous.story,ids=npcIdsOf(previous),fate=previous.npcFate??{},follow=previous.followers??{};
  const own=worldPlaces(next),taken=new Set([...Object.values(next.story.locations),...own].map(l=>l.name.trim().toLowerCase()));
- const unique=name=>{let n=name.trim().slice(0,60),k=n.toLowerCase();if(taken.has(k)){n=('Old '+n).slice(0,60);k=n.toLowerCase();}if(taken.has(k))return null;taken.add(k);return n;};
+ const unique=name=>{const n=name.trim().slice(0,60),k=[n,('Old '+n).slice(0,60),(n.slice(0,50)+' (earlier)')].find(c=>!taken.has(c.toLowerCase()));if(!k)return null;taken.add(k.toLowerCase());return k;};
  // ---- Places ----
  const placeMap={},places=[];
  // The earlier country keeps its own map: its home region becomes a region of the new story (r1), and any lands
@@ -40,15 +42,22 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  const regions=[],regionMap={},ownRegions=next.world?.regions??[];
  if(sameRegion){
   const [dx,dy]=bearings[bearing]??bearings.N,shift={x:Math.round(dx*miles*5280),y:Math.round(dy*miles*5280)};
-  const regionFor=oldId=>{if(regionMap[oldId])return regionMap[oldId];if(ownRegions.length+regions.length>=maxRegions-1)return regions[0]?.id??null;const source=mapRegions(previous).find(r=>r.id===oldId)??homeRegion(previous);const id='r'+(ownRegions.length+regions.length+1),taken=[homeRegion(next).name,...ownRegions.map(r=>r.name),...regions.map(r=>r.name)].map(n=>n.toLowerCase());let name=source.name.slice(0,60);if(taken.includes(name.toLowerCase()))name=(oldId==='home'?'Lands about '+old.locations.inn.name:name+' (earlier)').slice(0,60);regions.push({id,name,terrain:source.terrain});return regionMap[oldId]=id;};
-  const add=(from,src,oldRegion,extra={})=>{if(places.length>=Math.min(oldPlaceLimit,maxWorldPlaces-own.length))return;const name=unique(src.name);if(!name)return;const id='p'+(own.length+places.length+1),region=regionFor(oldRegion);places.push({id,name,description:String(src.description).trim().slice(0,300),kind:src.kind,x:src.x+shift.x,y:src.y+shift.y,from,...(region?{region}:{}),...extra});return id;};
+  // A land comes along as a land of its own while there is room (sixty lands in all); past that (a very long life of
+  // tales), a place the hero went to joins the earlier country's first land rather than being lost, and a place only
+  // heard of in a land that has no room is left behind.
+  const regionFor=(oldId,needed)=>{if(regionMap[oldId])return regionMap[oldId];if(ownRegions.length+regions.length>=maxRegions-1)return needed?regions[0]?.id??null:undefined;const source=mapRegions(previous).find(r=>r.id===oldId)??homeRegion(previous);const id='r'+(ownRegions.length+regions.length+1),taken=[homeRegion(next).name,...ownRegions.map(r=>r.name),...regions.map(r=>r.name)].map(n=>n.toLowerCase());let name=source.name.slice(0,60);if(taken.includes(name.toLowerCase()))name=(oldId==='home'?'Lands about '+old.locations.inn.name:name+' (earlier)').slice(0,60);regions.push({id,name,terrain:source.terrain});return regionMap[oldId]=id;};
+  let heardOf=0;
+  const add=(from,src,oldRegion,extra={},needed=true)=>{if(places.length>=maxWorldPlaces-own.length||(!needed&&heardOf>=oldPlaceLimit))return;const region=regionFor(oldRegion,needed);if(region===undefined)return;const name=unique(src.name);if(!name)return;if(!needed)heardOf++;const id='p'+(own.length+places.length+1);places.push({id,name,description:String(src.description).trim().slice(0,300),kind:src.kind,x:src.x+shift.x,y:src.y+shift.y,from,...(region?{region}:{}),...extra});return id;};
   const core=id=>({name:old.locations[id].name,description:old.locations[id].description,kind:placeKinds.includes(old.locations[id].kind)?old.locations[id].kind:kindOf[id],...placeCoordinates(previous,id)});
   // The earlier starting place is joined to the new one; its two neighbours follow the earlier story's own paths.
   placeMap.inn=add('inn',core('inn'),'home');
   const links=worldLinks(previous).filter(([a,b])=>coreIds.includes(a)&&coreIds.includes(b));
   for(let pass=0;pass<2;pass++)for(const [a,b] of links)for(const [known,next] of [[a,b],[b,a]])if(placeMap[known]&&!placeMap[next])placeMap[next]=add(placeMap[known],core(next),'home');
-  // Places found while exploring keep their order, so every kept place's path back is kept too.
-  for(const p of worldPlaces(previous)){const from=placeMap[p.from];if(!from)continue;const extra={};for(const k of ['danger','feature','cleared','threat'])if(p[k]!==undefined)extra[k]=p[k];const id=add(from,{...p,kind:placeKinds.includes(p.kind)?p.kind:'landmark'},p.region??'home',extra);if(id)placeMap[p.id]=id;}
+  // Places found while exploring keep their order, so every kept place's path back is kept too. First every place
+  // the hero went to (or where a companion waits) and the places on the roads to them; then places only heard of.
+  const olds=worldPlaces(previous),byOld=Object.fromEntries(olds.map(p=>[p.id,p])),went=new Set([...(previous.map?.visited??[]),...Object.values(follow).filter(f=>f?.status==='waiting').map(f=>f.location)]),needed=new Set();
+  for(const p of olds)if(went.has(p.id))for(let q=p;q&&!needed.has(q.id);q=byOld[q.from])needed.add(q.id);
+  for(const pass of [true,false])for(const p of olds){if(needed.has(p.id)!==pass||placeMap[p.id])continue;const from=placeMap[p.from];if(!from)continue;const extra={};for(const k of ['danger','feature','cleared','threat'])if(p[k]!==undefined)extra[k]=p[k];const id=add(from,{...p,kind:placeKinds.includes(p.kind)?p.kind:'landmark'},p.region??'home',extra,pass);if(id)placeMap[p.id]=id;}
  }
  // ---- People ----
  const following=id=>follow[id]?.status==='following'&&fate[id]!=='dead'&&(previous.npcHP?.[id]??1)>0;

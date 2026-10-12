@@ -1,11 +1,11 @@
 import {storyText,questState} from './storyRules';
-import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf,forgetLands} from "./npcRules";
+import {recordNpcAggression,npcServiceError,npcScene,npcProfile,npcMaxHP,npcLore,npcCombatParticipants,npcIdsOf} from "./npcRules";
 import {automaticEffects,requestSpell,resolveSpellRuling,spellDefense,concentrationAfterDamage,riderDamage,attackBoost,helpless,spendGuidance,banedAttack,charmedBy,spellTurnStarts,spellTurnEnds,shieldReaction,tickBuffs,resistedDamage,wokenByHarm,endSpellMarks,heroTurnBegins,personDefenses,lastingTurn,wardEdge,spellAgain,moveMark,markGone,harmCreature,againError,withDefenses,defended,knownSpells} from "./spellRules";
 import {slotChoices,slotUsed} from "./spellOptions";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
-import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace,travelRoute,timePasses,beyondError,goBeyond,landsToForget,knownLand} from "./mapRules";
+import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,worldPlace,travelRoute,timePasses,beyondError,goBeyond,knownLand,discoveryRoom,roomToMake,letRumoursGo} from "./mapRules";
 import {resolveClassAction,bonusOptions,shortRestLimit,surgeReady,turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {attackOptions,attacksPerAction,rollAttack,rollDamage,rangedMode,weaponRange,canThrow,thrownAttack,oneHanded} from "./weaponRules";
@@ -537,20 +537,21 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
         error: 'You need to recover before exploring.'
       };
       const exploring={...game};delete exploring.npcCombat;
-      // A place in a new land when the atlas is full: the land longest unvisited is forgotten first (mapRules.js).
-      const far=action.place?.region&&!knownLand(game,action.place.region.name);
-      const room=forgetLands(exploring,landsToForget(exploring,{places:1,lands:far?1:0})??[]);
+      // When the map is full, a rumour never followed (or a land never reached) gives way first; lands travelled are
+      // never forgotten (mapRules.js roomToMake).
+      const far=!!action.place?.region&&!knownLand(game,action.place.region.name);
+      const room=letRumoursGo(exploring,discoveryRoom(exploring,far));
       const found=discoverPlace(room.game, hp, action, room);
       return room.lines.length&&!found.error?{...found,events:[...room.lines,...(found.events??[])]}:found;
     }
-    // Beyond the edge of the map: a new land opens that way (forgetting the land longest unvisited when the atlas is
-    // full) and the hero walks there; the trip takes days.
+    // Beyond the edge of the map: a new land opens that way (a rumour or a land never reached giving way when the map
+    // is full; lands travelled are never forgotten) and the hero walks there; the trip takes days.
     if (action?.type === 'beyond') {
       const error = beyondError(game, action.bearing);
       if (error) return {game, health, error};
       if (hp.current <= 0) return {game, health, error: 'You need to recover before traveling.'};
       const leaving={...game};delete leaving.npcCombat;
-      const room=forgetLands(leaving,landsToForget(leaving,{lands:1,places:1})??[]);
+      const room=letRumoursGo(leaving,roomToMake(leaving,{lands:1,places:1}));
       const trip=goBeyond(room.game, hp, action.bearing, room);
       return {game:trip.game, health:trip.health, events:[...room.lines, ...trip.events]};
     }

@@ -34,7 +34,8 @@ function journeys(context){
 // Which of those journeys the player's words name. A place is named by its whole name, or by a word no other known
 // place shares ("the lookout" for Lookout Rock). `strong` means there is no doubt which place is meant.
 function namedJourneys(text,context){
- const offered=journeys(context),all=[...(context?.world?.knownPlaces??[]).map(p=>p?.name),...offered.map(j=>j.name)].filter(Boolean);
+ const far=(Array.isArray(context?.world?.farLands)?context.world.farLands:[]).flatMap(l=>Array.isArray(l?.places)?l.places.map(n=>String(n).replace(/ \(heard of\)$/,'')):[]);
+ const offered=journeys(context),all=[...(context?.world?.knownPlaces??[]).map(p=>p?.name),...far,...offered.map(j=>j.name)].filter(Boolean);
  const count=word=>new Set(all.filter(name=>wordsOf(name).includes(word))).size;
  return offered.map(j=>{
   const words=wordsOf(j.name),whole=text.includes(j.name.toLowerCase()),own=words.filter(w=>count(w)===1&&hasWord(text,w));
