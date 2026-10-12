@@ -1,5 +1,6 @@
 import {dmChoices,shortRestsLeft} from './dmContext';
-import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow,sustainTargets,lastingSpells} from './spellRules';
+import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow,sustainTargets,lastingSpells,allySpell,allySpellLimit,spellDamageMax} from './spellRules';
+import {spellSlots,slotUsed} from './spellOptions';
 import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 import {combatBasics} from './combatRules';
@@ -157,20 +158,88 @@ export function spellActions(hero,game){
   const costs=spellCostOptions(hero,game,spell),how=costs.includes('species')?'Free':!fighting&&costs.includes('ritual')?'Ritual · 10 min':null;
   const ends=spell.concentration&&held&&held!==spell.id&&heldName?'ends '+heldName:null;
   const timing=fighting&&spell.castingTime==='Bonus Action'&&!effect?.asAction?'Bonus':fighting&&spell.castingTime==='Reaction'?'Reaction':null;
-  const base={key:'spell:'+spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp||effect?.buff?'shield':effect?.detection||effect?.narrated?'eye':spellIcon(effect?.type),label:spell.name,detail:[spell.level?'Level '+spell.level:'Cantrip',timing,how,ends].filter(Boolean).join(' · ')};
+  const base={key:'spell:'+spell.id,spell:spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp||effect?.buff?'shield':effect?.detection||effect?.narrated?'eye':spellIcon(effect?.type),label:spell.name,detail:[spell.level?'Level '+spell.level:'Cantrip',timing,how,ends].filter(Boolean).join(' · ')};
   // A friend's chip carries its own cast, aimed at that hero by id (two heroes may share a name).
-  const friendCast=m=>{const question='I cast '+spell.name+' on '+m.name+'.',c=dmCommand(hero,game,question);return {question,...(c?.action?.type==='spell'?{action:{...c.action,request:{...c.action.request,partyTarget:m.id}}}:{})};};
-  const friends=effect?.heal&&!spell.id.startsWith('mass-')?hurtFriends.map(m=>({...base,key:base.key+':party:'+m.id,label:spell.name,detail:'on '+m.name.split(' ')[0]+(m.status==='down'?' · down':''),...friendCast(m)})):[];
+  const friendCast=(m,question='I cast '+spell.name+' on '+m.name+'.')=>{const c=dmCommand(hero,game,question);return {question,...(c?.action?.type==='spell'?{action:{...c.action,request:{...c.action.request,partyTarget:m.id}}}:{})};};
+  // Each chip of a levelled spell carries its ways of casting (castOptions): the slot organizer offers them.
+  const chip=(extra,friend=null)=>{const c={...base,...extra};const casts=castOptions(hero,game,spell,c,fighting,friend?question=>friendCast(friend,question):null);if(!casts)return c;
+   // One way only, above the spell's own level (a Warlock's pact slot): the chip says so.
+   const only=casts.length===1&&typeof casts[0].slot==='number'&&casts[0].slot>spell.level?casts[0].slot:null;
+   return {...c,...(only?{detail:c.detail+' · at level '+only}:{}),casts};};
+  const friends=effect?.heal&&!spell.id.startsWith('mass-')?hurtFriends.map(m=>chip({key:base.key+':party:'+m.id,label:spell.name,detail:'on '+m.name.split(' ')[0]+(m.status==='down'?' · down':''),...friendCast(m)},m)):[];
   // A spell already held needs no second chip on yourself.
   if(self&&spell.concentration&&held===spell.id)return friends;
-  if(self)return [{...base,question:'I cast '+spell.name+' on me.'},...friends];
-  if(effect?.smite)return [{...base,question:'I cast '+spell.name+'.'}];
-  if(effect?.narrated&&!effect.object)return [{...base,question:'I cast '+spell.name+'.'}];
+  if(self)return [chip({question:'I cast '+spell.name+' on me.',self:true}),...friends];
+  if(effect?.smite)return [chip({question:'I cast '+spell.name+'.'})];
+  if(effect?.narrated&&!effect.object)return [chip({question:'I cast '+spell.name+'.'})];
   if(effect?.rider&&held===spell.id)return [];
-  if(effect&&creatures&&!effect.narrated)return [{...base,question:'I cast '+spell.name+' at '+foe+'.'}];
-  return [{...base,prefill:'I cast '+spell.name+' '+(spell.range==='Self'?'':'on ')}];
+  if(effect&&creatures&&!effect.narrated)return [chip({question:'I cast '+spell.name+' at '+foe+'.'})];
+  return [chip({prefill:'I cast '+spell.name+' '+(spell.range==='Self'?'':'on ')})];
  });
 }
+// The slot organizer: every way a levelled spell can be cast right now, in the order a typed cast would choose (a free
+// casting from the hero's species, then a ritual out of a fight, then each slot level with a slot left, at or above
+// the spell's own level; a Warlock's pact slots are all of one level; a Mystic Arcanum last), the first marked as the
+// default. Each says what the higher slot gains where the game knows it, and how many slots of that level are left.
+// The way is named in the sentence ("… using a 2nd-level slot", "… as a ritual"), which dmCommand reads exactly as
+// typed, so a chip sent to a shared table is read the same way on the campaign server; a friend's heal carries its
+// own action, which server-turn.cjs accepts from these casts. Null for a cantrip.
+const slotOrdinal=n=>n+(n===1?'st':n===2?'nd':n===3?'rd':'th');
+function castOptions(hero,game,spell,chip,fighting,friend=null){
+ if(!spell.level)return null;
+ const total=spellSlots(hero),rank=c=>c==='species'?0:c==='ritual'?1:c==='arcanum'?99:1+c;
+ const costs=spellCostOptions(hero,game,spell).filter(c=>!(fighting&&c==='ritual')&&!(fighting&&typeof c==='number'&&game.slotSpentThisTurn)).sort((a,b)=>rank(a)-rank(b));
+ if(!costs.length)return null;
+ const gains=costs.map(c=>upcastGain(hero,spell,typeof c==='number'?c:spell.level,!!chip.self)),same=gains.every(g=>g===gains[0]);
+ return costs.map((c,i)=>{
+  const slot=typeof c==='number',end=slot?' using a '+slotOrdinal(c)+'-level slot':c==='ritual'?' as a ritual':c==='arcanum'?' with my arcanum':'',pre=slot?'at '+slotOrdinal(c)+' level ':c==='ritual'?'as a ritual ':c==='arcanum'?'with my arcanum ':'';
+  const left=slot?Math.max(0,(total[c-1]??0)-slotUsed(game,c)):null;
+  const detail=[same?null:gains[i],slot?left+' left':c==='ritual'?'10 min · no slot':c==='species'?'no slot':null].filter(Boolean).join(' · ');
+  const label=slot?'Level '+c:c==='ritual'?'Ritual':c==='species'?'Free':'Arcanum';
+  const way=chip.prefill?{prefill:chip.prefill.replace(/^(I cast .+? )(on )?$/,(m,head,on)=>head+pre+(on??''))}:friend?friend(chip.question.replace(/.$/,end+'.')):{question:chip.question.replace(/.$/,end+'.')};
+  return {key:chip.key+'@'+c,glyph:'✧',icon:chip.icon,spell:spell.id,slot:c,label,...(detail?{detail}:{}),...way,primary:i===0,...(/\bBonus\b/.test(chip.detail??'')?{bonus:true}:{})};
+ });
+}
+// What a higher slot gains, where the game knows it: darts, dice, targets, friends, hit points or the most damage.
+export function upcastGain(hero,spell,level,self=false){
+ const effect=automaticEffects[spell.id]??{},more=Math.max(0,level-spell.level);
+ if(effect.missile)return (2+level)+' darts';
+ if(effect.rays)return (effect.rays+more)+' rays';
+ if(effect.aid)return '+'+Math.min(40,5*Math.max(1,level-1))+' HP';
+ if(allySpell(spell.id)){const n=allySpellLimit(spell,level);return self||n<2?null:'up to '+n+' friends';}
+ const t=effect.inflict?.targets??effect.targets;
+ if(t?.upcast){const n=(t.base??1)+more*t.upcast;return n+(n===1?' target':' targets');}
+ if(effect.die&&effect.upcast)return ((effect.count??1)+more*effect.upcast)+'d'+effect.die+(effect.heal?' healing':effect.type?' '+String(effect.type).toLowerCase():'');
+ if(effect.then?.upcast)return ((effect.then.count??1)+more*effect.then.upcast)+'d'+effect.then.die+' '+String(effect.then.type??'').toLowerCase();
+ const most=spellDamageMax(hero,spell,level);return most>0?'up to '+most+' damage':null;
+}
+// The Cast… picker as the play screen shows it: Cantrips, then the spells under a heading for each spell level with
+// the slots of that level left. A Warlock's pact slots are all of one level, so their count heads the levelled spells
+// once ("Pact slots · level 3 · 2 of 2"); slot levels with no spell of their own on offer are named in a quiet
+// heading at the end. Headings are labels: the number keys and the guide skip them.
+export function castMenu(hero,game){
+ const chips=spellActions(hero,game);if(!chips.length)return [];
+ const levels=Object.fromEntries(knownSpells(hero).map(s=>[s.id,s.level])),total=spellSlots(hero),left=n=>Math.max(0,(total[n-1]??0)-slotUsed(game,n));
+ const groups=[...new Set(chips.map(c=>levels[c.spell]??0))].sort((a,b)=>a-b),row=[];
+ const pact=hero.class==='Warlock'?total.findIndex(n=>n>0)+1:0;
+ const spare=pact?[]:total.map((n,i)=>n>0&&!groups.includes(i+1)?'Level '+(i+1)+': '+left(i+1)+' of '+n:null).filter(Boolean);
+ for(const level of groups){
+  if(pact&&level>0&&!row.some(a=>a.key==='heading:pact'))row.push({key:'heading:pact',heading:'Pact slots · level '+pact+' · '+left(pact)+' of '+total[pact-1],strong:true});
+  row.push({key:'heading:level:'+level,heading:level===0?'Cantrips':'Level '+level+(!pact&&total[level-1]?' · '+left(level)+' of '+total[level-1]+' slots':'')});
+  // Under its level's heading a chip need not say its level again (only Bonus, Free, Ritual, what it ends, a friend).
+  row.push(...chips.filter(c=>(levels[c.spell]??0)===level).map(c=>{const detail=String(c.detail??'').replace(/^(?:Level \d|Cantrip)(?: · )?/,'');return {...c,...(detail?{detail}:{detail:undefined})};}));
+ }
+ if(spare.length&&groups.some(g=>g>0))row.push({key:'heading:slots',heading:'Slots · '+spare.join(' · '),quiet:true});
+ return row;
+}
+// The play screen's two ways of offering these chips (DungeonMaster.js). In battle (a fight with a creature, a brawl,
+// a party's turn order, or the hero dying) the buttons stay in view, because they remind the player what a turn can
+// be. Everywhere else they fold into Suggestions, which the player opens when they want ideas: Say (things to say),
+// Speak (everything about the people here: a chip to speak with each, an offer to take someone along, a fallen
+// companion to revive) and Actions (the rest), so that most turns are typed in the player's own words.
+export function inBattle(game){return game.stage==='combat'||game.stage==='dying'||!!game.npcCombat?.active||!!game.turnOrder;}
+export const speakAction=key=>/^(join:|give-potion:)/.test(String(key??''));
+
 function spellIcon(type=''){return {fire:'flame',cold:'frost',lightning:'bolt',thunder:'bolt',radiant:'sun',necrotic:'skull',force:'spell',poison:'potion',acid:'potion',psychic:'eye'}[String(type).toLowerCase()]??'spell';}
 function dungeonLabels(id,label){
  const short={'dungeon:enter':['◈','Enter the vaults','door'],'dungeon:leave':['↩','Leave the vaults','retreat'],'dungeon:disarm':['⚙','Disarm the trap','key'],'dungeon:search':['⌕','Search the archive','search'],'dungeon:dawn':['✦','Speak “Dawn”','sun'],'dungeon:basin':['✚','Drink from the basin','potion'],'dungeon:claim':['✦','Claim the treasure','gem']};

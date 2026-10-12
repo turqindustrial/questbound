@@ -1,6 +1,6 @@
 import {useSceneTransition} from './SceneTransition';
 import {dmEndpoints,askDm} from './dmConnection';
-import {spellActions,attackActions} from './quickActions';
+import {castMenu,attackActions,inBattle,speakAction} from './quickActions';
 import {recruitmentTargets} from './followerRules';
 import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
@@ -36,6 +36,9 @@ import {deedById} from './deedRules';
 import {cue} from './cinematics';
 import {openFeedback} from './Feedback';
 const endpoints=dmEndpoints();
+// Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
+const panelKey='questbound.suggestions.v1';
+const loadPanel=()=>{try{const v=JSON.parse(globalThis.localStorage?.getItem(panelKey)??'null');return {open:v?.open===true,tab:['say','speak','actions'].includes(v?.tab)?v.tab:'say'};}catch{return {open:false,tab:'say'};}};
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;
 export default function DungeonMaster({hero,game,health,act,onConversationChange,table,fill=false,quick=[],sendRef,onTyping}) {
@@ -149,7 +152,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
   useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined){setAnimateId(lastTurnId);try{speakTurn(game.playback.at(-1));}catch{}}seenTurn.current=lastTurnId;},[lastTurnId]);
   // Each new turn brings the action row back to its first (main) action.
-  const [spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false);
+  const [spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false),[castSpell,setCastSpell]=useState(null);
   // The Attack… picker, and the target chosen in it (null: the foe, or nobody yet when only people are here).
   const [attackOpen,setAttackOpen]=useState(false),[attackTarget,setAttackTarget]=useState(null);
   const closeAttack=()=>{setAttackOpen(false);setAttackTarget(null);};
@@ -160,7 +163,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const lesson=tips?skirmishHint(game,health,combatBasics(gearedHero(hero,game)).hp):null;
   const dismissTips=()=>{setTips(false);try{globalThis.localStorage?.setItem('questbound.tips.v1','seen');}catch{}};
   useEffect(()=>{if(tips&&lastTurnId>=3)dismissTips();},[lastTurnId]);
-  useEffect(()=>{setSpellsOpen(false);closeAttack();},[lastTurnId]);
+  useEffect(()=>{setSpellsOpen(false);setCastSpell(null);closeAttack();},[lastTurnId]);
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
   const waiting=table?.joined?table.otherActing:null; const tableSyncing=!!table?.joined&&!table.synchronized;
@@ -294,19 +297,33 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const hint=tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':null;
   // Quick actions: one tap sends; Cast… starts the sentence so the player names the spell and target.
   if(sendRef)sendRef.current=preset=>ask(preset);
-  // Cast… swaps the row for the hero's spells; a spell casts in one tap (or starts the sentence when it needs a target).
-  const spellRow=[{key:'spells-back',glyph:'‹',icon:'back',label:'Back',run:()=>setSpellsOpen(false)},...spellActions(hero,game)];
+  // Battle (inBattle in quickActions.js: a creature fight, a brawl, a party's turn order, the hero dying): the action
+  // buttons stay in view, because they remind the player what a turn can be. Everywhere else they fold into
+  // Suggestions, closed until the player opens it: the message box and the story are the main thing.
+  const battle=inBattle(game)||!!turnsNow;
+  // Cast… swaps the row for the hero's spells: cantrips, then each spell level with its slots left (castMenu). A
+  // levelled spell with more than one way to cast opens the slot organizer: each slot level it can take, a ritual or
+  // a free casting, the lowest first, with what a higher slot gains. Its Back chip carries the spell's name, so the
+  // ways to cast it start on the first line even on a phone.
+  const menu=spellsOpen?castMenu(hero,game):[],choosing=castSpell?menu.find(a=>a.key===castSpell&&a.casts?.length>1)??null:null;
+  const spellRow=choosing?[{key:'cast-back',glyph:'‹',icon:'back',label:choosing.label,detail:choosing.key.includes(':party:')?String(choosing.detail??'').split(' · ')[0]:'Slot?',run:()=>setCastSpell(null)},...choosing.casts]:[{key:'spells-back',glyph:'‹',icon:'back',label:'Back',run:()=>{setSpellsOpen(false);setCastSpell(null);}},...menu];
   const attackRow=attackOpen?attackActions(hero,game,health,attackTarget).map(a=>a.back?{...a,run:closeAttack}:a.target?{...a,run:()=>setAttackTarget(a.target)}:a):[];
   // Someone else's turn: who it is, and (when their player is away or slow) a way to pass it. Your own: said so.
   const waitRow=turnWait?[{key:'heading:turn-wait',heading:turnWait.name+'’s turn'+(turnWait.status==='down'?' · down':''),strong:true},...(canPass?[{key:'party-pass',glyph:'»',icon:'forward',label:'Skip '+turnWait.name.split(' ')[0],detail:awayFromTable?'Away':'Slow',question:'I pass '+turnWait.name+'’s turn: their player is away.',action:{type:'party-pass'}}]:[])]:null;
-  const actions=person?[]:waitRow??(spellsOpen?spellRow:attackOpen?attackRow:turnsNow?.mine&&quick.length?[{key:'heading:your-turn',heading:'Your turn',strong:true},...quick]:quick),actionsDisabled=busy||playing||!!waiting||tableSyncing;
+  // Out of battle the chips about people (an offer to come along, a fallen companion to revive) go under Speak with
+  // the people here; the rest are the Actions.
+  const turnRow=turnsNow?.mine&&quick.length?[{key:'heading:your-turn',heading:'Your turn',strong:true},...quick]:quick;
+  const speakQuick=battle?[]:quick.filter(a=>speakAction(a.key)),calmQuick=battle?quick:quick.filter(a=>!speakAction(a.key));
+  const actions=person?[]:waitRow??(spellsOpen?spellRow:attackOpen?attackRow:battle?turnRow:calmQuick),actionsDisabled=busy||playing||!!waiting||tableSyncing;
   const runAction=a=>{
-    if(a.key==='cast'){closeAttack();setSpellsOpen(true);return;}
+    if(a.person){engage(a.person);return;}
+    if(a.key==='cast'){closeAttack();setCastSpell(null);setSpellsOpen(true);return;}
     if(a.key==='attack-menu'){setSpellsOpen(false);setAttackOpen(true);return;}
     if(a.heading)return;
+    if(a.casts?.length>1){setCastSpell(a.key);return;}
     if(attackOpen&&a.action)closeAttack();
     if(a.run){a.run();return;}
-    if(a.key.startsWith('spell:'))setSpellsOpen(false);
+    if(a.key.startsWith('spell:')){setSpellsOpen(false);setCastSpell(null);}
     if(a.prefill){setInput(a.prefill);setTimeout(()=>inputRef.current?.focus(),30);return;}
     ask(a.action?a:{question:a.question,parse:true});
   };
@@ -315,15 +332,25 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // story keeps its height; a phone or a window of middling height (a small laptop, which also drops the narrator's
   // heading) has two; a roomy screen three. An open Attack… or Cast… picker, or the wait for another hero, gets more.
   const snug=viewHeight<700,fit=chipLayout(viewWidth,viewHeight),tight=fit.tight,chipH=fit.rowHeight;
-  // With a keyboard, 1–9 press the matching action (shown as a small key on each chip).
-  // Suggestions: what the Dungeon Master offered with the latest turn, else a few stand-ins worked out here. They sit in
-  // a tab beside the actions (never popping up on their own) and a tap only fills the message box.
+  // Say: what the Dungeon Master offered with the latest turn, else a few stand-ins worked out here. A tap only fills
+  // the message box (it never sends), so the player can change it first.
   const standIns=useMemo(()=>replyIdeas(game,hero,person?.id??null),[fingerprint,person?.id]);
   const ideaLines=direct||dead||dying||!!turnWait||!!waiting?[]:ideas?.turn===lastTurnId&&ideas.person===(person?.id??null)&&ideas.lines.length?ideas.lines:standIns;
+  // In battle: the Actions | Say tabs beside the row, as before (never switching by themselves).
   const [tab,setTab]=useState('actions');
-  const showIdeas=ideaLines.length>0&&(!actions.length||tab==='suggestions'),ideasDisabled=busy||playing;
+  // Out of battle: Suggestions, open or closed, and the sub-tab last chosen, kept per device.
+  const [panel,setPanel]=useState(loadPanel);
+  const savePanel=next=>{setPanel(next);try{globalThis.localStorage?.setItem(panelKey,JSON.stringify(next));}catch{}};
   const fillIdea=text=>{playSound('click');setInput(text);setTimeout(()=>inputRef.current?.focus(),30);};
-  const keysRef=useRef({});keysRef.current=showIdeas?{actions:ideaLines.map(text=>({key:'idea:'+text,text})),disabled:ideasDisabled,run:a=>fillIdea(a.text)}:{actions:actions.filter(a=>!a.heading),disabled:actionsDisabled,run:a=>runAction(a)};
+  const ideasDisabled=busy||playing;
+  // Speak: a chip for each person here (the dead hero speaks to no one), then the offers and revivals about people.
+  const speakList=[...(dead?[]:people.filter(n=>n.id!==person?.id).map(n=>({key:'person:'+n.id,person:n.id,label:n.name}))),...speakQuick];
+  const calmTabs=[['say','Say',ideaLines.length],['speak','Speak',speakList.length],...(person?[]:[['actions','Actions',actions.filter(a=>!a.heading).length]])];
+  const shownTab=calmTabs.some(t=>t[0]===panel.tab)?panel.tab:'say';
+  const showIdeas=battle?ideaLines.length>0&&(!actions.length||tab==='say'):panel.open&&shownTab==='say';
+  // With a keyboard, 1–9 press the matching chip of whatever is in view (shown as a small key on each chip).
+  const visible=battle?(showIdeas?ideaLines.map(text=>({key:'idea:'+text,text})):actions.filter(a=>!a.heading)):!panel.open?[]:shownTab==='say'?ideaLines.map(text=>({key:'idea:'+text,text})):shownTab==='speak'?speakList:actions.filter(a=>!a.heading);
+  const keysRef=useRef({});keysRef.current={actions:visible,disabled:showIdeas?ideasDisabled:actionsDisabled,run:a=>a.text?fillIdea(a.text):runAction(a)};
   useEffect(()=>{
     if(typeof document==='undefined')return;
     const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[1-9]$/.test(e.key)||shortcutsBlocked())return;
@@ -331,37 +358,56 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
   },[]);
   const pressable=actions.filter(a=>!a.heading);
-  const actionChips=actions.map(a=>{
-    // A heading in the Attack… picker (Melee, Ranged): a small label, not a button.
+  const hintOf=a=>{const i=visible.indexOf(a);return !compact&&i>=0&&i<9?i+1:null;};
+  const actionChip=a=>{
+    // A heading in the Attack… or Cast… picker (Melee, Ranged, Cantrips, Level 2): a small label, not a button.
     if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}} style={[s.actionHeading,{height:chipH}]}><PlainText style={[s.actionHeadingText,a.quiet&&{color:colors.faint},a.strong&&s.actionHeadingStrong]}>{a.heading}</PlainText></View>;
-    const i=pressable.indexOf(a),lead=a.primary&&!a.prefill;return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.prefill?'Cast a spell: start typing it':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip',pulse:lead&&i===0&&game.stage==='combat'&&!actionsDisabled&&!spellsOpen&&!attackOpen?'on':'off'}} style={[s.action,tight&&s.actionTight,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
+    const i=pressable.indexOf(a),lead=a.primary&&!a.prefill,hint=hintOf(a);return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.casts?.length>1?a.label+': choose a slot':a.key==='cast-back'?'Back to your spells (choosing a slot for '+a.label+')':a.key==='cast'?'Cast a spell: start typing it':a.prefill?a.label+': start the sentence, then name the target':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip',pulse:lead&&i===0&&game.stage==='combat'&&!actionsDisabled&&!spellsOpen&&!attackOpen?'on':'off'}} style={[s.action,tight&&s.actionTight,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
     <Icon name={a.icon??'star'} size={tight?14:16} color={lead?tint('#ffeef0'):colors.gold}/>
     <PlainText numberOfLines={1} style={[s.actionText,tight&&s.actionTextTight,lead&&s.actionPrimaryText]}>{a.label}</PlainText>
     {!!a.detail&&<PlainText numberOfLines={1} style={[s.actionDetail,{flexShrink:0}]}>{a.detail}</PlainText>}
-    {!compact&&i<9&&<KeyHint dark={lead}>{i+1}</KeyHint>}
-  </Pressable>;});
+    {a.casts?.length>1&&<Icon name="forward" size={12} color={colors.goldMid}/>}
+    {!!hint&&<KeyHint dark={lead}>{hint}</KeyHint>}
+  </Pressable>;};
+  const actionChips=actions.map(actionChip);
   // The guide: what every action (or spell) in the row does, one tap away.
   if(actions.length)actionChips.push(<Pressable key="guide" accessibilityRole="button" accessibilityLabel={spellsOpen?'What these spells do':'What these actions do'} onPress={()=>{playSound('open');setGuide(true);}} dataSet={{qb:'chip'}} style={[s.action,tight&&s.actionTight,{paddingHorizontal:11}]}><Icon name="info" size={tight?14:16} color={colors.gold}/></Pressable>);
-  const extraChips=[...effects.map(line=><View key={'effect:'+line} style={[s.effectChip,{height:chipH-4}]}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>),
-    ...people.filter(n=>n.id!==person?.id).map(n=><Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={[s.personChip,{height:chipH}]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.chipAvatar,tight&&s.chipAvatarTight]} compact/><PlainText numberOfLines={1} style={[s.chipName,tight&&{fontSize:13}]}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/>{!tight&&<PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText>}</View></Pressable>)];
+  const effectChips=effects.map(line=><View key={'effect:'+line} style={[s.effectChip,{height:chipH-4}]}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>);
+  const personChip=n=>{const a=speakList.find(x=>x.person===n.id),hint=a?hintOf(a):null;return <Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={[s.personChip,{height:chipH}]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.chipAvatar,tight&&s.chipAvatarTight]} compact/><PlainText numberOfLines={1} style={[s.chipName,tight&&{fontSize:13}]}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/>{!tight&&<PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText>}</View>{!!hint&&<KeyHint>{hint}</KeyHint>}</Pressable>;};
+  const peopleChips=(dead?[]:people.filter(n=>n.id!==person?.id)).map(personChip);
+  const extraChips=[...effectChips,...(battle?peopleChips:[])];
   const picker=spellsOpen||attackOpen||!!waitRow;
   const {rows:chipRows,openRows}=chipLayout(viewWidth,viewHeight,{picker});
-  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH} gap={fit.gap} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen} label="Quick actions" dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
-  // The Actions | Suggestions tabs sit just above the message box. A suggestion is a short thing to say in the hero's
-  // own voice; a tap writes it into the box (it never sends), so the player can change it first. The suggestions wrap
-  // onto a second line rather than scrolling sideways.
+  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH} gap={fit.gap} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen+':'+castSpell+':'+shownTab} label={key==='say'||key==='ideas'?'Suggestions':'Quick actions'} dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
+  // A suggestion is a short thing to say in the hero's own voice; a tap writes it into the box (it never sends). The
+  // suggestions wrap onto a second line rather than scrolling sideways.
   const ideaChips=ideaLines.map((text,i)=><Pressable key={'idea:'+text} accessibilityRole="button" accessibilityLabel={'Suggestion: '+text} accessibilityState={{disabled:ideasDisabled}} disabled={ideasDisabled} onPress={()=>fillIdea(text)} onHoverIn={()=>!ideasDisabled&&playSound('tick')} dataSet={{qb:'chip',keepfocus:'true'}} style={[s.ideaChip,short&&{minHeight:0,height:chipH,paddingVertical:0},ideasDisabled&&{opacity:.45}]}><Icon name="quill" size={13} color={colors.goldMid}/><PlainText numberOfLines={short?1:2} style={[s.ideaText,short&&{fontSize:14}]}>{text}</PlainText>{!compact&&showIdeas&&i<9&&<KeyHint>{i+1}</KeyHint>}</Pressable>);
-  const tabButton=(id,label,count)=>{const on=id==='suggestions'?showIdeas:!showIdeas;return <Pressable key={'tab:'+id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(on)return;playSound('click');setTab(id);}} dataSet={{qb:on?'seg-on':'chip',keepfocus:'true'}} style={[s.tab,on&&s.tabOn]}><PlainText style={[s.tabText,on&&s.tabTextOn]}>{label}</PlainText>{!on&&count>0&&<View style={s.tabCount}><PlainText style={s.tabCountText}>{count}</PlainText></View>}</Pressable>;};
-  const tabButtons=ideaLines.length>0?[...(actions.length?[tabButton('actions','Actions',0)]:[]),tabButton('suggestions','Suggestions',ideaLines.length)]:[];
-  const tabStrip=tabButtons.length>0&&<View accessibilityRole="tablist" style={s.tabs}>{tabButtons}</View>;
   const ideaRow=<View dataSet={{qb:'actions'}} accessibilityLabel="Suggestions" style={[s.actionBar,s.ideaWrap]}>{ideaChips}</View>;
-  // A short screen (a phone on its side) has one row of chips: the two tabs would fill it, so a single small switch
-  // (a quill and the count, or the way back to the actions) stands before the row, and the suggestions sit in the same
-  // height-limited row as the actions (one line each, the rest behind More), so the message box always stays in view.
-  // The switch is outside the row so the first chip leads its own line and shrinks to fit rather than wrapping away.
-  const tabSwitch=tabButtons.length>1?[<Pressable key="tab:switch" accessibilityRole="tab" accessibilityLabel={showIdeas?'Actions':'Suggestions ('+ideaLines.length+')'} accessibilityState={{selected:showIdeas}} onPress={()=>{playSound('click');setTab(showIdeas?'actions':'suggestions');}} dataSet={{qb:showIdeas?'seg-on':'chip',keepfocus:'true',tab:'switch'}} style={[s.tab,{height:chipH,paddingHorizontal:9},showIdeas&&s.tabOn]}>{showIdeas?<><Icon name="back" size={13} color={colors.goldBright}/><PlainText style={[s.tabText,s.tabTextOn]}>Actions</PlainText></>:<><Icon name="quill" size={14} color={colors.goldMid}/><View style={s.tabCount}><PlainText style={s.tabCountText}>{ideaLines.length}</PlainText></View></>}</Pressable>]:[];
+  // In battle: Actions | Say. A short screen (a phone on its side) has one row of chips: the two tabs would fill it, so
+  // a single small switch (a quill and the count, or the way back to the actions) stands before the row, and the
+  // suggestions sit in the same height-limited row as the actions (one line each, the rest behind More), so the
+  // message box always stays in view. The switch is outside the row so the first chip leads its own line.
+  const tabButton=(id,label,count)=>{const on=id==='say'?showIdeas:!showIdeas;return <Pressable key={'tab:'+id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(on)return;playSound('click');setTab(id);}} dataSet={{qb:on?'seg-on':'chip',keepfocus:'true'}} style={[s.tab,on&&s.tabOn]}><PlainText style={[s.tabText,on&&s.tabTextOn]}>{label}</PlainText>{!on&&count>0&&<View style={s.tabCount}><PlainText style={s.tabCountText}>{count}</PlainText></View>}</Pressable>;};
+  const tabButtons=ideaLines.length>0?[...(actions.length?[tabButton('actions','Actions',0)]:[]),tabButton('say','Say',ideaLines.length)]:[];
+  const tabStrip=tabButtons.length>0&&<View accessibilityRole="tablist" style={s.tabs}>{tabButtons}</View>;
+  const tabSwitch=tabButtons.length>1?[<Pressable key="tab:switch" accessibilityRole="tab" accessibilityLabel={showIdeas?'Actions':'Say ('+ideaLines.length+')'} accessibilityState={{selected:showIdeas}} onPress={()=>{playSound('click');setTab(showIdeas?'actions':'say');}} dataSet={{qb:showIdeas?'seg-on':'chip',keepfocus:'true',tab:'switch'}} style={[s.tab,{height:chipH,paddingHorizontal:9},showIdeas&&s.tabOn]}>{showIdeas?<><Icon name="back" size={13} color={colors.goldBright}/><PlainText style={[s.tabText,s.tabTextOn]}>Actions</PlainText></>:<><Icon name="quill" size={14} color={colors.goldMid}/><View style={s.tabCount}><PlainText style={s.tabCountText}>{ideaLines.length}</PlainText></View></>}</Pressable>]:[];
   const shortRow=showIdeas?row([...ideaChips,...extraChips],chipRows,'ideas'):row([...actionChips,...extraChips],chipRows,'all');
-  const actionBar=short?(tabSwitch.length?<View style={s.switchRow}><View style={s.switchCell}>{tabSwitch}</View><View style={{flex:1,minWidth:0}}>{shortRow}</View></View>:shortRow):<>{row(extraChips,1,'extra')}{tabStrip}{showIdeas?ideaRow:row(actionChips,chipRows,'actions')}</>;
+  const battleBar=short?(tabSwitch.length?<View style={s.switchRow}><View style={s.switchCell}>{tabSwitch}</View><View style={{flex:1,minWidth:0}}>{shortRow}</View></View>:shortRow):<>{row(extraChips,1,'extra')}{tabStrip}{showIdeas?ideaRow:row(actionChips,chipRows,'actions')}</>;
+  // Out of battle: one Suggestions switch above the message box (closed unless the player keeps it open) that opens
+  // onto Say, Speak and Actions. A dot on the closed switch says something new waits there (loot, an offer, a level).
+  const fresh=!panel.open&&(speakQuick.length>0||calmQuick.some(a=>a.primary));
+  const suggestToggle=<Pressable key="suggest" accessibilityRole="button" accessibilityState={{expanded:panel.open}} accessibilityLabel={panel.open?'Hide suggestions':'Suggestions: things to say, people to speak with, and actions'+(fresh?' (something new)':'')} onPress={()=>{playSound('click');savePanel({...panel,open:!panel.open});}} dataSet={{qb:panel.open?'seg-on':'chip',keepfocus:'true',suggest:'toggle'}} style={[s.tab,short&&{height:chipH,minHeight:0},panel.open&&s.tabOn]}>
+    {panel.open&&(compact||short)?<Icon name="close" size={14} color={colors.goldBright}/>:<><Icon name="star" size={14} color={panel.open?colors.goldBright:colors.goldMid}/><PlainText style={[s.tabText,panel.open&&s.tabTextOn]}>Suggestions</PlainText>{panel.open&&<Icon name="close" size={12} color={colors.goldBright}/>}</>}
+    {fresh&&<View dataSet={{qb:'fresh'}} style={s.freshDot}/>}
+  </Pressable>;
+  const subTab=([id,label,count])=>{const on=id===shownTab;return <Pressable key={'sub:'+id} accessibilityRole="tab" accessibilityLabel={label+(count?' ('+count+')':'')} accessibilityState={{selected:on}} onPress={()=>{if(on)return;playSound('click');savePanel({...panel,tab:id});}} dataSet={{qb:on?'seg-on':'chip',keepfocus:'true',suggest:id}} style={[s.tab,short&&{height:chipH,minHeight:0,paddingHorizontal:9},on&&s.tabOn]}>{short?<><Icon name={{say:'quill',speak:'speak',actions:'compass'}[id]} size={15} color={on?colors.goldBright:colors.gold}/></>:<PlainText style={[s.tabText,on&&s.tabTextOn]}>{label}</PlainText>}{!on&&!short&&count>0&&<View style={s.tabCount}><PlainText style={s.tabCountText}>{count}</PlainText></View>}</Pressable>;};
+  const quiet=text=><View key="quiet" style={[s.quietRow,short&&{height:chipH,minHeight:0}]}><PlainText numberOfLines={short?1:2} style={s.quietText}>{text}</PlainText></View>;
+  const calmContent=!panel.open?null:shownTab==='say'?(ideaLines.length?(short?row(ideaChips,chipRows,'say'):ideaRow):quiet(direct?'Out of character: say what you need to the Dungeon Master.':'Nothing to suggest just now. Type what you say or do, in your own words.'))
+    :shownTab==='speak'?(speakList.length?row([...peopleChips,...speakQuick.map(actionChip)],chipRows,'speak'):quiet('No one here to speak with. Type what you do, or travel somewhere new.'))
+    :(actionChips.length||effectChips.length?row([...actionChips,...effectChips],chipRows,'actions'):quiet('Nothing to tap just now. Type what you do.'));
+  const calmBar=calmTabs.every(t=>!t[2])&&!panel.open&&!effects.length?null:short?<View style={s.switchRow}><View accessibilityRole="tablist" style={[s.switchCell,s.subTabs]}>{suggestToggle}{panel.open&&!(picker&&shownTab==='actions')&&calmTabs.map(subTab)}</View><View style={{flex:1,minWidth:0}}>{calmContent}</View></View>
+    :<View style={s.suggestPanel}><View accessibilityRole="tablist" style={s.tabs}>{suggestToggle}{panel.open&&calmTabs.map(subTab)}</View>{calmContent}</View>;
+  const actionBar=battle?battleBar:calmBar;
   // One on one or everyone here: who may answer when others are about.
   const aloneSwitch=people.length>1&&!!person&&<Pressable accessibilityRole="switch" accessibilityState={{checked:alone,disabled:busy||playing}} accessibilityLabel={alone?'Just you two: only '+person.name+' answers. Tap to let everyone here join in':'Everyone here may join in. Tap to speak with '+person.name+' alone'} disabled={busy||playing} onPress={()=>{playSound('click');setAlone(value=>!value);}} dataSet={{qb:alone?'seg-on':'chip',keepfocus:'true'}} style={[s.aloneSwitch,alone&&s.aloneOn,(busy||playing)&&{opacity:.45}]}><Icon name={alone?'speak':'people'} size={14} color={alone?colors.goldBright:colors.gold}/><PlainText numberOfLines={1} style={[s.aloneText,alone&&{color:colors.goldBright}]}>{alone?(compact?'You two':'Just you two'):(compact?'Everyone':'Everyone here')}</PlainText></Pressable>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
@@ -390,8 +436,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     </View>}
     <TurnPlayback fill names={names} avatarFor={avatarFor} sceneFor={sceneFor} openingScene={!person&&game.story?placeArtSubject(game,game.story.locations?.[game.story.introId==='hostile'?'bridge':'inn']?.name):null} intro={tips&&!person?<View dataSet={{qb:'plate'}} style={s.tips}>
       <View style={s.tipsHead}><Icon name="star" size={14} color={colors.gold}/><PlainText style={s.tipsTitle}>How to play</PlainText></View>
-      {primed?<View style={s.tipRow}><Icon name="quill" size={15} color={colors.gold}/><PlainText style={s.tipsText}>As you read while you waited: type what you do, or tap an action below. If something goes wrong, tap DM and tell the Dungeon Master.</PlainText></View>:<>
-      <View style={s.tipRow}><Icon name="swords" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an action below{compact?'':' (or press its number key)'}, or type anything you want to do or say.</PlainText></View>
+      {primed?<View style={s.tipRow}><Icon name="quill" size={15} color={colors.gold}/><PlainText style={s.tipsText}>As you read while you waited: type what you want to do. Suggestions, above the message box, has ideas when you want them. If something goes wrong, tap DM and tell the Dungeon Master.</PlainText></View>:<>
+      <View style={s.tipRow}><Icon name="quill" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Type what you want to do or say, in your own words.</PlainText></View>
+      <View style={s.tipRow}><Icon name="star" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Stuck? Suggestions, above the message box, has ideas: things to say, people to speak with, and actions such as travel or rest. In a fight your moves stay on screen as buttons{compact?'':' (or press their number keys)'}.</PlainText></View>
       <View style={s.tipRow}><Icon name="d20" size={15} color={colors.gold}/><PlainText style={s.tipsText}>The Dungeon Master decides what happens; the dice decide how it goes.</PlainText></View>
       <View style={s.tipRow}><Icon name="speak" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Something went wrong, or you meant something else? Tap DM beside the message box and tell the Dungeon Master.</PlainText></View>
       <View style={s.tipRow}><Icon name="menu" size={15} color={colors.gold}/><PlainText style={s.tipsText}>Tap an underlined name to learn more. The menu holds your character sheet, journal, settings and feedback.</PlainText></View></>}
@@ -447,6 +494,9 @@ const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marg
  ideaChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,maxWidth:'100%',paddingHorizontal:12,paddingVertical:6,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:tint('rgba(176,140,245,.5)'),backgroundColor:tint('rgba(20,15,21,.7)')},ideaText:{flexShrink:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:20,color:tint('#e2dde1')},
  ideaWrap:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},
  tabs:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:32,paddingHorizontal:12,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(23,17,24,.85)')},tabOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
+ suggestPanel:{flexGrow:0,flexShrink:0},subTabs:{flexDirection:'row',alignItems:'center',gap:4},
+ freshDot:{width:8,height:8,borderRadius:4,marginLeft:2,backgroundColor:tint('#f06e80')},
+ quietRow:{minHeight:40,justifyContent:'center',paddingHorizontal:4,marginTop:8},quietText:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,fontStyle:'italic'},
  tabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:colors.gold,textTransform:'uppercase'},tabTextOn:{color:colors.goldBright},tabCount:{minWidth:18,height:18,borderRadius:9,paddingHorizontal:5,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(176,140,245,.28)')},tabCountText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',color:tint('#e2dde1')},
  aloneSwitch:{flexDirection:'row',alignItems:'center',gap:5,minHeight:36,paddingHorizontal:10,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.92)'),flexShrink:0},aloneOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},aloneText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  notice:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12,marginBottom:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},noticeText:{fontFamily:fonts.ui,fontSize:13,lineHeight:20,color:colors.muted},

@@ -9,7 +9,7 @@ import {knownSpells} from './spellRules';
 // casting time, range and duration. "Use" does it from here.
 export default function ActionGuide({visible,onClose,actions,hero,game,onRun,disabled=false,spells=false}){
  const {height}=useWindowDimensions();
- const rows=actions.filter(a=>a.key!=='spells-back'&&a.key!=='guide');
+ const rows=actions.filter(a=>a.key!=='spells-back'&&a.key!=='cast-back'&&a.key!=='guide'&&!a.heading);
  return <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
   <Pressable accessibilityLabel="Close" onPress={onClose} dataSet={{qb:'scrim'}} style={s.scrim}>
    <Pressable onPress={()=>{}} dataSet={{qb:'sheet'}} style={[s.sheet,{maxHeight:Math.max(240,height-48)}]} accessibilityViewIsModal>
@@ -18,7 +18,7 @@ export default function ActionGuide({visible,onClose,actions,hero,game,onRun,dis
      <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} dataSet={{qb:'chip'}} style={s.close}><Icon name="close" size={15} color={colors.gold}/><Text style={s.closeText}>Close</Text></Pressable>
     </View>
     <ScrollView style={{flexShrink:1}} contentContainerStyle={s.list}>
-     {rows.map(a=>{const cost=actionCost(a,game),spell=a.key.startsWith('spell:')?knownSpells(hero).find(sp=>'spell:'+sp.id===a.key):null;
+     {rows.map(a=>{const cost=actionCost(a,game),spell=a.key.startsWith('spell:')?knownSpells(hero).find(sp=>sp.id===(a.spell??a.key.slice(6))):null;
       return <View key={a.key} dataSet={{qb:'card'}} style={s.row}>
        <View style={[s.mark,a.primary&&{borderColor:colors.goldBright}]}><Icon name={a.icon??'star'} size={18} color={colors.goldBright}/></View>
        <View style={{flex:1,minWidth:0}}>
@@ -26,7 +26,7 @@ export default function ActionGuide({visible,onClose,actions,hero,game,onRun,dis
         {!!spell&&<Text style={s.facts}>{spellFacts(spell)}</Text>}
         <Text style={s.text}>{actionDescription(a,hero,game)}</Text>
        </View>
-       <Pressable accessibilityRole="button" accessibilityLabel={'Use '+a.label} accessibilityState={{disabled}} disabled={disabled} onPress={()=>{onClose();onRun(a);}} dataSet={{qb:'chip'}} style={[s.use,disabled&&{opacity:.45}]}><Text style={s.useText}>{a.key==='cast'?'Open':a.prefill?'Aim':'Use'}</Text></Pressable>
+       <Pressable accessibilityRole="button" accessibilityLabel={'Use '+a.label} accessibilityState={{disabled}} disabled={disabled} onPress={()=>{onClose();onRun(a);}} dataSet={{qb:'chip'}} style={[s.use,disabled&&{opacity:.45}]}><Text style={s.useText}>{a.key==='cast'?'Open':a.casts?.length>1?'Choose':a.prefill?'Aim':'Use'}</Text></Pressable>
       </View>;})}
      <View style={s.tip}><Icon name="quill" size={14} color={colors.gold}/><Text style={s.tipText}>These are only the quick ones. Type anything else you want to try, in your own words: sneak, bargain, search, climb, bluff.</Text></View>
     </ScrollView>
