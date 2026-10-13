@@ -112,12 +112,12 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // protecting the host's AI bill; illustration and story progress checks are counted apart and more loosely (the
     // game simply waits a few seconds when told to). The request is passed on with this browser's guest label (whatever
     // label the browser sent itself is replaced).
-    let parsedBody;try{parsedBody=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
+    let parsed;try{parsed=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
     // Refused before anything costs money: what the game never sends (another mode, words longer than the message box,
     // an idea longer than the idea box), anything while the host has paused guests (pictures already painted and tales
     // already written are still handed over), and turns, tales and heroes past their allowances.
-    const visitor=String(client(req)??''),context=parsedBody?.context,mode=context?.mode??null;
-    if(!parsedBody||typeof parsedBody!=='object'||Array.isArray(parsedBody)||typeof parsedBody.input!=='string'||parsedBody.input.length>1000||!context||typeof context!=='object'||(mode!==null&&!['art','adventure','character'].includes(mode))||(context.idea!==undefined&&context.idea!==null&&(typeof context.idea!=='string'||context.idea.length>300)))return json(res,400,{error:'Invalid action.'});
+    const visitor=String(client(req)??''),context=parsed?.context,mode=context?.mode??null;
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||typeof parsed.input!=='string'||parsed.input.length>1000||!context||typeof context!=='object'||(mode!==null&&!['art','adventure','character'].includes(mode))||(context.idea!==undefined&&context.idea!==null&&(typeof context.idea!=='string'||context.idea.length>300)))return json(res,400,{error:'Invalid action.'});
     if(paused()&&mode!=='art')return json(res,503,{error:pausedWords});
     if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.',visitor);}
     else{
@@ -125,12 +125,12 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
      if(mode==='adventure'){const seconds=limits.tales(token)||limits.talesAddress(visitor);if(seconds)return wait(res,seconds,'You have started several new tales in a short time. Carry on with your current tale, or start another a little later; your adventure is unchanged.',visitor);}
      if(mode==='character'){const seconds=limits.heroes(token)||limits.heroesAddress(visitor);if(seconds)return wait(res,seconds,'Many heroes have been drafted from this browser lately. Build one by hand, or draft another a little later.',visitor);}
     }
-    const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80),'X-Questbound-Secure':shared?'1':'0'},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
+    const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80),'X-Questbound-Secure':shared?'1':'0'},body:JSON.stringify({kind:parsed?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
     const permitted=await allowance.json();if(!allowance.ok){const after=allowance.headers?.get?.('retry-after');return json(res,allowance.status,permitted,after&&/^\d{1,6}$/.test(after)?{'Retry-After':after}:{});}
     if(permitted.allowed!==true||!/^[a-f0-9]{64}$/.test(permitted.id??''))return json(res,503,{error:'Account validation is unavailable.'});
     // A guest's cookie renewed by the account service (once a day) reaches the browser here too.
     {const renewed=allowance.headers?.get?.('set-cookie');if(renewed)res.setHeader('Set-Cookie',renewed);}
-    parsedBody.guest='account-'+permitted.id;raw=JSON.stringify(parsedBody);
+    parsed.guest='account-'+permitted.id;raw=JSON.stringify(parsed);
     const url=await backend();if(!url)return json(res,503,{error:shared?'The host’s Dungeon Master is offline right now.':'Start the private Dungeon Master service on your PC.'});
     // A busy Dungeon Master (another player's turn is being written) refuses before doing any work, so the request is
     // simply retried for up to a minute: players wait their turn instead of seeing an error.
