@@ -291,16 +291,47 @@ function loadSpending(){if(require('./spending.cjs').revision!==2)delete require
 // anything the browser sent. The host's own browser on this PC has none.
 // A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
 const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
-// Tales written ahead (tale-pantry.cjs) also stay loaded between requests. The stock is topped up one tale at a time
-// while the Dungeon Master is in use, at the effort the host chose; a tale a guest took is replaced at that guest's cost
-// (their label and their allowance). Tests pass a stand-in `pantry`.
-function loadPantry(){if(require('./tale-pantry.cjs').revision!==4)delete require.cache[require.resolve('./tale-pantry.cjs')];return require('./tale-pantry.cjs').pantry;}
-function aheadOpenings(){try{return JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname,'adventureIntros.json'),'utf8')).filter(i=>i&&!i.local&&!i.idea).map(i=>i.id);}catch{return [];}}
-function topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live=true,guest=null}){
- if(!stock||!apiKey||!storyModel)return false;
- const writer=who=>introId=>{delete require.cache[require.resolve('./adventure-generator.cjs')];return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId,ahead:true,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:safetyFor(who),onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,who)});};
- // The first tale is the asker's; the rest of the chain (filling the stock) is the host's.
- return stock.topUp(aheadOpenings(),writer(guest),writer(null));
+// Ready journeys (tale-library.cjs) also stay loaded between requests: a shared library of finished tales that players
+// compare and choose between, each written once at the effort the host chose and played by many (each player their own
+// copy). It is topped up one journey at a time when the Dungeon Master starts and on any live turn, by the host's own
+// writer (no guest label), and only while background writing may spend: spending.cjs `background()` (the host's
+// ceilings and the guests' pause switch) when the module has it; without it, writing is paced by the library alone.
+// Tests pass a stand-in `library`.
+function loadLibrary(){if(require('./tale-library.cjs').revision!==1)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
+function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
+// A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
+// adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and
+// at least two chapters.
+function journeyCheck(story){
+ try{
+  const r=require('./rules-engine.cjs').storyChecks(),hero=r.readyHero('fighter');
+  const game=r.freshStoryGame(hero,JSON.parse(JSON.stringify({...story,id:'journey-check',status:'active'})),r.newAdventure(hero));
+  return !!game.story.errand&&!!game.story.introduction&&(game.story.chapters?.length??0)>=2&&r.validAdventure(r.adventureSnapshot(hero,game,null,true),hero);
+ }catch{return false;}
+}
+function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spend=null}){
+ if(!library||!apiKey||!storyModel)return false;
+ const ceilings=spend??(live?loadSpending():null);
+ if(!backgroundAllowed(ceilings))return false;
+ const write=brief=>{
+  if(!backgroundAllowed(ceilings))return Promise.reject(Error('Spending ceiling reached.'));
+  delete require.cache[require.resolve('./adventure-generator.cjs')];
+  return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'easy',ahead:true,libraryBrief:brief,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:null,onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,null)});
+ };
+ return library.topUp(write,{accept:journeyCheck});
+}
+// The journeys on offer, as a device sees them. A cover is offered only when its picture costs nothing more: already
+// painted (the journey's opening place, under the journey's art id) or, once world-art.cjs can answer a place from
+// ready-made paintings, whatever its `readyMade(subject)` says. A device never asks for a cover that would be painted.
+function journeyCovers(){
+ const fs=require('node:fs'),path=require('node:path'),art=require('./world-art.cjs'),dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-art');
+ return subject=>{try{if(typeof art.artStore?.readyMade==='function'&&art.artStore.readyMade(subject))return true;return fs.existsSync(path.join(dir,art.artKey(art.validateSubject(subject))+'.jpg'));}catch{return false;}};
+}
+// When the Dungeon Master starts, the library tops itself up (the host's writer, one journey at a time).
+function startLibrary({apiKey,model,storyModel=model,storyReasoning='medium',library=null,fetchImpl=fetch}){
+ if(!apiKey||!model)return false;
+ const live=fetchImpl===fetch;if(live)({storyModel}=liveModels(model,storyModel));
+ return topUpLibrary(library??loadLibrary(),{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live});
 }
 function loadStoryJobs(){if(require('./story-jobs.cjs').revision!==1)delete require.cache[require.resolve('./story-jobs.cjs')];return require('./story-jobs.cjs').storyJobs;}
 function liveModels(model,storyModel,read=chosenModel){
@@ -309,7 +340,7 @@ function liveModels(model,storyModel,read=chosenModel){
  if(story)storyModel=story;
  return {model,storyModel};
 }
-async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,pantry=null}){
+async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null}){
   if(fetchImpl===fetch)({model,storyModel}=liveModels(model,storyModel));
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
   // only), so misuse by one player is never taken for the host's own. Tests pass a stand-in `spending`.
@@ -317,21 +348,31 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   const safety=safetyFor(guest),mayPaint=()=>!guest||!spend||spend.check(guest).ok;
   // A story being written in the background is asked after like an illustration: a quick question, never a wait.
   if(body.context.mode==='art'&&body.context.storyJob!==undefined)return loadStoryJobs().poll(body.context.storyJob);
+  // The ready journeys on offer (their pitches, never their secrets) are asked for like an illustration: a quick look
+  // that costs nothing, and keeps the library topped up.
+  // Only the library writes a journey's brief: a brief sent by a browser is dropped.
+  if(body.context.libraryBrief!==undefined)delete body.context.libraryBrief;
+  const shelf=library??(live?loadLibrary():null);
+  if(body.context.mode==='art'&&body.context.journeys==='list'){if(!shelf)return {journeys:[]};try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend:spending});}catch{}return {journeys:shelf.list({cover:journeyCovers()})};}
   if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==5)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
   // Once guests have used the host's daily allowance (or this guest their share), they wait for tomorrow.
   if(guest&&spend){const verdict=spend.check(guest);if(!verdict.ok)throw Object.assign(Error(verdict.error),{httpStatus:503});}
-  // While people play, the stock of tales written ahead is kept full (one tale at a time, in the background).
-  const stock=pantry??(live?loadPantry():null),storyEffortNow=live?storyEffort(storyReasoning):storyReasoning;
-  if(stock&&!['adventure','character'].includes(body.context.mode))try{topUpPantry(stock,{apiKey,storyModel,effort:storyEffortNow,fetchImpl,live});}catch{}
+  // While people play, the library of ready journeys is kept full (one journey at a time, in the background).
+  const storyEffortNow=live?storyEffort(storyReasoning):storyReasoning;
+  if(shelf&&!['adventure','character'].includes(body.context.mode))try{topUpLibrary(shelf,{apiKey,storyModel,effort:storyEffortNow,fetchImpl,live,spend:spending});}catch{}
   if(body.context.mode==='adventure'){
     delete require.cache[require.resolve('./adventure-generator.cjs')];
     const effort=fetchImpl===fetch?storyEffort(storyReasoning):storyReasoning;
     const write=(reasoning,timeout)=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});
-    // A tale written ahead for this opening starts at once; its replacement is written at the asker's cost. The next
-    // tale in a region and the player's own idea are always written fresh.
-    if(stock&&!body.context.continuing&&!body.context.idea&&!(body.context.easyStart===true&&String(body.context.introId??'surprise')!=='easy')){const stocked=stock.take(String(body.context.introId??'surprise'));try{topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live,guest});}catch{}if(stocked)return {story:{...stocked,id:require('node:crypto').randomUUID(),status:'active'},ahead:true};}
+    // A ready journey the player chose starts at once: their own copy of it (it is not used up). A journey that has just
+    // left the library is refused, and the game shows the journeys on offer again.
+    if(shelf&&body.context.journey!==undefined&&!body.context.continuing){const copy=shelf.start(String(body.context.journey));try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend:spending});}catch{}if(!copy)throw Object.assign(Error('That journey has just left the library. Choose another; your adventure is unchanged.'),{httpStatus:409});return {story:copy,ahead:true,journey:true};}
+    // A game from before the library, asking for Let fate decide or Easy to get into, gets any journey on offer (every
+    // journey begins with orders in hand). Written openings, the next tale in a region and the player's own idea are
+    // always written fresh.
+    if(shelf&&body.context.journey===undefined&&!body.context.continuing&&!body.context.idea&&['easy','surprise'].includes(String(body.context.introId??'surprise'))){const copy=shelf.any();try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend:spending});}catch{}if(copy)return {story:copy,ahead:true,journey:true};}
     // Asked for with a job id, the tale is written in the background with the effort the host chose, for as long as
     // it takes (up to seven minutes; at high effort a tale takes about three); the game asks after it every few
     // seconds (storyJob above).
@@ -559,6 +600,8 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
     waiting.push(entry);
   });
   const release=()=>{running--;waiting.shift()?.start();};
+  // When the Dungeon Master starts with a live key, the library of ready journeys tops itself up (the host's writer).
+  if(fetchImpl===fetch&&apiKey&&model&&process.env.QUESTBOUND_LIBRARY!=='off')setTimeout(()=>{try{require(__filename).startLibrary({apiKey,model,storyModel,storyReasoning});}catch{}},3000).unref?.();
   return http.createServer(async(req,res)=>{
     const origin=req.headers.origin;
     const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store',...(allowedOrigins.has(origin)?{'Access-Control-Allow-Origin':origin,'Vary':'Origin'}:{})});res.end(JSON.stringify(data));};
@@ -586,4 +629,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={startLibrary,topUpLibrary,journeyCheck,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

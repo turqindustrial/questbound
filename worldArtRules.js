@@ -23,18 +23,25 @@ export function portraitDescription(description,gender){
 }
 // A woman's portrait painted before this rule may wear a beard: hers is painted afresh under a new id.
 const portraitId=(id,gender)=>gender==='woman'?id+'-w':id;
+// A ready journey (tale-library.cjs) is played by many players, each with a copy of their own: what its writer wrote
+// (its three places, keeper and mara, the residents and the foe) is painted once for all of them, under the journey's
+// art id (story.artId). Everything else (people and places met in play) stays with this copy's own story id.
+const artCampaign=(game,own)=>own&&game.story?.artId?game.story.artId:game.story?.id??'crossroads-v1';
+const coreArtPlaces=['inn','bridge','tower'];
+// A resident's portrait in a ready journey goes by their name, not their seat (n1…), which differs from copy to copy.
+const residentArtId=(game,id,person)=>game.story?.artId&&person.resident?'resident-'+String(person.name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60):id;
 export function npcArtSubject(game,id){
  const person=!game.story?.npcs?.[id]&&game.people?.[id];
  // Someone met while exploring is painted from how the Dungeon Master described them when they were met.
- if(person){const gender=genderOf(person.appearance,person.gender);return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id:portraitId(id,gender),name:person.name,description:portraitDescription([person.appearance,person.species,person.role].filter(Boolean).join('. '),gender).slice(0,1800),setting:(game.story?.premise??'').slice(0,800)};}
+ if(person){const gender=genderOf(person.appearance,person.gender);return {campaignId:artCampaign(game,!!person.resident),kind:'portrait',id:portraitId(residentArtId(game,id,person),gender),name:person.name,description:portraitDescription([person.appearance,person.species,person.role].filter(Boolean).join('. '),gender).slice(0,1800),setting:(game.story?.premise??'').slice(0,800)};}
  const npc=game.story?.npcs?.[id]??originalNPCs[id];if(!npc)return null;
  const gender=game.story?.npcs?.[id]?genderOf(npc.appearance,npc.gender):null;
- return {campaignId:game.story?.id??'crossroads-v1',kind:'portrait',id:game.story?.npcs?.[id]?portraitId(id,gender):id,name:npc.name,description:(game.story?.npcs?.[id]?portraitDescription([npc.appearance,npc.role,npc.description].filter(Boolean).join('. '),gender):[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ')).slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
+ return {campaignId:artCampaign(game,!!game.story?.npcs?.[id]),kind:'portrait',id:game.story?.npcs?.[id]?portraitId(id,gender):id,name:npc.name,description:(game.story?.npcs?.[id]?portraitDescription([npc.appearance,npc.role,npc.description].filter(Boolean).join('. '),gender):[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ')).slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
 }
 export function locationArtSubject(game){
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,id=room?'dungeon-'+game.dungeon.room:mapLocation(game),place=room?{name:room.name,description:room.text}:game.story?.locations?.[id]??worldPlace(game,id)??mapPlaces[id];
  if(!place)return null;
- return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
+ return {campaignId:artCampaign(game,!room&&coreArtPlaces.includes(id)&&!!game.story?.locations?.[id]),kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
 }
 // The player's own hero, painted in the same style as everyone they meet. The identity follows who the hero is
 // (name, species, class, look), not their level, so levelling up keeps the portrait.
@@ -50,14 +57,14 @@ export function placeArtSubject(game,name){
  const plain=text=>String(text??'').toLowerCase().replace(/^the\s+/,'').trim();
  const places={...(game.story?.locations??mapPlaces),...Object.fromEntries(worldPlaces(game).map(p=>[p.id,p]))},id=Object.keys(places).find(key=>key!=='dungeon'&&plain(places[key]?.name)===plain(name));
  if(!id)return null;
- return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:places[id].name,description:places[id].description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
+ return {campaignId:artCampaign(game,coreArtPlaces.includes(id)&&!!game.story?.locations?.[id]),kind:'landscape',id,name:places[id].name,description:places[id].description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
 }
 export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
  // A creature met while exploring is painted from the Dungeon Master's description of it.
  if(game.wildFight){const w=game.wildFight;return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800)};}
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';
- return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
+ return {campaignId:artCampaign(game,!room),kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
 }
 export function sceneArtSubjects(game){
  return [locationArtSubject(game),...npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>npcArtSubject(game,n.id)),creatureArtSubject(game)].filter(Boolean);

@@ -9,4 +9,14 @@ function rules(){
  engine=vm.runInNewContext(source+'\n;({readyHero,canTakeInHand,setShield,heroSpecies,newAdventure,adventureStep,validAdventure,isValidCharacter,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,turnOrderView,dmChoices,mapMoves,dmContext,dmCommand,withAttackIntent,commitDmTurn,recordedTurn,withStoryLog,withDeeds,settleTurn,withExperience,xpForLevel,advancedInPlace,levelCompanions,withCompanionClasses,acceptOffer,attuneItem,speakingPeople,attackTargets,conversationPeople,conversationTarget,withSceneTrigger,recruitmentTargets,storyText,isPartyGame,addJournalNote,levelUpReady,foeForLevel,buildError,makeCharacter,quickActions,attackActions,spellActions,gearedHero,weaponAttacks,advancementLevels,subclassOptions,validPlannedSubclass,spellSelectionError,appendJournal,appendStoryLog,hostileEncounterGame,hostileFoes,manageFollower,validSkillTraining,greeting,shouldGreet})',{AsyncStorage:{},console},{timeout:3000});
  return engine;
 }
-module.exports={rules};
+// The same rules in a context of their own, for the Dungeon Master to check a ready journey before it is offered
+// (dm-server.cjs journeyCheck, tale-library.cjs): the tale must seat a hero and make a valid adventure.
+let storyEngine;
+function storyChecks(){
+ if(storyEngine)return storyEngine;
+ const read=file=>fs.readFileSync(path.join(__dirname,file),'utf8');
+ const source='const catalog='+read('spellCatalog.json')+';const progression='+read('spellProgression.json')+';\n'+files.map(f=>read(f).replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+ storyEngine=vm.runInNewContext(source+'\n;({readyHero,newAdventure,freshStoryGame,validStory,validAdventure,adventureSnapshot})',{AsyncStorage:{},console},{timeout:3000});
+ return storyEngine;
+}
+module.exports={rules,storyChecks};

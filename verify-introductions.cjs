@@ -77,8 +77,8 @@ assert.equal(server.sceneFor({input:'x',context:JSON.parse(JSON.stringify(later)
   same(out.story.introduction,intro);
  }
  await assert.rejects(generateAdventure({input:'x',context:{mode:'adventure',introId:'hostile',choices:[]}},{apiKey:'k',model:'m',fetchImpl}),/starts on your device/);
- // Stocked tales from before introductions are never served (the pantry's generation).
- assert.equal(require('./tale-pantry.cjs').generation,4);
+ // Tales written ahead before introductions (or before the library of ready journeys) are never served.
+ assert.ok(require('./tale-library.cjs').generation>=5);
  // The Dungeon Master is told how to treat the first move.
  const turnCalls=[];const dm=async(url,options)=>{turnCalls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'You stand in Stillwater Market.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,suggestions:[]})}]}]})};};
  await server.generate({input:'Where am I?',context:{...JSON.parse(JSON.stringify(ctx)),choices:[]}},{apiKey:'test-only',model:'test-model',fetchImpl:dm});

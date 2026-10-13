@@ -1,5 +1,6 @@
 import AdventureIntros from './AdventureIntros';
 import {findDmEndpoint,writeStory} from './dmConnection';
+import {loadJourneys,playedJourneys,journeysToOffer,fateJourney,rememberJourney} from './journeyLibrary';
 import Followers from './Followers';
 import DiceRoller from './DiceRoller';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
@@ -199,6 +200,14 @@ function QuestboundApp() {
   // The saved adventure is this hero's: if it ended in death, the hero cannot be played again.
   const heroFallen=!!hero&&characterChosen&&game.stage==='dead';
   const canContinue=!!hero&&characterChosen&&!heroFallen&&canContinueRegion(game),continuingNow=continueRegion&&canContinue;
+  // Ready journeys (journeyLibrary.js, tale-library.cjs): asked for whenever the New Adventure screen opens. A journey
+  // this device has played, or whose title the hero has already lived, is never offered. Null: the library could not
+  // be reached, and the written openings are offered as before.
+  const [journeysOnOffer,setJourneysOnOffer]=useState(null);
+  useEffect(()=>{if(screen!=='Adventure Opening')return;let current=true;(async()=>{const [list,played]=await Promise.all([loadJourneys(),playedJourneys()]);if(current)setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);})();return()=>{current=false;};},[screen]);
+  // With journeys on offer, a choice they stand in for (Easy to get into, a written opening, a journey no longer on
+  // offer) moves to the first journey; without them, a journey choice goes back to Easy to get into.
+  useEffect(()=>{const id=String(selectedIntro);if(!journeysOnOffer?.length){if(id.startsWith('journey:'))setSelectedIntro('easy');return;}if(['idea','surprise','hostile'].includes(id)||journeysOnOffer.some(j=>'journey:'+j.id===id))return;setSelectedIntro('journey:'+journeysOnOffer[0].id);},[journeysOnOffer,selectedIntro]);
   // A hero who has died and cannot be brought back (deathRules.js deathIsFinal; or whose player lets them go) is laid
   // to rest: a memorial line in the graveyard, and the hero and their adventure leave this device's save, so they can
   // never be continued, set aside or chosen again. The epitaph stays on screen until the player leaves the play
@@ -274,16 +283,22 @@ function QuestboundApp() {
       if(!continuing&&selectedIntro==='idea'&&!wish)throw Error('Write your idea for the tale first.');
       // Easy start (on unless the player turned it off): orders in hand for any opening; Let fate decide becomes Easy to get into.
       const start=taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart});
+      // A ready journey (the one chosen, or one by chance for Let fate decide) starts at once: the player's own copy,
+      // with its orders in hand (asked for as Easy to get into).
+      const offered=journeysOnOffer??[],journeyId=continuing?null:String(selectedIntro).startsWith('journey:')?String(selectedIntro).slice(8):selectedIntro==='surprise'&&offered.length?fateJourney(offered).id:null,introId=journeyId?'easy':start.introId;
       const endpoint=await findDmEndpoint();
-      const {ok,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId:start.introId,...(start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
-      if(!ok)throw Error(body.error||'The story could not be created.');
-      next=freshStoryGame(hero,{...body.story,introId:start.introId},base);
+      const {ok,status,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId,...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      // A journey that has just left the library: the journeys on offer are asked for again.
+      if(!ok){if(journeyId&&status===409)loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});throw Error(body.error||'The story could not be created.');}
+      next=freshStoryGame(hero,{...body.story,introId},base);
       if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
       if(characterChosen&&game.story)next=joinRegion(next,game,{sameRegion:continuing,bearing,miles});
       next.storyHistory=[...new Set([...(game.storyHistory??[]),game.story?.title,next.story.title].filter(Boolean))].slice(-100);
       await transition.prepare(sceneArtSubjects(next));
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
+      // A journey played on this device is never offered here again.
+      if(next.story?.libraryId)await rememberJourney(next.story.libraryId);
       setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);setIdea('');setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
     }catch(e){setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
     finally{storyLock.current=false;setCreatingStory(false);}
@@ -453,7 +468,7 @@ function QuestboundApp() {
       onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
       onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackRequest(null);setFeedbackOpen(true);}}/>
     <FeedbackSheet visible={feedbackOpen} onClose={()=>{setFeedbackOpen(false);setFeedbackRequest(null);}} context={feedbackContext} problem={feedbackRequest?.problem??null} prefill={feedbackRequest?.prefill??''}/>
-  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
+  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,screen==='Adventure Opening'&&journeysOnOffer?.length&&s.journeyContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
     {/* Web scroll events include the browser bringing a focused field above the phone keyboard.
         Dismissing on that scroll immediately blurs the field and closes the keyboard. */}
     <View key={screen} dataSet={{qb:'enter'}}>
@@ -502,7 +517,7 @@ function QuestboundApp() {
         {!!hero&&!heroFallen&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero sets {hero.name} aside with their adventure; switch back below any time.</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
         <HeroRoster roster={roster} graves={graves} onPlay={playFromRoster} onRetire={retireFromRoster} busy={saving||loading||creatingStory} compact={compact}/>
       </>}
-      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
+      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} journeys={continuingNow?null:journeysOnOffer} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
       {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
       {screen === 'Character Sheet' && hero && <CharacterSheet setGame={table.joined?next=>table.edit({kind:'training',training:next.skillTraining}).catch(e=>setError(e.message)):setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
@@ -545,7 +560,7 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
-  {storyCover&&<StoryLoading introId={continuingNow?'surprise':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
+  {storyCover&&<StoryLoading introId={continuingNow?'surprise':String(selectedIntro).startsWith('journey:')?'easy':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
   <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
   </View>;
@@ -554,7 +569,7 @@ const s = StyleSheet.create({
   root:{flex:1,backgroundColor:colors.ink,overflow:'hidden'},
   // An image from a file brings its own pixel size as its style; the backdrop must say it fills the screen instead
   // (without this the picture stopped at its own width and wide windows showed black on the right).
-  backdrop:{position:'absolute',left:0,top:0,right:0,bottom:0,width:'100%',height:'100%'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},
+  backdrop:{position:'absolute',left:0,top:0,right:0,bottom:0,width:'100%',height:'100%'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},journeyContent:{maxWidth:1080},
   topBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,minHeight:52,paddingHorizontal:20,paddingVertical:8},
   shell:{flex:1,minHeight:0},play:{flex:1,minHeight:0,paddingHorizontal:0,paddingTop:6},playWide:{paddingHorizontal:16,paddingTop:14,paddingBottom:14,width:'100%',maxWidth:1500,alignSelf:'center'},
   notices:{paddingHorizontal:16,paddingTop:6,gap:6},centred:{flexGrow:1,justifyContent:'center'},

@@ -22,7 +22,10 @@ export function validStory(s){
   // An Easy to get into tale: the errand the hero accepted before it began.
   &&(s.errand===undefined||validErrand(s.errand))
   // The tale's introduction: who the hero is here, where, what is going on, who is in front of them, what to do first.
-  &&(s.introduction===undefined||validIntroduction(s.introduction));
+  &&(s.introduction===undefined||validIntroduction(s.introduction))
+  // A ready journey (tale-library.cjs): the journey this copy came from, and the art id its own places and people are
+  // painted under, once for every player of it (worldArtRules.js taleArtId).
+  &&(s.libraryId===undefined||/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.libraryId))&&(s.artId===undefined||(typeof s.artId==='string'&&s.artId==='journey-'+s.libraryId));
 }
 // ---------- The introduction ----------
 // Every tale, however it begins (a written opening, Let fate decide, Easy to get into, the player's own idea, the next
