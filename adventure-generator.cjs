@@ -1,5 +1,5 @@
 const {providerError}=require('./ai-diagnostics.cjs');
-const {modelOptions,providerTimeout,outputBudget}=require('./ai-request.cjs');
+const {modelOptions,providerTimeout,outputBudget,readJson}=require('./ai-request.cjs');
 const text={type:'string'},object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 const placeKinds=['settlement','camp','road','forest','wilds','mountain','water','ruin','cave','shrine','landmark','lair'],compass=['N','NE','E','SE','S','SW','W','NW'],terrains=['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns'];
 // The kinds of remarkable thing a tale's foe can carry or guard (lootRules.js in the game: SRD 5.2 magic items whose
@@ -84,7 +84,8 @@ async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=nul
  const response=await fetchImpl('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(timeout??providerTimeout(reasoning)),body:JSON.stringify({...modelOptions(model,reasoning),...(safety??{}),store:false,max_output_tokens:room,instructions:storyInstructions+dialogueInstructions+(easy?errandInstructions:'')+continuingInstructions+ideaInstructions+aheadInstructions+' Return only the story.',input:JSON.stringify({...body,guest:undefined,selectedOpening,creativeDirection:direction,...(openingScene?{openingScene}:{})}),text:{format:{type:'json_schema',name:'new_adventure',strict:true,schema:requestSchema}}})});
  if(!response.ok)throw await providerError(response);const data=await response.json();if(onUsage)try{onUsage(data.usage);}catch{}
  if(data.status!=='completed')throw Error('The adventure generation was incomplete. Your existing save is unchanged.');
- const story=JSON.parse((data.output??[]).flatMap(o=>o.content??[]).filter(c=>c.type==='output_text').map(c=>c.text).join(''));
+ // A tale sent twice or wrapped in fences is read once (readJson in ai-request.cjs); a refusal is told as such.
+ const story=readJson(data);
  if(!story.npcs||!['keeper','mara'].every(id=>['appearance','personality'].every(field=>typeof story.npcs[id]?.[field]==='string'&&story.npcs[id][field].trim().length>=10))||typeof story.foeAppearance!=='string'||story.foeAppearance.trim().length<10||story.npcs.keeper.name.trim().toLowerCase()===story.npcs.mara.name.trim().toLowerCase()||story.npcs.keeper.appearance.trim().toLowerCase()===story.npcs.mara.appearance.trim().toLowerCase())throw Error('The new characters need distinct identities and appearances. Your current adventure is unchanged; try again.');
  const lines=Array.isArray(story.openingDialogue)?story.openingDialogue.filter(l=>/^(?:keeper|mara|resident(?:[1-9]|1[0-2]))$/.test(String(l?.speakerId))&&typeof l.text==='string'&&l.text.trim()).slice(0,4).map(l=>({speakerId:l.speakerId,text:l.text.trim().slice(0,300)})):[];
  if(lines.length)story.openingDialogue=lines;else delete story.openingDialogue;

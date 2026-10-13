@@ -37,6 +37,16 @@ const body={input:'I swing at the bandit.',context:{choices:[],stage:'combat',..
  // Without a listener nothing is streamed (older servers call generate this way).
  const plain=await generate(body,{apiKey:'k',model:'m',fetchImpl:async(u,o)=>{sent=JSON.parse(o.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:json}]}]})};}});
  assert.equal(sent.stream,undefined);assert.equal(plain.narration,'Steel rings. The bandit, badly hurt, backs away.');
+ // A streamed reply cut short by the output limit is asked again with more room; cut short every time, the narration
+ // written in full is told on its own and nothing else is applied (a parse failure never reaches the player).
+ const cutStream=(text,whole)=>({ok:true,body:(async function*(){for(let i=0;i<text.length;i+=9)yield Buffer.from('data: '+JSON.stringify({type:'response.output_text.delta',delta:text.slice(i,i+9)})+'\n\n');yield Buffer.from('data: '+JSON.stringify(whole?{type:'response.completed',response:{status:'completed',output:[{content:[{type:'output_text',text}]}]}}:{type:'response.incomplete',response:{status:'incomplete',incomplete_details:{reason:'max_output_tokens'},usage:{input_tokens:5,output_tokens:3000}}})+'\n\n');})()});
+ let rooms=[];
+ const again=await generate(body,{apiKey:'k',model:'m',onNarration:()=>{},fetchImpl:async(u,o)=>{rooms.push(JSON.parse(o.body).max_output_tokens);return rooms.length===1?cutStream(json.slice(0,40),false):cutStream(json,true);}});
+ assert.deepEqual(rooms,[3000,6000],'more room after a cut-short reply');assert.equal(again.narration,'Steel rings. The bandit, badly hurt, backs away.');
+ rooms=[];const drafts=[];
+ const kept=await generate(body,{apiKey:'k',model:'m',onNarration:t=>drafts.push(t),fetchImpl:async(u,o)=>{rooms.push(JSON.parse(o.body).max_output_tokens);return cutStream(json.slice(0,json.indexOf('"dialogue"')+5),false);}});
+ assert.equal(rooms.length,3,'two quiet attempts after the first');assert.equal(kept.narration,'Steel rings. The bandit, badly hurt, backs away.');assert.equal(kept.actionId,null);assert.ok(drafts.length>=3,'the draft is shown while each attempt is written');
+ await assert.rejects(generate(body,{apiKey:'k',model:'m',onNarration:()=>{},fetchImpl:async()=>cutStream('{"narration":"Steel ri',false)}),/could not be used this time/,'nothing usable: a calm error');
  // Through the HTTP service: NDJSON lines when asked, plain JSON otherwise.
  const srv=createServer({apiKey:'k',model:'m',fetchImpl:streamFetch});await new Promise(r=>srv.listen(0,'127.0.0.1',r));const port=srv.address().port;
  const post=payload=>new Promise((resolve,reject)=>{const req=http.request({host:'127.0.0.1',port,path:'/dm',method:'POST',headers:{'Content-Type':'application/json',Origin:'http://localhost:8081'}},res=>{let data='';res.on('data',c=>data+=c);res.on('end',()=>resolve({status:res.statusCode,type:res.headers['content-type'],data}));});req.on('error',reject);req.end(JSON.stringify(payload));});
@@ -45,5 +55,5 @@ const body={input:'I swing at the bandit.',context:{choices:[],stage:'combat',..
  const lines=streamed.data.trim().split('\n').map(l=>JSON.parse(l));assert.ok(lines.length>=3);assert.ok(lines.slice(0,-1).every(l=>typeof l.narration==='string'));assert.equal(lines.at(-1).reply.narration,'Steel rings. The bandit, badly hurt, backs away.');
  const whole=await post(body);assert.match(whole.type,/application\/json/);assert.equal(JSON.parse(whole.data).narration,'Steel rings. The bandit, badly hurt, backs away.');
  srv.close();
- console.log('Passed: wrong HP figures in the telling are softened and right ones kept, partial narration is read from the streamed reply, and turns stream as NDJSON (or arrive whole when not asked).');
+ console.log('Passed: wrong HP figures in the telling are softened and right ones kept, partial narration is read from the streamed reply, a streamed reply cut short is asked again with more room (its finished telling kept if nothing more comes), and turns stream as NDJSON (or arrive whole when not asked).');
 })().catch(e=>{console.error(e);process.exit(1);});

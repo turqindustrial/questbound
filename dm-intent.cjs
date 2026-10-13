@@ -68,7 +68,9 @@ function situation(context){
 // Places where people would be found: arriving at one with nobody named there is a scene with no one to talk to.
 const busyKinds=['settlement','camp','road','water','shrine','starting place'];
 const arrivedAt=context=>(context?.engineResolved??[]).some(t=>/^You (?:travel to|arrive at|return to|reach) /.test(String(t)));
-const started=reply=>[reply?.actionId,reply?.castCommand,reply?.check,reply?.discovery,reply?.ambush,reply?.ruling].some(v=>v!=null);
+// A recruitment decision is a game action too: a reply in which someone joins (the journey waits for the next turn,
+// dm-server.cjs steadied) is never asked again for the journey.
+const started=reply=>[reply?.actionId,reply?.castCommand,reply?.check,reply?.discovery,reply?.ambush,reply?.ruling].some(v=>v!=null)||(Array.isArray(reply?.recruitment)&&reply.recruitment.length>0);
 const offers=(context,id)=>(context?.choices??[]).some(c=>c?.id===id);
 const phantomFight=text=>/\b(ambush|fight|encounter|battle|combat|attack|attacker)\b[^.!?]{0,70}\b(still|remains?)\b[^.!?]{0,40}\b(underway|in progress|active|unresolved|ongoing|unfinished|going on)\b|\b(?:can(?:no|')t|cannot|unable to)\s+(?:leave|abandon|walk away from|slip away from)\s+the\s+(?:fight|encounter|battle|ambush)\b|\bleaving the (?:fight|encounter|battle)\b/i.test(String(text??''));
 // Simple requests a choice covers outright.

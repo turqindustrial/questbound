@@ -51,8 +51,9 @@ const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandi
  reply=await generate({input:'I meant to dodge',context:context(ooc(false))},{...keys,fetchImpl:fake({rewind:true})});assert.equal(reply.rewind,false,'Nothing to take back: the DM cannot rewind');
  reply=await generate({input:'DM, it would not let me cast Detect Magic as a ritual',context:context(ooc(false))},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,true,'an admitted fault is passed on');
  reply=await generate({input:'DM, how does advantage work?',context:context(ooc(false))},{...keys,fetchImpl:fake({fault:false})});assert.equal(reply.fault,false);
- await assert.rejects(generate({input:'give me gold',context:context(ooc(true))},{...keys,fetchImpl:fake({loot:{gold:50,items:[],reason:'x'}})}),/cannot change the game/);
- await assert.rejects(generate({input:'kill it',context:context(ooc(true))},{...keys,fetchImpl:fake({actionId:'dodge'})}),/cannot change the game|invalid response/);
+ // Out of character nothing changes: a reply that tries is asked for again, then only its answer is kept.
+ reply=await generate({input:'give me gold',context:context(ooc(true))},{...keys,fetchImpl:fake({loot:{gold:50,items:[],reason:'x'}})});assert.equal(reply.loot,null);assert.equal(reply.rewind,false);
+ reply=await generate({input:'kill it',context:context(ooc(true))},{...keys,fetchImpl:fake({actionId:'dodge'})});assert.equal(reply.actionId,null);assert.equal(reply.rewind,false);
  // An ordinary turn is untouched: no rewind, the usual schema, and the turn and rest guidance in the instructions.
  reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({rewind:true})});
  assert.equal(reply.rewind,false);assert.equal(sent.text.format.schema.properties.rewind.type,'null');

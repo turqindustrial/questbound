@@ -90,19 +90,20 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  const logs=['.questbound-diagnostics.jsonl','.questbound-usage.jsonl'].map(f=>[f,size(f)]);
  const reply=await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({})});
  assert.equal(reply.narration,'The camp is quiet.');
- assert.deepEqual(request.reasoning,{effort:'none'},'Turns do not think');assert.equal(request.max_output_tokens,2000);
+ assert.deepEqual(request.reasoning,{effort:'none'},'Turns do not think');assert.equal(request.max_output_tokens,3000,'room for a long telling with four spoken lines');
  assert.ok(request.instructions.includes(contractInstructions),'The standing guidance is in the instructions');
  const input=JSON.parse(request.input);assert.equal(input.context.actionContract,undefined);assert.equal(input.input,body.input);assert.ok(Array.isArray(input.context.world.creatureTemplates),'A camp turn may reveal a lair');
  await generate(body,{apiKey:'k',model:'gpt-4.1',fetchImpl:fake({})});assert.equal(request.reasoning,undefined,'Models without reasoning are not sent the field');
- await generate(body,{apiKey:'k',model:'gpt-6-luna',reasoning:'low',fetchImpl:fake({})});assert.deepEqual(request.reasoning,{effort:'low'});assert.equal(request.max_output_tokens,8000,'Thinking needs room');
+ await generate(body,{apiKey:'k',model:'gpt-6-luna',reasoning:'low',fetchImpl:fake({})});assert.deepEqual(request.reasoning,{effort:'low'});assert.equal(request.max_output_tokens,9000,'Thinking needs room');
  const place={name:'Drowned Chapel',description:'A sunken chapel, '+long(400),kind:'ruin',bearing:'N',miles:2,travel:true,danger:'risky',feature:null,lair:{template:'wolf',name:'Greymaw',appearance:'A huge grey wolf, '+long(500),ally:null}};
  const found=await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'You find a chapel.',discovery:place})});
  assert.equal(found.discovery.danger,'lair');assert.equal(found.discovery.description.length,300);assert.equal(found.discovery.lair.appearance.length,400);
  const wilds={...body,context:{...full,stage:'wild',world:{...full.world,canAmbush:true,canDiscover:false}}};
  const sprung=await generate(wilds,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'It leaps.',ambush:{template:'boar',name:'Tusker',appearance:'A boar '+long(500),ally:null}})});
  assert.equal(sprung.ambush.appearance.length,400);
- await assert.rejects(generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',discovery:{...place,description:'Short'}})}),/could not use/,'A too-short description is still refused');
- await assert.rejects(generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',actionId:'not-a-choice'})}),/invalid response/);
+ // Still refused (asked again, then the turn goes on without it): a too-short description, an action not on offer.
+ assert.equal((await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',discovery:{...place,description:'Short'}})})).discovery,null,'A too-short description is still refused');
+ assert.equal((await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',actionId:'not-a-choice'})})).actionId,null);
  for(const [file,before] of logs)assert.equal(size(file),before,file+' is untouched by test runs');
  // Stories and heroes go to the story writer, which may think.
  await generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'caravan',choices:[]}},{apiKey:'k',model:'gpt-6-luna',storyModel:'gpt-6-astra',fetchImpl:async(url,options)=>{request=JSON.parse(options.body);throw Error('stop');}}).catch(()=>{});
