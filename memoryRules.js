@@ -17,7 +17,7 @@ import {npcIdsOf,npcLore,mentionsName} from './npcRules';
 export const memoryLimits={activeBeats:14,closedBeats:8,taleBeats:4,fullTales:4,longSummaries:30,tales:120,openFacts:40,settledFacts:20,factsPerTurn:2,budget:4500};
 const memText=(text,max=160)=>{const t=String(text??'').replace(/\s+/g,' ').trim();return t.length>max?t.slice(0,max-1).trimEnd()+'…':t;};
 const memList=names=>names.length<=1?names.join(''):names.slice(0,-1).join(', ')+' and '+names.at(-1);
-const taleStart=/^(.*): (?:the tale began at|a new tale began nearby, at|a new tale began, far away, at) (.*?)\.?$/;
+const memTaleStart=/^(.*): (?:the tale began at|a new tale began nearby, at|a new tale began, far away, at) (.*?)\.?$/;
 const freshFolded=()=>({met:[],metN:0,places:[],placesN:0,fights:0,won:0,fled:0,gold:0,finds:0,rests:0,more:0});
 const freshChapter=(n,title='')=>({n,title:memText(title,100),done:false,beats:[],folded:freshFolded()});
 // How much a line of the story matters when there is no room to keep them all (storyLog.js wording).
@@ -70,7 +70,7 @@ export function foldedText(f){
 }
 const statusWords={active:'under way',complete:'completed',left:'left unfinished'};
 // A closed tale's own summary (kept when its chapters are folded away): how it ended, its chapters and what mattered most.
-function taleSummary(tale){
+function memTaleSummary(tale){
  const beats=tale.chapters.flatMap(c=>c.beats).filter(b=>beatRank(b)>=7);
  const folded=foldedText(tale.chapters.reduce((all,c)=>{for(const b of c.folded.met)if(all.met.length<6&&!all.met.includes(b))all.met.push(b);else all.metN++;all.metN+=c.folded.metN;for(const b of c.folded.places)if(all.places.length<6&&!all.places.includes(b))all.places.push(b);else all.placesN++;all.placesN+=c.folded.placesN;for(const k of ['fights','won','fled','gold','finds','rests','more'])all[k]+=c.folded[k];return all;},freshFolded()));
  const titles=tale.chapters.map(c=>c.title).filter(Boolean);
@@ -79,7 +79,7 @@ function taleSummary(tale){
 function closeTale(tale){
  if(!tale||tale.summary)return tale;
  const closed={...tale,status:tale.status==='active'?'left':tale.status,chapters:tale.chapters.map(c=>trimBeats({...c,done:true},memoryLimits.taleBeats))};
- return {...closed,summary:taleSummary({...tale,status:closed.status})};
+ return {...closed,summary:memTaleSummary({...tale,status:closed.status})};
 }
 // Older tales are kept more briefly: the newest few closed tales keep their chapters; then the summary alone; past
 // a hundred and twenty tales the oldest are folded into one line (era).
@@ -107,7 +107,7 @@ function withCurrentTale(m,game){
 function foldLine(m,game,line){
  const text=String(line.text??'');
  if(line.kind==='story'){
-  const start=text.match(taleStart);
+  const start=text.match(memTaleStart);
   if(start)return openTale(m,game,start[1],start[2]);
   const ch=text.match(/^Chapter (\d+): (.+)$/);
   if(ch){m=withCurrentTale(m,game);const tales=[...m.tales],tale={...tales.at(-1)},n=Number(ch[1]);
@@ -133,7 +133,7 @@ export function memoryOf(game){
  if(!m){
   m=emptyMemory();
   // Earlier tales the log has scrolled past (or never held) are known by their titles.
-  const told=new Set(log.map(l=>String(l.text).match(taleStart)?.[1]).filter(Boolean));
+  const told=new Set(log.map(l=>String(l.text).match(memTaleStart)?.[1]).filter(Boolean));
   for(const title of (Array.isArray(game.storyHistory)?game.storyHistory:[]).filter(t=>typeof t==='string'&&t!==game.story?.title&&!told.has(t)))m={...m,tales:[...m.tales,{no:m.tales.length+1,title:memText(title,120),status:'left',chapters:[],summary:'From before the chronicle was kept.'}]};
  if(m.tales.length&&![...told].some(t=>t!==game.story?.title)){const previously=(game.journal?.entries??[]).find(e=>e.title==='Previously');if(previously){const tales=[...m.tales];tales[tales.length-1]={...tales.at(-1),summary:memText(previously.text,400)};m={...m,tales};}}
  }else{
@@ -288,17 +288,17 @@ export function memoryBlock(game,{input='',present=[]}={}){
  }
  // Fit the budget: the most important first, each section keeping its own order.
  // Each part has a share of the budget, so a crowd of facts never pushes the tale out (and the other way about).
- const kept=[],used={},size=()=>JSON.stringify(group(kept)).length;
+ const kept=[],used={},size=()=>JSON.stringify(memoryGroups(kept)).length;
  for(const it of [...items].sort((a,b)=>b.rank-a.rank)){
   const cost=it.text.length+3;if((used[it.section]??0)+cost>memoryShares[it.section])continue;
   kept.push(it);if(size()>memoryLimits.budget){kept.pop();continue;}used[it.section]=(used[it.section]??0)+cost;
  }
- const block=group(kept);
+ const block=memoryGroups(kept);
  const left=open.length-kept.filter(i=>i.section==='facts'||i.section==='otherFacts').length;
  if(left>0)block.moreFacts=left;
  return block;
 }
-function group(items){
+function memoryGroups(items){
  const out={};for(const it of [...items].sort((a,b)=>a.order-b.order))(out[it.section]??=[]).push(it.text);return out;
 }
 // ---------- The story so far, for the Log tab ----------

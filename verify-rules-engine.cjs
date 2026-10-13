@@ -22,7 +22,7 @@ for(const file of files){
 }
 assert.deepEqual(missing,[],'the engine lists every rules file the listed files import');
 assert.deepEqual(unstrippable,[],'every import is a single line ending in ";"');
-for(const needed of ['subclassRules.js','lootRules.js','experienceRules.js','turnRules.js'])assert.ok(files.includes(needed),needed+' is in the engine');
+for(const needed of ['subclassRules.js','lootRules.js','experienceRules.js','turnRules.js','memoryRules.js'])assert.ok(files.includes(needed),needed+' is in the engine');
 
 // 2. No two listed files define the same top-level function (a later one would silently replace the earlier).
 const owners={};
@@ -42,6 +42,8 @@ for(const file of ['server-turn.cjs','campaigns.cjs','campaign-advancement.cjs']
 assert.ok(calls.size>20,'the server files call the engine');
 const absent=[...calls].filter(([name])=>typeof r[name]!=='function').map(([name,file])=>name+' ('+file+')');
 assert.deepEqual(absent,[],'every engine function the server calls exists');
+// The story so far is folded by settleTurn on the server as on a device, and the memory is checked with the save.
+for(const name of ['withMemory','rememberFacts','memoryBlock','validMemory'])assert.equal(typeof r[name],'function',name+' is on the engine');
 for(const name of ['settleTurn','withExperience','advancedInPlace','levelCompanions','withCompanionClasses','acceptOffer','attuneItem','speakingPeople','attackTargets'])assert.ok(calls.has(name),'the server uses '+name);
 
 console.log('Rules engine: '+files.length+' files with all their imports, '+exported.length+' names, loaded in '+took+' ms; the '+calls.size+' functions the campaign server calls all exist, and partyVictory is gone.');
