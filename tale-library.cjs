@@ -18,7 +18,7 @@
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs); bump
 // `revision` (and the literal in dm-server.cjs loadLibrary) when it changes. Raise `generation` when the story writer's
 // output changes shape.
-const revision=1,generation=5;
+const revision=2,generation=5;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const day=86400000;
 // The library's numbers (see the report of 2026-10-13 for the cost reckoning).
@@ -129,21 +129,23 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
  }
  // Starts writing one journey, unless one is being written, a write failed in the last ten minutes or none is due.
  // `write(brief)` resolves to {story,pitch}; `accept(story)` says whether the game's rules take it; `onStocked(entry)`
- // follows a journey into the library (its cover is painted). When one is done, the next follows, until none is due.
- function topUp(write,{accept=()=>true,onStocked=null}={}){
+ // follows a journey into the library (its cover is painted); `onFailure(error)` hears why a write failed (its `kind`:
+ // rejected by the rules, too like one on offer, no story, or the writer's own). When one is done, the next follows,
+ // until none is due.
+ function topUp(write,{accept=()=>true,onStocked=null,onFailure=null}={}){
   const state=readState();
   if(filling||now()-state.lastFailure<set.failurePause||!due())return false;
   const on=offered(),b=brief(on);state.writes.push(now());saveState(state);
   filling=Promise.resolve().then(()=>write(b)).then(result=>{
-   const story=result?.story;if(!story||typeof story!=='object'||Array.isArray(story))throw Error('no story');
-   if(!accept(story))throw Error('the rules refused the tale');
+   const story=result?.story;if(!story||typeof story!=='object'||Array.isArray(story))throw Object.assign(Error('no story'),{kind:'no-story'});
+   if(!accept(story))throw Object.assign(Error('the rules refused the tale'),{kind:'rejected'});
    const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.trim().toLowerCase()===b.trim().toLowerCase();
-   if(on.some(e=>same(e.story.title,story.title)||(story.region&&same(e.story.region,story.region))))throw Error('too like a journey on offer');
+   if(on.some(e=>same(e.story.title,story.title)||(story.region&&same(e.story.region,story.region))))throw Object.assign(Error('too like a journey on offer'),{kind:'too-alike'});
    const t=now(),entry={id:crypto.randomUUID(),generation,at:new Date(t).toISOString(),offeredAt:t,plays:0,retiredAt:null,brief:{terrain:b.terrain,mood:b.mood,seedIndex:b.seedIndex},pitch:tidyPitch(result.pitch,story,b.mood),story};
    writeJson(fileOf(entry.id),entry);
    const after=readState();after.seeds.push(b.seedIndex);saveState(after);
    try{onStocked?.(entry);}catch{}
-  }).then(()=>true,()=>{const after=readState();after.lastFailure=now();saveState(after);return false;}).then(ok=>{filling=null;if(ok)topUp(write,{accept,onStocked});});
+  }).then(()=>true,e=>{const after=readState();after.lastFailure=now();saveState(after);try{onFailure?.(e);}catch{}return false;}).then(ok=>{filling=null;if(ok)topUp(write,{accept,onStocked,onFailure});});
   return true;
  }
  // Resolves once nothing is being written (a chain of journeys included).

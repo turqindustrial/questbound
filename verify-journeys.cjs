@@ -67,10 +67,10 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
  {const again=createLibrary({dir,now:()=>clock,random});assert.equal(again.list().length,shelf.list().length);assert.equal(again.due(),shelf.due());}
  // ---- Failures: a tale the rules refuse, one too like another, or a provider error pauses ten minutes ----
  {const d2=path.join(tmp,'fail'),f2=createLibrary({dir:d2,now:()=>clock,random});
-  f2.topUp(async()=>({story:{title:'Broken'},pitch:journeyPitch(0)}),{accept:journeyCheck});await f2.settled();assert.equal(f2.list().length,0,'a broken tale is never offered');
+  const heard=[];f2.topUp(async()=>({story:{title:'Broken'},pitch:journeyPitch(0)}),{accept:journeyCheck,onFailure:e=>heard.push(e.kind)});await f2.settled();assert.equal(f2.list().length,0,'a broken tale is never offered');same(heard,['rejected'],'the failure is told with its kind');
   assert.equal(f2.topUp(write,{accept:journeyCheck}),false,'paused after a failure');assert.equal(createLibrary({dir:d2,now:()=>clock}).topUp(write),false,'the pause survives a restart');
   clock+=11*60*1000;n=0;let once=0;const one=async b=>{once++;return {story:journeyStory(0),pitch:journeyPitch(0)};};
-  f2.topUp(one,{accept:journeyCheck});await f2.settled();assert.equal(f2.list().length,1,'the same tale twice is refused: too like a journey on offer');assert.equal(once,2);}
+  f2.topUp(one,{accept:journeyCheck,onFailure:e=>heard.push(e.kind)});await f2.settled();assert.equal(f2.list().length,1,'the same tale twice is refused: too like a journey on offer');assert.equal(once,2);same(heard,['rejected','too-alike']);}
  // ---- Pitches: kept to their limits, or built from the tale ----
  {const long=tidyPitch({hook:'A '.repeat(200),blurb:'B',mood:'',special:'S'.repeat(400)},journeyStory(0),journeyMoods[0]);assert.ok(validPitch(long)&&long.hook.length<=140&&long.special.length<=160);assert.equal(long.mood,'Mystery','a missing mood is the library\'s');assert.match(long.blurb,/Something has gone wrong/,'a blurb too short is the premise');
   const none=tidyPitch(null,journeyStory(1));assert.ok(validPitch(none),'a journey without a pitch still gets a card');assert.ok(!validPitch({hook:'x'}));}
@@ -110,6 +110,18 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false,spend:{background:()=>({ok:false,reason:'total'})}}),false,'past a ceiling nothing is written');assert.equal(d.list().length,0);
   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false,spend:{check:()=>({ok:true})}}),true,'a spending module without the background check does not stop it');await d.settled();
   assert.equal(topUpLibrary(d,{apiKey:'',storyModel:'m',fetchImpl:keys.fetchImpl,live:false}),false,'no key, no writing');}
+ // A failed write is noted in the diagnostics with its kind only (live runs), so the next failure can be told apart
+ // (the first live journey was cut off by Node's own fetch after 308 s on 2026-10-13 and left no trace).
+ {const data=path.join(tmp,'data'),was=process.env.QUESTBOUND_DATA;fs.mkdirSync(data,{recursive:true});process.env.QUESTBOUND_DATA=data;
+  try{
+   const d=createLibrary({dir:path.join(tmp,'noted'),now:()=>clock,random,size:2,floor:2});
+   const down=async()=>new Response(JSON.stringify({error:{code:'server_error',message:'provider words'}}),{status:500,headers:{'content-type':'application/json'}});
+   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:down,live:true,spend:{background:()=>({ok:true})}}),true);await d.settled();
+   const notes=fs.readFileSync(path.join(data,'.questbound-diagnostics.jsonl'),'utf8').trim().split('\n').map(l=>JSON.parse(l));
+   assert.equal(notes.length,1);assert.equal(notes[0].write,'library');assert.equal(notes[0].failure,'http');assert.equal(notes[0].status,500);assert.ok(Number.isFinite(notes[0].seconds));assert.ok(!JSON.stringify(notes[0]).includes('provider words'),'never what the provider said');
+   const quiet=createLibrary({dir:path.join(tmp,'quiet'),now:()=>clock,random,size:2,floor:2});topUpLibrary(quiet,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:down,live:false});await quiet.settled();
+   assert.equal(fs.readFileSync(path.join(data,'.questbound-diagnostics.jsonl'),'utf8').trim().split('\n').length,1,'a run against a stand-in provider notes nothing');
+  }finally{if(was===undefined)delete process.env.QUESTBOUND_DATA;else process.env.QUESTBOUND_DATA=was;}}
  // When the Dungeon Master starts, the library tops itself up.
  {const d=createLibrary({dir:path.join(tmp,'start'),now:()=>clock,random,size:1,floor:1});assert.equal(startLibrary({apiKey:'k',model:'m',library:d,fetchImpl:keys.fetchImpl}),true);await d.settled();assert.equal(d.list().length,1);
   const dm=fs.readFileSync('dm-server.cjs','utf8');assert.ok(dm.includes("if(fetchImpl===fetch&&apiKey&&model&&process.env.QUESTBOUND_LIBRARY!=='off')setTimeout(()=>{try{require(__filename).startLibrary("),'createServer starts it (live only)');}
