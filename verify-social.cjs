@@ -53,7 +53,7 @@ assert.deepEqual(social.forgiveness,{weight:'grave',amends:1,needed:2,amendsToGo
  out=await ask('Will you hear me?',alone,{dialogue:[{speakerId:first.id,text:'Say it, then go.'}]});
  assert.deepEqual(plain(sent.text.format.schema.properties.dialogue.items.properties.speakerId.enum),[first.id]);
  assert.equal(out.dialogue[0].text,'Say it, then go.');
- await assert.rejects(()=>ask('Will you hear me?',alone,{dialogue:[{speakerId:second.id,text:'She will not.'}]}),/unavailable speaker/);
+ assert.ok((await ask('Will you hear me?',alone,{dialogue:[{speakerId:second.id,text:'She will not.'}]})).dialogue.every(l=>l.speakerId===first.id),'an unavailable speaker is never heard');
  // Everyone here: both may speak, as before.
  const group=contextOf(grudging,{conversationWith:{id:first.id,name:first.name,role:first.role,oneOnOne:false}});
  out=await ask('Will you hear me?',group,{dialogue:[{speakerId:second.id,text:'She will not.'}]});

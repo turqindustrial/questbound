@@ -63,7 +63,9 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  // A rule's refusal of a plain "I cast ..." is shown as it is; only a cast the game could not read goes to the DM.
  if(command?.error&&/^(?:I )?cast\s/i.test(question)&&!command.soft)throw fail(command.error);
  const body=await post(game,health,command?.error?{castingIssue:command.error}:{});
- if(body.castCommand){const parsed=r.dmCommand(ruled,game,body.castCommand,health);if(parsed?.error||parsed?.action?.type!=='spell')throw fail('That spell is not available.');return cast(parsed,body.narration);}
+ // The cast the Dungeon Master read from the player's words is settled as those words (as on a device), so the rules
+ // recognise it as the player's own command.
+ if(body.castCommand){const parsed=r.dmCommand(ruled,game,body.castCommand,health);if(parsed?.error||parsed?.action?.type!=='spell')throw fail('That spell is not available.');return cast({...parsed,normalizedCommand:parsed.normalizedCommand??body.castCommand},body.narration);}
  if(body.recruitment?.length||body.check){
   const action=body.check?{type:'ai-check',check:body.check}:{type:'recruitment',plans:body.recruitment},dice=[];
   const preview=r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,npcId:target},()=>{const n=randomImpl();dice.push(n);return n;});if(preview.error)throw fail(preview.error);

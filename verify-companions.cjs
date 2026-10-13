@@ -33,7 +33,8 @@ assert.equal(art.sceneArtSubjects(game).length,3);assert.equal(art.sceneArtSubje
  const {generate}=require('./dm-server.cjs'),context={choices:[],conversationParticipants:[{id:'keeper',name:'The keeper'},{id:'mara',name:'Mara'}],recruitmentTargets:['mara']};
  const response=reply=>async()=>({ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'They reply.',actionId:null,...reply})}]}]})});
  const grouped=await generate({input:question,context},{apiKey:'test',model:'test',fetchImpl:response({dialogue,recruitment:[plan]})});assert.equal(grouped.dialogue.length,2);assert.equal(grouped.recruitment[0].npcId,'mara');
- await assert.rejects(()=>generate({input:question,context:{...context,conversationParticipants:[{id:'keeper'}]}},{apiKey:'test',model:'test',fetchImpl:response({dialogue})}),/unavailable speaker/);
- await assert.rejects(()=>generate({input:question,context:{...context,engineResolved:['Mara joins.']}},{apiKey:'test',model:'test',fetchImpl:response({recruitment:[plan]})}),/recruitment decision/);
+ // Never applied (asked again, then left out): a line from someone not here, a recruitment on a resolved turn.
+ assert.ok((await generate({input:question,context:{...context,conversationParticipants:[{id:'keeper'}]}},{apiKey:'test',model:'test',fetchImpl:response({dialogue})})).dialogue.every(l=>l.speakerId==='keeper'),'unavailable speaker');
+ assert.deepEqual((await generate({input:question,context:{...context,engineResolved:['Mara joins.']}},{apiKey:'test',model:'test',fetchImpl:response({recruitment:[plan]})})).recruitment,[],'recruitment decision');
  console.log('Passed: willing/hesitant/unwilling recruitment, real Persuasion, presence and travel, wait/resume/dismiss, betrayal, save/reload, group speakers, hidden redundant consequences, scene art manifest and server validation.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

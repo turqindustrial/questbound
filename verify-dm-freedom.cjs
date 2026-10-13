@@ -25,7 +25,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const found=await generate(free,{...keys,fetchImpl:success({narration:'You climb toward the ridge.',discovery:ridge})});
  assert.equal(found.discovery.name,'Thornback Ridge');assert.equal(found.discovery.miles,12);
  assert.equal(lastRequest.text.format.schema.properties.discovery.type[0],'object');assert.ok(lastRequest.text.format.schema.required.includes('discovery'));
- await assert.rejects(generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})}),/new place the map could not use/);
+ assert.equal((await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})})).discovery,null,'a place the map could not use is never added (asked again, then left out)');
  await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','No new places while the player is not free to travel');
  await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','Narrating a resolved turn reveals nothing');
  // One game action per reply: when two arrive together the first is kept and the other dropped, not the whole reply.
@@ -33,7 +33,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const both=await generate(free,{...keys,fetchImpl:success({narration:'Both.',discovery:ridge,check:look})});assert.equal(both.discovery.name,'Thornback Ridge');assert.equal(both.check,null,'The journey is kept, the check dropped');
  const walk=await generate({...free,context:{...free.context,choices:[{id:'travel-tower',label:'Travel to Lookout Rock'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-tower',check:look,discovery:ridge})});assert.equal(walk.actionId,'travel-tower');assert.equal(walk.check,null);assert.equal(walk.discovery,null);
  assert.match(lastRequest.instructions,/WHAT IS TRUE NOW:/);assert.match(lastRequest.instructions,/never invent an obstacle/);
- await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})}),/new place the map could not use/);
+ assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})})).discovery,null,'new place the map could not use');
  // Danger in the wilds: a lair's creature, a feature, and ambushes only where the player is out in the wilds.
  const widow={template:'spider',name:'Grey Widow',appearance:'A spider as large as a pony, grey and bristled.'};
  const den=await generate(free,{...keys,fetchImpl:success({narration:'Silk glints.',discovery:{...ridge,miles:2,danger:'lair',feature:'A satchel under the webs.',lair:widow}})});
@@ -42,8 +42,8 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const wild=body('I kick the sleeping boar.',{world:{canDiscover:true,canAmbush:true}});
  const sprung=await generate(wild,{...keys,fetchImpl:success({narration:'It wakes.',ambush:{template:'boar',name:'Tusked Brute',appearance:'A boar with tusks like sickles.'}})});
  assert.equal(sprung.ambush.template,'boar');assert.equal(lastRequest.text.format.schema.properties.ambush.type[0],'object');
- await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})}),/could not use/,'No ambush away from the wilds');
- await assert.rejects(generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})}));
+ assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})})).ambush,null,'No ambush away from the wilds');
+ assert.equal((await generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})})).ambush,null);
  assert.ok(lastRequest.instructions.includes('DANGER IN THE WILDS'));
  // Loot: handed over with the narration, never mid-fight, never more gold than the hero has.
  const shop=body('I buy a healing potion from the captain.',{stage:'inn',inventory:{gold:60},player:{level:1}});

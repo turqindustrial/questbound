@@ -5,24 +5,30 @@ const success=reply=>async(url,options)=>{assert.equal(url,'https://api.openai.c
 (async()=>{
  assert.ok(validRequest(body));assert.equal(validRequest({...body,input:''}),false);
  const reply=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'The road leads back to the inn. Shall we go?',actionId:'travel-inn'})});assert.equal(reply.actionId,'travel-inn');
- await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'You gain 900 gold.',actionId:'invent-gold'})}));
+ // An action the game does not offer is never applied: asked again twice, then the turn goes on without it (here the
+ // player's plain journey is then started by the game: dm-intent.cjs).
+ {const kept=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'You gain 900 gold.',actionId:'invent-gold'})});assert.notEqual(kept.actionId,'invent-gold');assert.equal(kept.loot??null,null);}
  // A reply wrapped in markdown fences or prose is read anyway; prose alone is refused by its shape; a refusal is told apart.
  const raw=(text,items)=>async()=>({ok:true,json:async()=>({status:'completed',output:items??[{type:'message',content:[{type:'output_text',text}]}]})});
  const fenced=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('```json\n'+JSON.stringify({narration:'The inn is near.',actionId:'travel-inn'})+'\n```')});assert.equal(fenced.actionId,'travel-inn');
  const wrapped=await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('Here is the reply: '+JSON.stringify({narration:'Back to the inn.',actionId:'travel-inn'})+' Enjoy.')});assert.equal(wrapped.actionId,'travel-inn');
- await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('The inn is that way.')}),/usable reply/);
+ await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('The inn is that way.')}),/could not be used this time/);
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:raw('',[{type:'message',content:[{type:'refusal',refusal:'no'}]}])}),/declined to answer/);
  assert.equal(JSON.stringify(repairedJson('{"narration":"A {brace} in \\"quotes\\"","actionId":null}{"narration":"Again","actionId":null}')),JSON.stringify({narration:'A {brace} in "quotes"',actionId:null}),'a reply sent twice is read once');
  assert.equal(repairedJson('[1,2]'),null);assert.equal(repairedJson('nonsense'),null);assert.deepEqual(repairedJson(' ```json {"a":1} ``` '),{a:1});
  const shape=replyShape('The inn is that way.',{status:'completed',output:[{type:'reasoning'},{type:'message',content:[{type:'output_text'}]}]});assert.deepEqual(shape,{length:20,start:'text',end:'text',items:['reasoning','message:output_text'],status:'completed',incomplete:null,refusal:false});
  await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:false,status:429})}),/usage limit/);
- await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:true,json:async()=>({status:'incomplete'})})}),/incomplete/);
+ await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:true,json:async()=>({status:'incomplete'})})}),/could not be used this time/);
  const adjudication={...body,context:{...body.context,pendingSpell:{id:'acid-splash'}}};
  const valid={decision:'cast',note:'Adjudicated save and four acid damage.',damage:4,selfDamage:0,healing:0,temporaryHP:0};
  const ruled=await generate(adjudication,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Acid splashes the keeper.',actionId:null,ruling:valid,worldEvent:'The keeper is angry.',castCommand:null})});assert.equal(ruled.ruling.damage,4);
- await assert.rejects(generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Invalid unsolicited ruling.',actionId:null,ruling:valid})}),/invalid ruling/);
- await assert.rejects(generate(adjudication,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Invalid damage.',actionId:null,ruling:{...valid,damage:-2}})}),/invalid ruling/);
- await assert.rejects(generate(adjudication,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Ambiguous.',actionId:'travel-inn',ruling:valid})}),/invalid ruling/);
+ // A ruling with no spell awaiting one is dropped; an unusable ruling on the spell awaiting one ends, after the quiet
+ // attempts, as a clarify that spends and applies nothing.
+ assert.equal((await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:success({narration:'Invalid unsolicited ruling.',actionId:null,ruling:valid})})).ruling,null);
+ for(const bad of [{narration:'Invalid damage.',actionId:null,ruling:{...valid,damage:-2}},{narration:'Ambiguous.',actionId:'travel-inn',ruling:valid}]){
+  const r=await generate(adjudication,{apiKey:'test-only',model:'test-model',fetchImpl:success(bad)});
+  assert.equal(r.ruling.decision,'clarify');assert.ok(['damage','selfDamage','healing','temporaryHP'].every(k=>r.ruling[k]===0));assert.equal(r.actionId,null);
+ }
  // Guests (requests the phone gateway labelled): OpenAI is told which guest asked and the host's requests carry no label;
  // only the host may check the AI connection; a guest past the host's daily allowance is refused before any call.
  const told=[],telling=reply=>async(url,options)=>{told.push(JSON.parse(options.body).safety_identifier??null);return success(reply)(url,options);};

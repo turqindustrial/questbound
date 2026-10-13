@@ -209,7 +209,7 @@ const hob={name:'Hob Tallow',species:'Human',role:'A ferryman.',appearance:'A st
  same(offer.recruitment.map(p=>[p.npcId,p.decision,p.class]),[['n1','offer','Fighter']]);
  const schema=lastRequest.text.format.schema.properties.recruitment.items.properties;
  assert.ok(schema.decision.enum.includes('offer'));assert.ok(schema.class.enum.includes('Ranger')&&schema.class.enum.includes(null));
- await assert.rejects(server.generate(body(),{...keys,fetchImpl:reply({recruitment:[{npcId:'n1',decision:'join',reason:'He wants the road.',terms:'',dc:null,class:'Fighter'}]})}),/recruitment/i,'an uninvited join is refused');
+ assert.deepEqual((await server.generate(body(),{...keys,fetchImpl:reply({recruitment:[{npcId:'n1',decision:'join',reason:'He wants the road.',terms:'',dc:null,class:'Fighter'}]})})).recruitment,[],'an uninvited join is refused');
  const invited=await server.generate(body({recruitmentTargets:['mara']},'Wren, will you come with me?'),{...keys,fetchImpl:reply({recruitment:[{npcId:'mara',decision:'join',reason:'Her brother.',terms:'',dc:null,class:'Necromancer'}]})});
  assert.equal(invited.recruitment[0].class,null,'a made-up class becomes null');
  // introduce: a Cleric is kept, a made-up class repaired to null.

@@ -51,7 +51,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const hello=await greet({narration:'',dialogue:[{speakerId:'mara',text:'You have the look of someone who reads marks. Good.'}]});
  assert.equal(hello.narration,'Yarro Keth looks up.');assert.equal(hello.dialogue[0].text,'You have the look of someone who reads marks. Good.');
  assert.match(turnRequest.instructions,/never empty, never the spoken words/);
- await assert.rejects(()=>greet({narration:'',dialogue:[]}),/invalid response/,'Nothing said and nothing told is still refused');
+ await assert.rejects(()=>greet({narration:'',dialogue:[]}),/could not be used this time/,'Nothing said and nothing told is still refused');
  // ---- The game's side: ask once, then ask after it ----
  const sent=[];let gate=null;
  const service=(over={})=>async(url,options)=>{const body=JSON.parse(options.body);sent.push(body);const reply=over.reply?await over.reply(body):await generate(body,{...keys,fetchImpl:async(u,o)=>{if(gate)await gate;return storyFetch(u,o);}});return {ok:true,status:200,headers:{get:()=>'application/json'},json:async()=>reply};};

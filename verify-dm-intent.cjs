@@ -99,10 +99,12 @@ const turn=async(input,replies,context=base)=>{const s=scripted(replies);const r
  // A new place asked for and not given is asked for once more.
  r=await turn('I follow the shore south to see what lies beyond the salt pans.',[{...quiet,actionId:'travel-p1'},{...quiet,narration:'Reeds give way to a spit of shingle.',discovery:{name:'Gull Spit',description:'A long spit of shingle where the estuary meets the sea, strewn with wrack and the ribs of a boat.',kind:'water',bearing:'S',miles:2,travel:true,danger:'safe',feature:'The ribs of a wrecked boat.',lair:null,region:null}}]);
  assert.equal(r.calls.length,2);assert.equal(r.reply.discovery?.name,'Gull Spit');assert.equal(r.reply.actionId,null);
- // A reply that cannot be used is asked for once more, with the reason; twice unusable is an error as before.
+ // A reply that cannot be used is asked for again, with the reason, up to twice; then the usable part of the last
+ // reply is told (the telling, never the unknown action) instead of failing the turn.
  r=await turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'},{...quiet,narration:'Steel sings on the whetstone.'}]);
  assert.equal(r.calls.length,2);assert.ok(r.calls[1].instructions.includes('could not be used'));assert.equal(r.reply.narration,'Steel sings on the whetstone.');
- await assert.rejects(turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'}]),/invalid response/);
+ r=await turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'}]);
+ assert.equal(r.calls.length,3,'two quiet attempts after the first');assert.equal(r.reply.actionId,null,'the unknown action is never applied');assert.equal(r.reply.narration,'The camp is quiet.');
  // A momentary rate limit at the provider is waited out; no credit is reported at once.
  {const calls=[];const limited=async()=>{calls.push(Date.now());if(calls.length===1)return {ok:false,status:429,headers:{get:()=>'1'},json:async()=>({error:{code:'rate_limit_exceeded'}})};return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(quiet)}]}]})};};
   const reply=await generate({input:'I sharpen my mace.',context:base},{apiKey:'test-only',model:'test-model',fetchImpl:limited});
