@@ -66,3 +66,88 @@ assert.equal(guardian.name,'Stone Sentinel');assert.match(guardian.description,/
   console.log('Passed: distinct character/campaign identities, one request per subject, background queue, persistent image reuse, subject validation, secret-safe failures, the guests\' allowance, the guest label sent to OpenAI and bounded memory. No paid calls.');
  }finally{const resolved=path.resolve(directory),temp=path.resolve(os.tmpdir())+path.sep;if(!resolved.startsWith(temp)||!path.basename(resolved).startsWith('questbound-art-tests-'))throw Error('Unsafe temporary path');await fs.rm(resolved,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
+// ---------- The host's library of ready landscape paintings (place-library.cjs) ----------
+// Every place the player arrives at is shown from the library at no cost: matched on kind and terrain, the same
+// picture for a place every time, different pictures for two places of one tale while another fits, a painting made
+// before the library kept, and painting as before only while the library has nothing for that land yet.
+const library=require('./place-library.cjs');
+(async()=>{
+ const rules=vm.runInNewContext(syncFs.readFileSync('mapRules.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')+'\n({placeKinds,terrains})');
+ assert.deepEqual([...library.placeKinds],[...rules.placeKinds],'place-library.cjs keeps mapRules placeKinds');assert.deepEqual([...library.terrains],[...rules.terrains],'place-library.cjs keeps mapRules terrains');
+ // The subjects say what to match on, the scene and the arrival plate alike, without changing the art key.
+ const snowy={stage:'wild',story:{id:'story-snow',premise:'A frozen pass.',terrain:'snow',locations:{inn:{name:'Frostgate Camp',description:'Tents under the ice wall.',kind:'camp'},bridge:{name:'The Narrows',description:'A gorge road.'},tower:{name:'Hollow Spire',description:'A broken tower.',kind:'ruin'}}},world:{at:'p2',regions:[{id:'r1',name:'The Ember Wastes',terrain:'desert'}],places:[{id:'p1',name:'Rime Lake',description:'A frozen lake.',kind:'water',x:100,y:0,from:'inn'},{id:'p2',name:'Glass Dunes Oasis',description:'Palms by a pool.',kind:'water',x:900000,y:0,from:'p1',region:'r1'}]}};
+ const here=subjectRules.locationArtSubject(snowy);assert.equal(here.placeKind,'water');assert.equal(here.terrain,'desert','a place in another land takes that land\'s terrain');
+ assert.deepEqual({...subjectRules.placeArtSubject(snowy,'Glass Dunes Oasis')},{...here},'the arrival plate is the scene\'s own subject');
+ assert.equal(subjectRules.placeArtSubject(snowy,'Rime Lake').terrain,'snow');
+ const camp=subjectRules.placeArtSubject(snowy,'Frostgate Camp');assert.equal(camp.placeKind,'camp');assert.equal(camp.terrain,'snow');
+ assert.equal(subjectRules.placeArtSubject(snowy,'The Narrows').placeKind,undefined,'a starting place without a kind is matched by its words on the server');
+ const inn=subjectRules.locationArtSubject({stage:'inn'});assert.equal(inn.placeKind,'settlement');assert.equal(inn.terrain,'forest');assert.equal(subjectRules.placeArtSubject({stage:'inn'},'Old Stone Bridge').placeKind,'water');
+ const vault=subjectRules.locationArtSubject({stage:'inn',dungeon:{active:true,room:5}});assert.equal(vault.id,'dungeon-5');assert.equal(vault.placeKind,'shrine');assert.equal(vault.terrain,'caverns');
+ assert.equal(artKey(here),artKey({campaignId:here.campaignId,kind:here.kind,id:here.id}),'kind and terrain never change the key');
+ const checked=validateSubject(here);assert.equal(checked.placeKind,'water');assert.equal(checked.terrain,'desert');
+ const odd=validateSubject({...here,placeKind:'../../etc',terrain:'volcano'});assert.ok(!('placeKind' in odd)&&!('terrain' in odd),'unknown kinds and terrains are left out');
+ assert.ok(!('placeKind' in validateSubject({...sample,placeKind:'settlement',terrain:'snow'})),'only landscapes carry them');
+ // Old clients: the words decide.
+ assert.deepEqual({...library.matchOf({id:'p9',name:'Saltreed Fen Ferry',description:'A rope ferry over a reed-choked bog river.',setting:''})},{kind:'water',terrain:'marsh'});
+ assert.deepEqual({...library.matchOf({id:'p9',name:'The Ruined Watchtower',description:'Crumbling stone on a snowy ridge.',setting:''})},{kind:'ruin',terrain:'snow'});
+ assert.deepEqual({...library.matchOf({id:'inn',name:'The Copper Kettle',description:'Warm and loud.',setting:''})},{kind:'settlement',terrain:'plains'});
+ // Choosing: same kind and land; then a related kind in that land; never a stranger's land while the library fills.
+ const E=(kind,terrain,n)=>({id:kind+'-'+terrain+'-'+n,kind,terrain,file:kind+'-'+terrain+'-'+n+'.jpg'});
+ const shelf=[E('settlement','plains',1),E('settlement','plains',2),E('camp','plains',1),E('ruin','snow',1)];
+ const at={campaignId:'tale-1',placeId:'p1'};
+ const first=library.choosePicture(shelf,{kind:'settlement',terrain:'plains'},at);assert.equal(first.kind,'settlement');
+ assert.equal(library.choosePicture(shelf,{kind:'settlement',terrain:'plains'},at).id,first.id,'the same place always draws the same picture');
+ const other=library.choosePicture(shelf,{kind:'settlement',terrain:'plains'},{...at,taken:new Set([first.id])});assert.equal(other.kind,'settlement');assert.notEqual(other.id,first.id,'a second village of the tale gets the other one');
+ assert.equal(library.choosePicture(shelf,{kind:'settlement',terrain:'plains'},{...at,taken:new Set(['settlement-plains-1','settlement-plains-2'])}).id,'camp-plains-1','then a related kind in the same land');
+ assert.ok(['settlement-plains-1','settlement-plains-2'].includes(library.choosePicture(shelf,{kind:'settlement',terrain:'plains'},{...at,taken:new Set(['settlement-plains-1','settlement-plains-2','camp-plains-1'])}).id),'a repeat only when nothing else fits');
+ assert.equal(library.choosePicture(shelf,{kind:'cave',terrain:'plains'},at),null,'nothing fitting in that land yet: painted');
+ assert.equal(library.choosePicture(shelf,{kind:'settlement',terrain:'desert'},at),null,'no picture of that land yet: painted');
+ const draws=new Set(Array.from({length:20},(_,i)=>library.choosePicture(shelf,{kind:'settlement',terrain:'plains'},{campaignId:'tale-'+i,placeId:'inn'}).id));assert.equal(draws.size,2,'tales share the variants out');
+ const full=[];for(const t of library.terrains)for(const k of library.placeKinds)full.push(E(k,t,1));
+ assert.ok(library.kindTerrainComplete(full)&&!library.kindTerrainComplete(shelf));
+ assert.equal(library.choosePicture(full.filter(e=>!(e.terrain==='desert'&&['cave','lair','ruin','mountain'].includes(e.kind))),{kind:'cave',terrain:'desert'},{...at,complete:true}).kind,'cave','once complete, a lost picture is stood in for by the same kind elsewhere');
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'questbound-art-tests-'));
+ try{
+  const art=path.join(directory,'art'),shelfDir=path.join(directory,'place-art');await fs.mkdir(shelfDir,{recursive:true});
+  const jpeg=id=>Buffer.concat([Buffer.from([255,216,255,224]),Buffer.from(id),Buffer.from([255,217])]);
+  const stock=async list=>{for(const e of list)await fs.writeFile(path.join(shelfDir,e.file),jpeg(e.id));await fs.writeFile(path.join(shelfDir,'library.json'),JSON.stringify(list.map(e=>({...e,light:'at dawn',name:'x',description:'y'}))));};
+  await stock([...shelf,E('water','marsh',1),E('road','marsh',1)]);
+  let paid=0,counted=0;const fetchImpl=async()=>{paid++;return {ok:true,json:async()=>({status:'completed',output:[{type:'image_generation_call',status:'completed',result:Buffer.from([255,216,255,217]).toString('base64')}]})};};
+  const open=()=>createArtStore({directory:art,libraryDirectory:shelfDir,fetchImpl,placeLibrary:library.createPlaceLibrary({directory:shelfDir,picksDirectory:path.join(art,'place-picks'),refreshMs:0})});
+  const store=open(),ask=(subject,options={})=>store.request(subject,{apiKey:'test-only',model:'test-model',mayPaint:()=>false,onPainted:()=>counted++,...options});
+  const place=(id,placeKind,terrain,extra={})=>({campaignId:'tale-1',kind:'landscape',id,name:'Place '+id,description:'A place.',setting:'',placeKind,terrain,...extra});
+  // Two villages arrive at once: different pictures, at once, unpaid, past the allowance and without a key.
+  const [a,b]=await Promise.all([ask(place('inn','settlement','plains')),ask(place('p1','settlement','plains'),{apiKey:null})]);
+  assert.equal(a.status,'ready');assert.equal(b.status,'ready');assert.ok(a.library&&b.library);assert.notEqual(a.library,b.library,'two places of one tale, two pictures');
+  assert.equal(a.key,artKey(place('inn','settlement','plains')));assert.match(a.dataUrl,/^data:image\/jpeg;base64,/);assert.ok(Buffer.from(a.dataUrl.split(',')[1],'base64').includes(Buffer.from(a.library)),'the library\'s own file');
+  const c=await ask(place('p2','settlement','plains'));assert.equal(c.library,'camp-plains-1');
+  // An old client (no kind or terrain): the words decide.
+  const ferry=await ask({campaignId:'tale-1',kind:'landscape',id:'p3',name:'Saltreed Ferry',description:'A rope ferry over a reed-choked bog.',setting:''});assert.equal(ferry.library,'water-marsh-1');
+  assert.equal(paid,0,'no painting for a library picture');assert.equal(counted,0,'no paid usage recorded');
+  // Nothing for that land yet: painted as before (and counted).
+  const dune=await ask(place('p4','settlement','desert'),{mayPaint:()=>true});assert.equal(dune.status,'pending');
+  for(let i=0;i<100&&!counted;i++)await wait();assert.equal(paid,1);assert.equal(counted,1);
+  // Portraits and creatures are painted as today.
+  await ask({...sample,campaignId:'tale-1',id:'n1'},{mayPaint:()=>true});for(let i=0;i<100&&counted<2;i++)await wait();assert.equal(paid,2);
+  // The library's own paintings go to the painter, never answered from the library.
+  await ask(place('settlement-plains-3','settlement','plains',{campaignId:library.libraryCampaign}),{mayPaint:()=>true});for(let i=0;i<100&&counted<3;i++)await wait();assert.equal(paid,3);
+  // A place painted before the library keeps its painting.
+  const old=place('p5','settlement','plains');await fs.writeFile(path.join(art,artKey(old)+'.jpg'),Buffer.from([255,216,255,1,2,217]));
+  const kept=await ask(old);assert.equal(kept.status,'ready');assert.ok(!kept.library);assert.equal(kept.dataUrl,'data:image/jpeg;base64,'+Buffer.from([255,216,255,1,2,217]).toString('base64'));
+  // A place never changes picture: after a restart, and when the library gains a picture it would have preferred.
+  await stock([...shelf,E('water','marsh',1),E('road','marsh',1),...[3,4,5,6,7,8].map(n=>E('settlement','plains',n))]);
+  const again=open(),reopened=await again.request(place('p1','settlement','plains'),{apiKey:'test-only'});assert.equal(reopened.library,b.library,'kept across restarts and a growing library');
+  assert.equal((await again.request(place('p2','settlement','plains'))).library,'camp-plains-1');
+  // A new place in that tale now gets one of the new villages, not a picture already taken.
+  const fresh=await again.request(place('p6','settlement','plains'));assert.ok(![a.library,b.library].includes(fresh.library)&&fresh.library.startsWith('settlement-plains-'));
+  // A picture that cannot be read is passed over for another.
+  const broken=E('ruin','hills',1),spare=E('landmark','hills',1);await stock([broken,spare]);await fs.writeFile(path.join(shelfDir,broken.file),'not a picture');
+  assert.equal((await again.request(place('p7','ruin','hills'))).library,'landmark-hills-1');
+  // An empty or missing library paints as before.
+  await fs.rm(path.join(shelfDir,'library.json'));const before=paid;await again.request(place('p8','ruin','hills'),{apiKey:'test-only',model:'test-model'});for(let i=0;i<100&&paid===before;i++)await wait();assert.equal(paid,before+1);
+  // Malformed entries never reach the disk (no paths, no unknown kinds).
+  await fs.writeFile(path.join(shelfDir,'library.json'),JSON.stringify([{id:'../x',kind:'ruin',terrain:'hills',file:'../x.jpg'},{id:'ruin-hills-2',kind:'ruin',terrain:'hills',file:'../../secret.jpg'},{id:'ruin-lava-1',kind:'ruin',terrain:'lava',file:'ruin-lava-1.jpg'}]));
+  const shelfOnly=library.createPlaceLibrary({directory:shelfDir,picksDirectory:path.join(art,'place-picks'),refreshMs:0});await shelfOnly.refresh();assert.equal(shelfOnly.entries().length,0);
+  console.log('Passed: the place-art library: subjects carry kind and terrain without changing keys, matching by kind and land, related kinds, keyword matching for old clients, one picture per place kept across restarts, no repeats within a tale while another fits, no painting or usage for library pictures, painting as before when nothing fits yet, paintings made before kept, unreadable or malformed entries passed over. No paid calls.');
+ }finally{const resolved=path.resolve(directory),temp=path.resolve(os.tmpdir())+path.sep;if(!resolved.startsWith(temp)||!path.basename(resolved).startsWith('questbound-art-tests-'))throw Error('Unsafe temporary path');await fs.rm(resolved,{recursive:true,force:true});}
+})().catch(e=>{console.error(e);process.exitCode=1;});

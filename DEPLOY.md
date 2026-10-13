@@ -24,6 +24,10 @@ The launcher (`Questbound.cmd`) runs the game on one Windows PC for friends on y
 
 Write `.questbound-story-effort` and `.questbound-dm-effort` into the data folder to set the story writer's and the Dungeon Master's effort, as on the PC.
 
+### The place-art library
+
+Every place the players reach is shown from a library of ready landscape paintings instead of being painted at the time (about 3 cents a place saved). The library is the PC's `.questbound-place-art/` folder (`library.json` and one `<id>.jpg` per picture, about 60 MB for 171 pictures). It is not in git and not in the Docker image (`.questbound-*` is ignored by both), so copy the whole folder into the data folder, as `/data/.questbound-place-art/` (for example `fly sftp`, `docker cp` or `scp` into the volume), before players arrive. Without it, or for a land it has no picture of yet, places are painted and paid for as before; `serve.cjs` says so in its log at start. The pictures each place was given are kept in `/data/.questbound-art/place-picks/`, with the other pictures. Copy a newer library over the old one at any time: places keep the picture they were given, and the Dungeon Master reads `library.json` again within half a minute.
+
 ## With Docker
 
 ```bash
