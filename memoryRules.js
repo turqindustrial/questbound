@@ -301,6 +301,18 @@ export function memoryBlock(game,{input='',present=[]}={}){
 function memoryGroups(items){
  const out={};for(const it of [...items].sort((a,b)=>a.order-b.order))(out[it.section]??=[]).push(it.text);return out;
 }
+// ---------- The story so far, for the story writer ----------
+// What the writer of this hero's next tale is told of the life they have lived (App.js sends it as context.storySoFar
+// with the request for a tale written fresh: the next tale in the region, somewhere new, an idea of their own): the
+// tale just lived and the earlier ones, newest first and shorter with age, and the promises, debts and secrets still
+// open. It is memoryBlock with the tale under way closed, so it never passes memoryLimits.budget characters.
+export function storySoFarForWriter(game){
+ const closed=closedMemory(game);if(!closed?.tales?.length)return null;
+ const block=memoryBlock({...game,memory:closed});if(!block)return null;
+ const tales=block.earlierTales??[],openFacts=[...(block.facts??[]),...(block.otherFacts??[])].map(f=>f.replace(/^f\d+\s*/,''));
+ if(!tales.length&&!openFacts.length)return null;
+ return {tales,...(openFacts.length?{openFacts}:{}),...(block.moreFacts?{moreFacts:block.moreFacts}:{})};
+}
 // ---------- The story so far, for the Log tab ----------
 // Earlier tales (and chapters that have scrolled out of the story log) as short readable lines, newest first.
 export function chronicleView(game){

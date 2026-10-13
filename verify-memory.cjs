@@ -9,7 +9,7 @@ const {rulesSource,rulesFiles}=require('./rules-files.cjs');
 const files=rulesFiles;
 assert.ok(files.includes('memoryRules.js'),'the campaign server loads the memory rules');
 const source=rulesSource();
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,joinRegion,carriedBase,adventureStep,dmChoices,dmContext,commitDmTurn,settleTurn,validAdventure,adventureSnapshot,appendStoryLog,withStoryLog,memoryOf,withMemory,rememberFacts,memoryBlock,validMemory,chronicleView,closedMemory,memoryLimits,introducePerson,maxStoryLog,npcScene})',{AsyncStorage:{},weaponIcon:()=>'sword',console});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,joinRegion,carriedBase,adventureStep,dmChoices,dmContext,commitDmTurn,settleTurn,validAdventure,adventureSnapshot,appendStoryLog,withStoryLog,memoryOf,withMemory,rememberFacts,memoryBlock,storySoFarForWriter,validMemory,chronicleView,closedMemory,memoryLimits,introducePerson,maxStoryLog,npcScene})',{AsyncStorage:{},weaponIcon:()=>'sword',console});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const hero=r.readyHero('fighter'),hp=null;
 const valid=g=>r.validAdventure(r.adventureSnapshot(hero,plain(g),hp,true),hero);
@@ -163,5 +163,25 @@ assert.ok(block.earlierTales.some(t=>/^Before that, oldest first: The First Road
  const second=await resolveTurn(view,{question:'I ask Tamsin.'},{ask:async()=>({...reply,remember:[{text:'Bo swore to guard the refuge gate until spring.',about:['inn'],settles:null}]}),randomImpl:()=>0.5,actorName:'Bo'});
  const canon=engine.canonicalParty(second.snapshot),shared=JSON.parse(canon).world.memory.facts.map(f=>f.text);
  assert.ok(shared.some(t=>/ferryman owes Tamsin/.test(t))&&shared.some(t=>/Bo swore/.test(t)),'facts from every member\'s turn are kept');
+ // ---- The story writer is told the story so far when it writes this hero's next tale (storySoFarForWriter) ----
+ {const told=r.storySoFarForWriter(life),size=JSON.stringify(told).length;
+  assert.ok(told.tales.length>=4&&/^Tale 130: /.test(told.tales[0]),'the tale just lived comes first, then the earlier ones: '+told.tales[0].slice(0,60));
+  assert.ok(told.tales.some(t=>/The First Road Home/.test(t)),'and the first tale of all is still named');
+  assert.ok(told.openFacts.length>=6&&!told.openFacts.some(f=>/^f\d/.test(f)),'with the threads still open, without their ids');
+  assert.ok(size<=r.memoryLimits.budget+400,'within the memory budget: '+size);
+  assert.equal(r.storySoFarForWriter(r.newAdventure(hero)),null,'a new hero has no story so far');
+  const app=fs.readFileSync('App.js','utf8');assert.ok(app.includes('storySoFarForWriter(game):null;return lived?{storySoFar:lived}:{}')&&app.includes('!journeyId&&characterChosen&&game.story'),'the game sends it with a tale written for its hero, never with a ready journey');
+  const {generateAdventure,tidyStorySoFar}=require('./adventure-generator.cjs'),{journeyStory}=require('./journey-fixtures.cjs'),asked=[];
+  const writer=async(url,options)=>{asked.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(journeyStory(1))}]}]})};};
+  await generateAdventure({input:'Create the next chapter.',context:{mode:'adventure',introId:'surprise',continuing:{previousTitle:'Tale number 130',newStartBearing:'north'},storySoFar:told,choices:[]}},{apiKey:'k',model:'m',fetchImpl:writer});
+  let sent=JSON.parse(asked.at(-1).input).context.storySoFar;
+  assert.ok(/STORY SO FAR: context\.storySoFar/.test(asked.at(-1).instructions),'the writer is told what it is');
+  assert.equal(JSON.stringify(sent),JSON.stringify(tidyStorySoFar(told)),'and gets it, tidied');assert.equal(sent.tales[0],told.tales[0]);
+  assert.ok(Buffer.byteLength(asked.at(-1).input)<20000,'the request stays small: '+Buffer.byteLength(asked.at(-1).input));
+  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',ahead:true,storySoFar:told,choices:[]}},{apiKey:'k',model:'m',fetchImpl:writer});
+  assert.ok(!/STORY SO FAR/.test(asked.at(-1).instructions)&&JSON.parse(asked.at(-1).input).context.storySoFar===undefined,'a tale written ahead (no hero yet) never gets one');
+  assert.equal(tidyStorySoFar({tales:'not a list'}),null);assert.equal(tidyStorySoFar(['x']),null);
+  const rough=tidyStorySoFar({tales:Array.from({length:30},(_,i)=>'Tale '+i+'\u0000 '+'x'.repeat(900))});
+  assert.ok(rough.tales.length===16&&rough.tales.every(t=>t.length<=600&&!/\u0000/.test(t)),'anything else is cut to size');}
  console.log('Passed: the story so far is remembered from the first turn to the last (tales and chapters folded, never dropped: 130 tales keep the first, '+lifeSize+' bytes of memory), facts are kept two a turn, settled by id and follow people into the next tale, old saves build theirs, the Dungeon Master reads a block of '+blockSize+' characters at most and answers in the strict format, and a shared table keeps every member\'s facts.');
 })().catch(e=>{console.error(e.stack??e);process.exit(1);});

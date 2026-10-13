@@ -25,6 +25,7 @@ import MemberActions,{useMutedMembers} from './TableMemberActions';
 import SharedTable from './SharedTable';
 import Adventure from './Adventure';
 import {newAdventure} from './adventureRules';
+import {storySoFarForWriter} from './memoryRules';
 import CharacterSheet from './CharacterSheet';
 import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
@@ -296,7 +297,7 @@ function QuestboundApp() {
       const offered=journeysOnOffer??[],journeyId=continuing?null:String(selectedIntro).startsWith('journey:')?String(selectedIntro).slice(8):selectedIntro==='surprise'&&offered.length?fateJourney(offered).id:null,introId=journeyId?'easy':start.introId;
       noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
       const endpoint=await findDmEndpoint();
-      const {ok,status,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId,...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,status,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId,...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),...(()=>{const lived=!journeyId&&characterChosen&&game.story?storySoFarForWriter(game):null;return lived?{storySoFar:lived}:{};})(),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       // A journey that has just left the library: the journeys on offer are asked for again.
       if(!ok){if(journeyId&&status===409)loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});throw Error(body.error||'The story could not be created.');}
       next=freshStoryGame(hero,{...body.story,introId},base);
