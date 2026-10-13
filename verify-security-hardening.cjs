@@ -78,7 +78,18 @@ const snapshot={version:1,character:'{"name":"Test hero"}',game:{stage:'inn'},ch
   for(let i=0;i<6;i++)assert.equal((await call(up,'/account-save',{body:{snapshot:fx.snapshot()},headers:{...home,Cookie:i%2?a:b}})).status,200,'saves are counted per account too');
   assert.equal(fx.operations.status().usage['illustration-requests'],undefined,'polls never use a daily allowance');
   assert.equal((await call(up,'/poll',{headers:home})).status,401);assert.equal((await call(up,'/poll',{headers:home})).status,401);
-  assert.equal((await call(up,'/poll',{headers:home})).status,429,'requests without a sign-in are braked per address');}
+  assert.equal((await call(up,'/poll',{headers:home})).status,429,'requests without a sign-in are braked per address');
+  // Spending and flood alerts (alerts.cjs) land in the same security log with the kind only, and the host's
+  // diagnostics list them among the recent alerts; whatever else is passed (an address, words) is never written.
+  const {auditTo}=require('./operations.cjs'),opsDir=path.dirname(fx.options.accountsDir);
+  auditTo(opsDir,'flood-alert',{route:'address-flood',address:'203.0.113.9',text:'one connection was refused'});
+  const logged=fs.readFileSync(path.join(opsDir,'.questbound-security.jsonl'),'utf8').trim().split('\n').pop();
+  assert.ok(!logged.includes('203.0.113')&&!logged.includes('refused'),'mechanical labels only');
+  assert.ok(fx.operations.status().alerts.some(e=>e.event==='flood-alert'&&e.route==='address-flood'),'shown with the host\'s recent alerts');}
+ // The Discord poster's child never inherits the API key (alerts.cjs childEnv), and the webhook never reaches a command line.
+ {const {childEnv,discordScript}=require('./alerts.cjs');process.env.OPENAI_API_KEY_HARDENING='sk-test-only';
+  assert.equal(childEnv({}).OPENAI_API_KEY_HARDENING,undefined);delete process.env.OPENAI_API_KEY_HARDENING;
+  assert.ok(!/\$args|param\(/i.test(discordScript),'the script takes no arguments: the message comes on stdin and the webhook from the encrypted file');}
  // Files accidentally placed inside the web export still must not expose host data.
  const root=path.join(tmp,'public'),outside=path.join(tmp,'private');fs.mkdirSync(root);fs.mkdirSync(outside);
  fs.writeFileSync(path.join(root,'index.html'),'<h1>Questbound</h1>');fs.writeFileSync(path.join(root,'game.js'),'window.game=true;');

@@ -126,6 +126,65 @@ async function sharedLink(){
  const moved=await open({publicOrigin:'https://new-link.example.com'});
  try{assert.match((await via(moved,'/',{origin:'https://new-link.example.com',headers:{Cookie:cookieJar}})).raw.toString(),/Invite code/,'A new link starts fresh');}finally{await new Promise(resolve=>moved.server.close(resolve));}
 }
+// What keeps one visitor from running up the host's bill at the gateway (2026-10-13): turns counted per address too, new
+// tales and drafted heroes per browser and per address, pairings and guest identities per address and per browser,
+// requests the game never sends refused before anything else, the host's pause switch (no restart), and an alert when
+// one address is refused again and again.
+async function guardedGateway(){
+ const dataDir=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-guarded-')),raised=[];let now=Date.now();const asked=[];
+ const fake=async(url,options={})=>{asked.push(url);if(url.endsWith('/usage'))return {ok:true,status:200,headers:{get:()=>null},json:async()=>({allowed:true,id:'b'.repeat(64)})};if(url.endsWith('/health'))return {ok:true,status:200,json:async()=>({ready:true,actionProtocol:3})};return {ok:true,status:200,headers:{get:()=>null},json:async()=>({done:true})};};
+ const gate=createPhoneServer({host:'127.0.0.1',port:0,root,publicOrigin:'https://quest.example.com',code:'31415926',dmLimit:50,addressTurns:4,taleLimit:2,taleAddress:3,heroLimit:1,heroAddress:5,pairsPerAddress:3,guestsPerBrowser:2,guestsPerAddress:5,floodAlert:6,dataDir,alerts:{raise:(kind,text,o)=>{raised.push({kind,text,event:o?.event});return true;}},now:()=>now,fetchImpl:fake});
+ await new Promise(resolve=>gate.server.listen(0,'127.0.0.1',resolve));
+ const call=(route,{method='GET',headers={},body}={})=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:gate.server.address().port,path:route,method,headers:{Host:'quest.example.com',...headers}},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text}));});req.on('error',reject);req.end(body);});
+ const join=ip=>call('/pair',{method:'POST',headers:{Origin:'https://quest.example.com','Content-Type':'application/json','CF-Connecting-IP':ip},body:JSON.stringify({code:'31415926'})});
+ const as=(cookie,ip)=>({Cookie:cookie,Origin:'https://quest.example.com','Content-Type':'application/json','CF-Connecting-IP':ip});
+ const dm=(who,context={},input='Hi')=>call('/api/dm',{method:'POST',headers:who,body:JSON.stringify({input,context:{choices:[],...context}})});
+ const error=r=>JSON.parse(r.text).error;
+ try{
+  // One address may pair three browsers a day; another address is not affected.
+  const cookies=[];for(let i=0;i<3;i++){const r=await join('203.0.113.9');assert.equal(r.status,200);cookies.push(r.headers['set-cookie'][0].split(';')[0]);}
+  let r=await join('203.0.113.9');assert.equal(r.status,429);assert.match(error(r),/Many browsers have joined/);
+  const other=(await join('198.51.100.20')).headers['set-cookie'][0].split(';')[0];
+  const a=as(cookies[0],'203.0.113.9'),b=as(cookies[1],'203.0.113.9'),c=as(other,'198.51.100.20');
+  // What the game never sends is refused before anything else (the account service is not even asked).
+  const before=asked.length;
+  for(const bad of [{mode:'diagnostics'},{mode:'cheap-trick'},{mode:'adventure',idea:'x'.repeat(301)},{mode:'adventure',idea:42}])assert.equal((await dm(a,bad)).status,400,JSON.stringify(bad).slice(0,40));
+  assert.equal((await dm(a,{},'x'.repeat(1001))).status,400,'words longer than the message box');
+  assert.equal(asked.length,before,'refused cheaply');
+  // Turns are counted per address as well: two browsers at one address share four turns in ten minutes; the other address plays on.
+  for(let i=0;i<2;i++){assert.equal((await dm(a)).status,200);assert.equal((await dm(b)).status,200);}
+  r=await dm(b);assert.equal(r.status,429);assert.doesNotMatch(error(r),/Please wait before asking|busy with other players/);
+  assert.equal((await dm(c)).status,200,'another address keeps its own turns');
+  // Shared-table turns are Dungeon Master turns too.
+  r=await call('/api/sync/campaign-turn',{method:'POST',headers:a,body:JSON.stringify({campaignId:'x'})});assert.equal(r.status,429);
+  now+=601000;
+  // New tales: two an hour per browser and three per address; drafted heroes one an hour per browser.
+  assert.equal((await dm(a,{mode:'adventure',introId:'crown'})).status,200);assert.equal((await dm(a,{mode:'adventure',introId:'crown'})).status,200);
+  r=await dm(a,{mode:'adventure',introId:'crown'});assert.equal(r.status,429);assert.match(error(r),/several new tales/);assert.ok(Number(r.headers['retry-after'])>=1);
+  now+=601000;assert.equal((await dm(b,{mode:'adventure',introId:'easy'})).status,200,'the third tale at this address');
+  assert.equal((await dm(b,{mode:'adventure',introId:'easy'})).status,429,'the address has had its three');
+  assert.equal((await dm(c,{mode:'adventure',introId:'easy'})).status,200);
+  assert.equal((await dm(c,{mode:'character'})).status,200);r=await dm(c,{mode:'character'});assert.equal(r.status,429);assert.match(error(r),/heroes have been drafted/);
+  // Guest identities: two a day per browser, five a day per address.
+  now+=601000;
+  const guest=who=>call('/api/sync/account-guest',{method:'POST',headers:who,body:'{}'});
+  assert.equal((await guest(a)).status,200);assert.equal((await guest(a)).status,200);assert.equal((await guest(a)).status,429,'two a day per browser');
+  assert.equal((await guest(b)).status,200);assert.equal((await guest(b)).status,200);
+  const third=as(cookies[2],'203.0.113.9');assert.equal((await guest(third)).status,200);assert.equal((await guest(third)).status,429,'five a day per address');
+  // The pause switch: a file the launcher writes; no restart. Pictures and finished tales are still handed over.
+  now+=3601000;
+  fs.writeFileSync(path.join(dataDir,'.questbound-guests-paused'),'Paused by the host');
+  r=await dm(c);assert.equal(r.status,503);assert.match(error(r),/paused by the host/);assert.doesNotMatch(error(r),/Please wait before asking|busy with other players/);
+  assert.equal((await dm(c,{mode:'adventure',introId:'crown'})).status,503);
+  assert.equal((await dm(c,{mode:'art',storyJob:'abcdefghijklmnop'})).status,200,'a tale already written can still be collected');
+  assert.equal((await call('/api/sync/campaign-turn',{method:'POST',headers:c,body:'{}'})).status,503,'and no shared-table turn');
+  fs.rmSync(path.join(dataDir,'.questbound-guests-paused'));assert.equal((await dm(c)).status,200,'resumed at once');
+  // One address refused again and again: the host is told once, without the address.
+  for(let i=0;i<8;i++)await dm(b,{mode:'adventure',introId:'crown'});
+  const flood=raised.filter(x=>x.kind==='address-flood');assert.ok(flood.length>=1);assert.equal(flood[0].event,'flood-alert');assert.ok(!flood.some(x=>x.text.includes('203.0.113')),'never the address itself');
+  assert.equal(gate.info.limits.turnsPerAddress,4);assert.equal(gate.info.limits.talesPerHour,2);
+ }finally{await new Promise(resolve=>gate.server.close(resolve));fs.rmSync(dataDir,{recursive:true,force:true});}
+}
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  try{
@@ -150,6 +209,7 @@ async function sharedLink(){
   clock+=61000;for(let i=0;i<5;i++)assert.equal((await pair('00000000')).status,401);assert.equal((await pair('12345678')).status,429);
   clock+=86400000;assert.equal((await request('/api/health',{headers})).status,401);assert.equal((await pair('12345678')).status,401);
   await sharedLink();
+  await guardedGateway();
   console.log('Passed: desktop/phone endpoint selection; pairing, cookies, expiry and throttling; host/origin guards; private-file isolation; size limits; offline handling; same-origin health and DM forwarding; shared-link mode (public host only, Secure cookie, per-visitor and global pairing brakes, week-long invite, per-player DM cap with separate allowances for illustrations, the shared table, sign-ups, sign-ins and recovery codes, a per-address flood brake, busy-DM retries, invite and paired browsers kept across gateway restarts, cached and compressed game files, in-game feedback notes).');
  }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});
