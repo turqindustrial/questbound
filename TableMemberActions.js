@@ -16,13 +16,14 @@ function Chip({label,icon,onPress,on=false,danger=false,disabled=false,accessibi
   {!!icon&&<Icon name={icon} size={13} color={danger?tint('#f2a093'):on?colors.goldBright:colors.gold}/>}<Text numberOfLines={1} style={[s.chipText,on&&{color:colors.goldBright}]}>{label}</Text>
  </Pressable>;
 }
-export default function MemberActions({table,member,onClose=null}){
+export default function MemberActions({table,member,onClose=null,named=false}){
  const muted=useMutedMembers(table.campaignId),isMuted=muted.some(m=>m.seat===member.id);
  const [mode,setMode]=useState(null),[reason,setReason]=useState(null),[words,setWords]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
  const host=table.role==='owner'&&member.role!=='owner',first=String(member.name??'this player');
  const run=async(fn,done)=>{setBusy(true);setError('');try{await fn();setMessage(done);setMode(null);return true;}catch(e){setError(e.message);return false;}finally{setBusy(false);}};
  return <View dataSet={{qb:'member-actions'}} accessibilityLabel={'What to do about '+first} style={s.box}>
   <View style={s.row}>
+   {named&&<Text numberOfLines={1} style={[s.lead,{maxWidth:'100%'}]}>{first}</Text>}
    <Chip icon={isMuted?'sound':'mute'} label={isMuted?'Unmute':'Mute'} on={isMuted} accessibilityLabel={(isMuted?'Unmute ':'Mute ')+first} onPress={()=>{setMuted(member,!isMuted,table.campaignId);setMessage(isMuted?first+' is no longer muted on this device.':first+'’s words are hidden on this device. The game still plays their moves.');}}/>
    <Chip icon="flag" label="Report" on={mode==='report'} accessibilityLabel={'Report '+first} onPress={()=>{setMode(mode==='report'?null:'report');setMessage('');setError('');}}/>
    {host&&<Chip icon="close" danger label="Remove and ban" on={mode==='ban'} accessibilityLabel={'Remove and ban '+first} onPress={()=>{setMode(mode==='ban'?null:'ban');setMessage('');setError('');}}/>}
