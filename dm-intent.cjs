@@ -153,5 +153,5 @@ function secondLook(body,reply,{canDiscover=false}={}){
  return null;
 }
 // The reply the game gives itself when the model would not act on an unmistakable request: the action, a one-line telling.
-function settled(fault){return {narration:fault.say,dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:fault.actionId,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,suggestions:[]};}
+function settled(fault){return {narration:fault.say,dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:fault.actionId,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,remember:[],suggestions:[]};}
 module.exports={situation,secondLook,settled,journeys,namedJourneys,fighting,started};

@@ -1,6 +1,7 @@
 import {npcIdsOf,npcLore,isPersonId,maxPeople,personToughness,coreNpcIds,npcClassOf,classedStats} from './npcRules';
 import {coreIds,bearings,worldPlaces,worldLinks,placeCoordinates,placeKinds,maxWorldPlaces,maxRegions,mapRegions,homeRegion} from './mapRules';
 import {appendJournal,appendStoryLog} from './journalRules';
+import {closedMemory,remappedMemory} from './memoryRules';
 // A hero's next story. Continuing in the same region, everything the hero knows comes along: the earlier story's
 // places join the map (a few miles off, joined to the new starting place by a road), and its people, everyone met
 // since, their memories, grudges, debts and fates carry over (the earlier residents become people met along the
@@ -10,9 +11,10 @@ export const sequelBearings=Object.keys(bearings);
 // Lands travelled are never forgotten: every place of the earlier country the hero went to comes along, with the
 // roads back to it; of the places only heard of, up to oldPlaceLimit come too.
 export const oldPlaceLimit=20;
-// What a new story starts from: the hero's own things, nothing tied to the old region.
+// What a new story starts from: the hero's own things, nothing tied to the old region, and the hero's whole story so far
+// (memoryRules.js: the tale just ended is closed into the chronicle; next tales and new lands alike keep it).
 export function carriedBase(previous){
- return {...(previous?.pack?{pack:previous.pack}:{}),potions:Math.max(1,previous?.potions??1),...(previous?.skillTraining?{skillTraining:previous.skillTraining}:{}),...(Number.isInteger(previous?.xp)?{xp:previous.xp}:{}),...(previous?.levelsOwed?{levelsOwed:previous.levelsOwed}:{}),...(previous?.deeds?.length?{deeds:previous.deeds}:{})};
+ return {...(previous?.pack?{pack:previous.pack}:{}),potions:Math.max(1,previous?.potions??1),...(previous?.skillTraining?{skillTraining:previous.skillTraining}:{}),...(Number.isInteger(previous?.xp)?{xp:previous.xp}:{}),...(previous?.levelsOwed?{levelsOwed:previous.levelsOwed}:{}),...(previous?.deeds?.length?{deeds:previous.deeds}:{}),...(memory=>memory?{memory}:{})(previous?closedMemory(previous):null)};
 }
 // Can the hero carry on where they are? A written story, a living hero, and not in the middle of a fight.
 export function canContinueRegion(game){
@@ -98,7 +100,9 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
  joined.map={...next.map,visited:[...new Set([...(next.map?.visited??['inn']),...visited])]};
  const ending=previous.foeFate==='slain'?'The '+old.foe+' was slain.':previous.foeFate==='subdued'?'The '+old.foe+' was beaten and spared.':'The '+old.foe+' is still out there.';
  joined.worldFacts=[...(sameRegion?(previous.worldFacts??[]).slice(-20):[]),...(sameRegion?['Earlier, in '+old.title+': '+ending]:[]),...(next.worldFacts??[])].slice(-60);
- // The hero's story so far carries on: the earlier chapters, then the opening of this one.
+ // The hero's story so far carries on: the earlier chapters, then the opening of this one. The lasting memory
+ // (memoryRules.js) keeps every earlier tale; its facts follow the people and places that came along, renumbered.
+ joined.memory=remappedMemory(next.memory??closedMemory(previous),idMap,placeMap);if(!joined.memory)delete joined.memory;
  if(previous.storyLog?.length){const first=next.storyLog?.[0]?.text??next.story.title;joined.storyLog=appendStoryLog(previous.storyLog,'story',first.replace(': the tale began at ',sameRegion?': a new tale began nearby, at ':': a new tale began, far away, at '));}
  const companions=kept.filter(following).map(id=>people[idMap[id]].name);
  joined.journal=appendJournal(next.journal,'note','Previously',(sameRegion?old.title+' ('+(old.status==='complete'?'completed':'left unfinished')+'). '+ending+' The places and people you knew there are still on your map.':'You left '+old.locations.inn.name+' behind for new country.')+(companions.length?' Travelling with you: '+companions.join(', ')+'.':''));

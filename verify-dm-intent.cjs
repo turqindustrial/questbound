@@ -31,7 +31,7 @@ assert.deepEqual(named('i go back to the camp'),[]);                    // where
 // A plain request the reply ignored gets a second look; an unmistakable one may be settled by the game.
 let fault=look('I head for the lookout.');
 assert.equal(fault.kind,'known place');assert.equal(fault.actionId,'travel-tower');assert.equal(fault.sure,true);assert.ok(fault.note.includes('travel-tower')&&fault.note.includes('Lookout Rock'));
-assert.deepEqual(settled(fault),{...quiet,narration:'You set out for Lookout Rock.',actionId:'travel-tower',rewind:false});
+assert.deepEqual(settled(fault),{...quiet,narration:'You set out for Lookout Rock.',actionId:'travel-tower',rewind:false,remember:[]});
 assert.equal(look('I walk up to the lookout rock to see what is coming.').sure,true);
 fault=look('I climb a rock and look around.');assert.equal(fault.kind,'known place');assert.equal(fault.sure,false,'a doubtful name is asked about, never acted on');
 // Said, planned, asked or refused journeys are never forced.
