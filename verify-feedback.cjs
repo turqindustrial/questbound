@@ -91,6 +91,15 @@ assert.equal(run(['--count']),'0');assert.match(run([]),/No new playtest notes s
 assert.match(run(['--all']),/3 notes:/);assert.match(run(['--since','2026-10-04T12:30:00Z']),/1 note since/);
 const json=JSON.parse(run(['--json','--all']));assert.equal(json.notes.length,3);assert.equal(json.notes.find(n=>n.guest==='feedc0de').rejections.length,1);
 saveFeedback(notesFile,feedbackEntry({text:'A new one'},{now:Date.UTC(2026,9,4,14,0)}));assert.equal(run(['--count']),'1','a later note is unread again');
+// A report from a shared table (campaigns.cjs, reportEntry; 2026-10-13) is listed with the notes, marked REPORT, with
+// the reported member's label (for node accounts.cjs ban) and their lines; it writes no headings of its own and names no id.
+{const {reportEntry}=require('./feedback-notes.cjs'),label='mod-'+'0123456789'.repeat(2);
+ const rep=reportEntry({campaign:'f'.repeat(32),title:'The Lantern\n## x',reason:'hateful',words:'He said awful things.\n## Not a heading',reported:{seat:'seat-0123456789abcdef',name:'Bo\n## y',label,host:false},by:{seat:'seat-fedcba9876543210',name:'Al',label:'mod-'+'9'.repeat(20)},lines:['Hand over the gold.\n## z','second']},{now:Date.UTC(2026,9,4,15,0)});
+ assert.equal(rep.markdown.split('\n').filter(l=>l.startsWith('## ')).length,1,'one heading: the report\'s own');assert.equal(rep.record.kind,'report');
+ assert.equal(reportEntry({reason:'nonsense',reported:{label:'not-a-label'}}).record.report.reason,'other');assert.equal(reportEntry({reported:{label:'mod-zz'}}).record.report.reported.label,null);
+ saveFeedback(notesFile,rep);const listed=run([]);
+ assert.match(listed,/REPORT \(hateful\): Bo ## y · mod-01234567890123456789 · reported by Al/);assert.match(listed,/typed: Hand over the gold\. ## z/);
+ assert.ok(!/\n## (?:x|y|z|Not a heading)/.test(fs.readFileSync(notesFile,'utf8')),'no line of the report opens a heading');assert.match(listed,/node accounts\.cjs ban mod-01234567890123456789/);}
 
 // 5. The host's own desktop: notes from its own page are kept, labelled this-pc; nothing else may post.
 const {createDesktopServer}=require('./desktop-server.cjs');

@@ -126,5 +126,18 @@ try{
   const seen=c.poll(A,{campaignId:table.campaignId,knownVersion:-1});assert.equal(seen.snapshot.game.shieldAway,undefined,'Al’s own hero is untouched');
   assert.equal(seen.snapshot.game.party.members[bo.you].stats.ac,ac(cleric)-2,'Al sees Bo’s armor class drop');assert.equal(seen.snapshot.game.party.members[bo.you].hero.shieldAway,true);
   refused(()=>edit(A,{id:table.campaignId,version:seen.version},{kind:'shield',away:true}),/no shield/);}
- console.log('Campaign edits: the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, a one-hero campaign’s lasting choices are the host’s, an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
+ // Moderation (2026-10-13): the host removes and bans a member (their seat and hero leave; every invite refuses them;
+ // their poll says calmly they were removed), lets them back by ref; a member reports another with the lines they typed.
+ {const reports=[],m=createCampaigns({dir:fs.mkdtempSync(path.join(os.tmpdir(),'qb-ban-')),ask,randomImpl:seq(5),onReport:x=>reports.push(x)}),C={id:'c'.repeat(64)};
+  const made=m.create(A,{snapshot:snapshotOf(fighter,r.newAdventure(fighter)),party:true,name:'Al'}),bo=m.join(B,{invite:made.invite,snapshot:snapshotOf(wizard,r.newAdventure(wizard)),name:'Bo'});
+  assert.equal(m.report(A,{campaignId:made.campaignId,seat:bo.you,reason:'spam'}).reported,true);assert.equal(reports[0].reported.name,'Bo');assert.match(reports[0].reported.label,/^mod-[a-f0-9]{20}$/);
+  assert.ok(!JSON.stringify(reports).includes(A.id)&&!JSON.stringify(reports).includes(B.id),'a report names no account');
+  assert.throws(()=>m.ban(B,{campaignId:made.campaignId,seat:made.you}),e=>e.status===403);
+  const out=m.ban(A,{campaignId:made.campaignId,seat:bo.you});assert.deepEqual(out.members.map(x=>x.name),['Al']);assert.ok(!(bo.you in out.snapshot.game.party.members));
+  assert.throws(()=>m.poll(B,{campaignId:made.campaignId}),e=>e.status===403&&e.removed===true&&/removed you/.test(e.message));
+  const fresh=m.invite(A,{campaignId:made.campaignId}).invite;assert.throws(()=>m.join(B,{invite:fresh,snapshot:snapshotOf(wizard,r.newAdventure(wizard)),name:'Bo'}),e=>e.removed===true);
+  assert.equal(m.join(C,{invite:fresh,snapshot:snapshotOf(r.readyHero('cleric'),r.newAdventure(r.readyHero('cleric'))),name:'Cy'}).members.length,2,'others still join');
+  assert.throws(()=>m.unban(C,{campaignId:made.campaignId,ref:out.banned[0].ref}),e=>e.status===403);
+  assert.deepEqual(m.unban(A,{campaignId:made.campaignId,ref:out.banned[0].ref}).banned,[]);assert.equal(m.join(B,{invite:fresh,snapshot:snapshotOf(wizard,r.newAdventure(wizard)),name:'Bo'}).members.length,3,'let back, he may rejoin');}
+ console.log('Campaign edits: the host removes, bans and lets back a member; a member reports another; the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, a one-hero campaign’s lasting choices are the host’s, an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
 }finally{fs.rmSync(dir,{recursive:true,force:true});}

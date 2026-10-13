@@ -172,9 +172,11 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // label, the same one the Dungeon Master's logs use, never by its cookie.
     // A signed-in player's note carries their account label, the one the Dungeon Master's logs use for their turns, so
     // feedback-report.cjs can join it to replies the Dungeon Master refused; otherwise the browser's own label.
-    let guest=guestLabel(token);
+    // A browser the host banned from the whole game (bans.cjs) sends no more notes.
+    let guest=guestLabel(token),closed=null;
     try{const who=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':visitor.slice(0,80)},body:JSON.stringify({kind:'feedback'}),signal:AbortSignal.timeout(5000)});
-     const found=await who.json();if(who.ok&&found?.allowed===true&&/^[a-f0-9]{64}$/.test(found.id??''))guest='account-'+found.id;}catch{}
+     const found=await who.json();if(who.ok&&found?.allowed===true&&/^[a-f0-9]{64}$/.test(found.id??''))guest='account-'+found.id;else if(who.status===403&&found?.banned===true)closed=String(found.error??'').slice(0,200);}catch{}
+    if(closed!==null)return json(res,403,{error:closed||'The host of this game has closed it to this browser.'});
     const entry=feedbackEntry(note,{now:now(),guest});if(entry.error)return json(res,400,{error:entry.error});
     try{saveFeedback(feedbackFile,entry);}catch{return json(res,500,{error:'The host’s PC could not save that note. Please try again.'});}
     recent.push(now());feedbackUse.set(token,recent);nearby.push(now());feedbackVisitors.set(visitor,nearby);if(feedbackVisitors.size>2048)feedbackVisitors.delete(feedbackVisitors.keys().next().value);

@@ -9,6 +9,8 @@ import {eventSounds} from './feedSounds';
 import {describeEvent,damageIcon,verdictLabels} from './chronicleRules';
 import {shownHp} from './playbackHp';
 import {cue,setShownHp} from './cinematics';
+import {MutedLine} from './TableMemberActions';
+import {isMutedLine,useMutedMembers} from './tableMutes';
 const native=Platform.OS!=='web',web=!native;
 // Cinematic cues that ride along with a line's sounds: a hit on you, a critical, healing, victory and defeat.
 function cueFor(event,sounds,view){
@@ -58,7 +60,7 @@ function Verdict({kind,actor,live=false}){
  const tone=bad?colors.bloodBright:good?(kind==='success'?colors.heal:colors.gold):colors.muted;
  return <View dataSet={{qb:live?'verdict':undefined}} style={[s.verdict,{borderColor:tone},filled&&{backgroundColor:tone}]}><PlainText style={[s.verdictText,{color:filled?tint('#fff4f5'):tone}]}>{verdictLabels[kind]??kind}</PlainText></View>;
 }
-function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
+function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,muted=false}){
  const view=describeEvent(event);
  useEffect(()=>{if(!sound)return;const sounds=eventSounds(event);sounds.forEach(([name,delay=0,options])=>playSound(name,delay,options));try{cueFor(event,sounds,view);}catch{}},[]);
  const opacity=useRef(new Animated.Value(reduceMotion?1:0)).current,rise=useRef(new Animated.Value(reduceMotion?0:8)).current;
@@ -151,6 +153,8 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false}){
  // Arriving somewhere shows that place's painting as an illustrated plate, like a page in a storybook.
  const arrival=kind==='action'&&String(event.text??'').match(arrivalLine)?.[1],scene=arrival&&sceneFor?.(arrival);
  if(scene)return wrap(<ScenePlate subject={scene} over="You arrive at"/>,s.plateWrap);
+ // A line typed by a member this device muted (tableMutes.js) is folded, with Show to read it anyway.
+ if(kind==='player'&&muted)return wrap(<MutedLine name={event.speakerName} text={event.text} textStyle={s.playerText}/>,s.player,{qb:'feed-player'});
  if(kind==='player'){const who=event.speakerName&&event.speakerName!==me?event.speakerName:'You';return wrap(<>
   <View style={s.playerHead}><Icon name="quill" size={12} color={tint('#caa9f0')}/><PlainText style={s.playerLabel}>{who}</PlainText></View>
   <Text style={s.playerText}>{event.text}</Text>
@@ -197,7 +201,8 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  // While this turn plays, the HUD's HP bars follow the story instead of jumping straight to the result.
  useLayoutEffect(()=>{if(!fill||!names)return;const animating=!!turn&&turn.id===animateId&&!reduceMotion&&playing;setShownHp(animating?shownHp(turn.events,count,names):null);},[fill,turn?.id,count,animateId,reduceMotion,playing,names?.hero,names?.foe]);
  useEffect(()=>()=>{if(fill)setShownHp(null);},[fill]);
- const row=(t,e,i,live)=><EventRow key={t.id+'-'+i} event={e} reduceMotion={!live||reduceMotion} sound={live} me={me} avatarFor={avatarFor} sceneFor={sceneFor} lead={i===leadIndex(t.events)}/>;
+ const mutedList=useMutedMembers();
+ const row=(t,e,i,live)=><EventRow key={t.id+'-'+i} event={e} reduceMotion={!live||reduceMotion} sound={live} me={me} avatarFor={avatarFor} sceneFor={sceneFor} lead={i===leadIndex(t.events)} muted={e?.speakerName!==me&&isMutedLine(e,mutedList)}/>;
  // Fill mode: one continuous chronicle. Earlier turns sit above; the newest plays out at the bottom and the view follows it.
  // While the player types on a phone the feed gives its header up, and it stays on its last lines as its height
  // changes (a keyboard opening must not hide what the player is replying to).

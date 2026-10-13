@@ -294,7 +294,7 @@ function loadSpending(){if(require('./spending.cjs').revision!==3)delete require
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
 // A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
-const modes=new Set(['art','adventure','character','diagnostics']);
+const modes=new Set(['art','adventure','character','diagnostics','moderate']);
 const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
 // Ready journeys (tale-library.cjs) also stay loaded between requests: a shared library of finished tales that players
 // compare and choose between, each written once at the effort the host chose and played by many (each player their own
@@ -338,6 +338,17 @@ function startLibrary({apiKey,model,storyModel=model,storyReasoning='medium',lib
  const live=fetchImpl===fetch;if(live)({storyModel}=liveModels(model,storyModel));
  return topUpLibrary(library??loadLibrary(),{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live});
 }
+// OpenAI's moderation check on what players type (moderation.cjs) stays loaded too: its cache, each player's count of
+// held-back messages and any pause. Tests pass a stand-in `moderation`; runs against a fake provider skip it.
+function loadModeration(){if(require('./moderation.cjs').revision!==1)delete require.cache[require.resolve('./moderation.cjs')];return require('./moderation.cjs').moderation;}
+// What the player typed in this request, if anything: a turn's words (never a scene cue the game wrote), the idea for
+// a tale of their own, or the description for a hero drafted by the AI.
+function typedByPlayer(body){
+ const c=body.context;
+ if(c.mode==='adventure')return typeof c.idea==='string'?c.idea:'';
+ if(c.mode==='art'||c.mode==='diagnostics'||c.mode==='moderate'||c.sceneTrigger)return '';
+ return typeof body.input==='string'?body.input:'';
+}
 function loadStoryJobs(){if(require('./story-jobs.cjs').revision!==1)delete require.cache[require.resolve('./story-jobs.cjs')];return require('./story-jobs.cjs').storyJobs;}
 function liveModels(model,storyModel,read=chosenModel){
  const play=read('.questbound-model'),story=read('.questbound-story-model');
@@ -370,7 +381,7 @@ function castWords(input,spell){
  const i=said.toLowerCase().indexOf(spell.name.toLowerCase());
  return ('I cast '+spell.name+(i>=0?said.slice(i+spell.name.length):'')).slice(0,500);
 }
-async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null}){
+async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null,moderation=null}){
   if(fetchImpl===fetch)({model,storyModel}=liveModels(model,storyModel));
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
   // only), so misuse by one player is never taken for the host's own. Tests pass a stand-in `spending`.
@@ -393,6 +404,13 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==6)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
+  // The content check (moderation.cjs): a table name asked about by the account service (mode 'moderate') is answered
+  // at once; a player paused after several held-back messages waits; what a player typed is checked before the story
+  // model sees it, and held back with a calm line (or a caring one) when it crosses the limits. It fails open.
+  const check=moderation??(live?loadModeration():null);
+  if(body.context.mode==='moderate'){if(!check)return {moderation:{action:'allow',categories:[],unchecked:true}};const v=await check.check(body.input,{apiKey,guest,purpose:'name'});return {moderation:{action:v.action,categories:v.categories,line:v.line??null,...(v.unchecked?{unchecked:true}:{})}};}
+  if(check&&guest){const left=check.paused(guest);if(left)throw Object.assign(Error(check.pauseLine(left)),{httpStatus:403});}
+  if(check){const typed=typedByPlayer(body);if(typed){const v=await check.check(typed,{apiKey,guest,purpose:'turn'});if(v.action!=='allow')throw Object.assign(Error(v.line),{httpStatus:422});}}
   // Once guests have used the host's daily allowance (or this guest their share), or a ceiling is reached, or the host
   // paused guests, they are refused before anything is asked of the AI. New tales and drafted heroes are counted per guest too.
   if(guest&&spend){const verdict=spend.check(guest);if(!verdict.ok)throw Object.assign(Error(verdict.error),{httpStatus:verdict.status??503});
@@ -784,4 +802,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

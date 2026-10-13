@@ -72,6 +72,17 @@ async function guests(){
   assert.equal(turn.status,200,JSON.stringify(turn.body));assert.equal(turn.body.version,joined.body.version+1);
   const note=await ask('campaign-edit',{campaignId:made.body.campaignId,kind:'note',text:'Remember the well.',baseVersion:turn.body.version,expectedAccountId:'guest'},g1);assert.equal(note.status,200,JSON.stringify(note.body));
   assert.ok(!JSON.stringify([made.body,joined.body,turn.body,note.body]).includes(first.body.id),'no guest id reaches a campaign member');
+  // The host removes and bans a guest (2026-10-13): their device is told, every invite refuses them, and a game-wide
+  // ban (node accounts.cjs ban) refuses that identity everywhere, even a fresh guest; unbanning lets them back.
+  const out=await ask('campaign-ban',{campaignId:made.body.campaignId,seat:joined.body.you,expectedAccountId:'guest'},g1);assert.equal(out.status,200,JSON.stringify(out.body));
+  const gone=await ask('poll',{campaignId:made.body.campaignId,expectedAccountId:'guest'},g2);assert.equal(gone.status,403);assert.equal(gone.body.removed,true);
+  const reinvite=(await ask('campaign-invite',{campaignId:made.body.campaignId,expectedAccountId:'guest'},g1)).body.invite;
+  assert.equal((await ask('campaign-join',{invite:reinvite,snapshot:fx.snapshot('wizard'),name:'Ben',expectedAccountId:'guest'},g2)).status,403,'a new invite refuses a banned member');
+  assert.equal((await ask('campaign-unban',{campaignId:made.body.campaignId,ref:out.body.banned[0].ref,expectedAccountId:'guest'},g1)).status,200);
+  assert.equal((await ask('campaign-join',{invite:reinvite,snapshot:fx.snapshot('wizard'),name:'Ben',expectedAccountId:'guest'},g2)).status,200,'let back');
+  const g2id=(await ask('account-status',{},g2)).body.id;svc.bans.ban(g2id);
+  assert.equal((await ask('usage',{kind:'dm'},g2)).body.banned,true);assert.equal((await ask('account-guest',{},g2,{'X-Questbound-Client':'198.51.100.2'})).status,403);
+  assert.ok(svc.bans.unban(g2id));assert.equal((await ask('usage',{kind:'dm'},g2)).status,200);
   // No idle expiry for guests, and the cookie is renewed when used (once a day).
   tick+=2*86400000;const renewed=await ask('poll',{campaignId:made.body.campaignId,expectedAccountId:'guest'},g1);assert.equal(renewed.status,200);assert.match(renewed.cookie??'',/Max-Age=7776000/);
   assert.equal((await ask('poll',{campaignId:made.body.campaignId,expectedAccountId:'guest'},g1)).cookie,null,'renewed once a day, not on every poll');

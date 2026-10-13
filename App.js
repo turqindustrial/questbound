@@ -21,6 +21,7 @@ import {useSharedTable} from './useSharedTable';
 import {backupLocalSave,tableMembership} from './tableClient';
 import {isPartyGame,partyView,joinParty,soloFromParty,partyMembers} from './partyRules';
 import PartyPanel from './PartyPanel';
+import MemberActions,{useMutedMembers} from './TableMemberActions';
 import SharedTable from './SharedTable';
 import Adventure from './Adventure';
 import {newAdventure} from './adventureRules';
@@ -190,6 +191,8 @@ function QuestboundApp() {
   // Leaving a party table: this device's adventure goes on alone from where the party stands.
   useEffect(()=>{if(!table.joined&&isPartyGame(game))setGame(g=>isPartyGame(g)?soloFromParty({game:g},hero?.level??null).game:g);},[table.joined,game,hero]);
   const party=partyMembers(game).filter(m=>!m.lead);
+  // Another hero tapped in the party row opens Mute, Report and (for the table's host) Remove and ban beneath it.
+  const [memberOpen,setMemberOpen]=useState(null),mutedHere=useMutedMembers(table.campaignId),openedMember=memberOpen?(table.members??[]).find(m=>m.id===memberOpen):null;
   async function setScreen(target){
     if(table.joined&&['Character Selection','Character Creation','Adventure Opening'].includes(target)){setScreenState('Multiplayer');setError('Leave the shared table before changing your hero or starting a separate adventure.');return;}
     if(['Adventure','Character Creation','Multiplayer','Adventure Opening'].includes(target)&&mustSignIn){setScreenState('Settings');setError('Sign in and verify your email before playing. Your existing guest saves are kept.');return;}
@@ -449,10 +452,11 @@ function QuestboundApp() {
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. While the
         player types on a small phone, the HUD gives its row to the story too. */}
     <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} xp={experienceView(game,hero)} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
-    {(table.joined||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
+    {(table.joined||!!table.notice||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
+      {!table.joined&&!!table.notice&&<Pressable accessibilityRole="alert" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
-      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
+      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1} onMember={setMemberOpen} openMember={memberOpen} mutedSeats={mutedHere.map(m=>m.seat)}/>}{!!openedMember&&<MemberActions table={table} member={openedMember} named onClose={()=>setMemberOpen(null)}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
       <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreen('Character Selection');}} resting={!!restingKey&&restingKey===JSON.stringify(hero)} onLetGo={layHeroToRest} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>

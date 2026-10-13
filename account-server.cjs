@@ -2,6 +2,7 @@
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {createAccounts}=require('./accounts.cjs'),{loopbackHost}=require('./security-headers.cjs');
 const {createLimiter}=require('./rate-limit.cjs'),{createCampaigns,validSnapshot}=require('./campaigns.cjs'),{createOperations,atomic}=require('./operations.cjs'),{createMailer}=require('./mailer.cjs');
+const {createBans}=require('./bans.cjs'),{reportEntry,saveFeedback}=require('./feedback-notes.cjs');
 // The terms players accept are the ones legalText.js carries, so the date has one source.
 const currentTerms=(()=>{try{return /export const legalUpdated='([^']+)'/.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'legalText.js'),'utf8'))[1];}catch{return '10 October 2026';}})();
 // Whether a signed-in, email-verified account is needed to play: one switch, accountsRequired in accountRules.js (read
@@ -11,22 +12,34 @@ const requiredInFile=(()=>{try{return /export const accountsRequired=(true|false
 const accountsRequiredNow=()=>process.env.QUESTBOUND_REQUIRE_ACCOUNTS==='1'||requiredInFile;
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 const accountRoutes=['guest','register','login','verify','save','load','status','logout','logout-all','password','delete'];
-const campaignRoutes=['create','join','list','invite','turn','edit'];
+const campaignRoutes=['create','join','list','invite','turn','edit','report','ban','unban'];
 const routes=new Set(['poll','save','leave','cloud-save','cloud-load','usage','ops-status','ops-verify-backups',...accountRoutes.map(x=>'account-'+x),...campaignRoutes.map(x=>'campaign-'+x)]);
 const cookieToken=req=>req.headers.cookie?.match(/(?:^|;\s*)questbound_account=([a-f0-9]{64})(?:;|$)/)?.[1]??'';
 const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');return /^[A-Z0-9]{12}$/.test(c)?crypto.createHash('sha256').update('questbound-cloud-v1:'+c).digest('hex'):null;};
-function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow()}={}){
+// The host's own words about bans and reports (2026-10-13): "add per-player mute or report and a host ban". A
+// browser the host of the whole game has banned (node accounts.cjs ban …, bans.cjs) is refused everything here: the
+// Dungeon Master (the gateways ask /usage first), every campaign route and feedback (the gateway asks /usage too).
+const bannedLine='The host of this game has closed it to this browser.';
+function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow()}={}){
  const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
+ const bans=createBans({dir:accountsDir,now});
  let campaigns=null;
  const accounts=createAccounts({allowGuests:!accountsRequired,onGuestRemoved:id=>campaigns?.removeAccount(id),...accountOptions,dir:accountsDir,now,validSnapshot,mailer:mail,backup:ops.backup,audit:ops.audit});
  const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
- campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl});
+ // Table names go through the Dungeon Master's content check (moderation.cjs, mode 'moderate'): only its process holds
+ // the API key. A few seconds at most, and it fails open. Tests that stand in for the Dungeon Master (ask) pass their own.
+ const dmModerate=moderate??(ask?null:async(text,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({input:text,context:{mode:'moderate',choices:[]},...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(4000)});if(!response.ok)return null;return (await response.json())?.moderation??null;});
+ // Reports from a table go to the host's playtest notes (feedback-report.cjs lists them) and, once the game mailbox is
+ // set up, to the mailbox, at most ten an hour.
+ const notesFile=feedbackFile??path.join(dataDir,dataDir===__dirname?'playtest-feedback.md':'feedback.md'),mailedReports=[];
+ const onReport=report=>{const entry=reportEntry(report,{now:now()});saveFeedback(notesFile,entry);while(mailedReports.length&&mailedReports[0]<=now()-3600000)mailedReports.shift();if(mailedReports.length<10&&mail.configured?.()){mailedReports.push(now());mail.feedback?.(entry.markdown)?.catch?.(()=>{});}};
+ campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl,moderate:dmModerate,onReport});
  // Allowances in sliding windows. Signing up, signing in and recovery codes are counted per visitor address (the caller
  // the gateway names), as is anything sent without a valid sign-in; everything else per signed-in account, so players
  // behind one home or carrier address never share a bucket. The gateway asks 'usage' before each Dungeon Master
  // request: turns count against the account, illustration and story checks (kind 'art') are not counted here at all
  // (the gateway limits them per browser and spending.cjs prices the paintings).
- const quota={poll:[1200,600000],'account-guest':[20,3600000],'guests-overall':[300,3600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],usage:[240,600000],unauthenticated:[300,600000],other:[300,600000],...limits};
+ const quota={poll:[1200,600000],'campaign-report':[10,3600000],'campaign-ban':[30,3600000],'account-guest':[20,3600000],'guests-overall':[300,3600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],usage:[240,600000],unauthenticated:[300,600000],other:[300,600000],...limits};
  const perCaller=new Set(['account-guest','account-register','account-login','account-verify','account-logout','cloud-load']);
  const routeLimits=new Map([...routes,'unauthenticated','guests-overall'].map(route=>{const [max,span]=quota[route]??quota.other;return [route,createLimiter(max,span,{now})];}));
  const tooMany=(res,send,route,seconds)=>{ops.audit('rate-denied',{route,status:429});res.setHeader('Retry-After',String(seconds));return send(429,{error:'Too many tries. Wait a few minutes and try again.'});};
@@ -60,13 +73,14 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    // A guest identity for a browser without a session: the existing session if there is one, else a new guest.
    if(route==='account-guest'){
     if(accountsRequired)return send(403,{error:'Sign in with your account to play.',accountsRequired:true});
-    try{const who=accounts.identity(token);return send(200,who.guest?{guest:true,id:who.id}:{guest:false,signedIn:true,id:who.id});}catch{}
+    {let who=null;try{who=accounts.identity(token);}catch{}if(who&&bans.has(who.id)){ops.audit('banned-refused',{route});return send(403,{error:bannedLine,banned:true});}if(who)return send(200,who.guest?{guest:true,id:who.id}:{guest:false,signedIn:true,id:who.id});}
     {const seconds=routeLimits.get('guests-overall')('all');if(seconds)return tooMany(res,send,route,seconds);}
     const made=await accounts.guest(caller);setSession(made.token,90);return send(200,{guest:true,id:made.id});
    }
    if(route==='account-logout'&&!accountsRequired){try{if(accounts.identity(token).guest)return send(200,{signedOut:true,guest:true});}catch{}}
    if(route==='account-logout'){if(b.expectedAccountId&&accounts.identity(token).id!==b.expectedAccountId)return send(409,{error:'Another account signed in on this browser. Reload before continuing.'});await accounts.logout(token);setSession('');return send(200,{signedOut:true});}
    let user;try{user=accounts.identity(token);}catch(e){const seconds=routeLimits.get('unauthenticated')(caller);if(seconds)return tooMany(res,send,route,seconds);throw e;}user.active=()=>accounts.identity(token);
+   if(bans.has(user.id)){ops.audit('banned-refused',{route});return send(403,{error:bannedLine,banned:true});}
    if(user.renewed){setSession(token,90);delete user.renewed;}
    if(!perCaller.has(route)&&!(route==='usage'&&b.kind==='art')){const seconds=routeLimits.get(route)('account:'+user.id);if(seconds)return tooMany(res,send,route,seconds);}
    // A guest's device keeps its saves under the profile 'guest' (playerStorage.js), and names itself so.
@@ -94,9 +108,9 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
     const savedAt=new Date(now()).toISOString(),record={savedAt,snapshot:b.snapshot};ops.backup.put('cloud-'+key,record);atomic(file,record);return send(200,{saved:true,savedAt});
    }
    return send(404,{error:'Not found.'});
-  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.'});}
+  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.',...(e.removed?{removed:true}:{})});}
  });
  server.requestTimeout=20000;server.headersTimeout=10000;
- return {server,accounts,campaigns,operations:ops};
+ return {server,accounts,campaigns,operations:ops,bans};
 }
 module.exports={createSyncServer,routes,cookieToken,accountsRequiredNow};
