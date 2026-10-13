@@ -84,6 +84,10 @@ import {currentTheme} from './theme';
 import {questState} from './storyRules';
 import {turnOrderView} from './encounterRules';
 import {useVisualViewport} from './webLayout';
+import SessionRating from './SessionRating';
+import {InsightSettings} from './InsightControls';
+import {startPlayMetrics,notePlace,noteTale,noteStoryWait,placeOf,talking,readInsight,noteRatingShown,sessionSeconds,deviceSeconds,subscribeInsight} from './playMetrics';
+import {ratingMomentOf,mayAskRating} from './ratingRules';
 // The title painting: a valley at dusk, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
 const titlePainting=require('./assets/title/questbound-title.jpg');
 
@@ -273,13 +277,14 @@ function QuestboundApp() {
     if(!newStoryRequested){setCharacterChosen(true);setScreen('Adventure');return;}
     if(begin!==true){setScreen('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});return;}
     storyLock.current=true;setCreatingStory(true);setError('');
+    let waiting=false;
     try{
       let next;
       // The next chapter in the same region: the story writer is told what the hero leaves behind, and the old
       // region joins the new map a few miles away.
       const continuing=continuingNow,bearing=sequelBearings[Math.floor(Math.random()*sequelBearings.length)],miles=4+Math.round(Math.random()*30)/10;
       const base=newAdventure(hero,characterChosen?carriedBase(game):undefined);
-      if(selectedIntro==='hostile'&&!continuing)next=hostileEncounterGame(hero,base);
+      if(selectedIntro==='hostile'&&!continuing){noteTale('hostile',null);next=hostileEncounterGame(hero,base);}
       else{
       // The player's own idea: the whole brief for Your own tale, an optional wish for the next tale in a region.
       const wish=(continuing||selectedIntro==='idea')&&idea.trim()?idea.trim().slice(0,300):null;
@@ -289,6 +294,7 @@ function QuestboundApp() {
       // A ready journey (the one chosen, or one by chance for Let fate decide) starts at once: the player's own copy,
       // with its orders in hand (asked for as Easy to get into).
       const offered=journeysOnOffer??[],journeyId=continuing?null:String(selectedIntro).startsWith('journey:')?String(selectedIntro).slice(8):selectedIntro==='surprise'&&offered.length?fateJourney(offered).id:null,introId=journeyId?'easy':start.introId;
+      noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
       const endpoint=await findDmEndpoint();
       const {ok,status,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId,...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
       // A journey that has just left the library: the journeys on offer are asked for again.
@@ -302,8 +308,9 @@ function QuestboundApp() {
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
       // A journey played on this device is never offered here again.
       if(next.story?.libraryId)await rememberJourney(next.story.libraryId);
+      if(waiting)noteStoryWait('done');waiting=false;
       setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);setIdea('');setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
-    }catch(e){setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
+    }catch(e){if(waiting)noteStoryWait('failed');setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
     finally{storyLock.current=false;setCreatingStory(false);}
   }
   async function saveHero() {
@@ -435,6 +442,35 @@ function QuestboundApp() {
   const storyCover=creatingStory&&(selectedIntro!=='hostile'||continuingNow),agreementShown=launched&&!agreed&&screen!=='Legal';
   useEffect(()=>{setCovered('story',storyCover);return()=>setCovered('story',false);},[storyCover]);
   useEffect(()=>{setCovered('agreement',agreementShown);return()=>setCovered('agreement',false);},[agreementShown]);
+  // Anonymous play counts (playMetrics.js): where this session is, as one word from a fixed list; sent when the page
+  // is hidden or left, never with anything typed or named.
+  useEffect(()=>{startPlayMetrics();},[]);
+  useEffect(()=>{notePlace(placeOf({launched,storyCover,screen,inGame,stage:game.stage,fighting,talking:talking()}));},[launched,storyCover,screen,inGame,game.stage,fighting]);
+  // "How was that session?" (SessionRating.js, ratingRules.js): offered a few seconds after a natural stopping point
+  // (a chapter or the tale finished, a long rest, the hero's death, or leaving play for the title), never in a fight,
+  // while dying, typing or waiting for a tale, and only as often as the rules allow.
+  const [rating,setRating]=useState(null),ratingTimer=useRef(null),ratingGame=useRef(game),wasInGame=useRef(inGame);
+  const ratingBlocked=useRef(true);
+  ratingBlocked.current=!launched||agreementShown||storyCover||feedbackOpen||typingPlay||(fighting&&game.stage!=='dead')||game.stage==='dying'||!!game.turnOrder||!!game.pendingSpell;
+  // The title cards of a finished fight, a tale, a level, a death or a new place (CinematicLayer.js) go first: the
+  // card waits until they have faded.
+  const cinematicUntil=useRef(0);
+  useCue(useCallback(event=>{const hold={death:8600,victory:3800,defeat:3800,down:3800,complete:3800,levelup:4000,area:4100,deed:4600}[event.kind];if(hold)cinematicUntil.current=Math.max(cinematicUntil.current,Date.now()+hold);},[]));
+  const offerRating=useCallback(moment=>{
+    clearTimeout(ratingTimer.current);
+    const show=tries=>{
+      const wait=cinematicUntil.current-Date.now();
+      if(wait>0&&tries<6){ratingTimer.current=setTimeout(()=>show(tries+1),wait+700);return;}
+      const insight=readInsight();
+      if(!mayAskRating({ask:insight.ask,record:insight.rating,moment,sessionSeconds:sessionSeconds(),deviceSeconds:deviceSeconds(),now:Date.now(),blocked:ratingBlocked.current}))return;
+      noteRatingShown();setRating(old=>old??{moment,id:Date.now()});
+    };
+    ratingTimer.current=setTimeout(()=>show(0),moment==='leave'?1200:moment==='death'?6000:3500);
+  },[]);
+  useEffect(()=>()=>clearTimeout(ratingTimer.current),[]);
+  useEffect(()=>subscribeInsight(i=>{if(!i.ask)setRating(null);}),[]);
+  useEffect(()=>{const before=ratingGame.current;ratingGame.current=game;if(!playing)return;const moment=ratingMomentOf(before,game);if(moment)offerRating(moment);},[game]);
+  useEffect(()=>{const was=wasInGame.current;wasInGame.current=inGame;if(was&&!inGame&&screen==='Home')offerRating('leave');},[inGame,screen]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:tint('#ffd49a')}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
@@ -553,6 +589,7 @@ function QuestboundApp() {
       {screen === 'Settings' && <DisplaySettings/>}
       {screen === 'Settings' && <AudioSettings/>}
       {screen === 'Settings' && accountsOffered() && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
+      {screen === 'Settings' && <InsightSettings/>}
       {screen === 'Settings' && <SaveTransfer/>}
       {screen === 'Settings' && <View style={s.about}><Section icon="info" title="About" style={{marginTop:0}}/><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>Questbound is an independent production, compatible with fifth edition, and is not affiliated with Wizards of the Coast. Its rules text includes material from the System Reference Documents 5.2 and 5.1 by Wizards of the Coast LLC under the Creative Commons Attribution 4.0 International License (see Licences and credits).</Text>
         <View style={s.legalRow}>{[['privacy','Privacy policy','key'],['terms','Terms of use','scroll'],['permissions','Permissions agreement','check'],['licences','Licences and credits','book']].map(([tab,label,icon])=><GameButton key={tab} icon={icon} label={label} onPress={()=>openLegal(tab,'Settings')} style={s.legalButton}/>)}</View></View>}
@@ -564,6 +601,7 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
+  {rating&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
   {storyCover&&<StoryLoading introId={continuingNow?'surprise':String(selectedIntro).startsWith('journey:')?'easy':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
   <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}

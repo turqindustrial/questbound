@@ -31,7 +31,16 @@ function allNotes(dir){
  const records=[...readLines(path.join(dir,'.questbound-feedback.jsonl')),...readLines(path.join(dir,'feedback.jsonl'))].filter(r=>typeof r.at==='string');
  const refs=new Set(records.map(r=>r.ref)),minutes=new Set(records.map(r=>r.at.slice(0,16)));
  const older=[...markdownNotes(path.join(dir,'playtest-feedback.md')),...markdownNotes(path.join(dir,'feedback.md'))].filter(n=>n.ref?!refs.has(n.ref):!minutes.has(n.at.slice(0,16)));
- return [...records,...older].sort((a,b)=>a.at.localeCompare(b.at));
+ // A session rating's addition (chips and a line sent after the one-tap answer) is folded into the answer it follows;
+ // the answer counts as unread again when an addition arrives after the marker.
+ const byRef=new Map(records.filter(r=>r.kind==='session'&&!r.follows).map(r=>[r.ref,r]));
+ const kept=[];
+ for(const r of records){
+  const first=r.kind==='session'&&r.follows?byRef.get(r.follows):null;
+  if(!first){kept.push(r);continue;}
+  first.chips=[...new Set([...(first.chips??[]),...(r.chips??[])])];first.text=[first.text,r.text].filter(Boolean).join(' / ')||null;first.updated=r.at;
+ }
+ return [...kept,...older].sort((a,b)=>a.at.localeCompare(b.at));
 }
 const readMarker=dir=>{try{const t=fs.readFileSync(path.join(dir,'.questbound-feedback-seen'),'utf8').trim();return Number.isNaN(Date.parse(t))?null:t;}catch{return null;}};
 function rejectionsFor(note,diagnostics){
@@ -40,7 +49,17 @@ function rejectionsFor(note,diagnostics){
  return diagnostics.filter(d=>d.guest===note.guest&&typeof d.at==='string'&&Math.abs(Date.parse(d.at)-at)<=WINDOW_MS).slice(-6);
 }
 const mentionsSpell=note=>/\bspell|cast|cantrip|ritual|slot/i.test([note.text,...(note.details?.problems??[]).map(p=>[p?.said,p?.error,p?.spell].join(' '))].join(' '));
+// A session rating: the answer, when it was asked, the session's counts, the chips and the line.
+function describeRating(note){
+ const s=note.session??{},head='--- '+note.at.replace('T',' ').slice(0,16)+' UTC'+(note.ref?'  ['+note.ref+']':'')+'  session rating';
+ const facts=['answer '+(note.rating??'?'),note.moment&&'after '+note.moment,s.minutes!=null&&s.minutes+' min',s.turns!=null&&s.turns+' turns',s.failed!=null&&s.failed+' failed',s.form,s.build&&'build '+s.build,note.from==='desktop'&&'this PC'].filter(Boolean).join(' · ');
+ const out=[head,facts];
+ if(note.chips?.length)out.push('Chips: '+note.chips.join(', '));
+ if(note.text)out.push('Note: '+String(note.text).replace(/[\u0000-\u001f\u007f]/g,' '));
+ return out.join('\n');
+}
 function describe(note,diagnostics){
+ if(note.kind==='session')return describeRating(note);
  const c=note.context??{},d=note.details??{},g=d.game??{},out=[];
  out.push('--- '+note.at.replace('T',' ').slice(0,16)+' UTC'+(note.ref?'  ['+note.ref+']':'')+(note.guest?'  guest '+String(note.guest).slice(0,12):''));
  out.push([c.player,c.hero,c.device].filter(Boolean).join(' · ')||'(no name)');
@@ -65,16 +84,16 @@ function report(argv=process.argv.slice(2),{dir=__dirname,print=console.log,now=
  if(value('--dir'))dir=path.resolve(value('--dir'));
  const notes=allNotes(dir),marker=readMarker(dir);
  const since=value('--since')?new Date(value('--since')).toISOString():flag('--all')?null:marker;
- const unread=since?notes.filter(n=>n.at>since):notes;
+ const unread=since?notes.filter(n=>(n.updated??n.at)>since):notes;
  if(flag('--count')){print(String(unread.length));}
  else if(flag('--json')){print(JSON.stringify({notice:NOTICE,since,notes:unread.map(n=>({...n,rejections:rejectionsFor(n,readLines(path.join(dir,'.questbound-diagnostics.jsonl')))}))},null,1));}
  else{
   print(NOTICE);
   const diagnostics=readLines(path.join(dir,'.questbound-diagnostics.jsonl'));
-  print(unread.length?unread.length+' note'+(unread.length===1?'':'s')+(since?' since '+since:'')+':':'No new playtest notes'+(since?' since '+since:'')+'.');
+  print(unread.length?unread.length+' note'+(unread.length===1?'':'s')+(unread.some(n=>n.kind==='session')?' ('+unread.filter(n=>n.kind==='session').length+' session rating'+(unread.filter(n=>n.kind==='session').length===1?'':'s')+'; the counts are in node play-report.cjs)':'')+(since?' since '+since:'')+':':'No new playtest notes'+(since?' since '+since:'')+'.');
   for(const note of unread)print(describe(note,diagnostics));
  }
- if(flag('--mark')){const last=notes.at(-1)?.at??now().toISOString();fs.writeFileSync(path.join(dir,'.questbound-feedback-seen'),(marker&&marker>last?marker:last)+'\n');if(!flag('--count')&&!flag('--json'))print('Marked as read up to '+last+'.');}
+ if(flag('--mark')){const last=notes.map(n=>n.updated??n.at).sort().at(-1)??now().toISOString();fs.writeFileSync(path.join(dir,'.questbound-feedback-seen'),(marker&&marker>last?marker:last)+'\n');if(!flag('--count')&&!flag('--json'))print('Marked as read up to '+last+'.');}
  return unread;
 }
 if(require.main===module)report();

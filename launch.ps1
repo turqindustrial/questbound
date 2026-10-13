@@ -319,6 +319,11 @@ try {
   $spent = (& node (Join-Path $root 'dm-report.cjs') --status 2>$null | Select-Object -Last 1)
   if ($spent) { $tone = if ($spent -match 'PAUSED') { 'Yellow' } else { 'DarkGray' }; Say "  $spent" $tone }
 } catch {}
+# Anonymous play counts and session ratings, the last 7 days (play-report.cjs; all of it: node play-report.cjs).
+try {
+  $play = (& node (Join-Path $root 'play-report.cjs') --brief --days 7 2>$null | Select-Object -Last 1)
+  if ($play) { Say "  $play" 'DarkGray' }
+} catch {}
 Say ''
 Say '  Everything keeps running in the background after you close this window.' 'DarkGray'
 Say '  Stop it all with: Questbound.cmd -Stop' 'DarkGray'

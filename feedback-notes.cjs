@@ -67,10 +67,41 @@ function reportEntry(report,{now=Date.now(),random=crypto.randomBytes}={}){
  const record={ref,at:when.toISOString(),kind:'report',guest:null,rating:null,text:words||'(report: '+reportReasonNames[reason]+')',context:{player:by.name,hero:null,device:null,where:title||null,screen:'table',story:null},report:{reason,reported,by,campaign,title:title||null,lines},details:null};
  return {markdown,record};
 }
+// A session rating (the "How was that session?" card, SessionRating.js): one tap from four answers, and optionally a
+// few chips and a line of the player's own. It carries less than a feedback note with "Include what happened" off: no
+// name, no hero, no story, no turns, no label for the browser; only the answer, the moment it was asked at and the
+// session's mechanical counts. An addition ({follows: the first answer's ref}) adds the chips and the line afterwards.
+// The lists are the same as ratingRules.js (verify-metrics.cjs checks that they agree).
+const ratingAnswers=['great','good','okay','rough'],ratingMoments=['chapter','tale','rest','death','leave'];
+const ratingChips=['story','fights','people','places','surprises','pace','slow','errors','confusing','too-hard','too-easy','dull'];
+const ratingWords={great:'Great',good:'Good',okay:'Okay',rough:'Rough'};
+function sessionRatingEntry(note,{now=Date.now(),random=crypto.randomBytes,from=null}={}){
+ if(!note||typeof note!=='object'||Array.isArray(note)||note.kind!=='session')return {error:'Not a session rating.'};
+ const follows=typeof note.follows==='string'&&/^fb-[0-9a-z]{6,12}-[0-9a-f]{4}$/.test(note.follows)?note.follows:null;
+ const rating=ratingAnswers.includes(note.rating)?note.rating:null;
+ if(!follows&&!rating)return {error:'Choose an answer first.'};
+ const chips=[...new Set((Array.isArray(note.chips)?note.chips:[]).filter(c=>ratingChips.includes(c)))].slice(0,6);
+ const text=oneLine(note.text,200);
+ if(follows&&!chips.length&&!text)return {error:'Nothing to add.'};
+ const moment=ratingMoments.includes(note.moment)?note.moment:null;
+ const n=(value,max)=>Number.isInteger(value)&&value>=0&&value<=max?value:null;
+ const s=note.session&&typeof note.session==='object'&&!Array.isArray(note.session)?note.session:{};
+ const session=follows?null:{minutes:n(s.minutes,1440),turns:n(s.turns,5000),failed:n(s.failed,5000),form:['phone','tablet','desktop'].includes(s.form)?s.form:null,build:typeof s.build==='string'&&/^(?:[0-9a-f]{8}|dev)$/.test(s.build)?s.build:null};
+ const when=new Date(now),ref='fb-'+now.toString(36)+'-'+random(2).toString('hex');
+ const heading=when.toISOString().replace('T',' ').slice(0,16)+' UTC · '+(follows?'Session rating, added':'Session rating: '+ratingWords[rating]);
+ const lines=[];
+ if(session)lines.push([moment&&'After: '+moment,session.minutes!=null&&'Played: '+session.minutes+' min',session.turns!=null&&'Turns: '+session.turns,session.failed!=null&&'Failed: '+session.failed,session.form,session.build&&'Build: '+session.build].filter(Boolean).join(' · '));
+ if(follows)lines.push('Adds to: '+follows);
+ if(chips.length)lines.push('Chips: '+chips.join(', '));
+ lines.push('Ref: '+ref);
+ const markdown='\n## '+heading+'\n'+(text?'\n> '+text+'\n':'')+'\n'+lines.filter(Boolean).join('\n')+'\n';
+ const record={ref,at:when.toISOString(),guest:null,kind:'session',rating,moment,chips,text:text||null,session,follows,...(from?{from}:{})};
+ return {markdown,record};
+}
 // Appends a note to both files. Throws when the disk refuses; the callers answer 500.
 function saveFeedback(file,entry){
  if(!fs.existsSync(file))fs.writeFileSync(file,'# Questbound playtest feedback\n\nNotes sent from inside the game by playtesters. Newest at the bottom.\n');
  fs.appendFileSync(file,entry.markdown);
  fs.appendFileSync(feedbackRecordFile(file),JSON.stringify(entry.record)+'\n');
 }
-module.exports={feedbackEntry,reportEntry,saveFeedback,feedbackRecordFile,sanitiseFeedback:sanitise,FEEDBACK_BODY_LIMIT};
+module.exports={feedbackEntry,reportEntry,sessionRatingEntry,ratingAnswers,ratingMoments,ratingChips,saveFeedback,feedbackRecordFile,sanitiseFeedback:sanitise,FEEDBACK_BODY_LIMIT};

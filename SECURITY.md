@@ -58,6 +58,8 @@ Static serving blocks hidden files, source maps, alternate streams and escaping 
 
 - `node backup-tool.cjs verify` decrypts and validates the latest copy for each resource. `list <backup-id>` lists versions; `export <backup-id> <version>` writes a validated review copy without overwriting live state. Stop services and preserve the current data before a host performs a live restore. Do not copy a historical account record containing old authentication tokens back into service.
 
+- Anonymous play counts (`/api/metrics`, `play-metrics.cjs`) are accepted only from the game's own page (same Origin, JSON or text/plain, at most 2,000 bytes, a paired browser on the gateway), checked against a strict schema of numbers, fixed words and random hex ids (nothing typed or named can be stored), limited to 60 an hour per browser and 120 per visitor address on the gateway (120 an hour on the desktop server), appended to `.questbound-metrics.jsonl` (`metrics.jsonl` when hosted), pruned after 180 days and no longer written past 20 MB. They carry no guest label, cookie or address. Session ratings travel through `/api/feedback` within its limits, with no label either.
+
 - Keep a separate protected off-device backup of the data and a recovery plan for its encryption key. DPAPI files depend on the Windows account and machine; moving only the encrypted files to another host is insufficient. Off-device backup and actual-host disaster recovery remain setup work.
 
 ## Verification and remaining release gates

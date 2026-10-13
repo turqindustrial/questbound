@@ -35,6 +35,7 @@ import {noteProblem} from './problemLog';
 import {deedById} from './deedRules';
 import {cue} from './cinematics';
 import {openFeedback} from './Feedback';
+import {countTurn,noteTalking} from './playMetrics';
 const endpoints=dmEndpoints();
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
 const panelKey='questbound.suggestions.v1';
@@ -63,7 +64,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>creature?subscribeArt(creature,()=>{}):undefined,[creatureKey]);
   const [conversationId,setConversationId]=useState(null),[animateId,setAnimateId]=useState(null),[playing,setPlaying]=useState(false);
   const people=conversationPeople(game),person=people.find(n=>n.id===conversationId);
-  useEffect(()=>{if(conversationId&&!person)setConversationId(null);onConversationChange(!!person);},[conversationId,!!person,onConversationChange]);
+  useEffect(()=>{if(conversationId&&!person)setConversationId(null);onConversationChange(!!person);noteTalking(!!person);},[conversationId,!!person,onConversationChange]);
   // Just you two: with others about, the one turned to answers alone unless the player opens the talk to everyone here.
   const [alone,setAlone]=useState(true);
   useEffect(()=>{setAlone(true);},[conversationId]);
@@ -183,7 +184,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     preset=preset?.question&&(preset.action||preset.parse)?preset:null;
     const question=preset?.question??input.trim();
     const toDm=!preset&&(direct||toDungeonMaster(question));
-    if(lock.current||playing||!question||waiting||tableSyncing||(game.stage==='dead'&&!toDm)||(turnWait&&!toDm&&preset?.action?.type!=='party-pass'))return;const priorReply=reply,snapshot=fingerprint;if(compact||touchKeyboard()){inputRef.current?.blur?.();Keyboard.dismiss();}lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');
+    if(lock.current||playing||!question||waiting||tableSyncing||(game.stage==='dead'&&!toDm)||(turnWait&&!toDm&&preset?.action?.type!=='party-pass'))return;const priorReply=reply,snapshot=fingerprint;if(compact||touchKeyboard()){inputRef.current?.blur?.();Keyboard.dismiss();}lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');countTurn();
     if(table?.joined){
       try{stopNarrator();}catch{}
       // The campaign server resolves the turn with its own dice through the same rules (server-turn.cjs); this device
