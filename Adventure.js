@@ -18,6 +18,7 @@ import {livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
 import Inventory from './Inventory';
 import {withStoryLog} from './storyLog';
+import {chronicleView} from './memoryRules';
 import {withDeeds,deedById,deedList} from './deedRules';
 import {withExperience} from './experienceRules';
 import {settleTurn} from './turnRules';
@@ -79,7 +80,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // Saves from before companions had classes: anyone travelling with the hero gains one (from their role) before the
  // next turn, out of a fight, so every preview and every turn sees the same companions.
  useEffect(()=>{if(table?.joined||game.stage==='combat'||game.npcCombat?.active||game.pendingSpell)return;const classed=withCompanionClasses(game,hero);if(classed!==game)setGame(classed);},[game,hero]);
- const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
+ const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),[showEarlier,setShowEarlier]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
  const act=async(action,conversation,random=Math.random,options)=>{if(table?.joined)return {game,health,error:'Send this action to the campaign server.'};try{stopNarrator();}catch{}const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};const settled=settleTurn({hero,ruled,game:from.game,health:from.health,action,conversation,random});if(settled.error){setError(storyText(game,settled.error));return settled.result;}let result=settled.result;const xp=settled.xp,marked={fresh:settled.fresh};if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
@@ -225,12 +226,17 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
  const tale=game.storyLog??[];
+ // Earlier tales, as the lasting memory keeps them (memoryRules.js): folded away under the story so far, one line each.
+ const earlier=chronicleView(game);
  const logPanel=<View dataSet={{qb:'plate'}} style={s.log}>
   <View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>The story so far</PlainText><Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'chip'}} style={s.shareChip}><Icon name="send" size={12} color={colors.gold}/><PlainText style={s.shareChipText}>Share</PlainText></Pressable></View>
   {!tale.length&&<PlainText style={[s.caption,{marginBottom:0}]}>Nothing of note yet. Every place you reach, everyone you meet, each fight and what came of it will be written here, briefly, as it happens.</PlainText>}
   {[...tale].reverse().map(e=>e.kind==='story'
    ?<View key={e.id} style={s.taleChapter}><View dataSet={{qb:'rule-left'}} style={s.taleRule}/><Icon name="scroll" size={13} color={colors.gold}/><PlainText style={s.taleChapterText}>{e.text}</PlainText><View dataSet={{qb:'rule-right'}} style={s.taleRule}/></View>
    :<View key={e.id} style={s.taleRow}><View style={[s.taleMark,{borderColor:taleTone[e.kind]??tint('rgba(178,34,58,.4)')}]}><Icon name={taleIcon[e.kind]??'star'} size={13} color={taleTone[e.kind]??colors.gold}/></View><Text style={s.taleText}>{e.text}</Text></View>)}
+  {!!earlier.tales.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showEarlier}} onPress={()=>setShowEarlier(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')}]}><PlainText style={s.logToggleText}>{showEarlier?'Hide earlier tales':'Earlier tales ('+(earlier.tales.length+(earlier.era?.count??0))+')'}</PlainText><Icon name={showEarlier?'close':'scroll'} size={14} color={colors.gold}/></Pressable>}
+  {showEarlier&&earlier.tales.slice(0,12).map(t=><View key={t.no} style={s.taleRow}><View style={[s.taleMark,{borderColor:tint('rgba(178,34,58,.4)')}]}><Icon name="scroll" size={13} color={colors.gold}/></View><Text style={s.taleText}><PlainText style={s.earlierTitle}>{t.title}</PlainText>{t.text?' — '+t.text:' — '+t.status+'.'}</Text></View>)}
+  {showEarlier&&earlier.tales.length+(earlier.era?.count??0)>12&&<PlainText style={[s.caption,{marginTop:8,marginBottom:0}]}>And {earlier.tales.length-Math.min(12,earlier.tales.length)+(earlier.era?.count??0)} tales before those, remembered in brief.</PlainText>}
   {!!game.log.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showLog}} onPress={()=>setShowLog(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')}]}><PlainText style={s.logToggleText}>{showLog?'Hide the latest rolls':'Latest rolls and rulings'}</PlainText><Icon name={showLog?'close':'d20'} size={14} color={colors.gold}/></Pressable>}
   {showLog&&game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}
  </View>;
@@ -304,7 +310,7 @@ const s=StyleSheet.create({
  shareButton:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,minHeight:40,borderRadius:4,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')},shareText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.4,color:colors.gold,textTransform:'uppercase'},
  shareChip:{marginLeft:'auto',flexDirection:'row',alignItems:'center',gap:5,minHeight:28,paddingHorizontal:10,borderRadius:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)')},shareChipText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(0,0,0,.3)')},
- taleText:{flex:1,fontFamily:fonts.story,fontSize:16,lineHeight:23,color:tint('#e6dfcd'),paddingTop:1},regard:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b0a39e'),marginTop:2,letterSpacing:.2},
+ taleText:{flex:1,fontFamily:fonts.story,fontSize:16,lineHeight:23,color:tint('#e6dfcd'),paddingTop:1},earlierTitle:{fontFamily:fonts.story,fontWeight:'700',color:colors.goldBright},regard:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b0a39e'),marginTop:2,letterSpacing:.2},
  main:{flex:1,minHeight:0,minWidth:0},narrow:{flex:1,minHeight:0},tabContent:{padding:10,paddingBottom:20},
  // Phone combat strip: the foe's portrait, name, HP and armour class, and the round.
  strip:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:10,paddingVertical:7,marginHorizontal:6,borderWidth:1,borderColor:tint('rgba(220,90,70,.55)'),borderRadius:6,marginBottom:6},

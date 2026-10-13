@@ -23,7 +23,7 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');return body;
  };
  function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
-  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(actorSeat?{actorSeat}:{}),...(toDm?{direct:true}:{}),...extra};
+  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(actorSeat?{actorSeat}:{}),...(toDm?{direct:true}:{}),...extra};
   // The same pipeline as Adventure.act on a device (turnRules.js): the rules, experience for every living hero, the
   // turn recorded, the story log and deeds. Scene cues are not played at a shared table.
   const settled=r.settleTurn({hero,ruled,game,health,action,conversation,random:dice,sceneTrigger:false});if(settled.error)throw fail(settled.error);
@@ -39,11 +39,11 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
    const body=await post(preview.game,preview.health);if(!body.ruling)throw fail('The DM needs more detail to resolve this spell. Nothing was spent.');
    const action={type:'ai-spell',request:command.action.request,ruling:body.ruling},rolled=[];
    const resolved=r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:command.normalizedCommand},()=>{const n=randomImpl();rolled.push(n);return n;});if(resolved.error)throw fail(resolved.error);
-   if(body.ruling.decision==='cast'){const reply=await post(resolved.game,resolved.health,{engineResolved:resolved.events});for(const key of ['narration','dialogue','relationships','loot','introduce','suggestions'])body[key]=reply[key];}
+   if(body.ruling.decision==='cast'){const reply=await post(resolved.game,resolved.health,{engineResolved:resolved.events});for(const key of ['narration','dialogue','relationships','remember','loot','introduce','suggestions'])body[key]=reply[key];}
    let i=0;return finish(action,body,command.normalizedCommand,()=>rolled[i++]??randomImpl());
   }
   const body=await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40)});let i=0;
-  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl());
+  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl());
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
  // A greeting is a trigger turn (no player line): the Dungeon Master writes it as a scene moment in which only that

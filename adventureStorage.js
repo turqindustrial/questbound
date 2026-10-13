@@ -7,6 +7,7 @@ import {validDungeon} from './dungeonRules';
 import {validCampaign} from './campaignRules';
 import {validMap} from './mapRules';
 import {validJournal,validStoryLog} from './journalRules';
+import {validMemory} from './memoryRules';
 import {validDeathState} from './deathRules';
 import {validWildFight,validCombatExtras,validFoeScale} from './encounterRules';
 import {validPack,gearedHero} from './inventoryRules';
@@ -67,6 +68,7 @@ export function validAdventure(value,hero) {
     && (g.levelsOwed===undefined || integerBetween(g.levelsOwed,0,5))
     && validExperience(g)
     && validStoryLog(g.storyLog)
+    && validMemory(g.memory)
     && validEarnedDeeds(g.deeds)
     // A shield put on the back by choice (inventoryRules.js setShield): only true is ever kept.
     && (g.shieldAway===undefined || g.shieldAway===true)

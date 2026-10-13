@@ -6,9 +6,9 @@ const server=require(process.env.QB_DM??'./dm-server.cjs'),{generate,sceneFor,re
 const {modelOptions,providerTimeout,outputBudget,effortOf}=require('./ai-request.cjs');
 const {generateAdventure}=require(process.env.QB_ADV??'./adventure-generator.cjs');
 const {checkSetup}=require('./check-dm-setup.cjs');
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
+const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
 const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,dmContext,conversationPeople,adventureStep,validAdventure,adventureSnapshot,maxWorldPlaces,maxRegions,maxPeople,placesInFull,placesByName,landsInFull,peopleInBrief,peopleByName})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,appendStoryLog,withMemory,rememberFacts,memoryLimits,dmContext,conversationPeople,adventureStep,validAdventure,adventureSnapshot,maxWorldPlaces,maxRegions,maxPeople,placesInFull,placesByName,landsInFull,peopleInBrief,peopleByName})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('wizard'),hp={current:8,temp:0};
 const camp={...r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stage:'inn'};delete camp.openingAttackAvailable;
 const chat=Array.from({length:9},(_,i)=>({kind:'note',title:'AI DM conversation',text:'Player: hello '+i+'\nAI DM: '+'words '.repeat(300)}));
@@ -28,7 +28,7 @@ assert.ok(Array.isArray(s.world.creatureTemplates)&&s.world.creatureTemplates.ev
 assert.equal(s.world.knownPlaces.find(p=>p.id==='inn').description,undefined,'The current place is described in world.current');assert.ok(s.world.knownPlaces.filter(p=>p.id!=='inn').every(p=>p.description.length<=140));
 assert.equal(s.travelRoutes,undefined,'Distances are in world.knownPlaces');assert.equal(s.npcDefenses,undefined,'No fight, no defenses');
 assert.ok(s.spellReference.length>0,'An ordinary turn keeps the spell list');assert.ok(s.choices.length>0);
-assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.85,'Smaller again on the server: '+JSON.stringify(sent).length+' of '+JSON.stringify(body).length);
+assert.ok(JSON.stringify(sent).length<JSON.stringify(body).length*0.9,'Smaller again on the server (the device already sends skills as lines and only the defenses of people here): '+JSON.stringify(sent).length+' of '+JSON.stringify(body).length);
 // The device already sends the conversation once and briefly, without the old travel list, so a land of many people
 // and places stays well inside the 64 kB request limit.
 assert.equal(full.conversationHistory.length,6);assert.ok(full.conversationHistory.every(e=>e.text.length<=1000));assert.ok(!full.journal.some(e=>e.title==='AI DM conversation'));assert.equal(full.travelRoutes,undefined);
@@ -42,8 +42,23 @@ assert.equal(full.conversationHistory.length,6);assert.ok(full.conversationHisto
 // grudges and debts), four of them here, and six long exchanges. The land the hero is in is told in full for its
 // nearest places, by name for the rest; other lands in brief; people not here in brief, then by name; people of
 // other lands not at all. Measured with the hero in a land holding every place, and with places spread over every land.
-const largestWorld=[];
+const largestWorld=[],memorySent=[];
 {const long=(t,n)=>(t+' ').repeat(Math.ceil(n/(t.length+1))).slice(0,n);
+ // The story so far at its fullest (memoryRules.js, 2026-10-13): a hero's life of 125 tales of six chapters, every
+ // chapter full of long lines, forty open facts and twenty settled ones, all of them long, and twelve long world facts.
+ const lifeMemory=(()=>{let g={...camp,storyLog:[]};const say=(k,t)=>{g={...g,storyLog:r.appendStoryLog(g.storyLog,k,t)};};
+  for(let t=1;t<=125;t++){say('story',long('Tale '+t+' of a long life',90)+': the tale began at '+long('Haven '+t,50)+'.');
+   for(let c=1;c<=6;c++){if(c>1)say('story','Chapter '+c+': '+long('Part '+c+' of tale '+t,90));for(let i=0;i<16;i++)say(['deed','death','person','victory'][i%4],long((['','You killed ','Met ','Slew '][i%4])+'Line '+t+'.'+c+'.'+i+' that matters',150));g=r.withMemory(g);}
+   if(t<125)say('quest','Adventure complete: '+long('Tale '+t,100)+'.');g=r.withMemory(g);}
+  const words='amber barrow cinder dapple ember fallow gorse heron ingot juniper kestrel lantern meadow nettle osier pewter quarry rowan sorrel thistle umber vellum willow yarrow zither'.split(' ');
+  const fact=i=>r.rememberFacts(g,[{text:Array.from({length:30},(_,k)=>words[(i*7+k*11)%25]+(i*31+k)).join(' ').slice(0,158),about:i%2?['n1','p1']:['n'+(5+i%80)],settles:null}]).game;
+  for(let i=0;i<30;i++)g=fact(i);
+  for(let i=0;i<20;i++)g=r.rememberFacts(g,[{text:long('It ended, after all, in the way the old songs said it would, number '+i,158),about:[],settles:g.memory.facts.find(f=>!f.settled).id}]).game;
+  for(let i=30;i<80;i++)g=fact(i);
+  assert.equal(g.memory.facts.filter(f=>!f.settled).length,r.memoryLimits.openFacts);
+  // Every fact about the people and the place where the hero stands (camp has no such people; the atlas below does).
+  return {storyLog:g.storyLog,memory:{...g.memory,facts:g.memory.facts.map(f=>({...f,about:['n1','p1'],names:[long('Person Named 1',24),long('Place number 1',28)]}))}};})();
+ const worldFacts=Array.from({length:12},(_,i)=>long('A lasting consequence of what the hero did, number '+i,800));
  const atlas=(mode,at)=>{
   const regions=Array.from({length:r.maxRegions-1},(_,i)=>({id:'r'+(i+1),name:long('The Land of '+(i+1),28),terrain:'hills',last:i})),places=[];
   for(let i=1;i<=r.maxWorldPlaces;i++){const region=mode==='one'?'r1':regions[(i-1)%regions.length].id,prev=places.filter(p=>p.region===region).at(-1);
@@ -51,14 +66,15 @@ const largestWorld=[];
   const people={},memory={};
   for(let i=1;i<=r.maxPeople;i++){people['n'+i]={name:long('Person Named '+i,24),species:'Human',role:long('A role that runs to some length for person '+i+'.',200),appearance:long('A face weathered by wind and years',400),personality:long('Calm and slow.',200),motive:long('Wants things and will not say why.',300),toughness:'common',home:i<=4?'p1':places[i%places.length].id,foe:'neutral',resident:true,tie:{to:'n'+(i%r.maxPeople+1),kind:'friend'}};
    memory['n'+i]={attitude:i%3===0?'hostile':'friendly',response:'Warm toward the player.',...(i%3===0?{grudge:'The player killed my brother at the ford and laughed about it after.'}:i%3===1?{bond:'The player pulled me out of the river when the ferry rope snapped.'}:{}),memories:['I remember the player helped me carry the nets up from the quay in the rain and the wind.','They asked about my brother and listened to the whole of it.','They paid fair for the bread and asked after my mother.']};}
-  const g={...game,stage:at==='inn'?'inn':'wild',world:{places,regions,at:at==='inn'?null:at},people,npcMemory:memory};
+  const g={...game,stage:at==='inn'?'inn':'wild',world:{places,regions,at:at==='inn'?null:at},people,npcMemory:memory,...lifeMemory,worldFacts};
   g.map={...g.map,visited:[...new Set([...g.map.visited,...places.map(p=>p.id)])],accepted:true};return g;};
  for(const mode of ['one','spread'])for(const at of ['p1','inn']){
   const big=atlas(mode,at),saved=r.adventureSnapshot(hero,{...big,journal:camp.journal},hp,true);
   assert.ok(r.validAdventure(JSON.parse(JSON.stringify(saved)),hero),'the largest world is a valid save ('+mode+', '+at+')');
-  assert.ok(Buffer.byteLength(JSON.stringify(saved))<400000,'and a save of a sane size: '+Buffer.byteLength(JSON.stringify(saved)));
+  // With a full story log (400 long lines) and the memory of a long life (memoryRules.js) the largest save grows by about 180 kB.
+  assert.ok(Buffer.byteLength(JSON.stringify(saved))<500000,'and a save of a sane size: '+Buffer.byteLength(JSON.stringify(saved)));
   const said='I look around. '.repeat(72).slice(0,1000),ctx=r.dmContext(hero,big,hp,said),request={input:said,context:{...ctx,storyPreferences:{brutality:'gritty'},conversationWith:null,conversationParticipants:r.conversationPeople(big).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude}))}};
-  const bytes=Buffer.byteLength(JSON.stringify(request));largestWorld.push(bytes);assert.ok(bytes<60000,'60 lands, 150 places and 96 people fit in one request ('+mode+', at '+at+'): '+bytes+' bytes');
+  const bytes=Buffer.byteLength(JSON.stringify(request));largestWorld.push(bytes);memorySent.push(Buffer.byteLength(JSON.stringify(ctx.memory)));assert.ok(ctx.memory.taleNow.length>=2&&(ctx.memory.facts??ctx.memory.otherFacts).length&&ctx.memory.earlierTales.length,'the story so far is told in full measure');assert.ok(bytes<60000,'60 lands, 150 places and 96 people fit in one request ('+mode+', at '+at+'): '+bytes+' bytes');
   const w=ctx.world;assert.equal(w.regions.length,r.maxRegions,'every land is named');assert.ok(w.knownPlaces.filter(p=>p.description!==undefined).length<=r.placesInFull+3,'only the nearest places in full');
   if(mode==='one'&&at==='p1'){assert.equal(w.morePlaces.length,r.placesByName);assert.ok(w.morePlacesNotListed>0);assert.ok(ctx.npcSocialState.filter(n=>n.present===false).length<=r.peopleInBrief);assert.ok(ctx.peopleElsewhere.length<=r.peopleByName);}
   if(mode==='spread'){assert.ok(w.farLands.length>=50);assert.ok(w.farLands.every(l=>l.road));{const listed=w.farLands.filter(l=>l.places).length;assert.ok(listed<=r.landsInFull&&listed>=r.landsInFull-3,'the nearest lands with their places by name: '+listed);}}
@@ -152,5 +168,5 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
   const given=await generate({input:'I tell the jarl.',context},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He pays.',loot:{gold:25,items:[{name:'Jarl\'s Ring',kind:'treasure',qty:1,value:50,note:'Gold.',magic:null}],reason:'The promised reward'}})});
   assert.equal(given.loot.gold,25,'the model\'s own reward is kept as given');
   const later=await generate({input:'I tell the jarl.',context:{...context,engineResolved:['Chapter 2 complete: The Fjord.']}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He nods.'})});assert.equal(later.loot,null,'only the errand\'s own chapter pays it');}
- console.log('Passed: the scene is trimmed ('+JSON.stringify(body).length+' to '+JSON.stringify(sent).length+' characters; the largest world of 60 lands, 150 places and 96 people asks in '+Math.max(...largestWorld)+' bytes at most) with the guidance in the cached instructions, overruns in discoveries, creatures and introductions are repaired, fake-provider runs leave the logs alone, stories go to the story writer with thinking room, and the setup check looks that model up; no check is offered in a brawl or after the action is spent, and the errand’s reward is paid when its chapter is told.');
+ console.log('Passed: the scene is trimmed ('+JSON.stringify(body).length+' to '+JSON.stringify(sent).length+' characters; the largest world of 60 lands, 150 places and 96 people, with the story so far of 125 tales and 60 facts, asks in '+Math.max(...largestWorld)+' bytes at most, '+Math.max(...memorySent)+' of them memory) with the guidance in the cached instructions, overruns in discoveries, creatures and introductions are repaired, fake-provider runs leave the logs alone, stories go to the story writer with thinking room, and the setup check looks that model up; no check is offered in a brawl or after the action is spent, and the errand’s reward is paid when its chapter is told.');
 })().catch(e=>{console.error(e);process.exit(1);});

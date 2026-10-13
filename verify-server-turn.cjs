@@ -19,7 +19,8 @@ function byHand(hero,snapshot,action,question,dice,actorName){
  const xp=r.withExperience(game,result.game,hero,{action});result={...result,game:xp.game,events:[...(result.events??[]),...xp.lines]};
  result=r.recordedTurn(hero,game,health,result,result.conversation??conversation,null);result.game={...result.game};delete result.game.sceneCue;
  const marked=r.withDeeds(r.withStoryLog(game,result.game,hero,{action}),hero);
- return {snapshot:r.adventureSnapshot(hero,marked.game,result.health,true),fresh:marked.fresh};
+ // Then the story log folded into the lasting memory (memoryRules.js), as settleTurn does.
+ return {snapshot:r.adventureSnapshot(hero,r.withMemory(marked.game),result.health,true),fresh:marked.fresh};
 }
 (async()=>{
  // 1. A skirmish fought to victory at the server earns experience and leaves spoils; ideas come back (three at most).

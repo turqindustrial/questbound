@@ -136,6 +136,8 @@ const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,maximum
     ...(Number.isInteger(previous?.xp) ? {xp: previous.xp} : {}),
     ...(previous?.levelsOwed ? {levelsOwed: previous.levelsOwed} : {}),
     ...(previous?.deeds?.length ? {deeds: previous.deeds} : {}),
+    // The story so far (memoryRules.js): every tale and the facts kept from it go with the hero into the next.
+    ...(previous?.memory ? {memory: previous.memory} : {}),
     potions: Math.max(1, previous?.potions ?? 1),
     round: 1,
     log: []
