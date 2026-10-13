@@ -117,7 +117,7 @@ assert.equal(rr.ratingMomentOf(tale,{...tale,stage:'combat'}),null);
  assert.ok(/ratingBlocked\.current=!launched\|\|agreementShown\|\|storyCover\|\|feedbackOpen\|\|typingPlay\|\|\(fighting&&game\.stage!=='dead'\)\|\|game\.stage==='dying'/.test(app),'never mid-fight, dying, typing or under a cover');
  assert.ok(dm.includes("playSound('send');countTurn();")&&dm.includes('noteTalking(!!person)'));
  assert.ok(card.includes("kind:'session',rating:value,moment,session:sessionSummary()")&&!/hero|story|name/.test(card.match(/sendRating\(\{[^}]*\}/g).join(' ')),'a rating sends the answer, the moment and the counts only');
- assert.ok(card.includes("pointerEvents:'box-none'")&&/const s=StyleSheet\.create\(\{\n layer:\{[^}]*pointerEvents:'box-none'/.test(card),'the card\'s layer lets taps through (in StyleSheet.create)');}
+ assert.ok(card.includes("pointerEvents:'box-none'")&&/const s=StyleSheet\.create\(\{\r?\n layer:\{[^}]*pointerEvents:'box-none'/.test(card),'the card\'s layer lets taps through (in StyleSheet.create)');}
 
 // 4. Retention: old records are pruned, by the writer too.
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'qb-metrics-'));
