@@ -285,20 +285,26 @@ function storyEffort(fallback,read=chosenModel){const chosen=read('.questbound-s
 // live request), else what the service was started with (none by default: quick replies).
 function turnEffort(fallback,read=chosenModel){const chosen=read('.questbound-dm-effort');return ['none','minimal','low','medium','high'].includes(chosen)?chosen:fallback;}
 // Stories in the making are kept in a module of their own, which stays loaded while this file is reloaded.
-// The day's spending and the host's daily allowance for guests (spending.cjs) also stay loaded between requests.
-function loadSpending(){if(require('./spending.cjs').revision!==2)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
+// The day's spending and the host's ceilings on it (spending.cjs) also stay loaded between requests.
+function loadSpending(){if(require('./spending.cjs').revision!==3)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
 // A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
+const modes=new Set(['art','adventure','character','diagnostics']);
 const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
 // Tales written ahead (tale-pantry.cjs) also stay loaded between requests. The stock is topped up one tale at a time
 // while the Dungeon Master is in use, at the effort the host chose; a tale a guest took is replaced at that guest's cost
 // (their label and their allowance). Tests pass a stand-in `pantry`.
 function loadPantry(){if(require('./tale-pantry.cjs').revision!==4)delete require.cache[require.resolve('./tale-pantry.cjs')];return require('./tale-pantry.cjs').pantry;}
 function aheadOpenings(){try{return JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname,'adventureIntros.json'),'utf8')).filter(i=>i&&!i.local&&!i.idea).map(i=>i.id);}catch{return [];}}
-function topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live=true,guest=null}){
+// Each tale is written only while its writer may spend: the asker's while the guest is within their allowance, the
+// host's (background work) while no ceiling is reached and guests are not paused. A refused write counts as a failure,
+// so the stock pauses for ten minutes before trying again.
+function topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live=true,guest=null,spend=null}){
  if(!stock||!apiKey||!storyModel)return false;
- const writer=who=>introId=>{delete require.cache[require.resolve('./adventure-generator.cjs')];return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId,ahead:true,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:safetyFor(who),onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,who)});};
+ const mayWrite=who=>!spend||(who?spend.check(who).ok:spend.background?.().ok!==false);
+ if(!mayWrite(null)&&!(guest&&mayWrite(guest)))return false;
+ const writer=who=>introId=>{if(!mayWrite(who))return Promise.reject(Error('Spending ceiling reached.'));delete require.cache[require.resolve('./adventure-generator.cjs')];return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId,ahead:true,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:safetyFor(who),onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,who)});};
  // The first tale is the asker's; the rest of the chain (filling the stock) is the host's.
  return stock.topUp(aheadOpenings(),writer(guest),writer(null));
 }
@@ -313,25 +319,34 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(fetchImpl===fetch)({model,storyModel}=liveModels(model,storyModel));
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
   // only), so misuse by one player is never taken for the host's own. Tests pass a stand-in `spending`.
-  const guest=guestOf(body),live=fetchImpl===fetch,spend=spending??(live&&guest?loadSpending():null);
-  const safety=safetyFor(guest),mayPaint=()=>!guest||!spend||spend.check(guest).ok;
+  // Every live request reads the host's ceilings: guests are held to them, background work stops at them, and the host's
+  // own play on this PC (no label) is never stopped.
+  const guest=guestOf(body),live=fetchImpl===fetch,spend=spending??(live?loadSpending():null);
+  const safety=safetyFor(guest),mayPaint=()=>!guest||!spend||(spend.mayPaint?spend.mayPaint(guest):spend.check(guest).ok);
+  // Only what the game sends is accepted, refused before anything costs money: the modes it uses, a player's words up
+  // to the message box's 1000 characters and a tale idea up to its 300.
+  if(body.context.mode!==undefined&&body.context.mode!==null&&!modes.has(body.context.mode))throw Object.assign(Error('Invalid scene or action.'),{httpStatus:400});
+  if(typeof body.input!=='string'||body.input.length>1000||(body.context.idea!==undefined&&body.context.idea!==null&&(typeof body.context.idea!=='string'||body.context.idea.length>300)))throw Object.assign(Error('That is longer than the game allows.'),{httpStatus:400});
   // A story being written in the background is asked after like an illustration: a quick question, never a wait.
   if(body.context.mode==='art'&&body.context.storyJob!==undefined)return loadStoryJobs().poll(body.context.storyJob);
   if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==5)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
-  // Once guests have used the host's daily allowance (or this guest their share), they wait for tomorrow.
-  if(guest&&spend){const verdict=spend.check(guest);if(!verdict.ok)throw Object.assign(Error(verdict.error),{httpStatus:503});}
+  // Once guests have used the host's daily allowance (or this guest their share), or a ceiling is reached, or the host
+  // paused guests, they are refused before anything is asked of the AI. New tales and drafted heroes are counted per guest too.
+  if(guest&&spend){const verdict=spend.check(guest);if(!verdict.ok)throw Object.assign(Error(verdict.error),{httpStatus:verdict.status??503});
+    const kind=body.context.mode==='adventure'?'tale':body.context.mode==='character'?'hero':null,counted=kind&&spend.allow?spend.allow(guest,kind):null;
+    if(counted&&!counted.ok)throw Object.assign(Error(counted.error),{httpStatus:counted.status??429});}
   // While people play, the stock of tales written ahead is kept full (one tale at a time, in the background).
   const stock=pantry??(live?loadPantry():null),storyEffortNow=live?storyEffort(storyReasoning):storyReasoning;
-  if(stock&&!['adventure','character'].includes(body.context.mode))try{topUpPantry(stock,{apiKey,storyModel,effort:storyEffortNow,fetchImpl,live});}catch{}
+  if(stock&&!['adventure','character'].includes(body.context.mode))try{topUpPantry(stock,{apiKey,storyModel,effort:storyEffortNow,fetchImpl,live,spend});}catch{}
   if(body.context.mode==='adventure'){
     delete require.cache[require.resolve('./adventure-generator.cjs')];
     const effort=fetchImpl===fetch?storyEffort(storyReasoning):storyReasoning;
     const write=(reasoning,timeout)=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});
     // A tale written ahead for this opening starts at once; its replacement is written at the asker's cost. The next
     // tale in a region and the player's own idea are always written fresh.
-    if(stock&&!body.context.continuing&&!body.context.idea&&!(body.context.easyStart===true&&String(body.context.introId??'surprise')!=='easy')){const stocked=stock.take(String(body.context.introId??'surprise'));try{topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live,guest});}catch{}if(stocked)return {story:{...stocked,id:require('node:crypto').randomUUID(),status:'active'},ahead:true};}
+    if(stock&&!body.context.continuing&&!body.context.idea&&!(body.context.easyStart===true&&String(body.context.introId??'surprise')!=='easy')){const stocked=stock.take(String(body.context.introId??'surprise'));try{topUpPantry(stock,{apiKey,storyModel,effort,fetchImpl,live,guest,spend});}catch{}if(stocked)return {story:{...stocked,id:require('node:crypto').randomUUID(),status:'active'},ahead:true};}
     // Asked for with a job id, the tale is written in the background with the effort the host chose, for as long as
     // it takes (up to seven minutes; at high effort a tale takes about three); the game asks after it every few
     // seconds (storyJob above).

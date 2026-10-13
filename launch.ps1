@@ -12,7 +12,9 @@
 #                    stored encrypted to your Windows account, and its public hostname)
 #   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
 #   -TrustNetwork    retained for compatibility; remote HTTP play is disabled
-param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork,[switch]$SetupDiscord,[switch]$ForgetDiscord,[switch]$AnnounceLink)
+#   -PauseGuests     refuse every guest's AI at once (turns, new tales, new pictures) until -ResumeGuests; no restart
+#   -ResumeGuests    let guests play again
+param([switch]$PauseGuests,[switch]$ResumeGuests,[switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork,[switch]$SetupDiscord,[switch]$ForgetDiscord,[switch]$AnnounceLink)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -27,6 +29,7 @@ $tunnelTokenFile = Join-Path $root '.questbound-tunnel.dpapi'
 $tunnelHostFile = Join-Path $root '.questbound-tunnel-host'
 $discordFile = Join-Path $root '.questbound-discord.dpapi'
 $discordLastFile = Join-Path $root '.questbound-discord-last'
+$pauseFile = Join-Path $root '.questbound-guests-paused'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
@@ -73,6 +76,9 @@ if ($Stop) {
   Say 'Questbound services started by this launcher are stopped.' 'Green'
   return
 }
+# The host's switch for guests: the share gateway and the Dungeon Master refuse all guest AI while the file exists.
+if ($PauseGuests) { Set-Content $pauseFile ("Paused by the host at " + (Get-Date).ToString('s')) -Encoding ASCII; Say '  Guests are paused: every guest request to the Dungeon Master is refused. Your own play on this PC goes on.' 'Yellow'; Say '  Let them play again with: Questbound.cmd -ResumeGuests' 'DarkGray'; return }
+if ($ResumeGuests) { Remove-Item $pauseFile -ErrorAction SilentlyContinue; Say '  Guests may play again.' 'Green'; return }
 if ($ForgetKey) { Remove-Item $keyFile, $modelFile, $storyModelFile -ErrorAction SilentlyContinue; Say 'The remembered API key was deleted from this PC.' 'Green'; return }
 if ($Models) {
   $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-6-luna' }
@@ -307,6 +313,11 @@ if ($shared) {
 try {
   $unread = [int]((& node (Join-Path $root 'feedback-report.cjs') --count 2>$null | Select-Object -Last 1))
   if ($unread -gt 0) { Say ''; Say "  $unread new playtest note(s): node feedback-report.cjs" 'Yellow' }
+} catch {}
+# What the AI has cost today and this month against the ceilings (dm-report.cjs, spending.cjs).
+try {
+  $spent = (& node (Join-Path $root 'dm-report.cjs') --status 2>$null | Select-Object -Last 1)
+  if ($spent) { $tone = if ($spent -match 'PAUSED') { 'Yellow' } else { 'DarkGray' }; Say "  $spent" $tone }
 } catch {}
 Say ''
 Say '  Everything keeps running in the background after you close this window.' 'DarkGray'

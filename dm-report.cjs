@@ -2,11 +2,29 @@
 // live request) and the rejection log (.questbound-diagnostics.jsonl) for today, or the last N days with --days N.
 // Prices are per million tokens (input, cached input, output) for the models the launcher suggests (spending.cjs, which
 // also prices each painting); other models show tokens only. Nothing here calls the provider.
+// It also shows today's spending and this month's against the host's ceilings (spending.cjs), and whether guests are
+// paused. --status prints just that, on one line (the launcher shows it); --dir <folder> reads a hosted data folder.
 const fs=require('node:fs'),path=require('node:path');
 const {prices,paintingPrice,costOf,createSpending}=require('./spending.cjs');
+const arg=name=>{const i=process.argv.indexOf(name);return i>=0?process.argv[i+1]:undefined;};
+const dir=arg('--dir')?path.resolve(arg('--dir')):process.env.QUESTBOUND_DATA||__dirname;
+const usd=n=>'$'+n.toFixed(2),pct=(n,of)=>of?' ('+Math.round(100*n/of)+'%)':'';
+// Where today and the month stand against the ceilings, in a few short phrases.
+function standing(s){
+ return {
+  total:usd(s.all)+(s.total===null?' (no daily ceiling)':' of '+usd(s.total)+pct(s.all,s.total)),
+  guests:usd(s.guests)+(s.budget===null?' (no guest allowance)':' of '+usd(s.budget)+pct(s.guests,s.budget)),
+  month:usd(s.monthly)+(s.monthBudget===null?' (no monthly ceiling)':' of '+usd(s.monthBudget)+pct(s.monthly,s.monthBudget)),
+ };
+}
+if(process.argv.includes('--status')){
+ const s=createSpending({dir,alerts:{raise:()=>false}}).summary(),w=standing(s);
+ console.log('AI spending today '+w.total+', guests '+w.guests+'; this month (guests and background) '+w.month+'.'+(s.paused?' GUESTS ARE PAUSED (Questbound.cmd -ResumeGuests).':''));
+ process.exit(0);
+}
 const days=Math.max(1,Number(process.argv[process.argv.indexOf('--days')+1])||1);
 const since=new Date(Date.now()-(days-1)*86400000);since.setHours(0,0,0,0);
-const lines=file=>{try{return fs.readFileSync(path.join(__dirname,file),'utf8').split(/\r?\n/).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(e=>e&&new Date(e.at)>=since);}catch{return [];}};
+const lines=file=>{try{return fs.readFileSync(path.join(dir,file),'utf8').split(/\r?\n/).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(e=>e&&new Date(e.at)>=since);}catch{return [];}};
 const usage=lines('.questbound-usage.jsonl'),noted=lines('.questbound-diagnostics.jsonl'),rejections=noted.filter(e=>e.error),looks=noted.filter(e=>e.secondLook);
 const money=n=>'$'+n.toFixed(n<1?3:2);
 console.log('Dungeon Master report, '+(days===1?'today':'last '+days+' days')+' (since '+since.toLocaleString()+')');
@@ -26,10 +44,16 @@ else{
  // Guests (players on phones and the shared link) and the host's daily allowance for them (spending.cjs).
  const guests=usage.filter(u=>u.guest),guestCost=guests.reduce((n,u)=>n+costOf(u),0);
  if(guests.length)console.log('Guests: '+guests.length+' requests from '+new Set(guests.map(u=>u.guest)).size+' browser(s), about '+money(guestCost)+'.');
- const now=createSpending({dir:__dirname}).summary();
- console.log('Today\'s allowance for guests: '+(now.budget===null?'no total (.questbound-guest-budget says off)':money(now.guests)+' of '+money(now.budget)+' used by all guests together (.questbound-guest-budget)')+'; '+(now.share===null?'no limit for each player':'each player may use up to '+money(now.share)+' a day (.questbound-player-budget); the most any one used today: '+money(now.topGuest))+'.');
  const avg=usage.filter(u=>u.mode==='turn');if(avg.length)console.log('A game turn request averages '+Math.round(avg.reduce((a,u)=>a+u.input,0)/avg.length)+' input tokens, of which '+Math.round(avg.reduce((a,u)=>a+u.cached,0)/avg.length)+' cached, and '+Math.round(avg.reduce((a,u)=>a+u.output,0)/avg.length)+' output tokens.');
 }
+// The host's ceilings (spending.cjs): how close today and the month are, and whether guests are paused.
+{const s=createSpending({dir,alerts:{raise:()=>false}}).summary(),w=standing(s);
+ console.log('\nCeilings (US dollars a day unless said; change them in the files named, or write "off"):');
+ console.log('  All AI spending today: '+w.total+' (.questbound-total-budget). Past it guests and background writing stop; your own play on this PC goes on.');
+ console.log('  All guests together: '+w.guests+' (.questbound-guest-budget); '+(s.share===null?'no limit for each player':'each player up to '+usd(s.share)+' (.questbound-player-budget), the most any one used today '+usd(s.topGuest))+'.');
+ console.log('  Background writing (tales written ahead) today: '+usd(s.background)+'.');
+ console.log('  This month, guests and background writing: '+w.month+' (.questbound-month-budget).');
+ console.log(s.paused?'  GUESTS ARE PAUSED: every guest request is refused. Resume with Questbound.cmd -ResumeGuests.':'  Guests are not paused (pause them at once with Questbound.cmd -PauseGuests).');}
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
 const byError={};for(const r of rejections)byError[r.error]=(byError[r.error]??0)+1;
 for(const [error,n] of Object.entries(byError).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+error);

@@ -18,7 +18,7 @@ const pairingPolicy=[false,true].map(shared=>pagePolicy(pairingPage(shared)));
 // on a hosted machine the header its proxy sets, given by the host (trustProxy), else the last X-Forwarded-For entry,
 // the one the nearest proxy added (earlier entries are whatever the visitor sent, so they are never trusted).
 const proxyHeaderFor=(shared,trustProxy)=>typeof trustProxy==='string'&&/^[a-z0-9-]{2,40}$/i.test(trustProxy)?trustProxy.toLowerCase():trustProxy?'x-forwarded-for':shared?'cf-connecting-ip':null;
-function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
+function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,addressTurns=120,taleLimit=6,taleAddress=10,heroLimit=10,heroAddress=20,pairsPerAddress=10,guestsPerBrowser=10,guestsPerAddress=40,floodAlert=100,dataDir=process.env.QUESTBOUND_DATA||__dirname,alerts=null,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
  root=path.resolve(root);
  const shared=publicOrigin?new URL(publicOrigin):null;
  if(shared&&(shared.protocol!=='https:'||shared.pathname!=='/'||shared.search||shared.hash))throw Error('A shared link must be a plain https:// origin.');
@@ -37,9 +37,23 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  // address: a limiter answers 0 when the request may go ahead, else the seconds to wait (sent as Retry-After). Turns are
  // the host's AI bill (per browser and for the gateway as a whole); illustration and story checks, the shared table,
  // sign-ups, guest identities, sign-ins, recovery codes and passwords each have their own allowance; and a flood of anything is refused.
+ // Dungeon Master turns are also counted per visitor address (addressTurns), so one address with many paired browsers
+ // or guest identities cannot multiply its allowance; new tales and drafted heroes (the story writer, the dearest
+ // requests) have tighter allowances per browser and per address; each address may pair only so many browsers a day
+ // and make only so many guest identities (and each browser only so many). The address figures are generous enough
+ // for a family or a classroom behind one address: two browsers playing flat out use about 120 turns in ten minutes.
  const limiter=(max,span)=>createLimiter(max,span,{now});
- const wait=(res,seconds,error)=>json(res,429,{error},{'Retry-After':String(seconds)});
- const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),allTurns:limiter(dmTotal,600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),register:limiter(5,3600000),guest:limiter(20,3600000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
+ const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),addressTurns:limiter(addressTurns,600000),allTurns:limiter(dmTotal,600000),tales:limiter(taleLimit,3600000),talesAddress:limiter(taleAddress,3600000),heroes:limiter(heroLimit,3600000),heroesAddress:limiter(heroAddress,3600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),register:limiter(5,3600000),guest:limiter(20,3600000),guestDay:limiter(guestsPerAddress,86400000),guestBrowser:limiter(guestsPerBrowser,86400000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
+ // One address refused again and again is someone hammering the game: the host is told (alerts.cjs: the security log
+ // and, if connected, Discord), at most once an hour, without the address itself.
+ const alert=alerts??require('./alerts.cjs').createAlerts({dir:dataDir,now}),refusals=new Map();
+ const noteRefusal=visitor=>{const key=String(visitor??''),t=now(),list=(refusals.get(key)??[]).filter(x=>x>t-600000);list.push(t);refusals.set(key,list);if(refusals.size>2048)refusals.delete(refusals.keys().next().value);
+  if(list.length>=floodAlert)try{alert.raise('address-flood','one connection was refused '+list.length+' times in ten minutes (someone may be hammering the game). Pause guests with Questbound.cmd -PauseGuests if it goes on.',{event:'flood-alert'});}catch{}};
+ const wait=(res,seconds,error,visitor)=>{if(visitor!==undefined)noteRefusal(visitor);return json(res,429,{error},{'Retry-After':String(seconds)});};
+ // The host's switch (Questbound.cmd -PauseGuests writes the file, -ResumeGuests removes it): all guest AI is refused at once, no restart needed.
+ const paused=()=>fs.existsSync(path.join(dataDir,'.questbound-guests-paused'));
+ const pausedWords='The game is paused by the host. Your adventure is unchanged; try again later.';
+ const pairedFrom=new Map();
  // Behind the tunnel every request arrives from loopback and the tunnel names the real visitor in CF-Connecting-IP; a
  // hosted gateway behind its platform's proxy (trustProxy, serve.cjs) reads the proxy's header for the same reason.
  const proxyHeader=proxyHeaderFor(shared,trustProxy);
@@ -61,7 +75,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
   // Remote HTTP never carries a pairing cookie, password, save or game response.
   if(!shared&&!loopback.includes(host))return json(res,426,{error:'Remote play requires HTTPS. Open the encrypted Phone link from the host.'});
   // A flood from one address is refused before any work (3000 requests in ten minutes is five a second).
-  {const seconds=limits.every(String(client(req)??''));if(seconds)return wait(res,seconds,'Too many requests from your connection. Try again in a moment.');}
+  {const visitor=String(client(req)??''),seconds=limits.every(visitor);if(seconds)return wait(res,seconds,'Too many requests from your connection. Try again in a moment.',visitor);}
   try{
    const pathname=new URL(req.url,origin).pathname;
    if(pathname==='/pair'&&req.method==='POST'){
@@ -75,8 +89,12 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     let supplied;try{supplied=JSON.parse(await body(req,256)).code;}catch(e){if(e.status)throw e;return json(res,400,{error:'Enter the eight-digit code.'});}
     if(typeof supplied!=='string'||!/^\d{8}$/.test(supplied)||!crypto.timingSafeEqual(Buffer.from(supplied),Buffer.from(code))||now()>=expires){failures.push(now());return json(res,401,{error:shared?'That invite code is incorrect or expired. Ask the host for the current code.':'That code is incorrect or expired. Use the current code from your PC.'});}
     for(const [key,value] of sessions)if(value<=now())sessions.delete(key);
+    // At most pairsPerAddress browsers a day from one address (a family or a class can still join; a script cannot fill the game).
+    const joined=(pairedFrom.get(address)??[]).filter(t=>t>now()-86400000);
+    if(joined.length>=pairsPerAddress)return wait(res,3600,'Many browsers have joined from your connection today. Try again tomorrow, or ask the host.',address);
     if(sessions.size>=maxSessions)return json(res,429,{error:shared?'This game is full. Ask the host to restart sharing.':'Too many paired browsers. Restart phone access on the PC.'});
     const token=crypto.randomBytes(32).toString('hex'),lifetime=sessionHours*3600000;sessions.set(digest(token),now()+lifetime);persist();
+    joined.push(now());pairedFrom.set(address,joined);if(pairedFrom.size>2048)pairedFrom.delete(pairedFrom.keys().next().value);
     return json(res,200,{paired:true},{'Set-Cookie':'questbound_phone='+token+'; HttpOnly; SameSite=Strict; Path=/; Max-Age='+Math.floor(lifetime/1000)+(shared?'; Secure':'')});
    }
    // Install files (manifest and icons) and the emblem the pairing page shows carry no game data; browsers fetch them without the pairing cookie.
@@ -95,14 +113,24 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // game simply waits a few seconds when told to). The request is passed on with this browser's guest label (whatever
     // label the browser sent itself is replaced).
     let parsedBody;try{parsedBody=JSON.parse(raw);}catch{return json(res,400,{error:'Invalid action.'});}
+    // Refused before anything costs money: what the game never sends (another mode, words longer than the message box,
+    // an idea longer than the idea box), anything while the host has paused guests (pictures already painted and tales
+    // already written are still handed over), and turns, tales and heroes past their allowances.
+    const visitor=String(client(req)??''),context=parsedBody?.context,mode=context?.mode??null;
+    if(!parsedBody||typeof parsedBody!=='object'||Array.isArray(parsedBody)||typeof parsedBody.input!=='string'||parsedBody.input.length>1000||!context||typeof context!=='object'||(mode!==null&&!['art','adventure','character'].includes(mode))||(context.idea!==undefined&&context.idea!==null&&(typeof context.idea!=='string'||context.idea.length>300)))return json(res,400,{error:'Invalid action.'});
+    if(paused()&&mode!=='art')return json(res,503,{error:pausedWords});
+    if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.',visitor);}
+    else{
+     {const seconds=limits.turns(token)||limits.addressTurns(visitor)||limits.allTurns('all');if(seconds)return wait(res,seconds,'The Dungeon Master needs a short rest. Try again in a few minutes. Your adventure is unchanged.',visitor);}
+     if(mode==='adventure'){const seconds=limits.tales(token)||limits.talesAddress(visitor);if(seconds)return wait(res,seconds,'You have started several new tales in a short time. Carry on with your current tale, or start another a little later; your adventure is unchanged.',visitor);}
+     if(mode==='character'){const seconds=limits.heroes(token)||limits.heroesAddress(visitor);if(seconds)return wait(res,seconds,'Many heroes have been drafted from this browser lately. Build one by hand, or draft another a little later.',visitor);}
+    }
     const allowance=await fetchImpl(syncBackend+'/usage',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json',Cookie:req.headers.cookie??'','X-Questbound-Client':String(client(req)??'').slice(0,80),'X-Questbound-Secure':shared?'1':'0'},body:JSON.stringify({kind:parsedBody?.context?.mode==='art'?'art':'dm'}),signal:AbortSignal.timeout(10000)});
     const permitted=await allowance.json();if(!allowance.ok){const after=allowance.headers?.get?.('retry-after');return json(res,allowance.status,permitted,after&&/^\d{1,6}$/.test(after)?{'Retry-After':after}:{});}
     if(permitted.allowed!==true||!/^[a-f0-9]{64}$/.test(permitted.id??''))return json(res,503,{error:'Account validation is unavailable.'});
     // A guest's cookie renewed by the account service (once a day) reaches the browser here too.
     {const renewed=allowance.headers?.get?.('set-cookie');if(renewed)res.setHeader('Set-Cookie',renewed);}
-    let mode=null;try{const parsed=JSON.parse(raw);mode=parsed?.context?.mode??null;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){parsed.guest='account-'+permitted.id;raw=JSON.stringify(parsed);}}catch{}
-    if(mode==='art'){const seconds=limits.art(token);if(seconds)return wait(res,seconds,'Illustrations are being checked too often. The game will try again shortly.');}
-    else{const seconds=limits.turns(token)||limits.allTurns('all');if(seconds)return wait(res,seconds,'The Dungeon Master needs a short rest. Try again in a few minutes. Your adventure is unchanged.');}
+    parsedBody.guest='account-'+permitted.id;raw=JSON.stringify(parsedBody);
     const url=await backend();if(!url)return json(res,503,{error:shared?'The host’s Dungeon Master is offline right now.':'Start the private Dungeon Master service on your PC.'});
     // A busy Dungeon Master (another player's turn is being written) refuses before doing any work, so the request is
     // simply retried for up to a minute: players wait their turn instead of seeing an error.
@@ -121,8 +149,9 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     if(syncRoute.startsWith('account-')&&!shared&&!loopback.includes(host))return json(res,403,{error:'Use the encrypted HTTPS game link to sign in or access your account.'});
     // The table is polled every few seconds; sign-ups and sign-ins (per visitor), recovery codes and passwords (per browser) are rare.
     const visitor=String(client(req)??'');
-    {const seconds=limits.sync(token)||(syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-guest'?limits.guest(visitor):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
-     if(seconds)return wait(res,seconds,syncRoute.startsWith('account')||syncRoute==='cloud-load'?'Too many tries. Wait a few minutes and try again.':'The shared table is being asked too often. The game will catch up in a moment.');}
+    if(syncRoute==='campaign-turn'&&paused())return json(res,503,{error:pausedWords});
+    {const seconds=limits.sync(token)||(syncRoute==='campaign-turn'?limits.turns(token)||limits.addressTurns(visitor)||limits.allTurns('all'):syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-guest'?limits.guest(visitor)||limits.guestDay(visitor)||limits.guestBrowser(token):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
+     if(seconds)return wait(res,seconds,syncRoute.startsWith('account')||syncRoute==='cloud-load'?'Too many tries. Wait a few minutes and try again.':syncRoute==='campaign-turn'?'The Dungeon Master needs a short rest. Try again in a few minutes. Your adventure is unchanged.':'The shared table is being asked too often. The game will catch up in a moment.',visitor);}
     const raw=await body(req,2500000);let response;
     // The table service is told who is asking (never trusted from the visitor), so wrong account passwords are counted per visitor.
     try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json','X-Questbound-Client':visitor.slice(0,80),Cookie:req.headers.cookie??'','X-Questbound-Secure':shared?'1':'0'},body:raw,signal:AbortSignal.timeout(syncRoute==='campaign-turn'?240000:20000)});}
@@ -181,7 +210,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
   }catch(e){if(!res.headersSent)json(res,e.status??502,{error:e.name==='TimeoutError'?'The PC took too long to respond. Try again.':e.status?e.message:'The phone connection could not complete that request.'});else res.destroy();}
  });
  server.requestTimeout=120000;server.headersTimeout=10000;
- return {server,info:{desktop:'http://localhost:8081/',phone:origin+'/',pairingCode:code,expiresAt:new Date(expires).toISOString(),limits:{turns:dmLimit,turnsInAll:dmTotal,art:artLimit,table:syncLimit,requests:requestLimit}}};
+ return {server,info:{desktop:'http://localhost:8081/',phone:origin+'/',pairingCode:code,expiresAt:new Date(expires).toISOString(),limits:{turns:dmLimit,turnsInAll:dmTotal,art:artLimit,table:syncLimit,requests:requestLimit,turnsPerAddress:addressTurns,talesPerHour:taleLimit,talesPerAddress:taleAddress,heroesPerHour:heroLimit,heroesPerAddress:heroAddress,pairsPerAddress,guestsPerBrowser,guestsPerAddress}}};
 }
 // Home Wi-Fi only: the Wi-Fi link is plain http, so it starts only on a network Windows calls Private (or a work
 // domain), or one the host has marked as home (`Questbound.cmd -TrustNetwork` writes its name to
