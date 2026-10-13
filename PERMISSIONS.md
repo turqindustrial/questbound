@@ -1,6 +1,6 @@
 # Questbound: Permissions agreement
 
-_Last updated 10 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 13 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Permissions agreement
 
@@ -16,11 +16,11 @@ The game gives this browser an anonymous guest identity (a random identifier in 
 
 ### Copies on the host's computer
 
-The host's computer keeps only your anonymous guest identity (for 90 days from its last use), any shared table you play at through Play Together (with up to 20 encrypted earlier versions), your feedback notes and service records. Read the privacy policy for retention, access and deletion details.
+The host's computer keeps only your anonymous guest identity (for 90 days from its last use), any shared table you play at through Play Together (with up to 20 encrypted earlier versions), your feedback notes and session ratings, anonymous play counts (for 180 days) and service records. Read the privacy policy for retention, access and deletion details.
 
 ### Feedback and service records
 
-Feedback reaches the host and, when the host has connected it, the game's own mailbox. A note carries your hero and spells, where you are, your last two turns and any errors the game showed you (you can leave those out) and how the game ran on your device. Security events and persistent daily usage counts help prevent misuse; the game sends you no email.
+Feedback and session ratings reach the host (and the game's mailbox, once connected). A note carries your hero, where you are, your last two turns and errors (you can leave those out) and how the game ran. Anonymous play counts (how long you play, turns and failed turns, where you stop; never your words) are sent unless you turn them off in Settings. Security events and daily usage counts help prevent misuse.
 
 ### Sound and full screen
 

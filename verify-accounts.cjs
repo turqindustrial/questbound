@@ -81,7 +81,7 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
   const run=async(answers,options)=>{
    const store=new Map(),asked=[];let profile='guest';
    const AsyncStorage={getItem:async k=>store.get(k)??null,setItem:async(k,v)=>{store.set(k,v);},removeItem:async k=>{store.delete(k);}};
-   const api=vm.runInNewContext(source+'\n({bootstrapAccount,accountsNeeded,guestIdentity})',{AsyncStorage,legalUpdated:'10 October 2026',tableEndpoint:()=>'/api/sync',selectProfile:id=>{profile=/^[a-f0-9]{64}$/.test(id??'')?id:'guest';},currentProfile:()=>profile,AbortSignal,JSON,Object,Error,globalThis:{}});
+   const api=vm.runInNewContext(source+'\n({bootstrapAccount,accountsNeeded,guestIdentity})',{AsyncStorage,legalUpdated:(/export const legalUpdated='([^']+)'/.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'legalText.js'),'utf8'))[1]),tableEndpoint:()=>'/api/sync',selectProfile:id=>{profile=/^[a-f0-9]{64}$/.test(id??'')?id:'guest';},currentProfile:()=>profile,AbortSignal,JSON,Object,Error,globalThis:{}});
    const fetchImpl=async(url)=>{const route=url.split('/account-')[1];asked.push(route);const a=answers[route]??{status:404,body:{}};return {ok:a.status===200,status:a.status,json:async()=>a.body};};
    const result=await api.bootstrapAccount(fetchImpl,options);return {result,asked,profile,needed:api.accountsNeeded(),guest:api.guestIdentity(),stored:[...store.keys()]};
   };
