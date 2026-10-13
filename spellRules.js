@@ -672,8 +672,6 @@ function setSpellMarks(game,key,list){return withMark(game,key,{spells:list.leng
 export const spellCondsOf=(game,key)=>spellMarksOf(game,key).map(m=>m.cond);
 // Whether a creature is helpless (a melee hit on it from beside it is a critical hit).
 export const helpless=(game,key)=>spellCondsOf(game,key).some(c=>['paralyzed','asleep'].includes(c));
-// Whether a creature does nothing on its turn.
-export const spellIncapacitated=(game,key)=>spellCondsOf(game,key).some(c=>['paralyzed','asleep','drowsy','entranced','laughing','commanded','groveling'].includes(c));
 // Whether a creature will not attack this hero (charmed by them).
 export const charmedBy=(game,key,heroId)=>spellMarksOf(game,key).some(m=>m.cond==='charmed'&&m.by===heroId);
 // The edge on an attack at a creature from what spells left on it: advantage on one paralyzed, asleep, held fast,
@@ -685,8 +683,6 @@ export function spellEdge(game,key,ranged=false){
   const prone=markOf(game,key).prone;if(prone)(ranged?dis:adv).push('prone');
   return {adv,dis};
 }
-// Disadvantage on a creature's own attacks from what spells left on it.
-export const spellFoeEdge=(game,key)=>spellCondsOf(game,key).filter(c=>['restrained','blinded','frightened','poisoned'].includes(c));
 // Guiding Bolt's glow is spent on the first attack made at the creature.
 export function spendGuidance(game,key){const list=spellMarksOf(game,key);return list.some(m=>m.cond==='guided')?setSpellMarks(game,key,list.filter(m=>m.cond!=='guided')):game;}
 // Bane on a creature: 1d4 off its attack roll or saving throw.

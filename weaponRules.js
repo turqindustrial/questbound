@@ -62,8 +62,6 @@ export function shieldSlung(hero) {
 export const shieldInUse = hero => carriedItems(hero).some(item => item.name === 'Shield') && !shieldSlung(hero);
 // A versatile weapon held in one hand (thrown, or with the other hand busy): its own die.
 export const oneHanded = weapon => weapon?.grip === 'two' && weapon.oneHandDie ? {...weapon, die: weapon.oneHandDie, grip: 'one'} : weapon;
-// How a versatile weapon is held, for the screens: "two-handed" in both hands, "one-handed" with a shield.
-export const gripText = weapon => weapon?.versatile ? (weapon.grip === 'two' ? 'two-handed' : 'one-handed') : '';
 export function weaponAttacks(hero) {
   if (!combatBasics(hero).available || !hero.equipment?.items) return [];
   const has = name => hero.equipment.items.some(item => item.name === name && item.quantity > 0), shieldUp = shieldInUse(hero);
@@ -149,11 +147,6 @@ export function rangedMode(weapon, {closeEnemy=false,distance=5}={}) {
   if (!weapon?.ranged && !weapon?.thrown) return 'normal';
   const range = weaponRange(weapon);
   return closeEnemy || (range && distance > range.normal) ? 'disadvantage' : 'normal';
-}
-// The damage arithmetic as the log shows it: "1d8 [6] + 3", or "1 + 2" for a plain unarmed blow.
-export function damageMath(weapon, roll) {
-  const bonus = (weapon.bonus >= 0 ? ' + ' + weapon.bonus : ' − ' + Math.abs(weapon.bonus)) + (weapon.magic ? ' + ' + weapon.magic + ' magic' : '');
-  return weapon.flat ? '1' + bonus : roll.dice.length + 'd' + weapon.die + ' [' + roll.dice.join(', ') + ']' + bonus;
 }
 export function rollAttack(weapon, mode='normal', random=Math.random) {
   if (!['normal','advantage','disadvantage'].includes(mode)) throw new Error('Invalid roll mode');

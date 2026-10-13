@@ -59,7 +59,6 @@ export function rarityTier(tier,random=Math.random){
 // The highest rarity a reward may have for a hero of this level (the Dungeon Master's rewards too).
 const tierRarity=tier=>({1:'uncommon',2:'rare',3:'very rare',4:'very rare'})[tier]??'uncommon';
 export const rarityAllowed=level=>tierRarity(lootTier(level));
-export const rarityWithin=(rarity,level)=>rarityRank(rarity)>=0&&rarityRank(rarity)<=rarityRank(rarityAllowed(level));
 
 // ---------- What a hero carries and wears ----------
 const wornArmour=hero=>(hero?.equipment?.startingItems??hero?.equipment?.items??[]).find(i=>i.quantity>0&&/Armor$|Chain Mail|Chain Shirt/.test(i.name))?.name??null;

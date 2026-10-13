@@ -64,12 +64,3 @@ export function combatBasics(hero) {
   return {available:true,speed,speedFormula,darkvision:kind.darkvision,size:kind.size,hp,hpFormula,hitDie:`1d${hitDice[hero.class]}`,ac,defense,acFormula,armorNote,initiative,initiativeFormula,proficiency,initiativeAdvantage:subclassActive(hero,'Champion') || (hero.class==='Barbarian' && hero.level>=7) || sub.initiativeAdvantage,criticalThreshold:Math.min(sub.crit,subclassActive(hero,'Champion') ? (hero.level>=15?18:19) : 20)};
 }
 
-export function rollResultText(text){
- return text.replace(/(save) (\d+) \+ ([-\d]+) vs DC (\d+)/g,(_,kind,die,bonus)=>kind+' '+(Number(die)+Number(bonus)))
- .replace(/d20 (?:\[[^\]]+\]|\d+)[^=\n]*= ([-\d]+) vs (?:your )?(?:AC|DC) \d+/g,'roll $1')
- .replace(/(save|check) (\d+) \+ ([-\d]+) vs DC \d+/g,(_,kind,die,bonus)=>kind+' '+(Number(die)+Number(bonus)))
- .replace(/\[[^\]]+\] \+ [^;]+; restored (\d+) HP/g,'restored $1 HP')
- .replace(/(Magic Missile:).*?= (\d+) Force damage/g,'$1 $2 Force damage')
- .replace(/\[[^\]]+\] \+ \d+ = (\d+)/g,'$1')
- .replace(/(\d+d\d+) \[[^\]]+\](?: [+-]\d+)? = (\d+)/g,'$2');
-}

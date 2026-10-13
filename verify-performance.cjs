@@ -52,8 +52,10 @@ assert.ok(preloads.length>=2&&preloads.includes('inter-400-latin.woff2'),'the in
 for(const f of preloads)assert.ok(files.includes(f),'preloaded '+f+' is one the sheet uses');
 assert.ok(web.includes("'/fonts/fonts-v2.css'"),'webTheme.js falls back to fonts-v2.css');
 assert.ok(fs.readFileSync('phone-server.cjs','utf8').includes('/fonts/fonts-v2.css'),'the pairing page uses fonts-v2.css');
-// The old per-weight files stay one release, for stylesheets browsers still hold.
-assert.ok(fs.existsSync('public/fonts/fonts.css')&&fs.existsSync('public/fonts/inter-700-latin.woff2'),'the old files are kept one release');
+// The first stylesheet and its per-weight files were kept one release for cached stylesheets, then removed
+// (2026-10-13): every font file left is one fonts-v2.css names, and the old sheet's name is never used again.
+assert.ok(!fs.existsSync('public/fonts/fonts.css'),'the old stylesheet is gone');
+assert.deepEqual(fs.readdirSync('public/fonts').filter(f=>f.endsWith('.woff2')).sort(),[...new Set(files)].sort(),'every font file is one the stylesheet uses');
 
 // 3. Atmosphere: Auto, Full or Light, saved per device; old saved display settings load with the defaults.
 function display(saved){

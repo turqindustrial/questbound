@@ -476,7 +476,6 @@ export function initializeAudio(){
  });
  setInterval(watchdog,WATCHDOG_MS);
 }
-export const audioReady=()=>!!ctx&&ctx.state==='running';
 // How the sound is doing on this device, sent with a feedback note so the host can see why music stopped.
 export function audioHealth(){
  return {state:ctx?ctx.state:'not started',baseLatency:stats.baseLatency??null,outputLatency:stats.outputLatency??null,skipped:stats.skipped,late:stats.late,moodChanges:stats.moodChanges,rebuilds:stats.rebuilds,states:stats.states,

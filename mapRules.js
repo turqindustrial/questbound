@@ -354,8 +354,6 @@ export function letRumoursGo(game,plan){
  next.log=[...lines,...(game.log??[])].slice(0,40);
  return {game:next,lines,places:[...out],regions:[...lands]};
 }
-// Room for `need` ({lands, places}), made by letting go of rumours and lands never reached; null when there is none.
-export function makeRoom(game,need){const plan=roomToMake(game,need);return plan?letRumoursGo(game,plan):null;}
 // The map can take one more place (now, or once a rumour gives way).
 export const mapHasRoom=game=>worldPlaces(game).length<maxWorldPlaces||!!roomToMake(game,{places:1});
 // Room for a place the Dungeon Master reveals: in a new land when there is room for one (else it joins the land the

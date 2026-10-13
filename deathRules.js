@@ -9,7 +9,6 @@ import {npcScene,npcLore} from './npcRules';
 import {knownSpells} from './spellRules';
 import {slotChoices} from './spellOptions';
 import {mapLocation} from './mapRules';
-export const deathStages=['dying','dead'];
 // The odds that keep a hero alive, in one place (tuned with balance-check.cjs, which also reports deaths). Close to
 // death, fortune leans a little toward the hero: a blow that would drop them is now and then rolled again and the
 // lower kept, and a failed death save is now and then rolled again and the better kept. Only the roll that counts is

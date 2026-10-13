@@ -5,9 +5,10 @@
 // and named for their lowest weight, and the stylesheet gives that one file the whole range of weights
 // (font-weight:400 800), so a browser downloads each face once and the text settles in one step.
 // The stylesheet is fonts-v2.css: the first one (fonts.css, one file per weight) was cached for a year by browsers,
-// so the name changed with its contents. A font file's bytes must never change under the same name either.
+// so the name changed with its contents (fonts.css and its per-weight files were kept one release, then removed on
+// 13 October 2026). A font file's bytes must never change under the same name, and a stylesheet name is never reused.
 // Usage: node fetch-fonts.cjs            (download, then write the files and fonts-v2.css)
-//        node fetch-fonts.cjs --local    (no download: rebuild fonts-v2.css from the files already in public/fonts)
+//        node fetch-fonts.cjs --local    (no download: write fonts-v2.css again from its own faces, checking each file)
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const families=[
  ['Cinzel Decorative','cinzeldecorative','Cinzel+Decorative:wght@700;900'],
@@ -36,9 +37,9 @@ function writeSheet(faces){
  fs.writeFileSync(path.join(dir,'fonts-v2.css'),sheet);
  return sheet;
 }
-// The faces described by the first stylesheet, read back with the files they name.
+// The faces fonts-v2.css describes, read back with the files they name (already merged: weights may be ranges).
 function localFaces(){
- const css=fs.readFileSync(path.join(dir,'fonts.css'),'utf8');
+ const css=fs.readFileSync(path.join(dir,'fonts-v2.css'),'utf8');
  return [...css.matchAll(/@font-face\{([^}]*)\}/g)].map(([,body])=>{
   const get=name=>body.match(new RegExp(name+':\\s*([^;]+);'))?.[1]?.trim();
   const family=get('font-family').replace(/"/g,''),style=get('font-style'),weight=get('font-weight'),range=get('unicode-range'),file=body.match(/url\(\/fonts\/([^)]+)\)/)[1];
@@ -49,7 +50,7 @@ function localFaces(){
 module.exports={merged,localFaces};
 if(require.main===module)(async()=>{
  fs.mkdirSync(dir,{recursive:true});
- if(process.argv.includes('--local')){const faces=merged(localFaces());writeSheet(faces);console.log(faces.length+' faces written to public/fonts/fonts-v2.css from the files already there.');return;}
+ if(process.argv.includes('--local')){const faces=localFaces();writeSheet(faces);console.log(faces.length+' faces written to public/fonts/fonts-v2.css from the files already there.');return;}
  // A modern browser's user agent gets woff2 files split by writing system.
  const headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'};
  const faces=[];let bytes=0;const written=new Set();
