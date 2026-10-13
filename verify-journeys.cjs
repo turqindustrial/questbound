@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
+const {rulesSource}=require('./rules-files.cjs');
 // Ready journeys (2026-10-13, the host's words: "refill the pre written tales list and make each of them a much more
 // inviting journey, I want the players to have to think hard between which inviting journey reaches out to them the
 // most, while not having to wait forever on new journeys and simultaneously using up less API costs overall"):
@@ -119,8 +120,7 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   assert.ok(plain.pitch===undefined&&!calls.at(-1).instructions.includes('READY JOURNEY'),'only a tale written ahead can be a journey');}
 
  // ---- Art: a journey's own places and people are painted once for every player of it ----
- {const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','playbackRules.js','sceneTriggers.js','worldArtRules.js'];
-  const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+ {  const source=rulesSource({extra:['worldArtRules.js']});
   const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validStory,validAdventure,adventureSnapshot,npcArtSubject,locationArtSubject,placeArtSubject,creatureArtSubject})',{AsyncStorage:{},weaponIcon:()=>'sword'});
   const {artKey}=require('./world-art.cjs'),hero=r.readyHero('fighter'),pip=r.readyHero('rogue');
   const d=createLibrary({dir:path.join(tmp,'art'),now:()=>clock,random,size:1,floor:1});d.topUp(async()=>({story:journeyStory(5),pitch:journeyPitch(5)}),{accept:journeyCheck});await d.settled();

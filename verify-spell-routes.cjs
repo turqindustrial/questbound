@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {rulesSource}=require('./rules-files.cjs');
 // Every spell, cast the way players cast it: typed ("I cast ...") and from the Cast… chips, through dmCommand,
 // adventureStep and commitDmTurn, in a written story: at the inn, at a landmark, after a won fight in the wilds, after
 // victory, in a fight with the story's foe, in a fight in the wilds and in a brawl with a person. A spell is never
@@ -6,8 +7,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // rules this rests on, one by one: fight timing, concentration, the Dungeon Master's damage held to the dice, upcasting,
 // rituals, pact magic, the spells the game rolls, conditions, curses, blessings, Shield, species spells, old saves and
 // the shared table. It writes SPELL-COVERAGE.json from what it saw.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','sequelRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const names='hostileEncounterGame,startParty,joinParty,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,dmChoices,dmContext,commitDmTurn,adventureStep,quickActions,spellActions,dmCommand,knownSpells,spellLibrary,spellLimits,automaticEffects,narratedSpells,spellCostOptions,requestSpell,resolveSpellRuling,makeCharacter,equipmentFor,startWildFight,spellDamageMax,spellDefense,combatBasics,speciesSpells,partyView,settleParty,canonicalParty,endSpellMarks,spellConditions,castingStages,validParty,heroIdOf,markOf,withSpellMark,bonusOptions,concentrationAfterDamage,creatureDefenses,attackOptions';
 const r=vm.runInNewContext(source+'\n({'+names.split(',').map(n=>`${n}:typeof ${n}==='undefined'?undefined:${n}`).join(',')+'})',{AsyncStorage:{},weaponIcon:()=>'sword',console});
 for(const n of names.split(','))assert.ok(r[n]!==undefined,n+' is defined');

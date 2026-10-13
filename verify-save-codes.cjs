@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {rulesSource}=require('./rules-files.cjs');
 // Loads the save rules the way the other checks do, plus the story modules and the save-code module.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js','saveCodes.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['saveCodes.js']});
 const r=vm.runInNewContext(source+'\n({exportSave,readSave,applySave,hostileEncounterGame,newAdventure,adventureSnapshot,equipmentFor})',{AsyncStorage:{},TextEncoder,TextDecoder,Blob,Response,CompressionStream,DecompressionStream,btoa,atob});
 const b64=text=>Buffer.from(text,'utf8').toString('base64');
 const storage=(seed={})=>{const data={...seed};return {data,getItem:k=>data[k]??null,setItem:(k,v)=>{data[k]=String(v);},removeItem:k=>{delete data[k];}};};

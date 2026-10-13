@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
+const {rulesSource}=require('./rules-files.cjs');
 // The Dungeon Master is asked with less: standing guidance lives in the cached instructions, the scene drops what the
 // model would read twice or cannot use this phase, small overruns in a reply are repaired instead of refused, test
 // runs leave no trace in the local logs, and stories and heroes can come from a separate (thinking) model.
@@ -6,8 +7,7 @@ const server=require(process.env.QB_DM??'./dm-server.cjs'),{generate,sceneFor,re
 const {modelOptions,providerTimeout,outputBudget,effortOf}=require('./ai-request.cjs');
 const {generateAdventure}=require(process.env.QB_ADV??'./adventure-generator.cjs');
 const {checkSetup}=require('./check-dm-setup.cjs');
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,appendStoryLog,withMemory,rememberFacts,memoryLimits,dmContext,conversationPeople,adventureStep,validAdventure,adventureSnapshot,maxWorldPlaces,maxRegions,maxPeople,placesInFull,placesByName,landsInFull,peopleInBrief,peopleByName})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('wizard'),hp={current:8,temp:0};
 const camp={...r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stage:'inn'};delete camp.openingAttackAvailable;

@@ -3,8 +3,8 @@
 // of a fight that is over cannot reach anyone it was never cast on; and a finished brawl at the old crossroads inn
 // leaves no record that spoils the next fight at the bridge.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const files=JSON.parse(fs.readFileSync('rules-engine.cjs','utf8').match(/const files=(\[[^\]]*\])/)[1].replace(/'/g,'"'));
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const {rulesSource}=require('./rules-files.cjs');
+const source=rulesSource();
 const r=vm.runInNewContext(source+'\n;({readyHero,makeCharacter,blankBuild,newAdventure,freshStoryGame,adventureStep,settleTurn,combatBasics,dmChoices,dmCommand,validAdventure,adventureSnapshot,timePasses})',{AsyncStorage:{},console});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const person=name=>({name,species:'Human',gender:'man',role:'A resident.',motive:'Wants the road safe.',appearance:'A weathered face under a wool hood, with a scar.',personality:'Plain.',ties:{other:'friend',foe:'enemy',note:'They share the refuge.'}});

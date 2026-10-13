@@ -8,8 +8,8 @@
 // slots; each levelled chip's casts are every way to cast it now, named in the sentence so dmCommand reads it exactly
 // as typed (and the campaign server accepts a friend's heal at a higher slot).
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const files=[...JSON.parse(fs.readFileSync('rules-engine.cjs','utf8').match(/const files=(\[[^\]]*\])/)[1].replace(/'/g,'"')),'descriptions.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const {rulesSource}=require('./rules-files.cjs');
+const source=rulesSource({extra:['descriptions.js']});
 const r=vm.runInNewContext(source+'\n;({readyHero,readyHeroes,makeCharacter,blankBuild,spellLimits,spellsForClass,automaticSpells,subclassOptions,newAdventure,freshStoryGame,hostileEncounterGame,hostileFoes,adventureStep,commitDmTurn,combatBasics,dmChoices,dmCommand,quickActions,spellActions,castMenu,upcastGain,inBattle,speakAction,startParty,joinParty,partyView,npcScene,actionDescription,knownSpells})',{AsyncStorage:{},console});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.length;

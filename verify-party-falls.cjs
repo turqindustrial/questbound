@@ -6,10 +6,10 @@
 // then in a seeded run of 2 to 4 hero parties played through server-turn.cjs resolveTurn, the server's own pipeline.
 // Synthetic heroes and a stand-in Dungeon Master only: no network, no AI.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 const {resolveTurn}=require('./server-turn.cjs'),{validSnapshot}=require('./campaigns.cjs');
 // The campaign server's own rules files, with a wider set of names for setting scenes.
-const files=JSON.parse(fs.readFileSync('rules-engine.cjs','utf8').match(/const files=(\[[^\]]*\])/)[1].replace(/'/g,'"'));
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const r=vm.runInNewContext(source+'\n;({readyHero,readyHeroes,makeCharacter,blankBuild,newAdventure,freshStoryGame,hostileEncounterGame,hostileFoes,adventureStep,settleTurn,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,turnOrderView,dmChoices,quickActions,attackTargets,attackActions,spellActions,attackOptions,isPartyGame})',{AsyncStorage:{},console});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const seeded=seed=>{let s=(seed*48271+12345)%2147483647||1;return ()=>(s=(s*16807)%2147483647)/2147483647;};

@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Who is here, and what they say (2026-10-11, the host's words: "have npcs appear as they are discovered as well as the
 // ones that are immediately noticeable at any given location, not all locations need multiple people, but many should"
 // and "make sure npcs have different things to say when interacting with multiple"). A tale seats more people where
@@ -6,8 +7,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // noticed:false keeps out of sight (`hidden`) until the Dungeon Master has the player find them; arriving somewhere
 // peopled with nobody named there asks the Dungeon Master once more for someone to meet; and two people in one reply
 // never say the same thing (a later echo is dropped, never the reply). Stand-in providers only: no network, no AI.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','playbackRules.js','sceneTriggers.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,adventureStep,commitDmTurn,dmContext,npcScene,metPerson,conversationPeople,validAdventure,adventureSnapshot,validPeople,withStoryLog,sceneTrigger,introducePerson,canMeetPeople,roomForSomeoneNew,freePersonId,maxPeople,residentsPerPlace,residentsAtStart,maxResidents})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const hero=r.readyHero('fighter'),hp={current:12,temp:0};

@@ -1,11 +1,11 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Spoils and magic items (lootRules.js): every won fight leaves something to search (a creature, a lair's owner and its
 // hoard, a person, the tale's foe), once; the Loot chip and typed searches resolve it in the engine from tables by kind
 // and level; the tale's foe always yields a magic item that suits the looter; and magic items really work in the rules
 // (attack and damage, armor class for this hero and for the party, saves, checks, spell attacks, the wand, the
 // draughts, the periapt). Saves stay valid, old ones still load, and a party's spoils are shared but its packs are not.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','descriptions.js','chronicleRules.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js','descriptions.js','chronicleRules.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,freshStoryGame,adventureStep,commitDmTurn,dmCommand,dmContext,dmChoices,quickActions,validAdventure,adventureSnapshot,combatBasics,gearedHero,attackOptions,applyLoot,magicItems,magicItemIds,spoilsHere,takeSpoils,makeMagicItem,magicSuits,bossItem,attuneItem,withSpoils,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,skillCheckBonus,itemDescription,actionDescription,actionCost,describeEvent,deedList,spoilNotes,masteryOf,foeHitExtras,deathSave,lootTier})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const plain=v=>JSON.parse(JSON.stringify(v));

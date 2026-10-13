@@ -1,13 +1,14 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {rulesSource,rulesFiles}=require('./rules-files.cjs');
 // The Dungeon Master remembers each adventure from start to finish (memoryRules.js; the host, 2026-10-13). The story
 // log keeps 400 lines; the chronicle in game.memory keeps every tale and chapter, compressed (never dropped) as it
 // grows, across next tales, new lands, level-ups, old saves and the shared table. Facts the game cannot see (a promise,
 // a secret, a name) are kept from the Dungeon Master's `remember` field, two a turn at most, and settled by id. Each
 // turn the Dungeon Master gets a block within a fixed budget, with what bears on this moment first.
 // Synthetic heroes and a stand-in Dungeon Master only: no network, no AI.
-const files=eval(fs.readFileSync('rules-engine.cjs','utf8').match(/const files=(\[[^\]]*\])/)[1]);
+const files=rulesFiles;
 assert.ok(files.includes('memoryRules.js'),'the campaign server loads the memory rules');
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,joinRegion,carriedBase,adventureStep,dmChoices,dmContext,commitDmTurn,settleTurn,validAdventure,adventureSnapshot,appendStoryLog,withStoryLog,memoryOf,withMemory,rememberFacts,memoryBlock,validMemory,chronicleView,closedMemory,memoryLimits,introducePerson,maxStoryLog,npcScene})',{AsyncStorage:{},weaponIcon:()=>'sword',console});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const hero=r.readyHero('fighter'),hp=null;

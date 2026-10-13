@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Beyond the map (2026-10-11, the host's words: "make sure travel is possible outside of the region of the map, with
 // more map generated outside if the player decides to move to a new map. then make sure the game remembers the old map
 // when a new one is generated, there can be a limit to this"): the player can walk off the edge of the land they are
@@ -8,8 +9,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // when the map is full only what the hero merely heard of gives way (a rumour never visited, a land never reached),
 // and every land on the map can be travelled back to: on the map, among the choices, by name and at the shared table.
 // Synthetic heroes and a stand-in Dungeon Master only: no network, no AI.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','playbackRules.js','sceneTriggers.js','mapLayout.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['mapLayout.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,adventureStep,dmChoices,dmContext,mapMoves,quickActions,validAdventure,adventureSnapshot,mapRegions,worldPlaces,worldPlace,currentRegion,mapLocation,travelRoute,travelChoices,roomToMake,commitDmTurn,landsInFull,beyondError,beyondPlan,edgePlace,maxRegions,maxWorldPlaces,regionLayout,withStoryLog,withExperience,freshStoryGame,joinRegion,carriedBase,npcScene,metPerson})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const hero=r.readyHero('fighter'),hp={current:12,temp:0};

@@ -1,11 +1,11 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // A party at the shared table (partyRules.js): every player brings their own hero into one adventure. Each device sees
 // the table with its own hero in the lead, and that change of view is never sent as a move; foes strike any standing
 // hero; a hero who falls is dying and rolls on their own turn while the fight goes on for the others; a friend can be
 // revived with a draught; a victory earns every living hero a level; saves accept a party; the Dungeon Master is told
 // of the others but never speaks or acts for them.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','partyRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,withExperience,advancedInPlace,heroXp,xpForLevel,levelUpReady,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty})',{AsyncStorage:{}});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const kara=r.readyHero('fighter'),ilyra=r.readyHero('wizard'),maxA=r.combatBasics(kara).hp,maxB=r.combatBasics(ilyra).hp;

@@ -5,10 +5,10 @@
 // experience and the companions kept, a foe not yet met grown to match). Synthetic accounts in a temporary folder;
 // no network, no AI, no email.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
+const {rulesSource}=require('./rules-files.cjs');
 const r=require('./rules-engine.cjs').rules(),{createCampaigns}=require('./campaigns.cjs');
 // Helpers the server does not need (magic items for the fixtures), from the same rules files.
-const engine=fs.readFileSync('rules-engine.cjs','utf8'),files=JSON.parse(engine.match(/const files=(\[[^\]]*\]);/)[1].replace(/'/g,'"'));
-const extra=vm.runInNewContext('const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n;({makeMagicItem})',{AsyncStorage:{},console});
+const extra=vm.runInNewContext(rulesSource()+'\n;({makeMagicItem})',{AsyncStorage:{},console});
 const seq=(s=11)=>()=>(s=(s*16807)%2147483647)/2147483647;
 const ask=async()=>({narration:'The road goes on.',actionId:null});
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'qb-edits-')),c=createCampaigns({dir,ask,randomImpl:seq()});

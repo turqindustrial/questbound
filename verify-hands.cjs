@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Hands (weaponRules.js, the host on 2026-10-11: "2 handed weapons should take up both hands unless otherwise capable of
 // dual wielding, even so there should be a small bonus added for 2 handedly holding a weapon with one handed
 // potential"): a shield takes a hand; a two-handed weapon takes both, so while one is the weapon in hand the shield is
@@ -8,8 +9,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // the Dungeon Master's context and the campaign edit agree, and old saves still load. A shield-bearer may also put the
 // shield on their back to hold a versatile weapon in both hands, and take it up again (game.shieldAway, setShield):
 // from the Inventory or in their own words, free out of a fight and their action in one, solo and at a table.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','descriptions.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['descriptions.js']});
 const r=vm.runInNewContext(source+'\n({setShield,shieldStowed,dmCommand,startParty,settleParty,weapons,weaponAttacks,attackOptions,readyLoadout,loadoutWarnings,shieldSlung,shieldInUse,canTakeInHand,thrownAttack,oneHanded,offhandWeapons,gearedHero,magicEffects,makeMagicItem,equipmentFor,readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,dmChoices,dmContext,attackActions,itemDescription,actionDescription,rollDamage})',{AsyncStorage:{}});
 const plain=v=>JSON.parse(JSON.stringify(v));const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
 const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.length;

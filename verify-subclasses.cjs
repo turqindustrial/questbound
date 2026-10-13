@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Subclasses: every class offers its SRD subclass and three of Questbound's own (the Artificer five specialities), each
 // with features in the catalog (source 'Questbound', the same names and levels as subclassRules.js), names that are no
 // book's, spells that exist and can be cast, and a level-3 signature the engine plays: passive numbers (hit points,
 // armour class, initiative, martial weapons, a second attack, a harder grapple, skills), a once-a-turn extra on a hit,
 // a Reaction that blunts a blow, a class action with limited uses (chips, descriptions, typed words, stories, saves),
 // spell gifts and a gift on victory. Old saves and a party at the shared table keep working; the Dungeon Master is told.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','descriptions.js','playbackHp.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['descriptions.js','playbackHp.js']});
 const r=vm.runInNewContext(source+'\n({subclassOptions,legacySubclassOptions,validPlannedSubclass,subclassEngine,subclassLevels,subclassFeatures,subclassBriefs,subclassPassive,subclassUses,subclassSpells,subclassSpellClass,automaticSpells,spellSelectionError,spellLimits,spellLibrary,equipmentFor,combatBasics,weaponAttacks,attacksPerAction,unarmedDC,trainedSkills,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,dmChoices,dmCommand,dmContext,commitDmTurn,quickActions,actionDescription,actionCost,bonusOptions,settleParty,partyView,startParty,joinParty,shownHp,knownSpells,makeCharacter,blankBuild})',{AsyncStorage:{}});
 const catalog=JSON.parse(fs.readFileSync('classFeatureCatalog.json','utf8'));
 const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};

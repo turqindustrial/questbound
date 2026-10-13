@@ -1,10 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // People take to the hero's species differently: kin, warm, curious, indifferent, wary or scornful, written by the
 // story or drawn from who they are. It sets the first impression, sways words aimed at them, is shown to the player
 // and the Dungeon Master, and gives way to deeds. Also: who is a woman and who a man, so that portraits are painted
 // right (no bearded ladies).
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','worldArtRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,readyHeroes,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,validStory,freshStoryGame,speciesRegard,regardAttitude,regardSway,regardLabel,regardMemory,regardStances,validRegard,speciesPlural,introducePerson,npcScene,attitudeLabel,genderOf,portraitDescription,npcArtSubject,heroArtSubject,npcLore,speciesDetails:typeof speciesDetails==="undefined"?null:speciesDetails})',{AsyncStorage:{}});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const hero=(key,species)=>({...r.readyHero(key),...(species?{species}:{})});

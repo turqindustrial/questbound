@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // A clear introduction for every tale (2026-10-11, the host's words: "map out intros with a clear introduction and make
 // sure all adventure beginnings have this rule applied"). However a tale begins (a written opening, Let fate decide,
 // Easy to get into, Your own tale, the next tale in a region or somewhere new, a tale stocked ahead, the Skirmish, and
@@ -7,8 +8,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 // (`introduction`, five short fields); a tale without one gets one built from its own fields (storyRules.js
 // introductionFor). It is the first card of the feed and the first lines of the journal, and the Dungeon Master keeps
 // the first answer to it. Stand-in providers only: no network, no AI.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','playbackRules.js','sceneTriggers.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,freshStoryGame,validStory,validIntroduction,introductionFor,storyIntroduction,introductionFields,introductionLines,introductionCard,dmContext,validAdventure,adventureSnapshot,joinRegion,carriedBase,commitDmTurn,recordedTurn})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const chronicle=vm.runInNewContext(fs.readFileSync('chronicleRules.js','utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')+'\n({describeEvent})',{});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);

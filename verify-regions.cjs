@@ -1,10 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Every story has its own land: its three starting places lie differently each time (a line, a fork, a loop: not
 // one fixed triangle), a few more places are marked from the start, far journeys open new regions with maps of
 // their own, and each region is drawn to suit its terrain. Also: the Dungeon Master and the story writer are asked
 // for all of this, and what they send is tidied rather than refused.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','mapLayout.js','mapArt.js','storyLog.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['mapLayout.js','mapArt.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,validStory,freshStoryGame,makeGeography,validGeography,landmarkPlaces,terrains,mapRegions,regionOfPlace,regionPlaceIds,currentRegion,homeRegion,travelRoute,worldLinks,placeCoordinates,regionLayout,regionLabels,regionMapSvg,exitLabelBoxes,mapThemes,knownPlaceIds,mapLocation,durationText,maxRegions,storyEvents,storyFoeStats,encounterFoe})',{AsyncStorage:{}});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};

@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Balance across the side (encounterRules.js scaledFoe, adventureRules.js withFoeScale): a hero alone meets the foe as
 // it was written; companions, allies and other heroes at the shared table scale the foe (more hit points and blows, a
 // bigger pack), kept for the fight and never lowered as the side falls, in creature fights, the tale's foe, the wilds
 // and brawls with people; leaving a party gives the foe back its numbers for one hero. Also the remaining party gaps:
 // a subclass's action turned on a person in a brawl, a subclass ward on another device's turn, and a short rest
 // offered to bring a fallen companion round. Every result is a valid save.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','descriptions.js','playbackHp.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['descriptions.js','playbackHp.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,encounterFoe,combatBasics,attackOptions,startParty,joinParty,partyView,settleParty,soloFromParty,foeScaleOf,sideStrength,brawlStrength,foeOffense,scaledFoe,foeScaling,sideWeightOf,dmChoices,dmCommand,quickActions,foeHitsPartyHero,equipmentFor,worldPlaces,subclassUses})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const plain=o=>JSON.parse(JSON.stringify(o));
 const always=v=>()=>v;

@@ -1,11 +1,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {rulesSource}=require('./rules-files.cjs');
 // Spells that work on others and go on working (2024 rules, SRD 5.2): Aid on the hero, companions and other heroes;
 // spells for friends at the shared table; areas and many targets; lasting damage (Moonbeam, Heat Metal, Spiritual
 // Weapon, Call Lightning, Spirit Guardians, Acid Arrow, Searing Smite, burning webs); Hex moved as a bonus action; Shield
 // by the device's choice; Counterspell and Feather Fall refused plainly. Everything through dmCommand, adventureStep,
 // commitDmTurn and the chips, in a written story.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','memoryRules.js','spellOptions.js','equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','lootRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','experienceRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','sequelRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const names='hostileEncounterGame,startParty,joinParty,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,dmChoices,dmContext,commitDmTurn,adventureStep,quickActions,spellActions,dmCommand,knownSpells,spellLibrary,spellLimits,automaticEffects,narratedSpells,spellCostOptions,requestSpell,resolveSpellRuling,makeCharacter,equipmentFor,startWildFight,spellDamageMax,spellDefense,combatBasics,speciesSpells,partyView,settleParty,canonicalParty,endSpellMarks,spellConditions,castingStages,validParty,heroIdOf,markOf,withSpellMark,bonusOptions,concentrationAfterDamage,gearedHero,npcProfile,attackBoost,companionsAttack,heroTurnBegins,guidanceBonus,resistedDamage,wardEdge,encounterFoe,lastingTurn,riderDamage,markGone,turnCost,shieldReaction';
 const r=vm.runInNewContext(source+'\n({'+names.split(',').map(n=>`${n}:typeof ${n}==='undefined'?undefined:${n}`).join(',')+'})',{AsyncStorage:{},weaponIcon:()=>'sword',console});
 for(const n of names.split(','))assert.ok(r[n]!==undefined,n+' is defined');
