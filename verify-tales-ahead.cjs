@@ -1,50 +1,23 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
-// Better than a wait and a fixed list: tales written ahead start at once (tale-pantry.cjs), a player can ask for a
-// tale of their own idea, and a narrator of their choosing tells it. Nothing here calls the provider.
-const {createPantry,stockFor,revision,generation}=require('./tale-pantry.cjs');
+// Better than a wait and a fixed list: ready journeys start at once (tale-library.cjs; verify-journeys.cjs checks the
+// library itself), a player can ask for a tale of their own idea, and a narrator of their choosing tells it. Nothing
+// here calls the provider.
+const {revision,generation}=require('./tale-library.cjs');
 const {generate}=require('./dm-server.cjs');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-tales-'));
-const tick=(ms=5)=>new Promise(resolve=>setTimeout(resolve,ms));
+
 const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',regard:{stance:'wary',reason:'I lost a brother to your kind.'},ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',regard:{stance:'warm',reason:'Travellers bring news.'},ties:{other:'friend',foe:'neutral',note:'n'}}}};
 (async()=>{
- // ---- The stock ----
- assert.equal(revision,4);assert.equal(generation,4);assert.equal(stockFor('surprise'),2);assert.equal(stockFor('easy'),2,'Easy to get into is meant to start fast');assert.equal(stockFor('crown'),1);
- // Tales stocked by an earlier story writer (no residents, no errands) are cleared away and never served.
- fs.mkdirSync(path.join(tmp,'stock'),{recursive:true});const legacy=path.join(tmp,'stock','crown-0f8fad5b-d9cb-469f-a165-70867728950e.json'),older=path.join(tmp,'stock','crown-g3-0f8fad5b-d9cb-469f-a165-70867728950f.json'),other=path.join(tmp,'stock','notes.txt');
- for(const file of [legacy,older])fs.writeFileSync(file,JSON.stringify({story:{...story,title:'Legacy'}}));fs.writeFileSync(other,'kept');
- let clock=1000;const pantry=createPantry({dir:path.join(tmp,'stock'),now:()=>clock});
- assert.ok(!fs.existsSync(legacy)&&!fs.existsSync(older)&&fs.existsSync(other),'old generations removed, nothing else touched');assert.equal(pantry.count('crown'),0);
- assert.equal(JSON.stringify(pantry.wanted(['surprise','crown'])),JSON.stringify(['surprise','crown']));assert.equal(pantry.take('crown'),null,'nothing in stock yet');
- let wrote=[];const write=async id=>{wrote.push(id);return {story:{...story,title:'Tale '+wrote.length}};};
- assert.equal(pantry.topUp(['surprise','crown'],write),true);assert.equal(pantry.topUp(['surprise','crown'],write),false,'one tale at a time');
- await pantry.settled();assert.equal(pantry.count('surprise'),1);assert.ok(fs.readdirSync(path.join(tmp,'stock')).some(f=>/^surprise-g4-[0-9a-f-]{36}.json$/.test(f)),'stocked as <opening>-g4-<uuid>.json');
- for(let i=0;i<3;i++){pantry.topUp(['surprise','crown'],write);await pantry.settled();}
- assert.equal(pantry.count('surprise'),2);assert.equal(pantry.count('crown'),1);assert.equal(JSON.stringify(wrote),JSON.stringify(['surprise','surprise','crown']));
- assert.equal(pantry.topUp(['surprise','crown'],write),false,'full: nothing more is written');
- const first=pantry.take('surprise');assert.equal(first.title,'Tale 1','the oldest first');assert.equal(pantry.count('surprise'),1);
- assert.equal(pantry.take('../etc'),null,'only opening names');
- // A failed write waits ten minutes before the next try.
- pantry.topUp(['surprise'],async()=>{throw Error('provider down');});await pantry.settled();
- assert.equal(pantry.topUp(['surprise'],write),false,'paused after a failure');clock+=11*60*1000;assert.equal(pantry.topUp(['surprise'],write),true);await pantry.settled();assert.equal(pantry.count('surprise'),2);
- // Each finished tale starts the next until the stock is full (the rest of the chain written by the host's writer).
- const chain=createPantry({dir:path.join(tmp,'chain'),now:()=>clock}),who=[];
- chain.topUp(['surprise','crown','winter'],async id=>{who.push('asker:'+id);return {story};},async id=>{who.push('host:'+id);return {story};});await chain.settled();
- assert.equal(JSON.stringify(who),JSON.stringify(['asker:surprise','host:surprise','host:crown','host:winter']));assert.equal(chain.wanted(['surprise','crown','winter']).length,0);
- // A restart keeps the stock (it is on disk).
- assert.equal(createPantry({dir:path.join(tmp,'stock')}).count('surprise'),2);
+ // ---- The library ----
+ assert.equal(revision,1);assert.equal(generation,5,'tales written before the library (and before introductions) are cleared');
 
- // ---- The Dungeon Master: a stocked tale starts at once; its replacement is written at the asker's cost ----
+ // ---- The Dungeon Master: a ready journey starts at once; written openings, ideas and the next tale are written fresh ----
  const calls=[];const storyFetch=async(url,options)=>{const request=JSON.parse(options.body);calls.push(request);return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(story)}]}]})};};
  const keys={apiKey:'k',model:'gpt-6-luna',storyReasoning:'high',fetchImpl:storyFetch};
- const taken=[],toppedUp=[];const stand={take:id=>{taken.push(id);return id==='crown'?{...story,title:'Stocked'}:null;},topUp:(openings,w)=>{toppedUp.push(openings);return false;}};
- const ask=(context,extra={})=>generate({input:'Create a fresh adventure.',...extra,context:{choices:[],...context}},{...keys,pantry:stand});
- const instant=await ask({mode:'adventure',introId:'crown',job:'verify-job-ahead-000001'});
- assert.equal(instant.story.title,'Stocked');assert.equal(instant.story.status,'active');assert.match(instant.story.id,/^[0-9a-f-]{36}$/);assert.equal(calls.length,0,'no wait and no call');
- assert.ok(toppedUp.length>=1&&toppedUp.at(-1).includes('surprise')&&!toppedUp.at(-1).includes('idea')&&!toppedUp.at(-1).includes('hostile'),'every written opening is kept in stock, not Your own tale or the Skirmish');
- // The replacement written at an account player's cost carries the same OpenAI safety identifier as their own turns.
- {let asker=null;const account='account-'+'ab'.repeat(32);
-  await generate({input:'Create a fresh adventure.',guest:account,context:{choices:[],mode:'adventure',introId:'crown'}},{...keys,pantry:{take:()=>({...story,title:'Stocked'}),topUp:(openings,w)=>{asker??=w;return false;}}});
-  assert.ok(asker,'the asker writes the replacement');await asker('surprise');assert.equal(calls.at(-1).safety_identifier,'qb-acct-'+'ab'.repeat(16));}
+ const taken=[];const stand={start:id=>{taken.push('journey:'+id);return id==='0f8fad5b-d9cb-469f-a165-70867728950e'?{...story,title:'Stocked',id:'copy-1',status:'active',libraryId:id,artId:'journey-'+id}:null;},any:()=>{taken.push('any');return {...story,id:'copy-2',status:'active'};},list:()=>[],topUp:()=>false};
+ const ask=(context,extra={})=>generate({input:'Create a fresh adventure.',...extra,context:{choices:[],...context}},{...keys,library:stand});
+ const instant=await ask({mode:'adventure',introId:'easy',journey:'0f8fad5b-d9cb-469f-a165-70867728950e',easyStart:true,job:'verify-job-ahead-000001'});
+ assert.equal(instant.story.title,'Stocked');assert.equal(instant.story.status,'active');assert.equal(calls.length,0,'no wait and no call');
  taken.length=0;await ask({mode:'adventure',introId:'crown',continuing:{previousTitle:'Old'}});assert.equal(taken.length,0,'the next tale in a region is written fresh');
  await ask({mode:'adventure',introId:'idea',idea:'A haunted lighthouse on a frozen coast'});assert.equal(taken.length,0,'so is the player\'s own idea');
 
@@ -53,11 +26,11 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await assert.rejects(ask({mode:'adventure',introId:'idea',idea:'  '}),/Write your idea/);
  const odd=await ask({mode:'adventure',introId:'idea',idea:'A cursed\u0000 bell\n\n tolls   at noon'});assert.ok(JSON.parse(calls.at(-1).input).creativeDirection.endsWith('A cursed bell tolls at noon'),'one clean line');
  assert.ok(odd.story.npcs.keeper.regard,'a tale for a known hero keeps the people\'s view of their kind');
- // Easy start with another opening: written fresh, so it begins with orders in hand; Easy to get into itself is still stocked.
+ // Easy start with a written opening: written fresh, so it begins with orders in hand; Easy to get into and Let fate
+ // decide (from a game before the library) are a ready journey, and every journey begins with orders in hand.
  taken.length=0;await ask({mode:'adventure',introId:'crown',easyStart:true});assert.equal(taken.length,0,'an easy start on a written opening is written fresh');
- await ask({mode:'adventure',introId:'surprise',easyStart:true});assert.equal(taken.length,0,'and on Let fate decide (the game asks for Easy to get into instead)');
- const easyStocked=await ask({mode:'adventure',introId:'easy',easyStart:true});assert.equal(JSON.stringify(taken),JSON.stringify(['easy']),'Easy to get into comes from the stock');assert.equal(easyStocked.story.title,'T');
- taken.length=0;await ask({mode:'adventure',introId:'crown',easyStart:false});assert.equal(JSON.stringify(taken),JSON.stringify(['crown']),'without Easy start the stock is used as before');
+ const easyStocked=await ask({mode:'adventure',introId:'easy',easyStart:true});assert.equal(JSON.stringify(taken),JSON.stringify(['any']),'Easy to get into is a ready journey');assert.equal(easyStocked.story.title,'T');
+ taken.length=0;await ask({mode:'adventure',introId:'crown',easyStart:false});assert.equal(taken.length,0,'a written opening is always written fresh now');
  const {generateAdventure}=require('./adventure-generator.cjs');
  const intros0=JSON.parse(fs.readFileSync('adventureIntros.json','utf8'));
  const ahead=await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',ahead:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
@@ -102,7 +75,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  assert.ok(app.includes("...(wish?{idea:wish}:{})")&&app.includes("selectedIntro==='idea'&&!wish"),'the idea reaches the story writer');
  // Easy start: a per-device switch on the New Adventure and next-tale screens, on unless turned off, hidden for the Skirmish.
  assert.ok(screen.includes('function EasyStart')&&screen.includes("label=\"Easy start\"")&&(screen.match(/<EasyStart /g)??[]).length===2&&screen.includes("selected!=='hostile'"),'the Easy start switch on both screens, not for the Skirmish');
- assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart})")&&app.includes("introId:start.introId,...(start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId:start.introId},base)"),'the game sends the easy start and keeps the opening it asked for');
+ assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart})")&&app.includes("introId=journeyId?'easy':start.introId")&&app.includes("...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId},base)"),'the game sends the easy start and keeps the opening it asked for');
 
  // ---- Narrators ----
  const prefs=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+'\n({narrators,narratorOf,storyPreferences,setStoryPreferences})',{globalThis:{localStorage:{store:{},getItem(k){return this.store[k]??null;},setItem(k,v){this.store[k]=v;}}},JSON,Set});
@@ -124,5 +97,5 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8');assert.ok(/NARRATOR: context\.storyPreferences\.narrator/.test(dm)&&dm.includes('instructions:instructions+narratorInstructions+')&&/never changes the rules/.test(dm)&&dm.includes('phaseInstructions+narratorVoice(body)+note')&&/NARRATOR THIS TURN: Wick the Lamplighter/.test(dm)&&/NARRATOR THIS TURN: Sable the Bard/.test(dm),'the Dungeon Master is told who narrates, in its standing instructions and, concretely, last in each turn');
  const header=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(header.includes('{teller.name}')&&header.includes('name={teller.icon}'),'the narrator heads the story');
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Tales ahead, your own idea and narrators: a stock of tales written ahead by the current story writer (two for Let fate decide and Easy to get into, one per opening, refilled one at a time at the asker\'s cost, kept on disk), the next tale and the player\'s own idea written fresh, the idea cleaned and kept to Questbound\'s own world, and three narrators of our own.');
+ console.log("Tales ahead, your own idea and narrators: a ready journey starts at once (the library itself: verify-journeys.cjs), written openings, the next tale and the player's own idea are written fresh, the idea cleaned and kept to Questbound's own world, Easy start on every opening, and three narrators of our own.");
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

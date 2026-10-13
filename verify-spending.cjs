@@ -123,18 +123,17 @@ const fresh=name=>{const d=path.join(tmp,name);fs.mkdirSync(d);return d;};
   await assert.rejects(generate({...turn,input:'x'.repeat(1001)},{...keys,spending:stub({ok:true})}),e=>e.httpStatus===400);
   assert.equal(asked,0,'nothing reached the AI');}
 
- // ---- Background writing (tales written ahead) stops at a ceiling; a guest's own replacement is still theirs ----
+ // ---- Background writing (the library of ready journeys) stops at a ceiling ----
  {const ok=async()=>({ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:'{}'}]}]})});
   const keys={apiKey:'k',model:'gpt-6-luna',fetchImpl:ok},host={input:'I look around.',context:{choices:[]}};
-  let topped=[];const pantry={take:()=>null,topUp:(openings,write,then)=>{topped.push({write,then});return true;}};
-  await generate(host,{...keys,pantry,spending:{check:()=>({ok:true}),background:()=>({ok:false,reason:'total'})}}).catch(()=>{});
-  assert.equal(topped.length,0,'past a ceiling no background tale is started');
-  await generate(host,{...keys,pantry,spending:{check:()=>({ok:true}),background:()=>({ok:true})}}).catch(()=>{});
-  assert.equal(topped.length,1,'below it the stock is kept full');
-  // A ceiling reached while the chain runs: the next background tale is refused, so the stock pauses.
-  topped=[];let open=true;const guest='account-'+'ef'.repeat(32);
-  await generate({input:'Create a fresh adventure.',guest,context:{choices:[],mode:'adventure',introId:'crown'}},{...keys,pantry,spending:{check:()=>({ok:true}),allow:()=>({ok:true}),background:()=>({ok:open})}}).catch(()=>{});
-  assert.ok(topped.length>=1);open=false;await assert.rejects(topped.at(-1).then('surprise'),/Spending ceiling/,'the host\'s background writer stops');}
+  let topped=[];const library={list:()=>[],start:()=>null,any:()=>null,topUp:(write)=>{topped.push(write);return true;}};
+  await generate(host,{...keys,library,spending:{check:()=>({ok:true}),background:()=>({ok:false,reason:'total'})}}).catch(()=>{});
+  assert.equal(topped.length,0,'past a ceiling no background journey is started');
+  let open=true;
+  await generate(host,{...keys,library,spending:{check:()=>({ok:true}),background:()=>({ok:open})}}).catch(()=>{});
+  assert.equal(topped.length,1,'below it the library is kept full');
+  // A ceiling reached while the library writes: the next journey is refused, so the library pauses.
+  open=false;await assert.rejects(Promise.resolve().then(()=>topped.at(-1)({})),/Spending ceiling/,'the host background writer stops');}
 
  fs.rmSync(tmp,{recursive:true,force:true});
  console.log('Spending: a daily ceiling on all AI spending and a monthly one for guests and background writing (kept past a rotated log), the pause switch, new tales, heroes and paintings counted per guest, alerts at half and nine tenths of the guests\' day and at each ceiling (security log; Discord only when connected, through a PowerShell child that never puts the webhook on a command line), the Dungeon Master refusing before any AI call, background writing that stops at a ceiling, and refusals the game never mistakes for a busy Dungeon Master.');
