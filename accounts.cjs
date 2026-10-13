@@ -211,6 +211,8 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
   // For the host: how many accounts there are, resetting a forgotten password (the saved adventure is kept and the
   // player uses a private, expiring recovery code after the host verifies ownership), and removing an account outright.
   count:()=>ids().length,
+  // Every account and guest id (for the host's ban command, which finds an id by its label).
+  knownIds:()=>[...ids(),...guestIds()],
   resetPassword(email){const id=accountId(normalEmail(email)),record=read(id);if(!record)return false;const code=crypto.randomBytes(24).toString('hex');for(const key of Object.keys(record.tokens??{}))owners.delete(key);write(id,{v:1,created:record.created,reset:true,resetHash:digest(code),resetUntil:now()+3600000,tokens:{}});return code;},
   removeByEmail(email){const id=accountId(normalEmail(email)),record=read(id);if(!record)return false;for(const key of Object.keys(record.tokens??{}))owners.delete(key);fs.rmSync(file(id),{force:true});fs.rmSync(saveFile(id),{force:true});fs.rmSync(pendingFile(id),{force:true});backup?.remove('account-'+id);return true;},
  };
@@ -223,11 +225,35 @@ function createAccounts({dir=path.join(__dirname,'.questbound-accounts'),limit=5
 //   node accounts.cjs count
 //   node accounts.cjs reset-password someone@example.com     verify the owner, then privately give them the one-use recovery code
 //   node accounts.cjs remove someone@example.com             deletes the account and its saved adventure
+//   node accounts.cjs ban <who> [note]                     keeps a player out of the whole game (bans.cjs): the Dungeon
+//   node accounts.cjs unban <who>                          Master, every shared table and feedback. <who> is the mod-…
+//   node accounts.cjs bans                                 label a report or the security log gives, or a guest or
+//                                                          account id (account-<id>, qb-acct-…, or 12+ hex characters).
+// Bans are read by the running account service whenever the file changes: no restart is needed.
+function findIdentity(who,known){
+ const {moderationLabel}=require('./bans.cjs'),w=String(who??'').trim().toLowerCase();
+ if(/^mod-[a-f0-9]{20}$/.test(w))return known.filter(id=>moderationLabel(id)===w);
+ const hex=w.replace(/^(?:account-|qb-acct-)/,'');
+ if(/^[a-f0-9]{12,64}$/.test(hex)){const found=known.filter(id=>id.startsWith(hex));return found.length||hex.length!==64?found:[hex];}
+ return [];
+}
 if(require.main===module){(async()=>{
  const [command,email]=process.argv.slice(2),accounts=createAccounts();
+ if(['ban','unban','bans'].includes(command)){
+  const {createBans}=require('./bans.cjs'),bans=createBans(),{createOperations}=require('./operations.cjs');
+  const audit=(event,label)=>{try{createOperations().audit(event,{account:label});}catch{}};
+  if(command==='bans'){const list=bans.list();console.log(list.length?list.map(b=>b.label+'  since '+b.at+(b.note?'  '+b.note:'')).join('\n'):'Nobody is banned.');return;}
+  if(!email){console.log('Usage: node accounts.cjs '+command+' <mod-label | guest or account id>');return;}
+  if(command==='unban'){const found=findIdentity(email,accounts.knownIds());const label=(found.length===1?bans.unban(found[0]):null)??bans.unban(String(email).trim().toLowerCase());if(label)audit('host-unban',label);console.log(label?'Unbanned '+label+'.':'No ban matches that.');return;}
+  const found=findIdentity(email,accounts.knownIds());
+  if(found.length!==1){console.log(found.length?'That matches more than one player; give more of the id.':'No guest or account matches that. Copy the mod-… label from the report or the security log.');process.exitCode=1;return;}
+  const label=bans.ban(found[0],{note:process.argv.slice(4).join(' ')});audit('host-ban',label);
+  console.log('Banned '+label+': the Dungeon Master, shared tables and feedback now refuse that browser. Undo with: node accounts.cjs unban '+label);
+  return;
+ }
  if(command==='count')console.log(accounts.count()+' account'+(accounts.count()===1?'':'s')+'.');
  else if(command==='reset-password'&&email){const code=await accounts.resetPassword(email);console.log(code?'Private recovery code (one use, expires in one hour): '+code+'\nGive it only to the verified account owner. They choose Recover account in Settings. Their saved adventure is kept.':'No account uses that email.');}
  else if(command==='remove'&&email)console.log(await accounts.removeByEmail(email)?'Account and saved adventure removed.':'No account uses that email.');
- else console.log('Usage: node accounts.cjs count | reset-password <email> | remove <email>');
+ else console.log('Usage: node accounts.cjs count | reset-password <email> | remove <email> | ban <who> [note] | unban <who> | bans');
 })().catch(()=>{console.error('The account command could not be completed.');process.exitCode=1;});}
-module.exports={createAccounts,normalEmail,validEmail,validPassword,weakPassword};
+module.exports={createAccounts,normalEmail,validEmail,validPassword,weakPassword,findIdentity};

@@ -47,10 +47,30 @@ function feedbackEntry(note,{now=Date.now(),guest=null,random=crypto.randomBytes
  const record={ref,at:when.toISOString(),guest:guest?oneLine(guest,80):null,rating,text,context:Object.fromEntries(['player','hero','device','where','screen','story'].map(k=>[k,oneLine(c[k],200)||null])),details:d};
  return {markdown,record};
 }
+// A report from a shared table (campaigns.cjs report): a member reported by another, for the host of the whole game.
+// It names both only by seat, table name and pseudonymous label (bans.cjs moderationLabel, which the host can give to
+// `node accounts.cjs ban`), never by account or guest id, and quotes the last few lines the reported member typed at
+// that table. report: {campaign, title, reason, words, reported:{seat,name,label,host}, by:{seat,name,label}, lines}.
+const reportReasonNames={harassment:'Harassment',hateful:'Hateful words',sexual:'Sexual content',spam:'Spam or flooding',cheating:'Cheating',other:'Something else'};
+function reportEntry(report,{now=Date.now(),random=crypto.randomBytes}={}){
+ const when=new Date(now),ref='rp-'+now.toString(36)+'-'+random(2).toString('hex'),reason=Object.hasOwn(reportReasonNames,report?.reason)?report.reason:'other';
+ const who=p=>({seat:oneLine(p?.seat,40)||null,name:oneLine(p?.name,40)||null,label:/^mod-[a-f0-9]{20}$/.test(p?.label??'')?p.label:null});
+ const reported={...who(report?.reported),host:report?.reported?.host===true},by=who(report?.by),words=clean(report?.words,500);
+ const lines=(Array.isArray(report?.lines)?report.lines:[]).slice(-5).map(l=>oneLine(l,300)).filter(Boolean);
+ const campaign=/^[a-f0-9]{32}$/.test(report?.campaign??'')?report.campaign:null,title=oneLine(report?.title,120);
+ const out=['','## '+when.toISOString().replace('T',' ').slice(0,16)+' UTC · Report: '+(reported.name??'a player')+' ('+reportReasonNames[reason]+')',''];
+ out.push('Reported: '+(reported.name??'?')+(reported.host?' (the table’s host)':'')+' · '+(reported.label??'?')+' · '+(reported.seat??'?'),'By: '+(by.name??'?')+' · '+(by.label??'?'),'Table: '+(title||'Shared adventure')+(campaign?' · campaign '+campaign:''));
+ if(words)out.push('',...words.split(String.fromCharCode(10)).map(line=>'> '+line));
+ out.push('',...(lines.length?['What they typed at the table, newest last:',...lines.map(line=>'- '+line)]:['(No lines typed at the table yet.)']));
+ out.push('','To keep them out of the whole game: node accounts.cjs ban '+(reported.label??'<label>'),'Ref: '+ref,'');
+ const markdown=out.join(String.fromCharCode(10));
+ const record={ref,at:when.toISOString(),kind:'report',guest:null,rating:null,text:words||'(report: '+reportReasonNames[reason]+')',context:{player:by.name,hero:null,device:null,where:title||null,screen:'table',story:null},report:{reason,reported,by,campaign,title:title||null,lines},details:null};
+ return {markdown,record};
+}
 // Appends a note to both files. Throws when the disk refuses; the callers answer 500.
 function saveFeedback(file,entry){
  if(!fs.existsSync(file))fs.writeFileSync(file,'# Questbound playtest feedback\n\nNotes sent from inside the game by playtesters. Newest at the bottom.\n');
  fs.appendFileSync(file,entry.markdown);
  fs.appendFileSync(feedbackRecordFile(file),JSON.stringify(entry.record)+'\n');
 }
-module.exports={feedbackEntry,saveFeedback,feedbackRecordFile,sanitiseFeedback:sanitise,FEEDBACK_BODY_LIMIT};
+module.exports={feedbackEntry,reportEntry,saveFeedback,feedbackRecordFile,sanitiseFeedback:sanitise,FEEDBACK_BODY_LIMIT};

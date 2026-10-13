@@ -3,7 +3,7 @@ const fail=message=>Object.assign(Error(message),{status:400});
 const random=()=>crypto.randomInt(0,0x100000000)/0x100000000;
 // What a client may say about the player's own device settings; anything else is ignored.
 function preferences(p){const out={};if(['restrained','gritty','brutal'].includes(p?.brutality))out.brutality=p.brutality;if(['chronicler','lamplighter','bard'].includes(p?.narrator))out.narrator=p.narrator;return out;}
-async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Adventurer'}={}){
+async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Adventurer',actorSeat=null}={}){
  const r=require('./rules-engine.cjs').rules(),hero=JSON.parse(snapshot.character),health=snapshot.health;
  // Companions met before they had classes gain one out of a fight (Adventure.js does this on the device when solo).
  let game=snapshot.game;if(game.stage!=='combat'&&!game.npcCombat?.active&&!game.pendingSpell)game=r.withCompanionClasses(game,hero);
@@ -23,7 +23,7 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');return body;
  };
  function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
-  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(toDm?{direct:true}:{}),...extra};
+  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(actorSeat?{actorSeat}:{}),...(toDm?{direct:true}:{}),...extra};
   // The same pipeline as Adventure.act on a device (turnRules.js): the rules, experience for every living hero, the
   // turn recorded, the story log and deeds. Scene cues are not played at a shared table.
   const settled=r.settleTurn({hero,ruled,game,health,action,conversation,random:dice,sceneTrigger:false});if(settled.error)throw fail(settled.error);
