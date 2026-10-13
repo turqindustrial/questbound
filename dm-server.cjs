@@ -317,7 +317,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   const safety=safetyFor(guest),mayPaint=()=>!guest||!spend||spend.check(guest).ok;
   // A story being written in the background is asked after like an illustration: a quick question, never a wait.
   if(body.context.mode==='art'&&body.context.storyJob!==undefined)return loadStoryJobs().poll(body.context.storyJob);
-  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==5)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
+  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==6)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
   // Once guests have used the host's daily allowance (or this guest their share), they wait for tomorrow.

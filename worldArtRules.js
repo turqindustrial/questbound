@@ -1,4 +1,4 @@
-import {mapPlaces,mapLocation,worldPlace,worldPlaces} from './mapRules';
+import {mapPlaces,mapLocation,worldPlace,worldPlaces,placeKinds,mapRegions,homeRegion} from './mapRules';
 import {dungeonRooms} from './dungeonRules';
 import {npcScene} from './npcRules';
 const originalNPCs={keeper:{name:'The keeper',description:'Middle-aged human innkeeper, short salt-and-pepper beard, brown hair, kind but firm eyes, linen shirt and russet waistcoat.'},mara:{name:'Mara',description:'Young adult human woman, brown skin, dark curly hair loosely braided, thoughtful eyes, practical teal traveling cloak, medicine courier with a satchel.'}};
@@ -34,7 +34,24 @@ export function npcArtSubject(game,id){
 export function locationArtSubject(game){
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,id=room?'dungeon-'+game.dungeon.room:mapLocation(game),place=room?{name:room.name,description:room.text}:game.story?.locations?.[id]??worldPlace(game,id)??mapPlaces[id];
  if(!place)return null;
- return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
+ return landscapeSubject(game,id,place);
+}
+// Every place's picture comes from the host's library of ready paintings (place-library.cjs), matched on what kind
+// of place it is and the land it lies in: a found place by its own kind and its land's terrain; the story's three
+// starting places by the kind the story writer gave them (else the words decide, on the server); the old
+// crossroads by what they are; the vault's chambers as ruins, caves, a shrine and a lair in the caverns.
+const crossroadsKinds={inn:'settlement',bridge:'water',tower:'ruin'};
+const vaultKinds=['ruin','cave','ruin','cave','ruin','shrine','lair','ruin'];
+export function placeArtMatch(game,id,place){
+ const vault=/^dungeon-([0-7])$/.exec(id);
+ if(vault)return {placeKind:vaultKinds[Number(vault[1])],terrain:vault[1]==='0'?(game.story?homeRegion(game).terrain:'forest'):'caverns'};
+ if(!game.story&&crossroadsKinds[id])return {placeKind:crossroadsKinds[id],terrain:'forest'};
+ const land=(place?.region&&mapRegions(game).find(r=>r.id===place.region))||homeRegion(game);
+ return {...(placeKinds.includes(place?.kind)?{placeKind:place.kind}:{}),terrain:land.terrain};
+}
+// One subject per place, whether it is the scene or an arrival plate in the feed (the same art key, so one picture).
+function landscapeSubject(game,id,place){
+ return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800),...placeArtMatch(game,id,place)};
 }
 // The player's own hero, painted in the same style as everyone they meet. The identity follows who the hero is
 // (name, species, class, look), not their level, so levelling up keeps the portrait.
@@ -50,7 +67,7 @@ export function placeArtSubject(game,name){
  const plain=text=>String(text??'').toLowerCase().replace(/^the\s+/,'').trim();
  const places={...(game.story?.locations??mapPlaces),...Object.fromEntries(worldPlaces(game).map(p=>[p.id,p]))},id=Object.keys(places).find(key=>key!=='dungeon'&&plain(places[key]?.name)===plain(name));
  if(!id)return null;
- return {campaignId:game.story?.id??'crossroads-v1',kind:'landscape',id,name:places[id].name,description:places[id].description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800)};
+ return landscapeSubject(game,id,places[id]);
 }
 export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
