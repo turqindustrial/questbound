@@ -82,7 +82,12 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
   try{await fs.access(path.join(directory,key+'.jpg'));return null;}catch{}
   try{return await places.answer(subject,key);}catch{return null;}
  }
- return {request,size:()=>jobs.size,places};
+ // Whether a landscape can be shown from the library without painting (a ready journey's card uses it for its cover,
+ // which then costs nothing). The library is read lazily; the first ask starts that read.
+ function readyMade(value){
+  try{const subject=validateSubject(value);if(!placeLibraryModule.libraryEligible(subject))return false;const list=places.entries();if(!list.length){places.refresh?.().catch?.(()=>{});return false;}return true;}catch{return false;}
+ }
+ return {request,readyMade,size:()=>jobs.size,places};
 }
 const artStore=createArtStore();
-module.exports={revision:6,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL};
+module.exports={revision:7,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL};

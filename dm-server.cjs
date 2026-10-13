@@ -307,7 +307,7 @@ const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64
 // writer (no guest label), and only while background writing may spend: spending.cjs `background()` (the host's
 // ceilings and the guests' pause switch) when the module has it; without it, writing is paced by the library alone.
 // Tests pass a stand-in `library`.
-function loadLibrary(){if(require('./tale-library.cjs').revision!==2)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
+function loadLibrary(){if(require('./tale-library.cjs').revision!==3)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
 function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
 // A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
 // adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and
@@ -406,7 +406,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(body.context.libraryBrief!==undefined)delete body.context.libraryBrief;
   const shelf=library??(live?loadLibrary():null);
   if(body.context.mode==='art'&&body.context.journeys==='list'){if(!shelf)return {journeys:[]};try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend});}catch{}return {journeys:shelf.list({cover:journeyCovers()})};}
-  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==6)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
+  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==7)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
   // The content check (moderation.cjs): a table name asked about by the account service (mode 'moderate') is answered

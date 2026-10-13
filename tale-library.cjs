@@ -18,7 +18,7 @@
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs); bump
 // `revision` (and the literal in dm-server.cjs loadLibrary) when it changes. Raise `generation` when the story writer's
 // output changes shape.
-const revision=2,generation=5;
+const revision=3,generation=5;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const day=86400000;
 // The library's numbers (see the report of 2026-10-13 for the cost reckoning).
@@ -59,7 +59,8 @@ const chapterCount=story=>{const n=(Array.isArray(story?.chapters)?story.chapter
 const artIdOf=id=>'journey-'+id;
 function coverSubject(entry){
  const inn=entry?.story?.locations?.inn;if(!inn||typeof inn.name!=='string'||typeof inn.description!=='string')return null;
- return {campaignId:artIdOf(entry.id),kind:'landscape',id:'inn',name:inn.name.trim().slice(0,100),description:inn.description.trim().slice(0,1800),setting:String(entry.story.premise??'').slice(0,800)};
+ const terrain=journeyTerrains.includes(entry.story.terrain)?entry.story.terrain:null,placeKind=typeof inn.kind==='string'?inn.kind:null;
+ return {campaignId:artIdOf(entry.id),kind:'landscape',id:'inn',name:inn.name.trim().slice(0,100),description:inn.description.trim().slice(0,1800),setting:String(entry.story.premise??'').slice(0,800),...(terrain?{terrain}:{}),...(placeKind?{placeKind}:{})};
 }
 // What a player's device may see of a journey: its pitch and nothing of the tale's secrets.
 function publicJourney(entry,{cover=null}={}){
