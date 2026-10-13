@@ -33,9 +33,9 @@ assert.equal(metrics.METRICS_BODY_LIMIT,2000);assert.ok(JSON.stringify(good).len
 
 // 2. The device's counts: mechanical only, opt-out forgets the id, nothing before the agreement.
 const store=(()=>{const d={};return {getItem:k=>d[k]??null,setItem:(k,v)=>{d[k]=String(v);},removeItem:k=>{delete d[k];},data:d};})();
-let accepted2=true,subscriber=null;const beacons=[];
+let accepted2=true,subscriber=null;const beacons=[];const tab=(()=>{const d={};return {getItem:k=>d[k]??null,setItem:(k,v)=>{d[k]=String(v);},removeItem:k=>{delete d[k];},data:d};})();
 const ctx={localStorage:store,crypto:require('node:crypto').webcrypto,location:{hostname:'questbound.example'},navigator:{sendBeacon:(url,blob)=>{beacons.push({url,blob});return true;}},Blob:class{constructor(parts,opts){this.text=parts.join('');this.type=opts?.type;}},
- agreementStatus:()=>({accepted:accepted2}),subscribeProblems:fn=>{subscriber=fn;return()=>{};},pageBuild:()=>'1a2b3c4d',fetch:async()=>({}),Date,Math,JSON,Number,Object,Array,String,Set,Uint8Array,setTimeout,clearTimeout};
+ sessionStorage:tab,agreementStatus:()=>({accepted:accepted2}),subscribeProblems:fn=>{subscriber=fn;return()=>{};},recentProblems:()=>[],pageBuild:()=>'1a2b3c4d',fetch:async()=>({}),Date,Math,JSON,Number,Object,Array,String,Set,Uint8Array,setTimeout,clearTimeout};
 const pm=load('playMetrics.js',['readInsight','setInsight','placeOf','formOf','failureOf','notePlayActivity','sessionSeconds','deviceSeconds','countTurn','notePlace','noteTalking','noteTale','noteStoryWait','sessionSummary','playRecord','sendPlayRecord','startPlayMetrics','noteRatingShown','noteRatingAnswered','noteRatingDismissed','insightKey'],ctx);
 assert.deepEqual(plain(pm.readInsight()),{counts:true,ask:true,device:null,playSeconds:0,rating:{asked:null,answered:null,dismissed:null,dismissals:0}},'on by default, no id until something is sent');
 // placeOf and failureOf: fixed words only.
@@ -76,6 +76,13 @@ accepted2=false;pm.countTurn();assert.equal(pm.sendPlayRecord(t0+44*60000),false
 // The device's own total play time (for the rating rules) and the summary a rating carries.
 assert.ok(pm.deviceSeconds()>=1140);
 assert.deepEqual(plain(pm.sessionSummary(t0+44*60000)),{minutes:21,turns:13,failed:2,form:'desktop',build:'1a2b3c4d'},'a minute after the last tap still counts');
+// A reload of the tab carries on the same session (sessionStorage) while it is under half an hour old, and problems
+// already in the log are not counted twice.
+{const again=load('playMetrics.js',['sessionSummary','sendPlayRecord','startPlayMetrics','countTurn'],{...ctx,recentProblems:()=>[{id:'p1'},{id:'p2'},{id:'p3'}],Date:{now:()=>t0+50*60000}});
+ again.startPlayMetrics();subscriber([{id:'p1',kind:'refused'},{id:'p2',kind:'dm'},{id:'p3',kind:'save'},{id:'p4',kind:'table'}]);
+ assert.deepEqual(plain(again.sessionSummary(t0+50*60000)),{minutes:21,turns:13,failed:3,form:'desktop',build:'1a2b3c4d'},'the same session after a reload, with only the new problem counted');
+ again.countTurn();assert.equal(again.sendPlayRecord(t0+50*60000),true);const resent=JSON.parse(beacons.at(-1).blob.text);assert.equal(resent.session,JSON.parse(beacons[2].blob.text).session);assert.ok(resent.seq>=1);
+ const later=load('playMetrics.js',['sessionSummary'],{...ctx,Date:{now:()=>t0+3*3600000}});assert.equal(later.sessionSummary(t0+3*3600000).turns,0,'after half an hour away a new session begins');}
 pm.noteRatingShown(5);pm.noteRatingDismissed(6);pm.noteRatingDismissed(7);assert.deepEqual(plain(pm.readInsight().rating),{asked:5,answered:null,dismissed:7,dismissals:2});pm.noteRatingAnswered(8);assert.equal(pm.readInsight().rating.dismissals,0);
 
 // 3. The rating rules, and the same lists on both sides.

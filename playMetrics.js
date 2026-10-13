@@ -12,7 +12,7 @@
 // Settings → Help improve Questbound turns the counts off; the id is then forgotten and nothing more is sent.
 // The same setting holds whether to ask "How was that session?" (ratingRules.js) and when it was last asked.
 import {agreementStatus} from './agreementRules';
-import {subscribeProblems} from './problemLog';
+import {subscribeProblems,recentProblems} from './problemLog';
 import {pageBuild} from './feedbackRules';
 export const insightKey='questbound.insight.v1';
 const INSIGHT_IDLE=5*60000,INSIGHT_NEW_SESSION=30*60000;
@@ -46,7 +46,8 @@ export function placeOf({launched=true,storyCover=false,screen='Home',inGame=fal
  if(screen==='Adventure'&&inGame){if(stage==='dead')return 'dead';if(stage==='dying')return 'dying';if(fighting)return 'fight';return talking?'talk':'explore';}
  return {'Home':'title','Character Selection':'heroes','Character Creation':'builder','Adventure Opening':'opening','Level Up':'level-up','Multiplayer':'table','Legal':'legal','Settings':'settings','Character Sheet':'pages','Campaign Journal':'pages','Followers':'pages','Dice Roller':'pages','Adventure':'heroes'}[screen]??'title';
 }
-// Phone, tablet or desktop, from the pointer and the screen's shorter side.
+// Phone, tablet or desktop, from the pointer and the screen's shorter side; worked out when a session starts (while a
+// page is being left some browsers answer the pointer query as a desktop's).
 export function formOf(win=globalThis){
  let coarse=false;try{coarse=!!win?.matchMedia?.('(pointer: coarse)').matches;}catch{}
  const side=Math.min(win?.screen?.width??win?.innerWidth??1024,win?.screen?.height??win?.innerHeight??768);
@@ -61,11 +62,26 @@ export function failureOf(problem){
 }
 
 let session=null,talkingNow=false,lastPersist=0;
-function startSession(now){
- session={id:randomHex(8)??'0000000000000000',started:now,lastActive:now,active:0,seq:0,turns:0,failed:{},place:'launch',tale:null,easy:null,wait:{started:0,done:0,failed:0,waited:0,since:null},sent:null,first:false};
+// A reload of the tab (or a phone bringing the page back) carries on the same session while it is less than half an
+// hour old: the counts are kept in this tab's sessionStorage (never sent anywhere else).
+const SESSION_KEY='questbound.insight.session.v1';
+function saveSession(){try{if(session)globalThis.sessionStorage?.setItem(SESSION_KEY,JSON.stringify(session));}catch{}}
+function resumedSession(now){
+ try{
+  const s=JSON.parse(globalThis.sessionStorage?.getItem(SESSION_KEY)??'null');
+  const n=v=>Number.isFinite(v)&&v>=0;
+  if(!s||typeof s.id!=='string'||!/^[0-9a-f]{16}$/.test(s.id)||!n(s.started)||!n(s.lastActive)||!n(s.active)||!n(s.seq)||!n(s.turns)||now-s.lastActive>INSIGHT_NEW_SESSION||s.lastActive>now+60000)return null;
+  const w=s.wait&&typeof s.wait==='object'?s.wait:{};
+  return {id:s.id,started:s.started,lastActive:s.lastActive,active:s.active,seq:s.seq,turns:s.turns,failed:s.failed&&typeof s.failed==='object'?Object.fromEntries(Object.entries(s.failed).filter(([,v])=>n(v))):{},place:typeof s.place==='string'?s.place:'title',tale:typeof s.tale==='string'?s.tale:null,easy:typeof s.easy==='boolean'?s.easy:null,
+   wait:{started:n(w.started)?w.started:0,done:n(w.done)?w.done:0,failed:n(w.failed)?w.failed:0,waited:n(w.waited)?w.waited:0,since:n(w.since)?w.since:null},sent:typeof s.sent==='string'?s.sent:null,first:s.first===true,form:['phone','tablet','desktop'].includes(s.form)?s.form:formOf()};
+ }catch{return null;}
+}
+function startSession(now,{resume=false}={}){
+ session=(resume&&resumedSession(now))||{id:randomHex(8)??'0000000000000000',started:now,lastActive:now,active:0,seq:0,turns:0,failed:{},place:'launch',tale:null,easy:null,wait:{started:0,done:0,failed:0,waited:0,since:null},sent:null,first:false,form:formOf()};
+ saveSession();
  return session;
 }
-const current=()=>session??startSession(Date.now());
+const current=()=>session??startSession(Date.now(),{resume:true});
 // Time counts while someone is playing: from one tap or key to the next, up to five minutes apart (a longer gap is
 // someone away from the screen).
 export function notePlayActivity(now=Date.now()){
@@ -94,7 +110,7 @@ function noteFailure(kind){if(!kind)return;const f=current().failed;f[kind]=(f[k
 // The mechanical counts of this session so far, for the rating card: minutes, turns, failed turns, device, build.
 export function sessionSummary(now=Date.now()){
  const s=current();
- return {minutes:Math.min(1440,Math.floor(sessionSeconds(now)/60)),turns:Math.min(5000,s.turns),failed:Math.min(5000,['refused','unreachable','error','table'].reduce((t,k)=>t+(s.failed[k]??0),0)),form:formOf(),build:pageBuild()};
+ return {minutes:Math.min(1440,Math.floor(sessionSeconds(now)/60)),turns:Math.min(5000,s.turns),failed:Math.min(5000,['refused','unreachable','error','table'].reduce((t,k)=>t+(s.failed[k]??0),0)),form:s.form??formOf(),build:pageBuild()};
 }
 // The record for this session (the shape play-metrics.cjs accepts), or null while counts are off.
 export function playRecord(now=Date.now(),{store=insightStore(),created=null}={}){
@@ -102,7 +118,7 @@ export function playRecord(now=Date.now(),{store=insightStore(),created=null}={}
  if(!i.counts||!i.device)return null;
  const cap=(n,max)=>Math.max(0,Math.min(max,Math.floor(n)));
  const span=cap((now-s.started)/1000,86400),place=s.place==='explore'&&talkingNow?'talk':s.place;
- return {v:1,device:i.device,session:s.id,seq:cap(s.seq,500),first:created??s.first,build:pageBuild(),form:formOf(),active:Math.min(cap(sessionSeconds(now),86400),span+60),span,turns:cap(s.turns,5000),
+ return {v:1,device:i.device,session:s.id,seq:cap(s.seq,500),first:created??s.first,build:pageBuild(),form:s.form??formOf(),active:Math.min(cap(sessionSeconds(now),86400),span+60),span,turns:cap(s.turns,5000),
   failed:Object.fromEntries(Object.entries(s.failed).map(([k,v])=>[k,cap(v,5000)])),ended:place,tale:s.tale,easy:s.easy,
   wait:{started:cap(s.wait.started,50),done:cap(s.wait.done,50),failed:cap(s.wait.failed,50),waited:cap(s.wait.waited,86400),pending:s.wait.since==null?0:cap(Math.max(1,(now-s.wait.since)/1000),86400)}};
 }
@@ -110,6 +126,7 @@ export function playRecord(now=Date.now(),{store=insightStore(),created=null}={}
 // with keepalive. Only in a browser, only with the counts on and the current agreement accepted.
 export function sendPlayRecord(now=Date.now()){
  try{
+  saveSession();
   if(typeof globalThis.location==='undefined'||!agreementStatus().accepted)return false;
   let i=readInsight();if(!i.counts)return false;
   const s=current();
@@ -119,18 +136,20 @@ export function sendPlayRecord(now=Date.now()){
   if(!record||key===s.sent)return false;
   s.sent=key;s.seq=Math.min(500,s.seq+1);
   const body=JSON.stringify(record),nav=globalThis.navigator;
+  saveSession();
   let queued=false;try{queued=!!nav?.sendBeacon?.('/api/metrics',new Blob([body],{type:'text/plain'}));}catch{}
   if(!queued)fetch('/api/metrics',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body}).catch(()=>{});
   return true;
  }catch{return false;}
 }
 // Wires the counts to the page: activity, failures from the problem log, and sending when the page is hidden or left.
-// A session hidden for half an hour ends there; coming back starts a new one.
+// A session hidden for half an hour ends there; coming back starts a new one. Problems already in the log when the page
+// opens were counted before a reload, so they are not counted again.
 let insightStarted=false;
 export function startPlayMetrics(){
  if(insightStarted||typeof globalThis.addEventListener!=='function')return;
  insightStarted=true;current();
- const seen=new Set();
+ const seen=new Set((recentProblems?.()??[]).map(p=>p?.id).filter(Boolean));
  subscribeProblems(list=>{for(const p of list??[]){if(!p?.id||seen.has(p.id))continue;seen.add(p.id);noteFailure(failureOf(p));}});
  const active=()=>notePlayActivity(Date.now());
  for(const name of ['pointerdown','keydown','touchstart','wheel'])globalThis.addEventListener(name,active,{passive:true,capture:true});
@@ -142,5 +161,5 @@ export function startPlayMetrics(){
   else if(session)session.lastActive=now;
   hiddenAt=null;
  });
- globalThis.addEventListener('pagehide',()=>sendPlayRecord(Date.now()));
+ globalThis.addEventListener('pagehide',()=>{sendPlayRecord(Date.now());saveSession();});
 }

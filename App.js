@@ -434,13 +434,20 @@ function QuestboundApp() {
   const [rating,setRating]=useState(null),ratingTimer=useRef(null),ratingGame=useRef(game),wasInGame=useRef(inGame);
   const ratingBlocked=useRef(true);
   ratingBlocked.current=!launched||agreementShown||storyCover||feedbackOpen||typingPlay||(fighting&&game.stage!=='dead')||game.stage==='dying'||!!game.turnOrder||!!game.pendingSpell;
+  // The title cards of a finished fight, a tale, a level, a death or a new place (CinematicLayer.js) go first: the
+  // card waits until they have faded.
+  const cinematicUntil=useRef(0);
+  useCue(useCallback(event=>{const hold={death:8600,victory:3800,defeat:3800,down:3800,complete:3800,levelup:4000,area:4100,deed:4600}[event.kind];if(hold)cinematicUntil.current=Math.max(cinematicUntil.current,Date.now()+hold);},[]));
   const offerRating=useCallback(moment=>{
     clearTimeout(ratingTimer.current);
-    ratingTimer.current=setTimeout(()=>{
+    const show=tries=>{
+      const wait=cinematicUntil.current-Date.now();
+      if(wait>0&&tries<6){ratingTimer.current=setTimeout(()=>show(tries+1),wait+700);return;}
       const insight=readInsight();
       if(!mayAskRating({ask:insight.ask,record:insight.rating,moment,sessionSeconds:sessionSeconds(),deviceSeconds:deviceSeconds(),now:Date.now(),blocked:ratingBlocked.current}))return;
       noteRatingShown();setRating(old=>old??{moment,id:Date.now()});
-    },moment==='leave'?1200:6000);
+    };
+    ratingTimer.current=setTimeout(()=>show(0),moment==='leave'?1200:moment==='death'?6000:3500);
   },[]);
   useEffect(()=>()=>clearTimeout(ratingTimer.current),[]);
   useEffect(()=>subscribeInsight(i=>{if(!i.ask)setRating(null);}),[]);
@@ -575,7 +582,7 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
-  {rating&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):(home?12:60)} onClose={()=>setRating(null)}/>}
+  {rating&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
   {storyCover&&<StoryLoading introId={continuingNow?'surprise':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
   <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
