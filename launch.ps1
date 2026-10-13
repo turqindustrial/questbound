@@ -308,6 +308,11 @@ try {
   $unread = [int]((& node (Join-Path $root 'feedback-report.cjs') --count 2>$null | Select-Object -Last 1))
   if ($unread -gt 0) { Say ''; Say "  $unread new playtest note(s): node feedback-report.cjs" 'Yellow' }
 } catch {}
+# Anonymous play counts and session ratings, the last 7 days (play-report.cjs; all of it: node play-report.cjs).
+try {
+  $play = (& node (Join-Path $root 'play-report.cjs') --brief --days 7 2>$null | Select-Object -Last 1)
+  if ($play) { Say "  $play" 'DarkGray' }
+} catch {}
 Say ''
 Say '  Everything keeps running in the background after you close this window.' 'DarkGray'
 Say '  Stop it all with: Questbound.cmd -Stop' 'DarkGray'

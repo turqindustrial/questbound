@@ -136,5 +136,42 @@ const post=(port,body,{origin='http://localhost:'+port,host='localhost:'+port,ty
    assert.equal(mails,3,'three a day at most');
    assert.equal(fs.readFileSync(path.join(home,'feedback.jsonl'),'utf8').trim().split('\n').length,8,'every note is still saved');
   }finally{gate.server.close();fs.rmSync(home,{recursive:true,force:true});}}
- console.log('Feedback: the problem log keeps the last eight on one line each; details stay under 16 KB ('+size+' bytes for a long tale) with the build, spells, stage, last two turns and problems; notes cannot write headings and their records are cut and labelled; feedback-report lists unread notes (old ones too), joins refusals for the same browser (a phone player by their account label) and moves its marker only with --mark; the host\'s desktop takes notes from its own page only; the gateway mails notes within an hourly and daily ceiling.');
+ // 8. Session ratings ("How was that session?", SessionRating.js): a one-tap answer with the session's counts and no
+ // label, name, hero or turns; an addition of chips and a line follows it by ref; the gateway asks the account service
+ // nothing for them and mails only those with words; feedback-report shows them, folding the addition in.
+ {const {sessionRatingEntry}=require('./feedback-notes.cjs');
+  const answer=sessionRatingEntry({kind:'session',rating:'rough',moment:'death',session:{minutes:42,turns:31,failed:3,form:'phone',build:'1a2b3c4d',hero:'Ysolde'},hero:'Ysolde',text:'',context:{player:'Sam'},details:{recent:[1]}},{now:Date.UTC(2026,9,13,9,0)});
+  assert.deepEqual(Object.keys(answer.record).sort(),['at','chips','follows','guest','kind','moment','rating','ref','session','text']);
+  assert.equal(answer.record.guest,null);assert.deepEqual(answer.record.session,{minutes:42,turns:31,failed:3,form:'phone',build:'1a2b3c4d'},'only the counts: nothing else the game might send');
+  assert.ok(!/Ysolde|Sam/.test(JSON.stringify(answer)),'no name or hero reaches the files');
+  assert.match(answer.markdown,/^\n## 2026-10-13 09:00 UTC · Session rating: Rough\n\nAfter: death · Played: 42 min · Turns: 31 · Failed: 3 · phone · Build: 1a2b3c4d\nRef: fb-/);
+  assert.equal(sessionRatingEntry({kind:'session',rating:'meh'}).error,'Choose an answer first.');assert.equal(sessionRatingEntry({kind:'note'}).error,'Not a session rating.');
+  const addition=sessionRatingEntry({kind:'session',follows:answer.record.ref,chips:['slow','errors','slow','made-up'],text:'Replies took ages\n## heading'},{now:Date.UTC(2026,9,13,9,1)});
+  assert.deepEqual(addition.record.chips,['slow','errors']);assert.equal(addition.record.text,'Replies took ages ## heading');assert.equal(addition.markdown.split('\n## ').length,2,'an addition writes one heading');
+  assert.equal(sessionRatingEntry({kind:'session',follows:answer.record.ref}).error,'Nothing to add.');assert.equal(sessionRatingEntry({kind:'session',follows:'../etc',chips:['slow']}).error,'Choose an answer first.');
+  const {createPhoneServer}=require('./phone-server.cjs'),home=fs.mkdtempSync(path.join(os.tmpdir(),'qb-gateway-ratings-')),site=path.join(home,'site');fs.mkdirSync(site);fs.writeFileSync(path.join(site,'index.html'),'<h1>game</h1>');
+  let asked=0,mails=0;const fetchImpl=async url=>{asked++;throw Error('the account service is not asked about ratings: '+url);};
+  const gate=createPhoneServer({host:'127.0.0.1',port:0,root:site,code:'97531864',fetchImpl,feedbackFile:path.join(home,'feedback.md'),mailer:{feedback:async()=>{mails++;}}});
+  await new Promise(r=>gate.server.listen(0,'127.0.0.1',r));
+  const send=(route,body,cookie='')=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:gate.server.address().port,path:route,method:'POST',headers:{Host:'127.0.0.1:0',Origin:'http://127.0.0.1:0','Content-Type':'application/json',Cookie:cookie}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:t}));});req.on('error',reject);req.end(JSON.stringify(body));});
+  try{
+   const cookie=(await send('/pair',{code:'97531864'})).headers['set-cookie'][0].split(';')[0];
+   const first=await send('/api/feedback',{kind:'session',rating:'good',moment:'chapter',session:{minutes:30,turns:20,failed:0,form:'phone',build:'dev'}},cookie);
+   assert.equal(first.status,200);const ref=JSON.parse(first.text).ref;assert.match(ref,/^fb-/);
+   assert.equal((await send('/api/feedback',{kind:'session',follows:ref,chips:['story','people'],text:'Loved the innkeeper'},cookie)).status,200);
+   assert.equal((await send('/api/feedback',{kind:'session',rating:'nope'},cookie)).status,400);
+   assert.equal(asked,0,'no label is looked up for a rating');assert.equal(mails,1,'only the addition with words is mailed');
+   const records=fs.readFileSync(path.join(home,'feedback.jsonl'),'utf8').trim().split('\n').map(l=>JSON.parse(l));assert.ok(records.every(r=>r.guest===null&&r.kind==='session'));
+   const out=[];report.report(['--all'],{dir:home,print:t=>out.push(t)});const text=out.join('\n');
+   assert.match(text,/1 note \(1 session rating; the counts are in node play-report.cjs\)/,'the addition is folded into its answer');
+   assert.match(text,/session rating\nanswer good · after chapter · 30 min · 20 turns · 0 failed · phone · build dev\nChips: story, people\nNote: Loved the innkeeper/);
+  }finally{gate.server.close();fs.rmSync(home,{recursive:true,force:true});}
+  // The host's own desktop marks its ratings as this PC's.
+  const deskHome=fs.mkdtempSync(path.join(os.tmpdir(),'qb-desk-ratings-')),deskSite=path.join(deskHome,'site');fs.mkdirSync(deskSite);fs.writeFileSync(path.join(deskSite,'index.html'),'<h1>game</h1>');
+  const probe=createDesktopServer({root:deskSite,port:0});await new Promise(r=>probe.listen(0,'127.0.0.1',r));const port=probe.address().port;probe.close();
+  const desk=createDesktopServer({root:deskSite,port,feedbackFile:path.join(deskHome,'playtest-feedback.md')});await new Promise(r=>desk.listen(port,'127.0.0.1',r));
+  try{assert.equal((await post(port,{kind:'session',rating:'great',moment:'leave',session:{minutes:20}})).status,200);
+   const rec=JSON.parse(fs.readFileSync(path.join(deskHome,'.questbound-feedback.jsonl'),'utf8').trim());assert.equal(rec.from,'desktop');assert.equal(rec.rating,'great');}
+  finally{desk.close();fs.rmSync(deskHome,{recursive:true,force:true});}}
+ console.log('Feedback: the problem log keeps the last eight on one line each; details stay under 16 KB ('+size+' bytes for a long tale) with the build, spells, stage, last two turns and problems; notes cannot write headings and their records are cut and labelled; feedback-report lists unread notes (old ones too), joins refusals for the same browser (a phone player by their account label) and moves its marker only with --mark; the host\'s desktop takes notes from its own page only; the gateway mails notes within an hourly and daily ceiling; session ratings carry only the answer and the session\'s counts, take an addition by ref, are mailed only with words and are listed by feedback-report.');
 })().catch(e=>{console.error(e);process.exit(1);});

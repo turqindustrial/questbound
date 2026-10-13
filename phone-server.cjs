@@ -4,7 +4,8 @@
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
 const {setBaseHeaders,pagePolicy,filePolicies,publicFile}=require('./security-headers.cjs');
 const {createLimiter}=require('./rate-limit.cjs');
-const {feedbackEntry,saveFeedback,FEEDBACK_BODY_LIMIT}=require('./feedback-notes.cjs');
+const {feedbackEntry,sessionRatingEntry,saveFeedback,FEEDBACK_BODY_LIMIT}=require('./feedback-notes.cjs');
+const {metricsRecord,metricsWriter,METRICS_BODY_LIMIT}=require('./play-metrics.cjs');
 const privateIPv4=address=>/^10\./.test(address)||/^192\.168\./.test(address)||/^172\.(1[6-9]|2\d|3[01])\./.test(address);
 function phoneAddress(){return Object.values(os.networkInterfaces()).flat().find(n=>n.family==='IPv4'&&!n.internal&&privateIPv4(n.address))?.address;}
 const corner=t=>"url(\"data:image/svg+xml,"+encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34' fill='none' stroke='#c4344e' stroke-width='1.1' stroke-linecap='round'><g transform='${t}'><path d='M1.5 20V7A5.5 5.5 0 0 1 7 1.5h13'/><path d='M6 14V9.2A3.2 3.2 0 0 1 9.2 6H14' stroke-opacity='.55'/><path d='M10.5 8.8 12.2 10.5 10.5 12.2 8.8 10.5Z' fill='#b08cf5' stroke='none'/></g></svg>`)+"\")",corners=[corner('')+' top left',corner('translate(34 0) scale(-1 1)')+' top right',corner('translate(0 34) scale(1 -1)')+' bottom left',corner('translate(34 34) scale(-1 -1)')+' bottom right'].map(c=>c+'/34px 34px no-repeat').join(',');
@@ -18,7 +19,7 @@ const pairingPolicy=[false,true].map(shared=>pagePolicy(pairingPage(shared)));
 // on a hosted machine the header its proxy sets, given by the host (trustProxy), else the last X-Forwarded-For entry,
 // the one the nearest proxy added (earlier entries are whatever the visitor sent, so they are never trusted).
 const proxyHeaderFor=(shared,trustProxy)=>typeof trustProxy==='string'&&/^[a-z0-9-]{2,40}$/i.test(trustProxy)?trustProxy.toLowerCase():trustProxy?'x-forwarded-for':shared?'cf-connecting-ip':null;
-function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
+function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,metricsFile=null,metricsFrom='link',code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
  root=path.resolve(root);
  const shared=publicOrigin?new URL(publicOrigin):null;
  if(shared&&(shared.protocol!=='https:'||shared.pathname!=='/'||shared.search||shared.hash))throw Error('A shared link must be a plain https:// origin.');
@@ -43,6 +44,9 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  // Behind the tunnel every request arrives from loopback and the tunnel names the real visitor in CF-Connecting-IP; a
  // hosted gateway behind its platform's proxy (trustProxy, serve.cjs) reads the proxy's header for the same reason.
  const proxyHeader=proxyHeaderFor(shared,trustProxy);
+ // Anonymous play counts (play-metrics.cjs): a record when a session goes out of sight, so a few an hour per browser;
+ // kept apart from the other limits. Sixty an hour per browser and per visitor address is far more than play sends.
+ const metricsLimits={browser:limiter(60,3600000),visitor:limiter(120,3600000)},writeMetrics=metricsFile?metricsWriter(metricsFile,{now}):null;
  const client=req=>{
   const address=req.socket.remoteAddress;if(!proxyHeader||(!trustProxy&&!loopback.includes(address)))return address;
   const raw=req.headers[proxyHeader],value=Array.isArray(raw)?raw.join(','):String(raw??''),forwarded=(proxyHeader==='x-forwarded-for'?value.split(',').at(-1):value).trim();
@@ -139,6 +143,15 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     const visitor=String(client(req)??''),recent=(feedbackUse.get(token)??[]).filter(t=>t>now()-3600000),nearby=(feedbackVisitors.get(visitor)??[]).filter(t=>t>now()-3600000);
     if(recent.length>=10||nearby.length>=20)return json(res,429,{error:'Thanks! That’s plenty of notes for one hour. Try again a little later.'});
     let note;try{note=JSON.parse(await body(req,FEEDBACK_BODY_LIMIT));}catch(e){if(e.status)throw e;return json(res,400,{error:'That note could not be read.'});}
+    // A session rating (SessionRating.js) carries no label for the browser and is mailed only when it has words.
+    if(note?.kind==='session'){
+     const rated=sessionRatingEntry(note,{now:now()});if(rated.error)return json(res,400,{error:rated.error});
+     try{saveFeedback(feedbackFile,rated);}catch{return json(res,500,{error:'The host’s PC could not save that answer.'});}
+     recent.push(now());feedbackUse.set(token,recent);nearby.push(now());feedbackVisitors.set(visitor,nearby);if(feedbackVisitors.size>2048)feedbackVisitors.delete(feedbackVisitors.keys().next().value);
+     while(mailed.length&&mailed[0]<=now()-86400000)mailed.shift();
+     if(rated.record.text&&mailed.filter(t=>t>now()-3600000).length<feedbackMail.hour&&mailed.length<feedbackMail.day){mailed.push(now());(mailer??require('./mailer.cjs').createMailer()).feedback(rated.markdown).catch(()=>{});}
+     return json(res,200,{saved:true,ref:rated.record.ref});
+    }
     // The readable entry and the full record (feedback-notes.cjs); the record names the browser only by its guest
     // label, the same one the Dungeon Master's logs use, never by its cookie.
     // A signed-in player's note carries their account label, the one the Dungeon Master's logs use for their turns, so
@@ -154,6 +167,16 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // sending limit that account verification codes depend on. Past it the note is only kept on disk.
     while(mailed.length&&mailed[0]<=now()-86400000)mailed.shift();
     if(mailed.filter(t=>t>now()-3600000).length<feedbackMail.hour&&mailed.length<feedbackMail.day){mailed.push(now());(mailer??require('./mailer.cjs').createMailer()).feedback(entry.markdown).catch(()=>{});}
+    return json(res,200,{saved:true});
+   }
+   // Anonymous play counts (play-metrics.cjs): same origin, JSON (or text/plain from sendBeacon), small, strict.
+   if(pathname==='/api/metrics'&&req.method==='POST'){
+    if(!writeMetrics)return json(res,404,{error:'Not collected here.'});
+    if(req.headers.origin!==origin||!/^(application\/json|text\/plain)/.test(req.headers['content-type']??''))return json(res,403,{error:'Use the Questbound game.'});
+    {const seconds=metricsLimits.browser(token)||metricsLimits.visitor(String(client(req)??''));if(seconds)return wait(res,seconds,'Too many records.');}
+    let parsed;try{parsed=JSON.parse(await body(req,METRICS_BODY_LIMIT));}catch(e){if(e.status)throw e;return json(res,400,{error:'Not a record.'});}
+    const checked=metricsRecord(parsed,{now:now(),from:metricsFrom});if(checked.error)return json(res,400,{error:checked.error});
+    try{writeMetrics(checked.record);}catch{return json(res,500,{error:'Not saved.'});}
     return json(res,200,{saved:true});
    }
    if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'Method not allowed.'});
@@ -208,7 +231,7 @@ if(require.main===module){
   // gateway for the same link keeps the invite code the testers already have.
   const sessionFile=path.join(__dirname,'.questbound-share-session.json');let previous=null;
   try{const saved=JSON.parse(fs.readFileSync(sessionFile,'utf8'));if(saved.link===new URL(publicOrigin).origin+'/'&&/^\d{8}$/.test(saved.inviteCode)&&Date.parse(saved.expiresAt)>Date.now()+3600000)previous=saved;}catch{}
-  let created;try{created=createPhoneServer({host:'127.0.0.1',port:8087,publicOrigin,pairingHours:720,sessionHours:720,maxSessions:40,dmLimit:60,sessionStore:path.join(__dirname,'.questbound-share-sessions.json'),feedbackFile:path.join(__dirname,'playtest-feedback.md'),...(previous?{code:previous.inviteCode,expiresAt:Date.parse(previous.expiresAt)}:{})});}catch(e){console.error(e.message);process.exitCode=1;}
+  let created;try{created=createPhoneServer({host:'127.0.0.1',port:8087,publicOrigin,pairingHours:720,sessionHours:720,maxSessions:40,dmLimit:60,sessionStore:path.join(__dirname,'.questbound-share-sessions.json'),feedbackFile:path.join(__dirname,'playtest-feedback.md'),metricsFile:path.join(__dirname,'.questbound-metrics.jsonl'),...(previous?{code:previous.inviteCode,expiresAt:Date.parse(previous.expiresAt)}:{})});}catch(e){console.error(e.message);process.exitCode=1;}
   if(created){const {server,info}=created;server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'Sharing is already running on port 8087.':e.message);process.exitCode=1;});server.listen(8087,'127.0.0.1',()=>{fs.writeFileSync(sessionFile,JSON.stringify({link:info.phone,inviteCode:info.pairingCode,expiresAt:info.expiresAt,pid:process.pid},null,2));console.log('Shared link: '+info.phone+'\nInvite code: '+info.pairingCode+'\nValid until '+info.expiresAt+'. Keep this PC, the tunnel and the Dungeon Master running.');});}
  }
  else{

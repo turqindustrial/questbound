@@ -75,6 +75,10 @@ export const iconPaths={
  people:{glyph:'♞',svg:'<circle cx="7.5" cy="8.5" r="2.6"/><circle cx="16.5" cy="8.5" r="2.6"/><path d="M2.5 18.5c.5-3 2.4-4.6 5-4.6s4.5 1.6 5 4.6M11.5 18.5c.5-3 2.4-4.6 5-4.6s4.5 1.6 5 4.6"/>'},
  feedback:{glyph:'✎',svg:'<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M12 8l.8 1.7 1.9.3-1.4 1.3.3 1.9L12 12.3l-1.7.9.3-1.9-1.4-1.3 1.9-.3z" fill="currentColor" stroke="none"/>'},
  palette:{glyph:'◐',svg:'<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 2-.9 2-1.9 0-.6-.3-1-.6-1.4-.3-.4-.5-.8-.5-1.3 0-1 .8-1.9 2-1.9H17a3.5 3.5 0 0 0 3.5-3.5c0-3.9-3.8-7-8.5-7Z"/><circle cx="7.8" cy="11.8" r="1.1"/><circle cx="10" cy="7.9" r="1.1"/><circle cx="14.4" cy="7.4" r="1.1"/><circle cx="17.2" cy="10.6" r="1.1"/>'},
+ faceGreat:{glyph:'☺',svg:'<circle cx="12" cy="12" r="8.5"/><path d="M8 9.6c.5-.8 1.5-.8 2 0M14 9.6c.5-.8 1.5-.8 2 0"/><path d="M7.6 13.2h8.8a4.4 4.4 0 0 1-8.8 0z"/>'},
+ faceGood:{glyph:'🙂',svg:'<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/><path d="M8.5 14.2c1.9 2 5.1 2 7 0"/>'},
+ faceOkay:{glyph:'😐',svg:'<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/><path d="M8.8 15h6.4"/>'},
+ faceRough:{glyph:'☹',svg:'<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/><path d="M8.5 16.2c1.9-2 5.1-2 7 0"/>'},
  dots:{glyph:'…',svg:'<circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none"/>'},
 };
 // Class crests and weapon families, so a hero or a weapon always gets a fitting emblem.
