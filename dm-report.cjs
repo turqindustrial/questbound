@@ -1,14 +1,9 @@
 // What the Dungeon Master cost and where it stumbled: sums the local usage log (.questbound-usage.jsonl, one line per
 // live request) and the rejection log (.questbound-diagnostics.jsonl) for today, or the last N days with --days N.
 // Prices are per million tokens (input, cached input, output) for the models the launcher suggests (spending.cjs, which
-<<<<<<< HEAD
 // also prices each painting); other models show tokens only. Nothing here calls the provider.
 // It also shows today's spending and this month's against the host's ceilings (spending.cjs), and whether guests are
 // paused. --status prints just that, on one line (the launcher shows it); --dir <folder> reads a hosted data folder.
-=======
-// also prices each painting); other models show tokens only. Nothing here calls the provider. --dir names another data
-// folder (a hosted game's QUESTBOUND_DATA, or a test's).
->>>>>>> qb/w-reliable
 const fs=require('node:fs'),path=require('node:path');
 const {prices,paintingPrice,costOf,createSpending}=require('./spending.cjs');
 const arg=name=>{const i=process.argv.indexOf(name);return i>=0?process.argv[i+1]:undefined;};
@@ -28,7 +23,6 @@ if(process.argv.includes('--status')){
  process.exit(0);
 }
 const days=Math.max(1,Number(process.argv[process.argv.indexOf('--days')+1])||1);
-const dir=process.argv.includes('--dir')?path.resolve(process.argv[process.argv.indexOf('--dir')+1]??'.'):process.env.QUESTBOUND_DATA||__dirname;
 const since=new Date(Date.now()-(days-1)*86400000);since.setHours(0,0,0,0);
 const lines=file=>{try{return fs.readFileSync(path.join(dir,file),'utf8').split(/\r?\n/).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(e=>e&&new Date(e.at)>=since);}catch{return [];}};
 const usage=lines('.questbound-usage.jsonl'),noted=lines('.questbound-diagnostics.jsonl'),rejections=noted.filter(e=>e.error),looks=noted.filter(e=>e.secondLook);
@@ -50,11 +44,6 @@ else{
  // Guests (players on phones and the shared link) and the host's daily allowance for them (spending.cjs).
  const guests=usage.filter(u=>u.guest),guestCost=guests.reduce((n,u)=>n+costOf(u),0);
  if(guests.length)console.log('Guests: '+guests.length+' requests from '+new Set(guests.map(u=>u.guest)).size+' browser(s), about '+money(guestCost)+'.');
-<<<<<<< HEAD
-=======
- const now=createSpending({dir}).summary();
- console.log('Today\'s allowance for guests: '+(now.budget===null?'no total (.questbound-guest-budget says off)':money(now.guests)+' of '+money(now.budget)+' used by all guests together (.questbound-guest-budget)')+'; '+(now.share===null?'no limit for each player':'each player may use up to '+money(now.share)+' a day (.questbound-player-budget); the most any one used today: '+money(now.topGuest))+'.');
->>>>>>> qb/w-reliable
  const avg=usage.filter(u=>u.mode==='turn');if(avg.length)console.log('A game turn request averages '+Math.round(avg.reduce((a,u)=>a+u.input,0)/avg.length)+' input tokens, of which '+Math.round(avg.reduce((a,u)=>a+u.cached,0)/avg.length)+' cached, and '+Math.round(avg.reduce((a,u)=>a+u.output,0)/avg.length)+' output tokens.');
 }
 // The host's ceilings (spending.cjs): how close today and the month are, and whether guests are paused.
