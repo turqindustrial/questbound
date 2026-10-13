@@ -107,7 +107,9 @@ const htmlFor=(docs,title)=>{
 const mdFor=docs=>'# Questbound: '+docs.map(d=>d.title).join(' and ')+'\n\n_Last updated '+legalUpdated+'. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._\n\n'+docs.map(doc=>'## '+doc.title+'\n\n'+doc.sections.map(s=>'### '+s.heading+'\n\n'+s.paragraphs.map(p=>p.startsWith('- ')?p:p+'\n').join('\n')).join('\n')).join('\n');
 const outputs={'public/privacy.html':htmlFor([privacyPolicy],'Privacy policy'),'public/terms.html':htmlFor([termsOfUse,licences],'Terms of use'),'public/permissions.html':htmlFor([permissionsAgreement],'Permissions agreement'),'PRIVACY.md':mdFor([privacyPolicy]),'TERMS.md':mdFor([termsOfUse,licences]),'PERMISSIONS.md':mdFor([permissionsAgreement])};
 if(process.argv.includes('--write')){for(const [file,content] of Object.entries(outputs))fs.writeFileSync(file,content);console.log('Wrote '+Object.keys(outputs).join(', ')+'.');}
-else for(const [file,content] of Object.entries(outputs))assert.equal(fs.existsSync(file)?fs.readFileSync(file,'utf8'):'',content,file+' is out of date: run node verify-legal.cjs --write');
+// Compared without regard to line endings: .gitattributes keeps these files LF, but a Windows checkout made before
+// that holds them with CRLF.
+else for(const [file,content] of Object.entries(outputs))assert.equal(fs.existsSync(file)?fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n'):'',content,file+' is out of date: run node verify-legal.cjs --write');
 // The pages are served to an unpaired browser, so the pairing page's links work.
 (async()=>{
  const {createPhoneServer}=require('./phone-server.cjs');
