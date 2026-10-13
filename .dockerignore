@@ -16,3 +16,5 @@ verify-*
 qa-*
 *.test.*
 test-fixtures.cjs
+save-fixtures
+make-save-fixtures.cjs
