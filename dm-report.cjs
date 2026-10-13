@@ -57,8 +57,10 @@ else{
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
 const byError={};for(const r of rejections)byError[r.error]=(byError[r.error]??0)+1;
 for(const [error,n] of Object.entries(byError).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+error);
+// Tales written in the background that failed (a ready journey for the library, a story job): what kind of failure.
+{const failed=noted.filter(e=>e.write&&e.failure);if(failed.length){console.log('\nBackground tales that failed: '+failed.length);const kinds={};for(const f of failed){const k=f.write+': '+f.failure+(f.status?' '+f.status:'')+(f.code?' '+f.code:'')+(f.reason?' ('+f.reason+')':'');kinds[k]=(kinds[k]??0)+1;}for(const [kind,n] of Object.entries(kinds).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+kind);}}
 // Second looks: replies that did not do what the player plainly asked (or could not be used) and were asked for again.
-console.log('\nSecond looks: '+looks.length+(usage.length?' of '+usage.length+' live requests':''));
+console.log('\nSecond looks:'+looks.length+(usage.length?' of '+usage.length+' live requests':''));
 {const kinds={};for(const l of looks){const k=l.secondLook+' ('+l.outcome+')';kinds[k]=(kinds[k]??0)+1;}for(const [kind,n] of Object.entries(kinds).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+kind);}
 if(rejections.length){const phases={};for(const r of rejections){const k=r.context?.engineResolved?'narrating a resolved turn':r.context?.pendingSpell?'ruling on a spell':r.context?.sceneTrigger?'a scene cue':'an ordinary turn';phases[k]=(phases[k]??0)+1;}console.log('  during: '+Object.entries(phases).map(([k,n])=>n+' '+k).join(', '));}
 // Reliability (the host, 2026-10-13: a failed turn should be rarer than 1 in 200, and never a parse failure in front of

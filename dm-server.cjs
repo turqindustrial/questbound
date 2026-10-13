@@ -3,7 +3,7 @@ const {diagnose,providerError}=require('./ai-diagnostics.cjs'),{loopbackHost}=re
 delete require.cache[require.resolve('./dm-rules.cjs')];
 const {rulesFor,validateGroundedReply}=require('./dm-rules.cjs');
 delete require.cache[require.resolve('./ai-request.cjs')];
-const {modelOptions,providerTimeout,outputBudget,outputText,firstObject,repairedJson}=require('./ai-request.cjs');
+const {modelOptions,providerTimeout,outputBudget,outputText,firstObject,repairedJson,requestFailure}=require('./ai-request.cjs');
 // Holding the Dungeon Master to what the player asked (reloaded with this file, so an edit there is live at once).
 delete require.cache[require.resolve('./dm-intent.cjs')];
 const {situation,secondLook,settled}=require('./dm-intent.cjs');
@@ -307,7 +307,7 @@ const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64
 // writer (no guest label), and only while background writing may spend: spending.cjs `background()` (the host's
 // ceilings and the guests' pause switch) when the module has it; without it, writing is paced by the library alone.
 // Tests pass a stand-in `library`.
-function loadLibrary(){if(require('./tale-library.cjs').revision!==1)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
+function loadLibrary(){if(require('./tale-library.cjs').revision!==2)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
 function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
 // A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
 // adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and
@@ -324,11 +324,11 @@ function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spen
  const ceilings=spend??(live?loadSpending():null);
  if(!backgroundAllowed(ceilings))return false;
  const write=brief=>{
-  if(!backgroundAllowed(ceilings))return Promise.reject(Error('Spending ceiling reached.'));
+  if(!backgroundAllowed(ceilings))return Promise.reject(Object.assign(Error('Spending ceiling reached.'),{kind:'ceiling'}));
   delete require.cache[require.resolve('./adventure-generator.cjs')];
   return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'easy',ahead:true,libraryBrief:brief,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:null,onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,null)});
  };
- return library.topUp(write,{accept:journeyCheck});
+ return library.topUp(write,{accept:journeyCheck,onFailure:e=>recordWriteFailure('library',e,live)});
 }
 // The journeys on offer, as a device sees them. A cover is offered only when its picture costs nothing more: already
 // painted (the journey's opening place, under the journey's art id) or, once world-art.cjs can answer a place from
@@ -438,7 +438,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     // Asked for with a job id, the tale is written in the background with the effort the host chose, for as long as
     // it takes (up to seven minutes; at high effort a tale takes about three); the game asks after it every few
     // seconds (storyJob above).
-    if(body.context.job!==undefined)return loadStoryJobs().start(body.context.job,()=>write(effort,420000));
+    if(body.context.job!==undefined)return loadStoryJobs().start(body.context.job,()=>write(effort,420000).catch(e=>{recordWriteFailure('story-job',e,live,guest);throw e;}));
     // A browser on an earlier build waits on this one request: light thinking, so the tale arrives inside 80 seconds.
     return write(['medium','high','xhigh'].includes(effort)?'low':effort);
   }
@@ -776,6 +776,13 @@ function recordRejection(error,result,body,live=true,shape=null,extra=null){
   fs.appendFileSync(file,JSON.stringify(entry)+'\n');
  }catch{}
 }
+// A tale written in the background (a ready journey for the library, or a story job) that failed is noted with what
+// kind of failure it was and nothing of its words (requestFailure in ai-request.cjs: timeout, provider HTTP status,
+// incomplete, failed, refused, invalid JSON, rejected by journeyCheck...), so the next failure can be told apart.
+function recordWriteFailure(what,error,live=true,guest=null){
+ if(!live)return;
+ try{const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-diagnostics.jsonl');fs.appendFileSync(file,JSON.stringify({at:new Date().toISOString(),...(guest?{guest}:{}),write:what,...requestFailure(error)})+'\n');}catch{}
+}
 // Second looks are noted beside the rejections (kind and outcome only), so the host can see how often the Dungeon
 // Master had to be asked twice: node dm-report.cjs counts them.
 function recordSecondLook(kind,outcome,body,live=true){
@@ -831,4 +838,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
