@@ -334,6 +334,7 @@ function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spen
 // painted (the journey's opening place, under the journey's art id) or, once world-art.cjs can answer a place from
 // ready-made paintings, whatever its `readyMade(subject)` says. A device never asks for a cover that would be painted.
 function journeyCovers(){
+ if(require('./world-art.cjs').revision!==7)delete require.cache[require.resolve('./world-art.cjs')];
  const fs=require('node:fs'),path=require('node:path'),art=require('./world-art.cjs'),dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-art');
  return subject=>{try{if(typeof art.artStore?.readyMade==='function'&&art.artStore.readyMade(subject))return true;return fs.existsSync(path.join(dir,art.artKey(art.validateSubject(subject))+'.jpg'));}catch{return false;}};
 }
