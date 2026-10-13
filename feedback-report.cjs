@@ -50,7 +50,7 @@ function describe(note,diagnostics){
  for(const p of (d.problems??[]).filter(Boolean))out.push('Problem ('+p.kind+'): '+(p.said??'(no words)')+' -> '+(p.error??p.answer??'(no message)')+(p.action?' [action '+p.action+(p.spell?' '+p.spell:'')+']':''));
  for(const t of (d.recent??[]).filter(Boolean))out.push('Turn: '+(t.said??'(no words)')+' -> '+[...(t.rulings??[]).slice(0,3),t.narration].filter(Boolean).join(' | ').slice(0,400));
  if(mentionsSpell(note)&&d.hero?.spells)out.push('Spells: '+[...(d.hero.spells.known??[]),...(d.hero.spells.spellbook??[]).map(s=>s+' (book)')].join(', ')+(d.hero.spells.slotsUsed?.length?' · slots used '+d.hero.spells.slotsUsed.join('/'):''));
- for(const r of rejectionsFor(note,diagnostics))out.push('DM refused at '+r.at.slice(11,19)+': '+(r.error??(r.secondLook?'second look '+r.secondLook+' '+r.outcome:'')));
+ for(const r of rejectionsFor(note,diagnostics))out.push('DM refused at '+r.at.slice(11,19)+': '+(r.error??(r.secondLook?'second look '+r.secondLook+' '+r.outcome:r.turn?'turn '+r.turn+' ('+(Array.isArray(r.reasons)?r.reasons.join(', '):'')+')':'')));
  return out.join('\n');
 }
 function report(argv=process.argv.slice(2),{dir=__dirname,print=console.log,now=()=>new Date()}={}){
