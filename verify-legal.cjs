@@ -28,6 +28,13 @@ assert.ok(fs.readFileSync('phone-server.cjs','utf8').includes("parsed.guest='acc
 assert.ok(text(privacyPolicy).includes('pseudonymous label for your browser: a cut of its random guest identifier')&&!text(privacyPolicy).includes('email address, the same on every device'),'the policy describes the label OpenAI gets');
 assert.ok(fs.readFileSync('feedbackRules.js','utf8').includes('(g.storyLog??[]).slice(-6)')&&text(privacyPolicy).includes('latest six lines of the story log')&&text(privacyPolicy).includes('hit points, spells and class resources')&&text(privacyPolicy).includes('your experience points'),'the policy lists the story lines, hit points and experience a note carries');
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("recordUsage('turn'")&&text(privacyPolicy).includes('never the words themselves'));
+// The content check and table moderation (moderation.cjs, campaigns.cjs, tableMutes.js; the host, 2026-10-13): the
+// texts say typed words and table names go to OpenAI's moderation service, what a report carries, the pause, mutes and bans.
+{const mod=fs.readFileSync('moderation.cjs','utf8'),camp=fs.readFileSync('campaigns.cjs','utf8');
+ assert.ok(mod.includes("MODEL='omni-moderation-latest'")&&text(privacyPolicy).includes("OpenAI's moderation service")&&text(termsOfUse).includes("checked by OpenAI's moderation service")&&text(permissionsAgreement).includes("OpenAI's moderation service checks what you type"),'the moderation check is described');
+ assert.ok(camp.includes('return lines.slice(-5);')&&text(privacyPolicy).includes('the last few lines (at most five) the reported player typed'),'what a report carries');
+ assert.ok(mod.includes('pauseMs=1200000')&&text(privacyPolicy).includes('pause your use of the Dungeon Master for twenty minutes'),'the pause');
+ assert.ok(text(privacyPolicy).includes('the players you muted at each shared table')&&fs.readFileSync('tableMutes.js','utf8').includes("KEY='questbound.mutes.v1'")&&text(privacyPolicy).includes('keeps a keyed hash of that browser')&&text(termsOfUse).includes('close the whole game to your browser'),'mutes and bans');}
 // Typefaces come from the host, so no third party sees a page load; the policy no longer names Google Fonts.
 for(const file of ['webTheme.js','public/index.html','phone-server.cjs'])assert.ok(!fs.readFileSync(file,'utf8').includes('fonts.googleapis.com'),file+' loads no fonts from Google');
 assert.ok(!text(privacyPolicy).includes('Google Fonts')&&fs.existsSync('public/fonts/fonts-v2.css')&&['cinzel','cinzel-decorative','eb-garamond','inter'].every(f=>fs.existsSync('public/fonts/OFL-'+f+'.txt')),'fonts and their licences are in public/fonts');
