@@ -274,7 +274,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       if(protocol>=3&&body.discovery){const {travel,...place}=body.discovery;await finish({type:'discover',place,travel},body);return;}
       // A creature the DM sprang on the player out in the wilds: the fight starts, and the player moves first.
       if(protocol>=3&&body.ambush){await finish({type:'ambush',foe:body.ambush},body);return;}
-      const choice=body.actionId===null?null:[...dmChoices(hero,game),...mapMoves(game)].find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
+      const choice=body.actionId===null?null:[...dmChoices(hero,game,health),...mapMoves(game)].find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
       if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration);return;}
       const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
       if(protocol<2&&choice)setReply({narration:body.narration,pending:choice,snapshot:JSON.stringify({hero,game:result.game,health:result.health})});

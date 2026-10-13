@@ -9,6 +9,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const load=(file,names,context={})=>{context.globalThis=context;return vm.runInNewContext(fs.readFileSync(file,'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')+'\n({'+names.join(',')+'})',context);};
 const plain=v=>JSON.parse(JSON.stringify(v));
 const metrics=require('./play-metrics.cjs');
+// The module reads its clock from this context: the fixed day below, so the result never depends on when the check runs.
 const DAY=86400000,NOW=Date.UTC(2026,9,13,12,0);
 
 // 1. The schema: a good record is kept with the device id cut from its hash; anything else is refused.
@@ -35,7 +36,7 @@ assert.equal(metrics.METRICS_BODY_LIMIT,2000);assert.ok(JSON.stringify(good).len
 const store=(()=>{const d={};return {getItem:k=>d[k]??null,setItem:(k,v)=>{d[k]=String(v);},removeItem:k=>{delete d[k];},data:d};})();
 let accepted2=true,subscriber=null;const beacons=[];const tab=(()=>{const d={};return {getItem:k=>d[k]??null,setItem:(k,v)=>{d[k]=String(v);},removeItem:k=>{delete d[k];},data:d};})();
 const ctx={localStorage:store,crypto:require('node:crypto').webcrypto,location:{hostname:'questbound.example'},navigator:{sendBeacon:(url,blob)=>{beacons.push({url,blob});return true;}},Blob:class{constructor(parts,opts){this.text=parts.join('');this.type=opts?.type;}},
- sessionStorage:tab,agreementStatus:()=>({accepted:accepted2}),subscribeProblems:fn=>{subscriber=fn;return()=>{};},recentProblems:()=>[],pageBuild:()=>'1a2b3c4d',fetch:async()=>({}),Date,Math,JSON,Number,Object,Array,String,Set,Uint8Array,setTimeout,clearTimeout};
+ sessionStorage:tab,agreementStatus:()=>({accepted:accepted2}),subscribeProblems:fn=>{subscriber=fn;return()=>{};},recentProblems:()=>[],pageBuild:()=>'1a2b3c4d',fetch:async()=>({}),Date:class extends Date{constructor(...a){super(...(a.length?a:[NOW]));}static now(){return NOW;}},Math,JSON,Number,Object,Array,String,Set,Uint8Array,setTimeout,clearTimeout};
 const pm=load('playMetrics.js',['readInsight','setInsight','placeOf','formOf','failureOf','notePlayActivity','sessionSeconds','deviceSeconds','countTurn','notePlace','noteTalking','noteTale','noteStoryWait','sessionSummary','playRecord','sendPlayRecord','startPlayMetrics','noteRatingShown','noteRatingAnswered','noteRatingDismissed','insightKey'],ctx);
 assert.deepEqual(plain(pm.readInsight()),{counts:true,ask:true,device:null,playSeconds:0,rating:{asked:null,answered:null,dismissed:null,dismissals:0}},'on by default, no id until something is sent');
 // placeOf and failureOf: fixed words only.

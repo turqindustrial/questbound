@@ -6,7 +6,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const {rulesSource}=require('./rules-files.cjs');
 const source=rulesSource();
-const r=vm.runInNewContext(source+'\n;({readyHero,makeCharacter,blankBuild,newAdventure,freshStoryGame,hostileEncounterGame,hostileFoes,adventureStep,combatBasics,dmChoices,dmCommand,quickActions,spellActions,attackOptions,startParty,joinParty,partyView,validAdventure,adventureSnapshot})',{AsyncStorage:{},console});
+const r=vm.runInNewContext(source+'\n;({readyHero,makeCharacter,blankBuild,newAdventure,freshStoryGame,hostileEncounterGame,hostileFoes,adventureStep,combatBasics,dmChoices,dmCommand,commitDmTurn,quickActions,spellActions,attackOptions,startParty,joinParty,partyView,validAdventure,adventureSnapshot})',{AsyncStorage:{},console});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const person=name=>({name,species:'Human',gender:'man',role:'A resident.',motive:'Wants the road safe.',appearance:'A weathered face under a wool hood, with a scar.',personality:'Plain.',ties:{other:'friend',foe:'enemy',note:'They share the refuge.'}});
 const story={id:'offers-1',status:'active',title:'The Notch',premise:'A pass is closed.',opening:'Snow at the gate.',objective:'Open the pass.',resolution:'The pass is open.',secret:'The warden sold it.',foe:'Kestrel of the Notch',foeSpecies:'Human',foeAppearance:'A lean swordsman in a grey cloak with a hawk mask.',foeDamageType:'Slashing',region:'Veyr',terrain:'mountains',
@@ -94,4 +94,19 @@ const pick=key=>()=>(r.hostileFoes.findIndex(f=>f.key===key)+.5)/r.hostileFoes.l
  const twins=r.spellActions(cleric,both.game).filter(c=>c.key==='spell:cure:party:B'||c.key==='spell:cure:party:C');
  assert.deepEqual(plain(twins.map(c=>c.action?.request?.partyTarget).sort()),['B','C'],'each namesake has a chip of their own');
 }
+// ---- Lay on Hands as the bonus action after an attack (the host, 2026-10-13: "I couldn't cast lay hands") ----
+// The chip's own words "I lay my hands on my wounds." were not read, so they went to the Dungeon Master, which chose
+// Lay on Hands; the commit then checked the offered moves without the hero's hit points (as if unhurt) and refused it.
+{
+ const hero=r.makeCharacter({...r.blankBuild(),name:'Grikka Paladin',species:'Goblin',class:'Paladin',background:'Soldier',bonusMode:'three',baseScores:[15,10,13,8,12,14],level:3,advancements:[],spellSelectionVersion:2,plannedSubclass:'Oath of Ashes',spells:[]});
+ const max=r.combatBasics(hero).hp;let g={...r.hostileEncounterGame(hero,r.newAdventure(hero),pick('bandit')),openingAttackAvailable:false,potions:0,enemyHP:300},h={current:max-6,temp:0};
+ const s=r.adventureStep(g,h,hero,'attack:'+r.attackOptions(hero)[0].name,()=>0.85);assert.ok(!s.error,s.error);g=s.game;h=s.health;
+ assert.ok(g.actionUsed&&h.current<max,'the action is spent and the hero is hurt');
+ for(const words of ['I lay my hands on my wounds.','I lay on hands.','I use lay on hands on myself','I lay both hands on the wound'])assert.equal(r.dmCommand(hero,g,words,h).action,'class:hands',words+' reads as Lay on Hands');
+ assert.ok(r.dmChoices(hero,g,h).some(c=>c.action==='class:hands'),'Lay on Hands is offered as the bonus action');
+ const done=r.commitDmTurn(hero,g,h,'class:hands',{question:'I call on my oath to heal myself.',narration:'Warm light closes the bite.'},()=>0.5);
+ assert.equal(done.error,undefined,'the choice by the Dungeon Master of Lay on Hands is accepted while the hero is hurt');
+ assert.ok(done.health.current>h.current,'and it heals');
+}
+
 console.log('Offered moves: Hellish Rebuke after the action is taken as a reaction; a story offers no long rest from a dead or hostile keeper, no draught at full health and no crossroads vaults, and everything it offers is accepted; party heal chips carry their hero, whatever the names.');

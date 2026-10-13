@@ -246,7 +246,8 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
     if(hero.class==='Fighter'&&/\bsecond wind\b/i.test(text))return {action:'class:wind'};
     if(hero.class==='Fighter'&&/\baction surge\b/i.test(text))return {action:'class:surge'};
     if(/^(?:I )?(?:dodge|take the dodge(?: action)?)[.!]?$/i.test(text))return {action:'dodge'};
-    if(hero.class==='Paladin'&&/\blay(?:ing)? (?:on )?hands\b/i.test(text))return {action:'class:hands'};
+    // "lay on hands", "lay hands", and the chip's own "I lay my hands on my wounds" (the host, 2026-10-13: "I couldn't cast lay hands").
+    if(hero.class==='Paladin'&&/\blay(?:ing)?\s+(?:on\s+)?(?:(?:my|both(?:\s+my)?)\s+)?hands\b/i.test(text))return {action:'class:hands'};
     // The hero's subclass action by name or as it is usually said (subclassRules.js).
     const feat=subclassAction(hero);if(feat?.say.test(text))return {action:'class:'+feat.id};
   }
