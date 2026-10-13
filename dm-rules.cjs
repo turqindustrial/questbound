@@ -1,13 +1,16 @@
 // Reviewed baseline: revised 2024 rules / SRD 5.2. This is runtime grounding,
 // not model fine-tuning. Catalog text is licensed with the existing SRD notices.
 const spells=require('./spellCatalog.json');
+// The running Dungeon Master reloads this file on every request; the catalog is reloaded with it, so new feature text
+// (subclasses) is live without a restart.
+delete require.cache[require.resolve('./classFeatureCatalog.json')];
 const features=require('./classFeatureCatalog.json');
 const actionRules=[
  {name:'Attack',rule:'Use weapon attack rolls versus AC, or the exact Unarmed Strike rules. Extra Attack modifies the Attack action, not arbitrary spells.',implementation:'Only supplied weapon/class action choices. Inn NPC aggression starts an initiative encounter; authored witnesses can defend either side. The engine resolves their turns, attacks, Help and damage.'},
  {name:'Magic',rule:'Use the spell or feature casting time, targets, components, resources and exact effect.',implementation:'castCommand plus spell validation; unimplemented effects need a bounded ruling.'},
  {name:'Dash',rule:'Gain extra movement equal to your Speed for this turn.',implementation:'Tactical speed budgets not implemented; never claim an extra move was recorded.'},
  {name:'Disengage',rule:'Your movement does not provoke Opportunity Attacks for the rest of this turn.',implementation:'Opportunity attacks and tactical movement not implemented.'},
- {name:'Dodge',rule:'Until your next turn, attacks have Disadvantage if you can see the attacker and Dexterity saves have Advantage; ends if Incapacitated or Speed is 0.',implementation:'Prototype dodge choice affects the current foe attack only; full duration/save benefits not implemented.'},
+ {name:'Dodge',rule:'Until your next turn, attacks have Disadvantage if you can see the attacker and Dexterity saves have Advantage; ends if Incapacitated or Speed is 0.',implementation:'The Dodge spends the action; attacks on the player have disadvantage until their next turn. The Dexterity-save benefit is not implemented.'},
  {name:'Help',rule:'Assist a qualifying ability check or distract a nearby enemy for a qualifying attack; apply the exact requirements.',implementation:'No persistent Help benefit implemented; do not invent Advantage.'},
  {name:'Hide',rule:'Requires appropriate concealment and a Dexterity (Stealth) check under revised rules.',implementation:'Stealth proficiency, concealment and hidden condition not fully implemented.'},
  {name:'Influence',rule:'Determine whether an NPC is willing, unwilling or hesitant; only uncertainty needs a check. Hostile attitudes impose Disadvantage on influence checks; hostility alone is not compulsory combat. Actual attacks start an inn encounter.',implementation:'Recorded attitudes and witness memories; generic checks use recorded skill modifiers and do not erase hostility.'},
@@ -45,6 +48,9 @@ function rulesFor(body){
 }
 function validateGroundedReply(context,reply){
  if(context.engineResolved&&[reply.actionId,reply.castCommand,reply.ruling,reply.check,reply.worldEvent].some(v=>v!=null))throw Error('The action is already resolved. The DM cannot apply it twice.');
+ // A check in a fight is the turn's action: never once the action is spent, and never in a brawl (the game refuses both).
+ if(reply.check!=null&&!context.engineResolved&&context.stage==='combat'&&context.turnResources?.actionUsed)throw Error('The action of the player is already spent this turn: a check cannot be made now. Offer a bonus action or end-turn instead.');
+ if(reply.check!=null&&!context.engineResolved&&context.npcCombat?.active)throw Error('A check cannot be made during a fight with people here: use the fight choices.');
  const r=reply.ruling;
  if(context.pendingSpell&&!context.engineResolved&&(!r||reply.actionId!=null||reply.castCommand!=null||reply.check!=null))throw Error('The DM must return a cast, deny, or clarify ruling for the pending spell. Nothing was applied.');
  if(r&&r.decision!=='cast'&&['damage','selfDamage','healing','temporaryHP'].some(k=>r[k]!==0))throw Error('A denied or clarified spell cannot apply effects.');

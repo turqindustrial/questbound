@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- The NEXT app icon (stored for the next big update, not in use yet; see README.md here): the Questbound emblem
+     (../../title/questbound-emblem.webp, the host's painting prepared by make-emblem.cjs) in gold, on a deep dark ground,
+     cut close to the serpent ring so it reads at small sizes. `node make-icons.cjs --next` photographs this page at each
+     size into this folder; it needs no internet.
+     The gold is the Gold theme's emblem filter (themeRules.js): the painting's light and shade, toned like old metal, so
+     the highlights are pale yellow-gold and the shadows deep bronze. Small sizes take a little more contrast.
+     Query: inset (share of the width left clear on each side), layer (full, bg, fg, mono), simple (1: cut close to the
+     ring, the star points and the dragon's head running off the edge), px (draw at exactly this many pixels in the top
+     left corner instead of filling the window). -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html,body{margin:0;overflow:hidden;background:transparent}
+body{position:relative;overflow:hidden;width:var(--w,100vw);height:var(--w,100vw)}
+.bg{position:absolute;inset:0;background:
+ radial-gradient(circle at 50% 50%,rgba(214,160,58,.22) 0,rgba(140,92,26,.12) 32%,rgba(10,7,4,0) 60%),
+ radial-gradient(circle at 50% 46%,#1a1209 0,#0d0905 52%,#050403 100%)}
+.emblem{position:absolute;left:50%;top:50%;width:var(--d);height:var(--d);transform:translate(-50%,-50%);background:url(../../title/questbound-emblem.webp) center/contain no-repeat;
+ filter:grayscale(1) sepia(1) saturate(2.4) hue-rotate(-2deg) brightness(1.4) contrast(1.25)}
+body.simple .emblem{filter:grayscale(1) sepia(1) saturate(2.5) hue-rotate(-2deg) brightness(1.45) contrast(1.35)}
+body.bg .emblem{display:none}
+body.fg .bg,body.mono .bg{display:none}
+body.mono .emblem{filter:brightness(0) invert(1)}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="emblem"></div>
+<script>
+const query=new URLSearchParams(location.search),inset=Number(query.get('inset')??.09),simple=!!query.get('simple');
+const px=Number(query.get('px'))||0;if(px)document.body.style.setProperty('--w',px+'px');
+// The serpent's outer edge is 82.5% of the emblem's square: cut close, the square is scaled up so the ring fills the icon.
+const share=(1-2*inset)/(simple?.85:1);
+document.body.style.setProperty('--d',px?share*px+'px':share*100+'vw');
+document.body.classList.add(query.get('layer')??'full');
+if(simple)document.body.classList.add('simple');
+</script>
+</body>
+</html>

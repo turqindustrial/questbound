@@ -4,20 +4,84 @@ export const npcProfiles={
  keeper:{name:'The keeper',maximumHP:12,ac:10,knows:['mara'],response:'Defends the inn, refuses hospitality, and calls for help.'},
  mara:{name:'Mara',maximumHP:9,ac:10,knows:['keeper'],response:'Defends the keeper, helping distract an attacker; fights back when personally attacked.'},
 };
-// Every story has its two residents; the Dungeon Master can bring more named people into the region as the player
-// meets them (game.people: n1…n12, each living at the place where they were met).
+// Every story has its two residents; a written tale seats a few more people who live in its country (residents:
+// `resident:true`, met when the player first reaches where they live), and the Dungeon Master can bring more named
+// people into the region as the player meets them (game.people: n1…n96, each living at the place where they were met;
+// lands travelled are never forgotten, so neither are the people met there).
+// Places are lived in: up to four living people at one place, up to three of a tale's residents seated at one (two at
+// the starting place, where keeper and mara are too).
 export const coreNpcIds=['keeper','mara'];
-export const maxPeople=12,maxPeopleHere=3;
+export const maxPeople=96,maxPeopleHere=4,maxResidents=12,residentsPerPlace=3,residentsAtStart=2;
 export const personToughness={frail:{maximumHP:4,ac:10},common:{maximumHP:9,ac:10},tough:{maximumHP:16,ac:13}};
-export const isPersonId=id=>/^n(?:[1-9]|1[0-2])$/.test(String(id));
-export const npcIdsOf=game=>[...coreNpcIds,...Object.keys(game?.people??{}).filter(isPersonId)];
+export const isPersonId=id=>/^n(?:[1-9]|[1-8]\d|9[0-6])$/.test(String(id));
+// The first free id for someone new.
+export function freePersonId(people){for(let n=1;n<=maxPeople;n++)if(!Object.hasOwn(people??{},'n'+n))return 'n'+n;return null;}
+// Everyone's id (asked very often: the ids of a crowd are kept for as long as game.people is the same object).
+const peopleIds=new WeakMap();
+export const npcIdsOf=game=>{const people=game?.people;if(!people||typeof people!=='object')return [...coreNpcIds];let ids=peopleIds.get(people);if(!ids){ids=Object.keys(people).filter(isPersonId);peopleIds.set(people,ids);}return [...coreNpcIds,...ids];};
+// ---------- Trained people ----------
+// Most people are ordinary folk with no adventuring class. A few are truly trained (a veteran sellsword, a temple
+// priest, a hedge witch who works real magic), and everyone who travels with the hero as a companion fights as one:
+// game.npcClasses[id] = {class, level}. Shared world state (never a hero field), so every device at a table agrees.
+// The list is kept here rather than taken from characterRules, which many checks do not load.
+export const npcClassList=['Artificer','Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard'];
+const roleClasses=[
+ ['Paladin',/templar|crusader|\boath|holy knight/],
+ ['Cleric',/priest|cleric|acolyte|temple|abbot|chaplain|shrine-?keeper/],
+ ['Druid',/druid|herb|hedge|witch|shaman|grove|wise ?woman/],
+ ['Ranger',/hunter|ranger|scout|tracker|trapper|forester|warden|guide|woods|poacher/],
+ ['Rogue',/thief|smuggler|spy|cutpurse|rogue|\bfence|burglar|pickpocket|informant|courier/],
+ ['Bard',/bard|minstrel|singer|musician|poet|storyteller|performer/],
+ ['Wizard',/wizard|\bmage|scholar|sage|archivist|apprentice/],
+ ['Sorcerer',/sorcer|touched by magic/],
+ ['Warlock',/warlock|\bpact/],
+ ['Monk',/\bmonk|ascetic|pilgrim/],
+ ['Artificer',/tinker|inventor|engineer|alchemist|clockmaker|artificer/],
+ ['Barbarian',/berserk|raider|reaver|pit ?fighter|clan warrior/],
+ ['Fighter',/guard|soldier|sellsword|mercenary|captain|sergeant|warrior|knight|militia|watch|veteran|smith|bodyguard/],
+];
+// The class a life has made someone: the first fitting word of their role, else a Fighter.
+export function classFromRole(role){
+ const r=String(role??'').toLowerCase();
+ return roleClasses.find(([,re])=>re.test(r))?.[0]??'Fighter';
+}
+export const npcClassOf=(game,id)=>{const c=game?.npcClasses?.[id];return c&&npcClassList.includes(c.class)?c:null;};
+const classHitDie={Artificer:8,Barbarian:12,Bard:8,Cleric:8,Druid:8,Fighter:10,Monk:8,Paladin:10,Ranger:10,Rogue:8,Sorcerer:6,Warlock:8,Wizard:6};
+const classArmour={Artificer:15,Barbarian:14,Bard:13,Cleric:16,Druid:14,Fighter:16,Monk:15,Paladin:18,Ranger:15,Rogue:14,Sorcerer:12,Warlock:13,Wizard:12};
+// Hit points as a hero of that class and level with Constitution 14 would have them, and the armour they wear.
+export function classedStats(cls,level){
+ const die=classHitDie[cls]??8,l=Math.max(1,Math.min(20,Math.floor(level)||1));
+ return {maximumHP:die+2+(l-1)*(die/2+3),ac:classArmour[cls]??12};
+}
+// The standard array placed by what the class leans on (for the character card).
+const classAbilities={Artificer:['Intelligence','Constitution','Dexterity','Wisdom','Strength','Charisma'],Barbarian:['Strength','Constitution','Dexterity','Wisdom','Charisma','Intelligence'],Bard:['Charisma','Dexterity','Constitution','Wisdom','Intelligence','Strength'],Cleric:['Wisdom','Constitution','Strength','Charisma','Dexterity','Intelligence'],Druid:['Wisdom','Constitution','Dexterity','Intelligence','Charisma','Strength'],Fighter:['Strength','Constitution','Dexterity','Wisdom','Charisma','Intelligence'],Monk:['Dexterity','Wisdom','Constitution','Strength','Intelligence','Charisma'],Paladin:['Strength','Charisma','Constitution','Wisdom','Dexterity','Intelligence'],Ranger:['Dexterity','Wisdom','Constitution','Strength','Intelligence','Charisma'],Rogue:['Dexterity','Constitution','Intelligence','Charisma','Wisdom','Strength'],Sorcerer:['Charisma','Constitution','Dexterity','Wisdom','Intelligence','Strength'],Warlock:['Charisma','Constitution','Dexterity','Wisdom','Intelligence','Strength'],Wizard:['Intelligence','Constitution','Dexterity','Wisdom','Charisma','Strength']};
+export function classScores(cls){
+ const order=classAbilities[cls]??classAbilities.Fighter,array=[15,14,13,12,10,8];
+ return Object.fromEntries(['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].map(a=>[a,array[order.indexOf(a)]]));
+}
+// The two saving throws each class is trained in.
+export const classSaves={Artificer:['Constitution','Intelligence'],Barbarian:['Strength','Constitution'],Bard:['Dexterity','Charisma'],Cleric:['Wisdom','Charisma'],Druid:['Intelligence','Wisdom'],Fighter:['Strength','Constitution'],Monk:['Strength','Dexterity'],Paladin:['Wisdom','Charisma'],Ranger:['Strength','Dexterity'],Rogue:['Dexterity','Intelligence'],Sorcerer:['Constitution','Charisma'],Warlock:['Wisdom','Charisma'],Wizard:['Intelligence','Wisdom']};
+export const validNpcClasses=(value,game)=>value===undefined||(!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([id,c])=>npcIdsOf(game).includes(id)&&!!c&&typeof c==='object'&&npcClassList.includes(c.class)&&Number.isInteger(c.level)&&c.level>=1&&c.level<=20));
+// Aid raises a companion's hit point maximum while it lasts (game.aided, spellRules.js).
 export function npcProfile(game,id){
- const people=game?.people??{};
- if(Object.hasOwn(npcProfiles,id))return {...npcProfiles[id],knows:[...npcProfiles[id].knows,...Object.keys(people).filter(p=>people[p]?.tie?.to===id)]};
+ const base=npcProfileBase(game,id),plus=game?.aided?.[id]??0;
+ return base&&plus?{...base,maximumHP:base.maximumHP+plus}:base;
+}
+function npcProfileBase(game,id){
+ const people=game?.people??{},trained=npcClassOf(game,id),classed=trained?{...classedStats(trained.class,trained.level),trainedAs:{class:trained.class,level:trained.level}}:{};
+ if(Object.hasOwn(npcProfiles,id))return {...npcProfiles[id],knows:[...npcProfiles[id].knows,...Object.keys(people).filter(p=>people[p]?.tie?.to===id)],...classed};
  const p=people[id];if(!isPersonId(id)||!p)return null;
  const t=personToughness[p.toughness]??personToughness.common;
- return {name:p.name,maximumHP:t.maximumHP,ac:t.ac,knows:npcIdsOf(game).filter(o=>o!==id&&(p.tie?.to===o||people[o]?.tie?.to===id)),response:'Defends themselves and those they care about.'};
+ return {name:p.name,maximumHP:t.maximumHP,ac:t.ac,knows:npcIdsOf(game).filter(o=>o!==id&&(p.tie?.to===o||people[o]?.tie?.to===id)),response:'Defends themselves and those they care about.',...classed};
 }
+// A companion travels with the hero (following) or waits where they were asked to; an ally is on the hero's side
+// (npcMemory allegiance) but keeps their own life and place: they help where they live and never travel along.
+export const isCompanion=(game,id)=>['following','waiting'].includes(game?.followers?.[id]?.status);
+export const isAlly=(game,id)=>game?.npcMemory?.[id]?.allegiance==='player'&&!isCompanion(game,id)&&game?.npcFate?.[id]!=='dead';
+// Where someone who does not travel with the hero is to be found: where they were left, else where they live.
+export const npcWhereabouts=(game,id)=>game?.followers?.[id]?.status==='following'?null:game?.followers?.[id]?.location??game?.people?.[id]?.home??'inn';
+// Companions stand a step behind the hero: one level below them (at least level 1).
+export const companionLevelFor=hero=>Math.max(1,Math.min(20,(Number(hero?.level)||1)-1));
 export const npcMaxHP=(id,game)=>npcProfile(game,id)?.maximumHP??10;
 // Who someone is, for the Dungeon Master, portraits and the screen: the story's residents, the people met since, or
 // the original crossroads pair.
@@ -40,18 +104,51 @@ export function mentionsName(text,name,atStart=false){
 }
 // Where the scene is, for people: a place id, or a vault room.
 export const sceneLocation=game=>game.dungeon?.active?'dungeon:'+game.dungeon.room:['wild','dying','dead'].includes(game.stage)?mapLocation(game):['combat','victory'].includes(game.stage)?(game.wildFight?game.wildFight.place:'bridge'):['defeat','escaped'].includes(game.stage)?'inn':game.stage;
+// Whether the hero has met someone: everyone the Dungeon Master introduced has been met; a tale's residents are met
+// once the hero has been where they live (or they are here, or travel with the hero).
+// Someone who keeps out of sight (`hidden`: a hermit in the back room, a prisoner below, a watcher in the reeds) is met
+// only once they are found: the Dungeon Master introduces them by name when the player searches or asks around.
+export function metPerson(game,id){
+ const p=game?.people?.[id];
+ if(p?.hidden)return !!game.followers?.[id];
+ return !p?.resident||(game.map?.visited??[]).includes(p.home)||!!game.followers?.[id]||sceneLocation(game)===p.home;
+}
+// ---------- Forgiveness ----------
+// A grudge is not forever, but it is never cheap. It has a weight: blood (their family, their beloved or their own kin
+// was killed) or grave (anything else that made it: a friend killed, a wrong the Dungeon Master recorded). Forgiving it
+// takes acts of amends and time: a grave grudge two acts and a day, a blood grudge three acts and two days. A debt they
+// owe the hero (a bond) takes one act off; a grudge sworn again after an earlier forgiveness needs one more. Time is
+// counted in the story log since the grudge was sworn: long rests, new chapters and tales, journeys to a new land.
+export const grudgeWeights={grave:{amends:2,days:1},blood:{amends:3,days:2}};
+// Saves from before weights were kept: the grudge's own words say whether it was blood.
+export const grudgeWeight=m=>['grave','blood'].includes(m?.grudgeWeight)?m.grudgeWeight:/\b(?:my (?:beloved|family|own kin)|whom I loved)\b/i.test(m?.grudge??'')?'blood':'grave';
+export const amendsNeeded=m=>Math.max(1,grudgeWeights[grudgeWeight(m)].amends+(m?.forgave?1:0)-(m?.bond?1:0));
+export function daysSince(game,since=0){
+ const log=Array.isArray(game?.storyLog)?game.storyLog:[];
+ // A log that has scrolled past the grudge, or begun afresh since, counts as long ago.
+ if(log.length&&(log[0].id>since+1||since>log.at(-1).id))return 99;
+ return log.filter(e=>e&&e.id>since&&((e.kind==='rest'&&/^Took a long rest/.test(e.text))||e.kind==='story'||(e.kind==='place'&&/^Set out for a new land/.test(e.text)))).length;
+}
+export function forgivenessOf(game,id){
+ const m=game?.npcMemory?.[id];if(!m?.grudge)return null;
+ const weight=grudgeWeight(m),rule=grudgeWeights[weight],needed=amendsNeeded(m),amends=Math.max(0,m.amends??0),days=Math.min(99,daysSince(game,m.grudgeSince??0));
+ return {weight,amends,needed,amendsToGo:Math.max(0,needed-amends),daysPassed:days,daysNeeded:rule.days,daysToGo:Math.max(0,rule.days-days),canForgive:amends>=needed&&days>=rule.days};
+}
 export function npcScene(game){
  const location=sceneLocation(game);
  return npcIdsOf(game).map(id=>{
   const p=npcProfile(game,id),person=game.people?.[id];
   // Followers go where the player goes; people met on the road stay where they live, and step aside from a fight.
-  const present=game.followers?.[id]?game.followers[id].status==='following'||game.followers[id].location===location:person?person.home===location&&!['combat','dying','dead'].includes(game.stage)&&!game.dungeon?.active:game.stage==='inn'&&!game.dungeon?.active;
-  return {id,...p,fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
+  const present=game.followers?.[id]?game.followers[id].status==='following'||game.followers[id].location===location:person?person.home===location&&!person.hidden&&!['combat','dying','dead'].includes(game.stage)&&!game.dungeon?.active:game.stage==='inn'&&!game.dungeon?.active;
+  const f=game.followers?.[id]?.status,standing=f==='following'?'companion':f==='waiting'?'waiting companion':game.npcMemory?.[id]?.allegiance==='player'?'ally':null;
+  return {id,...p,standing,...(person?.hidden?{hidden:true}:{}),fate:game.npcFate?.[id]??null,grudge:game.npcMemory?.[id]?.grudge??null,bond:game.npcMemory?.[id]?.bond??null,forgave:game.npcMemory?.[id]?.forgave??null,forgiveness:forgivenessOf(game,id),present,hp:game.npcHP?.[id]??p.maximumHP,attitude:game.npcMemory?.[id]?.attitude??'indifferent',memories:game.npcMemory?.[id]?.memories??[],response:game.npcMemory?.[id]?.response??'No hostile response recorded.'};
  });
 }
 export function recordNpcAggression(before,after,target,kind){
  const victim=npcProfile(before,target);
  if(!victim)return after;
+ // Witnesses remember the victim by the story's name for them, not the crossroads default.
+ const victimName=npcLore(before,target)?.name??victim.name;
  const scene=npcScene(before),witnesses=scene.filter(n=>n.present&&n.hp>0).map(n=>n.id);
  if(!witnesses.includes(target)&&!scene.some(n=>n.id===target&&n.present))return after;
  const location=sceneLocation(before),max=victim.maximumHP;
@@ -59,7 +156,7 @@ export function recordNpcAggression(before,after,target,kind){
  const memory={...after.npcMemory},logs=[],killed=after.npcFate?.[target]==='dead'&&before.npcFate?.[target]!=='dead';
  for(const id of witnesses){
   const p=npcProfile(before,id),personal=id===target,knowsVictim=p.knows.includes(target);
-  const text=personal?(killed?'The player killed you.':`The player attacked you (${kind}).`):killed?`You saw the player kill ${victim.name}${knowsVictim?', whom you knew':''}.`:`You witnessed the player attack ${victim.name}${knowsVictim?', whom you know':''} (${kind}).`;
+  const text=personal?(killed?'The player killed you.':`The player attacked you (${kind}).`):killed?`You saw the player kill ${victimName}${knowsVictim?', whom you knew':''}.`:`You witnessed the player attack ${victimName}${knowsVictim?', whom you know':''} (${kind}).`;
   // A grudge keeps someone hostile; a bond (the player once saved them or someone dear) keeps them at least friendly.
   const raw=killed&&!personal?'hostile':!personal&&memory[id]?.allegiance==='player'?'indifferent':personal||knowsVictim?'hostile':'unfriendly';
   const attitude=memory[id]?.grudge?'hostile':memory[id]?.bond&&['hostile','unfriendly','indifferent'].includes(raw)?'friendly':raw;
@@ -90,12 +187,15 @@ export function validNpcCombat(game){
  const c=game.npcCombat;if(c===undefined)return true;
  const ids=['player',...npcIdsOf(game)];
  if(!c||!Array.isArray(c.order)||!c.order.every(n=>n&&typeof n==='object'&&(n.id==='player'?n.side==='player':['enemy','ally'].includes(n.side))))return false;
- return c&&npcFightStages.includes(game.stage)&&typeof c.active==='boolean'&&Number.isInteger(c.round)&&c.round>=1&&c.round<=100000&&Array.isArray(c.order)&&c.order.length>=2&&c.order.length<=10&&new Set(c.order.map(n=>n.id)).size===c.order.length&&c.order.filter(n=>n.id==='player'&&n.side==='player').length===1&&c.order.every(n=>n&&ids.includes(n.id)&&['player','enemy','ally'].includes(n.side)&&['attack','help'].includes(n.role)&&Number.isInteger(n.initiative)&&n.initiative>=-10&&n.initiative<=50)&&(c.help===null||c.help==='enemy'||c.help==='ally');
+ // A hero of a party who has fallen (or died) in a brawl lies there while the others fight on (partyRules.js).
+ return c&&(npcFightStages.includes(game.stage)||['dying','dead'].includes(game.stage)&&!!game.party)&&typeof c.active==='boolean'&&Number.isInteger(c.round)&&c.round>=1&&c.round<=100000&&Array.isArray(c.order)&&c.order.length>=2&&c.order.length<=10&&new Set(c.order.map(n=>n.id)).size===c.order.length&&c.order.filter(n=>n.id==='player'&&n.side==='player').length===1&&c.order.every(n=>n&&ids.includes(n.id)&&['player','enemy','ally'].includes(n.side)&&['attack','help'].includes(n.role)&&Number.isInteger(n.initiative)&&n.initiative>=-10&&n.initiative<=50)&&(c.help===null||c.help==='enemy'||c.help==='ally')
+  // Those who were hostile when it began (experienceRules.js): each one of the fighters.
+  &&(c.worthy===undefined||Array.isArray(c.worthy)&&c.worthy.length<=10&&new Set(c.worthy).size===c.worthy.length&&c.worthy.every(id=>c.order.some(n=>n.id===id&&n.id!=='player')));
 }
 export function validNpcState(game){
  const text=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max,known=npcIdsOf(game);
  const ids=v=>Array.isArray(v)&&v.length<=10&&new Set(v).size===v.length&&v.every(id=>known.includes(id));
- return validNpcCombat(game)&&(game.npcMemory===undefined||(game.npcMemory&&typeof game.npcMemory==='object'&&!Array.isArray(game.npcMemory)&&Object.entries(game.npcMemory).every(([id,m])=>known.includes(id)&&m&&['hostile','unfriendly','indifferent','friendly','devoted'].includes(m.attitude)&&(m.allegiance===undefined||m.allegiance==='player')&&text(m.response,300)&&Array.isArray(m.memories)&&m.memories.length<=12&&m.memories.every(t=>text(t,300))&&(m.grudge===undefined||text(m.grudge,200))&&(m.bond===undefined||text(m.bond,200))&&(!m.grudge||m.attitude==='hostile')&&(!m.bond||m.grudge||['friendly','devoted'].includes(m.attitude)))))
+ return validNpcCombat(game)&&validNpcClasses(game.npcClasses,game)&&(game.npcMemory===undefined||(game.npcMemory&&typeof game.npcMemory==='object'&&!Array.isArray(game.npcMemory)&&Object.entries(game.npcMemory).every(([id,m])=>known.includes(id)&&m&&['hostile','unfriendly','indifferent','friendly','devoted'].includes(m.attitude)&&(m.allegiance===undefined||m.allegiance==='player')&&text(m.response,300)&&Array.isArray(m.memories)&&m.memories.length<=12&&m.memories.every(t=>text(t,300))&&(m.grudge===undefined||text(m.grudge,200))&&(m.bond===undefined||text(m.bond,200))&&(!m.grudge||m.attitude==='hostile')&&(m.grudgeWeight===undefined||['grave','blood'].includes(m.grudgeWeight))&&(m.grudgeSince===undefined||(Number.isSafeInteger(m.grudgeSince)&&m.grudgeSince>=0))&&(m.amends===undefined||(Number.isInteger(m.amends)&&m.amends>=0&&m.amends<=6))&&(m.forgave===undefined||(!!m.forgave&&typeof m.forgave==='object'&&text(m.forgave.grudge,200)&&['grave','blood'].includes(m.forgave.weight)&&text(m.forgave.memory,300)))&&(!m.bond||m.grudge||['friendly','devoted'].includes(m.attitude)))))
  &&(game.actionEvents===undefined||(Array.isArray(game.actionEvents)&&game.actionEvents.length<=30&&game.actionEvents.every(e=>e&&['weapon-attack','harmful-spell'].includes(e.kind)&&e.actor==='player'&&known.includes(e.target)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,2})$/.test(e.location)&&ids(e.witnesses)&&Number.isInteger(e.damage)&&e.damage>=0&&e.damage<=40)));
 }
 

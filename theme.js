@@ -1,5 +1,5 @@
 import {Platform} from 'react-native';
-import {defaultTheme,validTheme,mapColours,writtenColour,themedText} from './themeRules';
+import {defaultTheme,validTheme,mapColours,writtenColour,themedText,pageBackground} from './themeRules';
 // Shared visual language: a dark theme in the player's colour (Settings → Theme; dark red on black with purple accents
 // unless they choose another), engraved display type and storybook serif narration.
 //
@@ -17,29 +17,36 @@ const web=Platform.OS==='web';
 const KEY='questbound.theme.v1';
 function load(){try{return validTheme(JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}')?.theme);}catch{return defaultTheme;}}
 let current=load(),queued=false;
+let mode=(()=>{try{return JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}').mode==='light'?'light':'dark';}catch{return 'dark';}})();
 const listeners=new Set(),written=new Map(),extras=[];
 // One style rule holds every colour variable; it is rewritten when the theme changes or a new colour is first used.
 function paint(){
  queued=false;if(typeof document==='undefined')return;
  let sheet=document.getElementById('questbound-colours');
  if(!sheet){sheet=document.createElement('style');sheet.id='questbound-colours';document.head.appendChild(sheet);}
- let rules='';for(const [key,colour] of written)rules+='--qb-'+key+':'+writtenColour(colour,current)+';';
- for(const extra of extras)for(const [name,value] of Object.entries(extra(current)))rules+=name+':'+value+';';
- sheet.textContent=':root{'+rules+'}';document.documentElement.setAttribute('data-theme',current);
+ let rules='';for(const [key,colour] of written)rules+='--qb-'+key+':'+writtenColour(colour,current,mode)+';';
+ for(const extra of extras)for(const [name,value] of Object.entries(extra(current,mode)))rules+=name+':'+value+';';
+ sheet.textContent=':root{'+rules+'color-scheme:'+mode+';}';document.documentElement.setAttribute('data-theme',current);document.documentElement.setAttribute('data-appearance',mode);
+ // The phone's own bars (Android's address and status bar, Safari's) take the page's background in this theme.
+ let bar=document.querySelector('meta[name="theme-color"]');
+ if(!bar){bar=document.createElement('meta');bar.setAttribute('name','theme-color');document.head.appendChild(bar);}
+ bar.setAttribute('content',pageBackground(current,mode));
 }
 const schedule=()=>{if(queued)return;queued=true;(globalThis.queueMicrotask??(run=>Promise.resolve().then(run)))(paint);};
 // A colour, or any text holding colours (a shadow, a gradient, a whole style sheet), ready to follow the theme.
 export function tint(text){
- if(!web)return themedText(text,current);
- return mapColours(text,colour=>{if(!written.has(colour.key)){written.set(colour.key,colour);schedule();}return 'var(--qb-'+colour.key+')';});
+ if(!web)return themedText(text,current,mode);
+ return mapColours(text,colour=>{if(!written.has(colour.key)){written.set(colour.key,colour);schedule();}return 'var(--qb-'+colour.key+')';},true);
 }
 // Style variables that are more than a colour (pictures written as text): `make(themeId)` returns {'--name': value}.
 export function themeVariables(make){extras.push(make);schedule();}
 export const currentTheme=()=>current;
+export const currentMode=()=>mode;
+export function setMode(value){mode=value==='light'?'light':'dark';try{globalThis.localStorage?.setItem(KEY,JSON.stringify({theme:current,mode}));}catch{}paint();listeners.forEach(listener=>listener(current));}
 export function subscribeTheme(listener){listeners.add(listener);return()=>listeners.delete(listener);}
 export function setTheme(id){
  const next=validTheme(id);if(next===current)return;
- current=next;try{globalThis.localStorage?.setItem(KEY,JSON.stringify({theme:current}));}catch{}
+ current=next;try{globalThis.localStorage?.setItem(KEY,JSON.stringify({theme:current,mode}));}catch{}
  paint();listeners.forEach(listener=>listener(current));
 }
 export const fonts={
@@ -51,9 +58,9 @@ export const fonts={
 export const colors={
  ink:tint('#08060a'),ink2:tint('#130e15'),ink3:tint('#1f1821'),
  gold:tint('#e04a5c'),goldBright:tint('#eadaff'),goldMid:tint('#b08cf5'),goldDeep:tint('#7d1b2e'),goldLine:tint('rgba(178,34,58,.6)'),goldFaint:tint('rgba(178,34,58,.24)'),
- accent:tint('#b08cf5'),accentDeep:tint('#5b34a8'),coin:'#e8c77b',
+ accent:tint('#b08cf5'),accentDeep:tint('#5b34a8'),coin:tint('#e8c77b'),
  parchment:tint('#f4ecee'),text:tint('#ddd6db'),muted:tint('#a99fa7'),faint:tint('#7a707a'),
- blood:'#c8412f',bloodBright:'#f06a4f',heal:'#6fbf8e',arcane:'#6fd0c4',danger:'#ffb3ac',
+ blood:tint('#c8412f'),bloodBright:tint('#f06a4f'),heal:tint('#6fbf8e'),arcane:tint('#6fd0c4'),danger:tint('#ffb3ac'),
 };
 export const type={
  eyebrow:{fontFamily:fonts.display,fontSize:11,letterSpacing:3.2,color:colors.goldMid,textTransform:'uppercase'},

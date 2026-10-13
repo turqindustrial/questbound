@@ -6,7 +6,7 @@ const {generate,sceneFor,turnEffort}=require('./dm-server.cjs');
 const places=[{id:'inn',name:'Caravan Camp'},{id:'bridge',name:'Overgrown Roadside'},{id:'tower',name:'Lookout Rock'},{id:'p1',name:'Tern Ferry'},{id:'p2',name:'Old Ferry Road'}];
 const base={stage:'inn',enemyHP:16,foeFate:null,story:{foe:'Bandit Cutthroat'},world:{current:{id:'inn',name:'Caravan Camp'},knownPlaces:places,canDiscover:true},
  choices:[{id:'travel-bridge',label:'Travel to Overgrown Roadside'},{id:'travel-tower',label:'Travel to Lookout Rock'},{id:'travel-p1',label:'Travel to Tern Ferry'},{id:'long-rest',label:'Rest'},{id:'short-rest',label:'Short rest'},{id:'potion',label:'Drink a healing draught'}]};
-const quiet={narration:'The camp is quiet.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null};
+const quiet={narration:'The camp is quiet.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,suggestions:[]};
 const look=(input,reply=quiet,context=base)=>secondLook({input,context},reply,{canDiscover:!!context.world?.canDiscover});
 // What is true now, in plain sentences.
 let now=situation(base);
@@ -31,7 +31,7 @@ assert.deepEqual(named('i go back to the camp'),[]);                    // where
 // A plain request the reply ignored gets a second look; an unmistakable one may be settled by the game.
 let fault=look('I head for the lookout.');
 assert.equal(fault.kind,'known place');assert.equal(fault.actionId,'travel-tower');assert.equal(fault.sure,true);assert.ok(fault.note.includes('travel-tower')&&fault.note.includes('Lookout Rock'));
-assert.deepEqual(settled(fault),{...quiet,narration:'You set out for Lookout Rock.',actionId:'travel-tower',rewind:false});
+assert.deepEqual(settled(fault),{...quiet,narration:'You set out for Lookout Rock.',actionId:'travel-tower',rewind:false,remember:[]});
 assert.equal(look('I walk up to the lookout rock to see what is coming.').sure,true);
 fault=look('I climb a rock and look around.');assert.equal(fault.kind,'known place');assert.equal(fault.sure,false,'a doubtful name is asked about, never acted on');
 // Said, planned, asked or refused journeys are never forced.
@@ -53,6 +53,14 @@ assert.equal(look('I look around the camp.',{...quiet,narration:'The fight is ov
 fault=look('I take a short rest.');assert.equal(fault.actionId,'short-rest');assert.equal(fault.sure,true);
 fault=look('I bed down and sleep.');assert.equal(fault.actionId,'long-rest');
 fault=look('I drink my healing potion.');assert.equal(fault.actionId,'potion');assert.equal(settled(fault).narration,'You drink a healing draught.');
+// Searching the fallen, when the game offers it (the engine rolls what they held).
+{const spoils={...base,choices:[...base.choices,{id:'loot',label:'Search the fallen and anything they guarded'}]};
+ fault=look('I search the bandit\'s body.',quiet,spoils);assert.equal(fault.actionId,'loot');assert.equal(fault.sure,true);assert.equal(settled(fault).narration,'You search the fallen.');
+ assert.equal(look('I search the bandit\'s body.',quiet),null,'only when something lies here unsearched');
+ assert.equal(look('The loot is not worth it.',quiet,spoils),null,'words about loot are not a search');
+ for(const words of ['I go through his pockets.','I search them.','I rifle through the dead bandit\'s belongings.','I loot the wolves.'])assert.equal(look(words,quiet,spoils)?.actionId,'loot',words);
+ // Tending or remembering the fallen is not searching them (bug: the game looted on its own after "I check her pulse").
+ for(const words of ['I check her pulse.','I check them for wounds.','I search them for wounds.','I go over what the dead man told us.','I search the room for what remains of the map.'])assert.equal(look(words,quiet,spoils),null,words);}
 assert.equal(look('I take a short rest.',quiet,{...base,choices:base.choices.filter(c=>c.id!=='short-rest')}),null,'only what is offered');
 assert.equal(look('Should I rest for the night?'),null);
 // A side errand the player's words seem to settle is asked about (the game never closes one itself).
@@ -91,10 +99,12 @@ const turn=async(input,replies,context=base)=>{const s=scripted(replies);const r
  // A new place asked for and not given is asked for once more.
  r=await turn('I follow the shore south to see what lies beyond the salt pans.',[{...quiet,actionId:'travel-p1'},{...quiet,narration:'Reeds give way to a spit of shingle.',discovery:{name:'Gull Spit',description:'A long spit of shingle where the estuary meets the sea, strewn with wrack and the ribs of a boat.',kind:'water',bearing:'S',miles:2,travel:true,danger:'safe',feature:'The ribs of a wrecked boat.',lair:null,region:null}}]);
  assert.equal(r.calls.length,2);assert.equal(r.reply.discovery?.name,'Gull Spit');assert.equal(r.reply.actionId,null);
- // A reply that cannot be used is asked for once more, with the reason; twice unusable is an error as before.
+ // A reply that cannot be used is asked for again, with the reason, up to twice; then the usable part of the last
+ // reply is told (the telling, never the unknown action) instead of failing the turn.
  r=await turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'},{...quiet,narration:'Steel sings on the whetstone.'}]);
  assert.equal(r.calls.length,2);assert.ok(r.calls[1].instructions.includes('could not be used'));assert.equal(r.reply.narration,'Steel sings on the whetstone.');
- await assert.rejects(turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'}]),/invalid response/);
+ r=await turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'}]);
+ assert.equal(r.calls.length,3,'two quiet attempts after the first');assert.equal(r.reply.actionId,null,'the unknown action is never applied');assert.equal(r.reply.narration,'The camp is quiet.');
  // A momentary rate limit at the provider is waited out; no credit is reported at once.
  {const calls=[];const limited=async()=>{calls.push(Date.now());if(calls.length===1)return {ok:false,status:429,headers:{get:()=>'1'},json:async()=>({error:{code:'rate_limit_exceeded'}})};return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(quiet)}]}]})};};
   const reply=await generate({input:'I sharpen my mace.',context:base},{apiKey:'test-only',model:'test-model',fetchImpl:limited});

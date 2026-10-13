@@ -31,10 +31,19 @@ export function describeEvent(event){
  // The long tale's own moments: a chapter finished (with what it revealed), the next begun (with its goal), a lead
  // seen through, a level earned. (Read before anything else: their words may mention saves or damage.)
  if(kind!=='player'&&kind!=='dialogue'&&kind!=='narration'){
+  // How the tale begins (storyRules.js introductionCard): who you are here, where, what is happening, who is here, what first.
+  if(/^Your tale begins\.\n/.test(text))return {type:'intro',rows:text.split('\n').slice(1).map(l=>{const at=l.indexOf(': ');return at>0?[l.slice(0,at),l.slice(at+2)]:['',l];}).filter(([,v])=>v.trim())};
   const done=text.match(/^Chapter (\d+) complete: (.+?)\. ([\s\S]+)$/);if(done)return {type:'chapter-done',number:Number(done[1]),title:done[2],text:done[3]};
   const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
   const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};
   if(/^You have earned a level\b/.test(text))return {type:'level'};
+  // Experience (experienceRules.js): how much and for what; a party's line says everyone gained.
+  const xp=text.match(/^Experience: \+([\d,]+) \((.+)\)\.( Every hero in the party gains experience too\.)?$/);if(xp)return {type:'xp',amount:xp[1],label:xp[2],party:!!xp[3]};
+  const partyXp=text.match(/^The party gains experience \((.+)\)\.$/);if(partyXp)return {type:'xp',amount:null,label:partyXp[1],party:true};
+  // Searching the fallen (lootRules.js): who was searched, what was found, and each magic item among it.
+  const search=text.match(/^You search (.+?)\.$/);if(search)return {type:'search',title:search[1]};
+  const found=text.match(/^Found: (.+?)\.$/);if(found)return {type:'found',items:found[1]==='nothing of value'?[]:found[1].split(', ')};
+  const magic=text.match(/^Among the hoard: (.+?) \((uncommon|rare|very rare)\): ([\s\S]+)$/);if(magic)return {type:'treasure',name:magic[1],rarity:magic[2],text:magic[3]};
  }
  if(kind==='effect'){
   const hp=text.match(/^(.*): (\d+) → (\d+) HP\.?$/);

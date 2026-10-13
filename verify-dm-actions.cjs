@@ -1,7 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 let raw=null,fail=false;
 const AsyncStorage={getItem:async()=>raw,setItem:async(k,v)=>{if(fail)throw Error('Disk failure');raw=v;}};
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const open=()=>vm.runInNewContext(source+'\n({dmCommand,commitDmTurn,dmContext,earnedGold,interactionOptions,dmChoices,newAdventure,adventureStep,journalForGame,addJournalNote,validJournal,adventureSnapshot,saveAdventure,loadAdventure,equipmentFor})',{AsyncStorage});
 (async()=>{
  const r=open(),hero={name:'DM tester',class:'Fighter',level:1,scores:{Strength:16,Dexterity:14,Constitution:14,Intelligence:12,Wisdom:12,Charisma:10}};hero.equipment=r.equipmentFor(hero);
@@ -30,7 +31,9 @@ const open=()=>vm.runInNewContext(source+'\n({dmCommand,commitDmTurn,dmContext,e
  const caster={...hero,class:'Wizard',spells:['acid-splash','cure'],spellbook:['acid-splash','cure']};caster.equipment=r.equipmentFor(caster);
  const combat={...r.newAdventure(caster),stage:'combat',map:{visited:['inn','bridge'],accepted:true,clue:false,peaceful:false,minutes:0}};
  assert.ok(r.dmCommand(caster,combat,'I cast Acid Splash at the wisp').action);
- assert.ok(r.dmCommand(caster,combat,'I cast Acid Splash, components ready').error);
+ // Out of a fight a blast needs a target; in a creature fight it goes at the creature.
+ assert.ok(r.dmCommand(caster,{...combat,stage:'inn'},'I cast Acid Splash, components ready').error);
+ assert.ok(r.dmCommand(caster,combat,'I cast Acid Splash, components ready').action);
  const spellCommand=r.dmCommand(caster,combat,'I cast Acid Splash at the wisp, components ready');assert.equal(spellCommand.action.request.slot,0);assert.equal(spellCommand.action.request.forceDM,false);
  const cast=r.commitDmTurn(caster,combat,null,spellCommand.action,{question:'I cast Acid Splash at the wisp, components ready',narration:'You cast.'},()=>0.5);assert.equal(cast.error,undefined);assert.ok(cast.game.log.some(line=>line.includes('Acid Splash')));
  const other=r.dmCommand(caster,combat,'I cast Acid Splash at the keeper, components ready');assert.equal(other.action.request.forceDM,true);
@@ -38,6 +41,7 @@ const open=()=>vm.runInNewContext(source+'\n({dmCommand,commitDmTurn,dmContext,e
  const cancel=r.dmCommand(caster,waiting.game,'Cancel spell');assert.equal(cancel.action.type,'cancel-spell');
  assert.ok(r.dmCommand(caster,combat,'DM ruling: test').error);
  assert.equal(r.dmCommand(caster,combat,'Can I cast Acid Splash at the wisp?'),null);
- assert.equal(r.dmCommand(caster,combat,'I cast Acid Splash at the wisp and cast Cure Wounds on myself, components ready').action,undefined);
+ // Two spells in one sentence: the first is cast, and the rest is told to wait for the next turn (one action a turn).
+ {const both=r.dmCommand(caster,combat,'I cast Acid Splash at the wisp and cast Cure Wounds on myself, components ready').action;assert.equal(both.type,'turn');assert.equal(both.steps.length,1);assert.equal(both.steps[0].request.id,'acid-splash');assert.equal(both.rest,'I cast Cure Wounds on myself, components ready');}
  console.log('Passed: DM ability checks, success/failure, location guards, one attempt across rest, pending spells, clue effects, save/reload and nearby NPCs.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

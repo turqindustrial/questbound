@@ -1,21 +1,22 @@
 import {characterDraftContext,validateCharacterDraft} from './characterDraft';
 import {findDmEndpoint,askDm} from './dmConnection';
 import {subclassOptions} from './subclassOptions';
+import {subclassFirstFeatures} from './subclassRules';
 import SpellSelector from './SpellSelector';
 import {spellsForClass,spellSelectionError} from './spellOptions';
 import { equipmentFor, instruments } from './equipmentRules';
 import LoadoutSummary from './LoadoutSummary';
 import DeveloperOptions from './DeveloperOptions';
 import StoryLoading from './StoryLoading';
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {View, Text, TextInput, Pressable, StyleSheet, Modal} from 'react-native';
 import {fonts,colors,type,tint} from './theme';
 import {Crest} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import {playSound} from './audio';
-import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError} from './characterRules';
-import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions} from './characterOptions';
+import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass, fixedLineage, heroSpecies, speciesProfile, legacySpecies, speciesGroups, baseSpeciesOf, keenSenseSkills} from './characterRules';
+import {speciesDetails, classDetails, backgroundDescriptions, abilityDescriptions, lineageDetails} from './characterOptions';
 
 const basePages = [
   {title: 'Name & appearance', intro: 'Start with the person you want to play. Give them a name, then describe any appearance, personality, or story details you have in mind. You can return and change these before saving.'},
@@ -47,6 +48,12 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
   }catch(e){setPageError(e.message);}finally{setGenerating(false);}}
 
   const change = patch => {setPageError(''); setForm(previous => ({...previous, ...patch}));};
+  // A hero made as a plain Elf (before High and Wood Elves were species of their own), or as a Dark Elf (the Drow's
+  // name before), is edited as the elf they are.
+  useEffect(() => {if (legacySpecies.includes(form.species)) {const now = heroSpecies(form); setForm(previous => ({...previous, species: now, lineage: fixedLineage[now]}));}}, [form.species]);
+  // Each species card says how fast and how far in the dark it sees and names its traits; the chosen one explains them.
+  const speciesCards = Object.fromEntries(species.map(name => {const kind = speciesProfile(name), sight = kind.darkvision ? ' · Darkvision ' + kind.darkvision + ' ft' : '';
+    return [name, {...speciesDetails[name], ability: 'Speed ' + kind.speed + ' ft' + sight + (kind.size !== 'Medium' ? ' · ' + kind.size : '') + ' · ' + kind.traits.map(t => t.name).join(', '), features: name === form.species ? kind.traits.map(t => ({name: t.name, brief: t.brief})) : []}];}));
   const go = next => {setPageError(''); setPage(next); onPageChange?.();};
   const scores = finalScores(form);
   const bg = backgrounds[form.background];
@@ -56,16 +63,27 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     go(page + 1);
   }
   const action = (label, onPress, secondary = false, disabled = false, icon = null) => <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} dataSet={{qb:secondary?'btn':'btn-primary'}} style={({pressed}) => [s.action, secondary && s.secondary, (disabled || pressed) && {opacity: 0.6}]}><View style={s.actionRow}>{!!icon&&<Icon name={icon} size={16} color={secondary?colors.gold:tint('#ffeef0')}/>}<Text style={[s.actionText,!secondary&&{color:tint('#ffeef0')}]}>{label}</Text></View></Pressable>;
-  function optionCards(label, options, value, onSelect, details) {
-    return <View style={s.cards}>{options.map(option => {
+  // Cards for each option; species in a group (the Elves) sit together under its heading, where the first of them falls.
+  function optionCards(label, options, value, onSelect, details, groups = []) {
+    const card = option => {
       const detail = details[option];
       const chosen = value === option, crest = label==='Class' ? classIcons[option] : label==='Background' ? 'scroll' : label==='Subclass' ? 'star' : null;
       return <Pressable key={option} accessibilityRole="button" accessibilityLabel={`${label}: ${option}`} accessibilityState={{selected: chosen}} onPress={() => {if(!chosen)playSound('select');onSelect(option);}} dataSet={{qb:'card',selected:String(chosen)}} style={({pressed}) => [s.option, chosen && s.selected, pressed && {opacity: 0.85}]}>
-        <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option === 'Dark Elf' ? 'Dark Elf (Drow)' : option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
+        <View style={s.cardTitle}>{!!crest&&<Crest icon={crest} size={40}/>}<Text style={[s.optionTitle,{flex:1}]}>{option}</Text>{chosen && <View style={s.check}><Icon name="check" size={14} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
         <Text style={s.text}>{detail.description}</Text>
-        {!!detail.ability && <Text style={s.detail}>Key abilities: {detail.ability}</Text>}
+        {(detail.features??[]).map(f=><Text key={f.name} style={s.detail}>✦ {f.name}: {f.brief}</Text>)}
+        {!!detail.ability && <Text style={s.detail}>{label === 'Species' ? detail.ability : 'Key abilities: ' + detail.ability}</Text>}
         {!!detail.note && value === option && <Text style={s.detail}>{detail.note}</Text>}
       </Pressable>;
+    };
+    const grouped = new Set(groups.flatMap(g => g.members));
+    return <View style={s.cards}>{options.flatMap(option => {
+      const group = groups.find(g => g.members.find(m => options.includes(m)) === option);
+      if (group) return [<View key={'group:' + group.name} dataSet={{qb:'plate'}} style={s.group}>
+        <Text style={s.groupLabel}>{group.name}</Text><Text style={s.detail}>{group.note}</Text>
+        <View style={[s.cards, {marginTop: 10}]}>{group.members.filter(m => options.includes(m)).map(card)}</View>
+      </View>];
+      return grouped.has(option) ? [] : [card(option)];
     })}</View>;
   }
   function choices(label, options, value, onSelect) {
@@ -91,7 +109,7 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
   return <View>
     <Modal transparent visible={generating} animationType="fade"><StoryLoading hero={idea}/></Modal>
     <View style={s.stepRow}><Text style={s.progress}>Step {page + 1} of {pages.length}</Text>{page < reviewPage && <Text style={s.nextHint}>Next: {pages[page+1].title}</Text>}</View>
-    <View style={s.progressTrack}>{pages.map((item, i) => <Pressable key={item.title} accessibilityRole="button" accessibilityLabel={'Step '+(i+1)+': '+item.title} disabled={i >= page} onPress={() => go(i)} style={s.progressHit}><View dataSet={{qb:i < page ? 'bar-gold' : undefined}} style={[s.progressSegment, i < page && {backgroundColor:'#d8b879'}, i === page && s.progressNow]}/></Pressable>)}</View>
+    <View style={s.progressTrack}>{pages.map((item, i) => <Pressable key={item.title} accessibilityRole="button" accessibilityLabel={'Step '+(i+1)+': '+item.title} disabled={i >= page} onPress={() => go(i)} style={s.progressHit}><View dataSet={{qb:i < page ? 'bar-gold' : undefined}} style={[s.progressSegment, i < page && {backgroundColor:tint('#d8b879')}, i === page && s.progressNow]}/></Pressable>)}</View>
     <Text accessibilityRole="header" style={s.heading}>{pages[page].title}</Text>
     <Text style={s.intro}>{pages[page].intro}</Text>
     {page === 0 && <>
@@ -104,14 +122,23 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
       <Text style={s.label}>Appearance & personality (optional)</Text><TextInput accessibilityLabel="Appearance and personality" multiline style={[s.input, {minHeight:120,textAlignVertical:'top'}]} value={form.description ?? ''} onChangeText={description => change({description})} maxLength={1500} placeholder="A green-skinned inventor with copper goggles and an endless list of questions…" placeholderTextColor={tint('#b6aeb4')}/>
       {['age','backstory'].map(key=><View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><TextInput accessibilityLabel={'Character '+key} value={form[key]??''} onChangeText={value=>change({[key]:value})} maxLength={key==='age'?60:2000} multiline={key!=='age'} editable={!generating} style={[s.input,key!=='age'&&{minHeight:80}]} /></View>)}
     </>}
-    {page === 1 && optionCards('Species', species, form.species, value => change({species:value}), speciesDetails)}
+    {page === 1 && optionCards('Species', species, form.species, value => change({species:value,lineage:fixedLineage[value]??(speciesLineages[value]?(speciesLineages[value].includes(form.lineage)?form.lineage:speciesLineages[value][0]):null),keenSense:baseSpeciesOf(value)==='Elf'?(form.keenSense??'Perception'):undefined}), speciesCards, speciesGroups)}
+    {page === 1 && baseSpeciesOf(form.species) === 'Elf' && <>
+      {choices('Keen Senses', keenSenseSkills, keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception', value => change({keenSense:value}))}
+      <Text style={s.detail}>Every elf is trained in one of these skills.</Text>
+    </>}
+    {page === 1 && !fixedLineage[form.species] && !!speciesLineages[form.species] && <>
+      <Text style={s.label}>{form.species === 'Tiefling' ? 'Fiendish legacy' : 'Lineage'}</Text>
+      {form.species === 'Tiefling' && <Text style={s.detail}>Every Tiefling knows Thaumaturgy.</Text>}
+      {optionCards('Lineage', speciesLineages[form.species], form.lineage, value => change({lineage:value}), lineageDetails)}
+    </>}
     {page === 2 && optionCards('Class', classes, form.class, value => change(value===form.class ? {} : {class:value,level:1,advancements:[],arcanum:{},spells:[],spellbook:[],plannedSubclass:''}), classDetails)}
     {page === 3 && <>
       <Text style={s.note}>Planned subclass · Unlocks at level 3</Text>
-      {!!form.plannedSubclass && !Object.hasOwn(subclassOptions[form.class]??{},form.plannedSubclass) && <Text style={s.note}>Saved path: {form.plannedSubclass}. You may keep it or choose one of the four paths below.</Text>}
+      {!!form.plannedSubclass && !Object.hasOwn(subclassOptions[form.class]??{},currentSubclass(form.plannedSubclass)) && <Text style={s.note}>Saved path: {form.plannedSubclass}. You may keep it or choose one of the paths below.</Text>}
       {choices('Subclass decision', ['Decide later'], form.plannedSubclass ? '' : 'Decide later', () => change({plannedSubclass:''}))}
-      {optionCards('Subclass', Object.keys(subclassOptions[form.class]??{}), form.plannedSubclass??'', value=>change({plannedSubclass:value}), Object.fromEntries(Object.entries(subclassOptions[form.class]??{}).map(([name,description])=>[name,{description}])))}
-      <Text style={s.detail}>Four community favorites, ordered by a March 2026 player poll. Powers unlock at level 3.</Text>
+      {optionCards('Subclass', Object.keys(subclassOptions[form.class]??{}), currentSubclass(form.plannedSubclass)??'', value=>change({plannedSubclass:value}), Object.fromEntries(Object.entries(subclassOptions[form.class]??{}).map(([name,description])=>[name,{description,features:subclassFirstFeatures(name)}])))}
+      <Text style={s.detail}>{form.class==='Artificer'?'Five specialities, each described in Questbound’s own words.':'The first path is the System Reference Document’s own; the other three are Questbound’s.'} Powers unlock at level 3.</Text>
     </>}
     {page === 4 && <>
       <Text style={s.detail}>16 backgrounds · Select one to see its ability choices and starting feat.</Text>
@@ -143,9 +170,9 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {page === reviewPage && <>
       {reviewRow('Name', form.name, 0)}
       {!!form.description && <Text style={s.intro}>{form.description}</Text>}{['age','backstory'].map(key=>form[key]?<View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{form[key]}</Text></View>:null)}
-      {reviewRow('Species', form.species === 'Dark Elf' ? 'Dark Elf (Drow)' : form.species, 1)}
+      {reviewRow('Species', (!fixedLineage[form.species] && form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species) + (baseSpeciesOf(form.species) === 'Elf' ? ' · Keen Senses: ' + (keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception') : ''), 1)}
       {reviewRow('Class', form.class, 2)}
-      {reviewRow('Planned subclass', form.plannedSubclass || 'Decide at level 3', 3)}
+      {reviewRow('Planned subclass', currentSubclass(form.plannedSubclass) || 'Decide at level 3', 3)}
       {reviewRow('Background', form.background, 4)}
       <Text style={s.note}>Origin feat: {bg?.feat}</Text>
       {reviewRow('Abilities', 'Final scores and modifiers', 5)}{scoreList()}{reviewRow('Equipment', 'Starter kit and gold', 6)}{equipmentList()}
@@ -166,15 +193,16 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
 const s = StyleSheet.create({
   stepRow:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:10,marginBottom:10,flexWrap:'wrap'},
   progress:{...type.label},nextHint:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
-  progressTrack:{flexDirection:'row',gap:5,marginBottom:24},progressHit:{flex:1,paddingVertical:6},progressSegment:{height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.18)')},
+  progressTrack:{flexDirection:'row',gap:5,marginTop:-6,marginBottom:18},progressHit:{flex:1,paddingVertical:12},progressSegment:{height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.18)')},
   progressNow:{backgroundColor:tint('rgba(224,74,92,.55)'),height:6,marginTop:-1,borderWidth:1,borderColor:tint('rgba(240,110,128,.8)')},
-  heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:30,fontWeight:'700',letterSpacing:1,marginBottom:12},intro:{fontFamily:fonts.story,color:'#dacec9',fontSize:18,lineHeight:28,marginBottom:20},
+  heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:30,fontWeight:'700',letterSpacing:1,marginBottom:12},intro:{fontFamily:fonts.story,color:tint('#dacec9'),fontSize:18,lineHeight:28,marginBottom:20},
   label:{fontFamily:fonts.display,color:colors.gold,fontSize:14,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:20,marginBottom:10},cards:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},
-  option:{flexGrow:1,flexBasis:300,padding:16,backgroundColor:tint('rgba(32,24,33,.92)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),borderRadius:6},selected:{borderColor:colors.gold,backgroundColor:tint('rgba(48,26,78,.92)')},
+  group:{flexBasis:'100%',width:'100%',minWidth:0,padding:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:8,backgroundColor:tint('rgba(23,17,24,.6)')},groupLabel:{fontFamily:fonts.display,color:colors.gold,fontSize:13,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
+  option:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:300,padding:16,backgroundColor:tint('rgba(32,24,33,.92)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),borderRadius:6},selected:{borderColor:colors.gold,backgroundColor:tint('rgba(48,26,78,.92)')},
   cardTitle:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:10},optionTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:19,fontWeight:'700',letterSpacing:.6},selectedText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'800',letterSpacing:1.4},
   check:{width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
   text:{fontFamily:fonts.ui,color:tint('#e6e1e5'),fontSize:15,lineHeight:24},detail:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginTop:6},note:{fontFamily:fonts.ui,color:tint('#c9aab2'),fontSize:14,lineHeight:23,marginVertical:12},
-  input:{fontFamily:fonts.story,color:'#f5efe1',backgroundColor:tint('rgba(8,5,9,.75)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),borderRadius:4,padding:14,fontSize:17},
+  input:{fontFamily:fonts.story,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),borderRadius:4,padding:14,fontSize:17},
   row:{flexDirection:'row',flexWrap:'wrap',gap:8},chip:{paddingVertical:10,paddingHorizontal:14,minWidth:48,minHeight:44,alignItems:'center',justifyContent:'center',backgroundColor:tint('#271e29'),borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:22},
   abilityBlock:{marginVertical:10,paddingBottom:16,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.15)')},scoreGrid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:16},
   scoreTile:{flexGrow:1,flexBasis:100,borderWidth:1,borderColor:colors.goldLine,paddingVertical:12,paddingHorizontal:8,borderRadius:6,alignItems:'center'},

@@ -8,11 +8,25 @@ export function initializeWebLayout(){
  if(typeof document==='undefined')return;
  document.querySelector('meta[name="viewport"]')?.setAttribute('content','width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content');
  const style=document.createElement('style');style.id='questbound-mobile-layout';
+ // The game fills the whole screen, under the notch, the rounded corners and the home indicator too (viewport-fit=cover),
+ // so the painting and the bars reach every edge. What must be seen or tapped is kept clear of those parts: the safe-area
+ // insets (--sa-*) are given as transparent borders, so a background drawn on the same element still fills them. With a
+ // keyboard up the bottom inset is covered anyway.
  style.textContent='html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;}'
-  +'#root{position:fixed;left:0;top:var(--questbound-top,0px);width:100%;height:var(--questbound-height,100dvh);min-height:0;box-sizing:border-box;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}'
-  +'html.qb-keyboard #root{padding-bottom:0;}'
+  +':root{--sa-t:env(safe-area-inset-top,0px);--sa-r:env(safe-area-inset-right,0px);--sa-b:env(safe-area-inset-bottom,0px);--sa-l:env(safe-area-inset-left,0px);}'
+  +'html.qb-keyboard{--sa-b:0px;}'
+  +'#root{position:fixed;left:0;top:var(--questbound-top,0px);width:100%;height:var(--questbound-height,100dvh);min-height:0;box-sizing:border-box;}'
+  // A screen's own frame (the menus' and the play screen's shell, the launch card, every dialog's shade).
+  +'[data-safe=pad],[data-qb=scrim]{box-sizing:border-box;border-style:solid !important;border-color:transparent !important;border-width:var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l) !important;}'
+  // A dialog is never taller than the room its shade leaves (sheets size themselves to the window, which counts the insets).
+  +'[data-qb=scrim]>[data-qb=sheet]{max-height:100% !important;}'
+  // The play screen's bars reach out into the insets around them: the HUD under the notch, the tabs over the home indicator.
+  +'html [data-qb=hud]{margin-top:calc(-1 * var(--sa-t));margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r));border-style:solid !important;border-color:transparent !important;border-width:var(--sa-t) var(--sa-r) 0 var(--sa-l) !important;background-origin:border-box !important;}'
+  +'html [data-qb=tabbar]{margin-bottom:calc(-1 * var(--sa-b));margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r));border-style:solid !important;border-color:transparent !important;border-width:0 var(--sa-r) var(--sa-b) var(--sa-l) !important;background-origin:border-box !important;}'
+  // Cards that float near the top (deeds, experience) start below the notch.
+  +'[data-safe=top]{margin-top:var(--sa-t);}'
   // Dialogs sit inside the visible part too, so a field in one is never hidden behind the keyboard.
-  +'[data-qb=scrim]{flex:none !important;height:var(--questbound-height,100dvh) !important;margin-top:var(--questbound-top,0px);box-sizing:border-box;}'
+  +'[data-qb=scrim]{flex:none !important;height:var(--questbound-height,100dvh) !important;margin-top:var(--questbound-top,0px);}'
   +'input,textarea{font-size:16px;}';
  document.head.appendChild(style);
  let full=0,width=0;
@@ -48,22 +62,6 @@ export function initializeWebLayout(){
  // closes the keyboard and moves the control out from under the finger, so the tap is lost.
  document.addEventListener('mousedown',event=>{if(event.target?.closest?.('[data-keepfocus]')&&editable(document.activeElement))event.preventDefault();},true);
  document.addEventListener('focusin',()=>{setTimeout(reveal,150);setTimeout(reveal,500);});
- // A row that scrolls sideways (the action chips, the row of lands on the map) turns under a mouse wheel, so every
- // chip can be reached without a touch screen. At either end the wheel is left to whatever lies behind.
- document.addEventListener('wheel',event=>{
-  if(event.ctrlKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))return;
-  let el=event.target instanceof Element?event.target:null;
-  for(;el&&el!==document.body;el=el.parentElement){
-   if(el.scrollWidth<=el.clientWidth+1)continue;
-   const cs=getComputedStyle(el);
-   if(!/(auto|scroll)/.test(cs.overflowX))continue;
-   // A pane that also scrolls up and down keeps the wheel for that.
-   if(/(auto|scroll)/.test(cs.overflowY)&&el.scrollHeight>el.clientHeight+1)return;
-   const before=el.scrollLeft;el.scrollLeft+=event.deltaY;
-   if(el.scrollLeft!==before){event.preventDefault();event.stopPropagation();}
-   return;
-  }
- },{passive:false,capture:true});
  resize();
 }
 // The visible height and whether a keyboard is covering part of the screen.

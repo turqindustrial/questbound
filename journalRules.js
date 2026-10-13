@@ -2,7 +2,26 @@ import {mapState,mapLocation,placeName,travelRoute,distanceText} from './mapRule
 // Journal and adventure share one save, so retries cannot duplicate events.
 export function appendJournal(journal,kind,title,text) {
   const entry={id:journal.nextId,chapter:journal.chapter,kind,title,text};
-  return {...journal,nextId:journal.nextId+1,entries:[...journal.entries,entry]};
+  return compactJournal({...journal,nextId:journal.nextId+1,entries:[...journal.entries,entry]});
+}
+// The journal keeps what a player reads back without growing for ever: it gained one record of the Dungeon Master's
+// words every turn, so a long shared table would have reached the 2,000,000-character snapshot limit after some
+// 1,000 to 1,500 turns. It keeps the newest `journalLimits.talk` records of the Dungeon Master's turns (the
+// conversation, spell rulings and checks) and `journalLimits.entries` entries in all; past that the oldest go first:
+// those records, then milestones, then the player's own notes, never the tale's first entry (its opening, orders and
+// introduction). What falls away is still in the story so far (memoryRules.js keeps every tale, chapter and fact)
+// and in the story log. Entries are numbered afresh from 1, as validJournal expects; old saves with more are
+// accepted as they are and trimmed at their next entry. verify-long-play.cjs plays 5,000 turns against the limits.
+export const journalLimits={entries:200,talk:60};
+export const journalTalk=e=>(e.kind==='note'&&['AI DM conversation','AI spell ruling'].includes(e.title))||e.kind==='ruling';
+export function compactJournal(journal){
+  const list=journal.entries,talk=list.filter(journalTalk).length;
+  if(list.length<=journalLimits.entries&&talk<=journalLimits.talk)return journal;
+  const keep=list.map(()=>true);let count=list.length;
+  for(let i=1,over=talk-journalLimits.talk;i<list.length&&over>0;i++)if(journalTalk(list[i])){keep[i]=false;count--;over--;}
+  for(const pass of [e=>journalTalk(e),e=>e.kind!=='note',()=>true])for(let i=1;i<list.length&&count>journalLimits.entries;i++)if(keep[i]&&pass(list[i])){keep[i]=false;count--;}
+  const entries=list.filter((e,i)=>keep[i]).map((e,i)=>e.id===i+1?e:{...e,id:i+1});
+  return {...journal,nextId:entries.length+1,entries};
 }
 export function journalForGame(game) {
   if(game.journal)return game.journal;

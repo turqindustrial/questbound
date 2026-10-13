@@ -1,9 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Killing and dying: death saving throws, outright death, a dead hero's save, NPCs killed or knocked out, the story
 // foe slain or beaten, and attacks in any wording (main weapon, named weapon, bare hands, a bow).
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','hostileEncounter.js','quickActions.js','characterStorage.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({adventureStep,newAdventure,validAdventure,adventureSnapshot,equipmentFor,attackOptions,unarmedStrike,rangedMode,rollDamage,dmCommand,dmChoices,commitDmTurn,hostileEncounterGame,quickActions,storyText,withAttackIntent,npcScene,dmContext,readyHero})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const source=rulesSource({extra:['rosterRules.js']});
+const r=vm.runInNewContext(source+'\n({adventureStep,newAdventure,validAdventure,adventureSnapshot,equipmentFor,attackOptions,unarmedStrike,rangedMode,rollDamage,dmCommand,dmChoices,commitDmTurn,hostileEncounterGame,quickActions,storyText,withAttackIntent,npcScene,dmContext,readyHero,readyHeroes,makeCharacter,blankBuild,startParty,joinParty,partyView,settleParty,mapLocation,knownSpells,slotUsed,sparedBlow,survivalOdds,revivalOptions,deathIsFinal,boughtRevivals,layToRest,graveEntry,validGrave,setAside,maxGraves})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const make=(cls,patch={})=>{const h={name:'Death tester',class:cls,species:'Human',level:1,scores:{Strength:16,Dexterity:14,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[],...patch};h.equipment=r.equipmentFor(h);return h;};
 const fighter=make('Fighter'),valid=(hero,g,h)=>r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(g)),h,true),hero);
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
@@ -13,7 +13,7 @@ const seq=values=>{let i=0;return ()=>values[i++]??0.5;};
 // No draught and no Second Wind left, so nothing holds the turn open after the action.
 const fight={...r.hostileEncounterGame(fighter,r.newAdventure(fighter),()=>0),potions:0,resources:{wind:2}},open={...fight,openingAttackAvailable:false};
 let down=r.adventureStep(open,{current:1,temp:0},fighter,'dodge',()=>0.9);
-assert.equal(down.game.stage,'dying');assert.equal(down.health.current,0);same({...down.game.dying},{successes:0,failures:0,place:'bridge',cause:'Slain by the Bandit Cutthroat',placeName:'Overgrown Roadside',fight:true});
+assert.equal(down.game.stage,'dying');assert.equal(down.health.current,0);same({...down.game.dying},{successes:0,failures:0,place:'bridge',cause:'Slain by the Bandit Cutthroat',placeName:'Overgrown Roadside',where:'bridge',fight:true});
 assert.ok(valid(fighter,down.game,down.health));assert.equal(down.game.openingAttackAvailable,undefined);
 assert.equal(r.adventureStep(down.game,down.health,fighter,'attack:Greatsword').error,'You are unconscious and dying. Roll a death saving throw to hold on.');
 same(r.dmChoices(fighter,down.game).map(c=>c.id),['death-save']);
@@ -33,7 +33,8 @@ assert.ok(r.dmChoices(fighter,twenty.game).some(c=>c.id==='approach'),'The foe c
 let stable=down;for(let i=0;i<3;i++)stable=r.adventureStep(stable.game,stable.health,fighter,'death-save',()=>0.6);
 assert.equal(stable.game.stage,'inn');assert.equal(stable.health.current,1);assert.equal(stable.game.journal.entries.at(-1).title,'Survived');
 // Damage past 0 HP of at least the hero's maximum kills outright.
-const massive=r.adventureStep(open,{current:1,temp:0},fighter,'dodge',()=>0.99);
+// (A level-1 hero meets a foe a point softer, storyRules.js foeEase: this one hits as hard as it would at 3rd level.)
+const massive=r.adventureStep({...open,story:{...open.story,foeStats:{...open.story.foeStats,bonus:1}}},{current:1,temp:0},fighter,'dodge',()=>0.99);
 assert.equal(massive.game.stage,'dead');assert.equal(massive.game.death.massive,true);assert.ok(massive.events.some(t=>t.startsWith('The blow is so savage that it kills you outright')));assert.ok(valid(fighter,massive.game,massive.health));
 // A dead or dying save that was tampered with is refused.
 assert.ok(!valid(fighter,{...down.game,dying:{...down.game.dying,failures:3}},down.health));
@@ -108,4 +109,83 @@ assert.match(r.dmCommand(wiz,wfight,'I cast a spell at the bandit',null).error,/
 {const told=r.dmContext(rogue,inFight,{current:10,temp:0}).attackOptions;same({mainWeapon:told.mainWeapon,carried:told.carried,unarmed:told.unarmed},{mainWeapon:'Shortsword',carried:['Shortsword','Dagger','Shortbow (ranged)'],unarmed:'Unarmed Strike'});
  // A Rogue masters two kinds: the main weapon and the bow (Weapon Mastery); grappling and two weapons are explained.
  same(told.masteries.map(m=>m.split(':')[0]),['Shortsword','Shortbow']);assert.match(told.grappleAndShove,/DC \d+/);assert.match(told.twoWeapons,/light weapon/);}
-console.log('Passed: falling and death saves (natural 1 and 20, stable, dead), outright death, protected dead saves, foes slain or beaten, NPCs killed, knocked out and finished off, and attacks by any wording with main weapon, named weapon, fists or bow.');
+// ---- Fortune near death (survivalOdds): never told, only the roll that counts is written down ----
+const seeded=seed=>{let x=(seed*48271+12345)%2147483647;return ()=>(x=(x*16807)%2147483647)/2147483647;};
+{const roll={dice:[6],total:7},low={dice:[1],total:2};
+ same(r.sparedBlow(roll,{current:5},()=>low,()=>0.4),low,'a blow that would drop the hero is sometimes rolled again, the lower kept');
+ same(r.sparedBlow(roll,{current:5},()=>low,()=>0.6),roll,'and sometimes not');
+ same(r.sparedBlow(roll,{current:9},()=>low,()=>0),roll,'a blow that leaves them standing is never touched');
+ same(r.sparedBlow(roll,{current:3,temp:5},()=>low,()=>0),roll,'temporary hit points count');
+ same(r.sparedBlow({dice:[1],total:2},{current:2},()=>roll,()=>0),{dice:[1],total:2},'the second roll is kept only when lower');}
+const words=/\b(luck|lucky|fortune|reroll|re-roll|rolled again|spared|mercy)\b/i;
+const damageLine=/^(\d+)d(\d+) \[([\d, ]+)\] \+ (\d+) = (\d+) \w+ damage\./;
+const odds={...r.survivalOdds};
+function trial(seed){
+ // The hero at 3 HP takes the Dodge; the bandit strikes back. Did it drop them, and is every line consistent?
+ const step=r.adventureStep(open,{current:3,temp:0},fighter,'dodge',seeded(seed));
+ for(const line of step.events){assert.ok(!words.test(line),'never told: '+line);const m=line.match(damageLine);if(m){const sum=m[3].split(', ').reduce((a,b)=>a+Number(b),0);assert.equal(Number(m[5]),Math.max(1,sum+Number(m[4])),'the dice shown add up: '+line);}
+  const d=line.match(/^Death saving throw: d20 \[(\d+)\] = (\d+)/);if(d)assert.equal(d[1],d[2]);}
+ return step;
+}
+function dropRate(n){let drops=0;for(let i=1;i<=n;i++)if(trial(i).game.stage!=='combat')drops++;return drops/n;}
+const plain=(()=>{r.survivalOdds.blow=0;r.survivalOdds.save=0;try{return dropRate(400);}finally{Object.assign(r.survivalOdds,odds);}})(),lucky=dropRate(400);
+assert.ok(lucky<plain,'fortune near death keeps a hero standing more often ('+lucky+' vs '+plain+')');assert.ok(lucky>plain*0.5,'but a blow can still drop them ('+lucky+' vs '+plain+')');
+// The same dice give the same turn, so a campaign server and a device agree.
+same(r.adventureStep(open,{current:3,temp:0},fighter,'dodge',seeded(77)),r.adventureStep(open,{current:3,temp:0},fighter,'dodge',seeded(77)));
+// Death saves: a failed save is now and then rolled again (the better kept). Dying is still dangerous.
+function deathRate(n){let dead=0;for(let i=1;i<=n;i++){let st={game:down.game,health:down.health};const rnd=seeded(i*7+3);for(let k=0;k<12&&st.game.stage==='dying';k++){st=r.adventureStep(st.game,st.health,fighter,'death-save',rnd);for(const line of st.events??[])assert.ok(!words.test(line),line);}if(st.game.stage==='dead')dead++;}return dead/n;}
+const savesPlain=(()=>{r.survivalOdds.save=0;try{return deathRate(400);}finally{Object.assign(r.survivalOdds,odds);}})(),savesLucky=deathRate(400);
+assert.ok(savesLucky<savesPlain&&savesLucky>0.15,'death saves are a touch kinder, never safe ('+savesLucky+' vs '+savesPlain+')');
+// Nothing the Dungeon Master or the player reads names it.
+for(const f of ['dmContext.js','dm-server.cjs','dm-rules.cjs','descriptions.js','legalText.js','feedbackRules.js','chronicleRules.js','loadingRules.js'])assert.ok(!/survivalOdds|sparedBlow/.test(fs.readFileSync(f,'utf8')),f+' never mentions the hidden luck');
+
+// ---- Bringing the dead back, or laying them to rest ----
+const deadGame=s.game;
+assert.equal(r.deathIsFinal(deadGame,fighter),true,'alone, a dead hero cannot be brought back');same(r.revivalOptions(deadGame,fighter),[]);same(r.boughtRevivals(deadGame,fighter),[],'nothing is sold yet');
+assert.equal(r.validAdventure(r.adventureSnapshot(fighter,{...deadGame,death:{...deadGame.death,where:'x'.repeat(81)}},s.health,true),fighter),false,'the place of a fall is short');
+// A companion trained as a Cleric of level 5 can speak Revivify, if there is a 300 gp diamond's worth of gold.
+const withCleric=(gold,level=5)=>({...deadGame,followers:{mara:{status:'following',location:'inn',reason:'Test.',terms:''}},npcClasses:{mara:{class:'Cleric',level}},pack:{...(deadGame.pack??{items:[],spent:{}}),gold}});
+assert.ok(valid(fighter,withCleric(350),s.health));
+same(r.revivalOptions(withCleric(350,4),fighter),[],'a cleric below 5th level does not know it');
+const short=r.revivalOptions(withCleric(120),fighter);assert.equal(short.length,1);assert.equal(short[0].ready,false);assert.match(short[0].short,/300 gp/);assert.equal(r.deathIsFinal(withCleric(120),fighter),true,'without the diamond, death is final');
+same(r.dmChoices(fighter,withCleric(120)),[]);assert.match(r.adventureStep(withCleric(120),s.health,fighter,{type:'revive',by:'mara'}).error,/300 gp/);
+assert.equal(r.deathIsFinal(withCleric(350),fighter),false);same(r.dmChoices(fighter,withCleric(350)).map(c=>c.id),['revive:mara']);same(r.quickActions(fighter,withCleric(350)),[],'asked from the epitaph, not a chip');
+const back=r.adventureStep(withCleric(350),s.health,fighter,{type:'revive',by:'mara'});
+assert.equal(back.error,undefined,back.error);assert.equal(back.game.stage,'bridge','back where they fell');same(back.health,{current:1,temp:0});assert.equal(back.game.pack.gold,50,'the diamond is paid');assert.equal(back.game.death,undefined);
+assert.ok(back.events[0].includes('Revivify'));assert.ok(valid(fighter,back.game,back.health));assert.equal(back.game.journal.entries.at(-1).title,'Brought back');
+assert.match(r.adventureStep(withCleric(350),s.health,fighter,{type:'revive',by:'keeper'}).error,/Nobody here/);
+assert.match(r.adventureStep(withCleric(350),s.health,fighter,'long-rest').error,/has died/,'nothing else while dead');
+// Laid to rest: a memorial line only, never a save to play again.
+const grave=r.graveEntry(fighter,deadGame,Date.UTC(2026,9,11));assert.equal(grave.character,undefined,'no sheet in a grave');assert.ok(r.validGrave(grave));
+same(Object.keys(grave).sort(),['at','cause','class','level','name','place','species','story']);
+assert.ok(r.validGrave({...grave,character:JSON.stringify(fighter)}),'graves from before are still read');
+const entry={id:'x1',character:JSON.stringify(fighter)},rested=r.layToRest([entry,{id:'x2',character:'{}'}],[],fighter,deadGame,Date.UTC(2026,9,11));
+same(rested.roster.map(e=>e.id),['x2'],'out of the roster');assert.equal(rested.graves.length,1);
+same(r.layToRest(rested.roster,rested.graves,fighter,deadGame).graves.length,1,'one grave for one fall');
+same(r.setAside([],[],fighter,deadGame,s.health,true).graves.map(g=>g.name),[fighter.name]);
+// At a shared table: a hero who knows Revivify, with a slot of 3rd level and 300 gp, brings a friend back while the
+// party is still where they fell; never mid-fight, never later.
+{const entry=r.readyHeroes.find(h=>h.key==='cleric'),cleric=r.makeCharacter({...r.blankBuild(),...entry.form,level:5,plannedSubclass:'Life Domain',advancements:[],spellSelectionVersion:2});
+ assert.ok(r.knownSpells(cleric).some(sp=>sp.id==='revivify'),'a Life cleric of 5th level knows Revivify');
+ const camp={...r.newAdventure(cleric),pack:{gold:400,items:[],spent:{}}},where=r.mapLocation(camp);
+ let table=r.startParty(r.adventureSnapshot(cleric,camp,{current:20,temp:0},true),'A','Sam');
+ table=r.joinParty(table,'B',{character:JSON.stringify(fighter),game:null,health:null,name:'Jo'}).snapshot;
+ table=r.partyView(table,'A');
+ const death=where2=>({cause:'Slain by the Bandit Cutthroat',place:'The road',at:'bridge',massive:false,where:where2});
+ const withDead=(where2,patch={})=>{const t=JSON.parse(JSON.stringify(table));t.game.party.members.B={...t.game.party.members.B,status:'dead',health:{current:0,temp:0},hero:{...t.game.party.members.B.hero,death:death(where2)}};t.game={...t.game,...patch};return t;};
+ const t=withDead(where);assert.ok(r.validAdventure(t,cleric),'a party with a fallen friend is valid');
+ assert.ok(r.dmChoices(cleric,t.game,t.health).some(c=>c.id==='revive:party:B'));const chip=r.quickActions(cleric,t.game,t.health).find(a=>a.key==='revive:party:B');assert.ok(chip,'a Revivify chip');assert.equal(chip.label,'Revivify Death');
+ same(r.dmCommand(cleric,t.game,'I cast Revivify on Death tester',t.health).action,chip.action,'typed, the same move');
+ assert.match(r.dmCommand(cleric,withDead('elsewhere').game,'I cast Revivify on Death tester',t.health).error,/too late/);
+ const raised=r.adventureStep(t.game,t.health,cleric,chip.action,()=>0.5);assert.equal(raised.error,undefined,raised.error);
+ const B=raised.game.party.members.B;assert.equal(B.status,'up');same(B.health,{current:1,temp:0});assert.equal(B.hero.death,undefined);assert.equal(raised.game.pack.gold,100);assert.equal(r.slotUsed(raised.game,3),1,'a 3rd-level slot');
+ const after=r.adventureSnapshot(cleric,raised.game,raised.health,true);assert.ok(r.validAdventure(after,cleric));assert.notEqual(r.partyView(after,'B').game.stage,'dead','the fallen friend stands again on their own device');
+ assert.match(r.adventureStep(withDead('elsewhere').game,t.health,cleric,chip.action).error,/too late/,'only where they fell');
+ assert.match(r.adventureStep(withDead(undefined).game,t.health,cleric,chip.action).error,/too late/,'a fall from before this has no moment left');
+ assert.match(r.adventureStep(withDead(where,{pack:{gold:120,items:[],spent:{}}}).game,t.health,cleric,chip.action).error,/300 gp/);
+ const plainCleric=r.readyHero('cleric');assert.ok(!r.dmChoices(plainCleric,withDead(where).game,t.health).some(c=>c.id.startsWith('revive:')),'a 1st-level cleric cannot');
+ assert.equal(r.deathIsFinal(r.partyView(t,'B').game,fighter),false,'a hero at a table is never laid to rest by the rules');}
+// The device lays a hero to rest when death is final, and leaves them out of every save from then on.
+{const app=fs.readFileSync('App.js','utf8');for(const piece of ['deathIsFinal(game,hero)','layToRest(','forgetAdventure()','forgetCharacter()','restingRef.current===JSON.stringify(hero)'])assert.ok(app.includes(piece),'App.js lays the dead to rest: '+piece);
+ const adv=fs.readFileSync('Adventure.js','utf8');for(const piece of ['revivalOptions(','Begin a new hero','onLetGo'])assert.ok(adv.includes(piece),'the epitaph: '+piece);}
+console.log('Passed: falling and death saves (natural 1 and 20, stable, dead), outright death, protected dead saves, foes slain or beaten, NPCs killed, knocked out and finished off, and attacks by any wording with main weapon, named weapon, fists or bow; fortune near death (unseen, consistent dice, same on every device), Revivify by a companion or a friend at the table, and the dead laid to rest as a memorial line. Fortune near death: a blow at 3 HP drops the hero '+Math.round(100*lucky)+'% of the time instead of '+Math.round(100*plain)+'%, and '+Math.round(100*savesLucky)+'% of the dying die instead of '+Math.round(100*savesPlain)+'%.');

@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // A party at the shared table (partyRules.js): every player brings their own hero into one adventure. Each device sees
 // the table with its own hero in the lead, and that change of view is never sent as a move; foes strike any standing
 // hero; a hero who falls is dying and rolls on their own turn while the fight goes on for the others; a friend can be
 // revived with a draught; a victory earns every living hero a level; saves accept a party; the Dungeon Master is told
 // of the others but never speaks or acts for them.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','partyRules.js','sharedTableSync.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,partyVictory,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty,createSharedTableSync})',{AsyncStorage:{}});
+const source=rulesSource();
+const r=vm.runInNewContext('Math.random=(()=>{let s=7;return ()=>(s=(s*16807)%2147483647)/2147483647;})();\n'+source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,startParty,joinParty,partyView,settleParty,canonicalParty,partyMembers,withExperience,advancedInPlace,heroXp,xpForLevel,levelUpReady,soloFromParty,isPartyGame,pickFoeTarget,foeHitsPartyHero,partyTargets,dmChoices,dmContext,quickActions,validParty})',{AsyncStorage:{}});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const kara=r.readyHero('fighter'),ilyra=r.readyHero('wizard'),maxA=r.combatBasics(kara).hp,maxB=r.combatBasics(ilyra).hp;
 const valid=(view,hero)=>r.validAdventure(plain(view),hero);
@@ -29,12 +29,7 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  let full=viewB;for(const id of ['C','D'])full=r.joinParty(full,id,{character:JSON.stringify(r.readyHero('rogue')),game:null,health:null,name:id}).snapshot;
  assert.match(r.joinParty(full,'E',{character:JSON.stringify(r.readyHero('cleric')),game:null,health:null,name:'E'}).error,/four heroes at most/);
 
- // ---- The sync: a change of view is not sent; a real change is ----
- const saved=[];let table={version:1,snapshot:viewB};
- const sync=r.createSharedTableSync({pollTable:async()=>({version:table.version,snapshot:table.snapshot,players:[]}),saveTable:async(snapshot,base)=>{saved.push(snapshot);table={version:base+1,snapshot};return {version:table.version,players:[]};},leaveTable:async()=>({}),applyRemote:async()=>{},canonical:r.canonicalParty});
- await sync.start(0);await sync.submit(viewA);assert.equal(saved.length,0,'Sam\'s device seeing the table from Kara does not write to it');
- const moved=r.partyView(viewB,'A');moved.game={...moved.game,potions:moved.game.potions+1};await sync.submit(moved);assert.equal(saved.length,1,'a real change is written');
- assert.ok(saved[0].version===1&&typeof saved[0].character==='string'&&saved[0].game?.party,'the snapshot itself is written, not the form it is compared by');
+ // Shared transport and server-owned writes are checked in verify-table-client.cjs and verify-sync.cjs.
 
  // ---- Foes strike any standing hero ----
  assert.equal(JSON.stringify(r.partyTargets(viewB.game)),JSON.stringify(['A']));
@@ -56,7 +51,7 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  const save=r.adventureStep(downA.game,downA.health,kara,'death-save',()=>0.6);assert.equal(save.game.stage,'dying');
  const afterSave={...downA,game:save.game,health:save.health};assert.equal(r.settleParty(afterSave).world.stage,'combat','a death save does not move the party');assert.equal(r.settleParty(afterSave).members.A.hero.dying.successes,1);
  assert.equal(r.partyView(afterSave,'B').game.stage,'combat');
- // Jo revives Kara with a draught (it costs Jo's turn).
+ // Jo revives Kara with a draught (a bonus action, 2024 rules).
  const viewB2=r.partyView(afterSave,'B');const revived=r.adventureStep(viewB2.game,viewB2.health,ilyra,{type:'give-potion',target:'party:A'},()=>0.5);
  assert.ok(!revived.error,revived.error);assert.equal(revived.game.potions,viewB2.game.potions-1);const back0=revived.game.party.members.A;assert.ok(back0.status==='up'||new RegExp('attacks '+kara.name).test((revived.events??[]).join(' ')),'revived (unless the foe struck her down again at once)');
  // Out of a fight the draught is all that happens.
@@ -69,10 +64,29 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  assert.equal(r.settleParty(leadFallsUpA).world.stage,'combat');assert.equal(r.partyView(leadFallsUpA,'A').game.stage,'combat');
  // Nobody standing: the foe leaves them where they fell.
  assert.equal(r.settleParty(leadFalls).world.stage,'bridge','the foe leaves when every hero is down');
+ // Out of the fight, a friend lies dying: no travel is offered, and travel is refused in plain words (bug: the move
+ // was offered and then refused by the campaign server as an invalid adventure).
+ {const seen=r.partyView(leadFallsUpA,'A'),quiet={...seen,game:{...seen.game,stage:'bridge',enemyHP:0}},hero=JSON.parse(quiet.character);assert.equal(quiet.game.stage,'bridge');assert.equal(quiet.game.party.members.B.status,'down');
+  assert.ok(!r.dmChoices(hero,quiet.game,quiet.health).some(c=>c.action?.type==='travel'),'no travel while a friend is dying');
+  const left=r.adventureStep(quiet.game,quiet.health,hero,{type:'travel',destination:'inn'},()=>.5);assert.match(left.error??'',new RegExp(ilyra.name+' lies dying here'));
+  const up={...quiet.game,party:{...quiet.game.party,members:{...quiet.game.party.members,B:{...quiet.game.party.members.B,status:'up'}}}};assert.ok(r.dmChoices(hero,up,quiet.health).some(c=>c.action?.type==='travel'),'travel returns once they are up');}
 
- // ---- A victory earns every living hero a level ----
- const won=r.partyVictory({stage:'combat'},{...viewB.game,stage:'victory'});assert.equal(won.party.members.A.hero.levelsOwed,1);assert.equal(won.party.members.B.hero?.levelsOwed??0,0,'the hero in the lead levels as before');
- const deadWon=r.partyVictory({stage:'combat'},{...killed.game,stage:'victory'});assert.equal(deadWon.party.members.A.hero?.levelsOwed??0,0,'not the dead');
+ // ---- A victory earns every living hero their own experience (each the full award, from their own level) ----
+ const fightOn={...viewB.game,stage:'combat',enemyHP:5},wonFight={...viewB.game,stage:'victory',enemyHP:0};
+ const won=r.withExperience(fightOn,wonFight,ilyra,{});assert.ok(won.gained>0,'the hero in the lead gains');assert.ok(won.game.xp>r.xpForLevel(1));
+ assert.ok(won.game.party.members.A.hero.xp>r.xpForLevel(1),'Kara gains too');assert.equal(won.game.party.members.A.hero.levelsOwed,undefined,'no owed levels any more');
+ assert.match(won.lines[0],/^Experience: \+\d+ \(.+\)\. Every hero in the party gains experience too\.$/);
+ const leveledA={...viewB.game,story:{...viewB.game.story,introId:'quest',id:'tale-x'},party:{...viewB.game.party,members:{...viewB.game.party.members,A:{...viewB.game.party.members.A,character:JSON.stringify({...kara,level:4})}}}};
+ const wonHigh=r.withExperience({...leveledA,stage:'combat',enemyHP:5},{...leveledA,stage:'victory',enemyHP:0},ilyra,{});
+ assert.ok(wonHigh.game.party.members.A.hero.xp>r.xpForLevel(4)&&wonHigh.game.party.members.A.hero.xp<r.xpForLevel(5),'a member is paid from their own level');
+ const lyingA={...viewB.game,party:{...viewB.game.party,members:{...viewB.game.party.members,A:{...viewB.game.party.members.A,status:'down'}}}};
+ assert.ok(r.withExperience({...lyingA,stage:'combat',enemyHP:5},{...lyingA,stage:'victory',enemyHP:0},ilyra,{}).game.party.members.A.hero.xp>0,'a hero down in the fight still gains');
+ const deadWon=r.withExperience({...killed.game,stage:'combat',enemyHP:5},{...killed.game,stage:'victory',enemyHP:0},ilyra,{});assert.equal(deadWon.game.party.members.A.hero?.xp,undefined,'not the dead');
+ // The victory alone is not a level any more (bug: the others leveled twice), and a level taken keeps the party.
+ assert.equal(r.levelUpReady({...wonFight,xp:r.xpForLevel(1)},ilyra),false);
+ const taken=r.advancedInPlace(won.game,ilyra,{...ilyra,level:2});assert.ok(r.isPartyGame(taken),'a level taken keeps the party at the table');assert.equal(taken.encounterLevel,won.game.encounterLevel,'the world level is not changed for one hero');assert.equal(taken.xp,won.game.xp);
+ assert.equal(r.validParty({party:{...viewB.game.party,members:{...viewB.game.party.members,A:{...viewB.game.party.members.A,hero:{...viewB.game.party.members.A.hero,xp:-5}}}}}),false,'bad experience is refused');
+ assert.equal(r.validParty({party:{...won.game.party}}),true);
 
  // ---- Saves and leaving ----
  assert.equal(r.validParty({party:{lead:'X',members:{A:viewB.game.party.members.A}}}),false,'the lead must be in the party');

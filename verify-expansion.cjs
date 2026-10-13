@@ -1,13 +1,16 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 const catalog=JSON.parse(fs.readFileSync('spellCatalog.json','utf8'));
-const source='const catalog='+JSON.stringify(catalog)+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+['subclassOptions.js','spellOptions.js','campaignRules.js','mapRules.js','journalRules.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source='const catalog='+JSON.stringify(catalog)+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+rulesSource({data:false});
 const r=vm.runInNewContext(source+'\n({spellDefense,subclassOptions,validPlannedSubclass,classes,combatBasics,weaponAttacks,attacksPerAction,rollAttack,equipmentFor,newAdventure,requestSpell,resolveSpellRuling,adventureStep,castError,spellSlots,slotUsed,spellCostOptions,spellMode,automaticSpells,concentrationAfterDamage,validAdventure,adventureSnapshot,spellSelectionError,makeCharacter,blankBuild})');
 const scores={Strength:16,Dexterity:16,Constitution:14,Intelligence:18,Wisdom:16,Charisma:18};
 const hero=(name,level=1,spells=[])=>{const h={name:'QA',class:name,race:'Human',species:'Human',level,scores,spells};h.equipment=r.equipmentFor(h);return h;};
 for(const name of r.classes){
- // One subclass a class, exactly the one the SRD 5.2 licenses; the Artificer (a Questbound option beyond the SRD) has four of its own.
- assert.equal(Object.keys(r.subclassOptions[name]).length,name==='Artificer'?4:1,name+' offers its SRD subclass');
- for(const [sub,description] of Object.entries(r.subclassOptions[name])){assert.ok(description.length>35);assert.equal(r.validPlannedSubclass({class:name,plannedSubclass:sub}),true);}
+ // The subclass the SRD 5.2 licenses first, then three of Questbound's own; the Artificer (a Questbound option beyond the
+ // SRD) has five specialities of its own. Every one of them makes a valid hero and adventure at every level from 3.
+ assert.equal(Object.keys(r.subclassOptions[name]).length,name==='Artificer'?5:4,name+' offers four paths (the Artificer five)');
+ for(const [sub,description] of Object.entries(r.subclassOptions[name])){assert.ok(description.length>35);assert.equal(r.validPlannedSubclass({class:name,plannedSubclass:sub}),true);
+  for(let level=3;level<=20;level++){const h={...hero(name,level),plannedSubclass:sub},stats=r.combatBasics(h);assert.ok(stats.available&&stats.hp>0&&stats.ac>0,sub+' '+level);assert.equal(r.validAdventure(r.adventureSnapshot(h,r.newAdventure(h),null,true),h),true,sub+' at level '+level);}}
  for(let level=1;level<=20;level++){const h=hero(name,level),stats=r.combatBasics(h);assert.ok(stats.available);assert.equal(stats.proficiency,2+Math.floor((level-1)/4));assert.ok(stats.hp>0);if(level>1)assert.ok(stats.hp>r.combatBasics(hero(name,level-1)).hp);assert.equal(r.validAdventure(r.adventureSnapshot(h,r.newAdventure(h),null,true),h),true);}
 }
 assert.equal(r.validPlannedSubclass({class:'Artificer',plannedSubclass:'Cartographer'}),true);
@@ -23,8 +26,9 @@ assert.equal(r.weaponAttacks({...champion,level:15})[0].criticalThreshold,18);
 assert.equal(r.attacksPerAction(hero('Fighter',20)),4);
 assert.equal(r.attacksPerAction(hero('Fighter',4)),1);
 assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Alchemist'}),1);
-// Subclasses outside the SRD give no features any more (the game plays out licensed content only).
-assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Battle Smith'}),1);assert.equal(r.attacksPerAction({...hero('Wizard',6),plannedSubclass:'Bladesinger'}),1);
+// Legacy subclasses give no new features (a Bladesinger makes one attack); the Battle Smith and the Armorer, Artificer
+// specialities in Questbound's own words, attack twice from level 5 (subclassRules.js), as Steel Verses Bards do from 6.
+assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Battle Smith'}),2);assert.equal(r.attacksPerAction({...hero('Artificer',4),plannedSubclass:'Battle Smith'}),1);assert.equal(r.attacksPerAction({...hero('Artificer',5),plannedSubclass:'Armorer'}),2);assert.equal(r.attacksPerAction({...hero('Wizard',6),plannedSubclass:'Bladesinger'}),1);
 const dragon={...hero('Sorcerer',3),plannedSubclass:'Draconic Sorcery'};
 assert.equal(r.combatBasics(dragon).hp-r.combatBasics({...dragon,plannedSubclass:''}).hp,3);
 assert.equal(r.combatBasics(dragon).ac,17);
@@ -35,14 +39,16 @@ const report=[];
 for(const spell of catalog){
  const name=spell.classes.find(c=>c!=='Artificer' && c!=='Warlock')??spell.classes[0];
  const h=hero(name,20,[spell.id]);if(name==='Warlock'&&spell.level>=6)h.arcanum={[spell.level]:spell.id};
- const game={...r.newAdventure(h),stage:'combat',map:undefined},maximum=r.combatBasics(h).hp,hp={current:1,temp:0};
+ // Spells of an action or a bonus action are tried in a fight (after a melee hit, for Divine Smite); longer castings
+ // and reactions out of one, since a fight refuses them (verify-spell-routes.cjs checks those refusals).
+ const quick=['Action','Bonus Action'].includes(spell.castingTime),game={...r.newAdventure(h),stage:quick?'combat':'inn',...(quick?{lastHit:{target:'foe'}}:{}),map:undefined},maximum=r.combatBasics(h).hp,hp={current:1,temp:0};
  const cost=r.spellCostOptions(h,game,spell).find(x=>x!=='ritual');assert.notEqual(cost,undefined,spell.name+' must have a casting route');
  const request={id:spell.id,slot:cost,intent:'DM verifies a legal target and completed casting requirements.',componentsConfirmed:true};
  const original=JSON.stringify({game,hp});
  let result=r.requestSpell(h,game,hp,maximum,request,()=>0.5);
  assert.equal(result.error,undefined,spell.name);assert.equal(JSON.stringify({game,hp}),original,spell.name+' must not mutate input');
- if(r.spellMode(spell.id)==='dm'){
-   assert.equal(result.waiting,true,spell.name);assert.equal(r.slotUsed(result.game,typeof cost==='number'?cost:1),0);
+ if(r.spellMode(spell.id)==='dm')assert.equal(result.waiting,true,spell.name);
+ if(result.waiting){assert.equal(r.slotUsed(result.game,typeof cost==='number'?cost:1),0);
    assert.equal(r.validAdventure(r.adventureSnapshot(h,result.game,hp,true),h),true,spell.name+' pending save');
    const reloaded=JSON.parse(JSON.stringify(result.game));
    assert.ok(r.resolveSpellRuling(h,reloaded,hp,maximum,{note:'',damage:0,healing:0,temporaryHP:0}).error);
@@ -52,7 +58,7 @@ for(const spell of catalog){
  if(typeof cost==='number'&&cost>0)assert.equal(r.slotUsed(result.game,cost),1,spell.name+' correct slot');
  if(cost==='arcanum')assert.ok(result.game.arcanumUsed.includes(spell.level));
  assert.equal(r.validAdventure(r.adventureSnapshot(h,result.game,result.health,true),h),true,spell.name+' resolved save');
- report.push({id:spell.id,name:spell.name,level:spell.level,mode:r.spellMode(spell.id),castingRoute:'passed',effectsVerified:r.spellMode(spell.id)==='automatic'?'supported single-encounter effect only':'DM adjudication; spell-specific mechanics not automated'});
+ report.push({id:spell.id,mode:r.spellMode(spell.id)});
 }
 // Independent expected outcomes at scaling and resource boundaries.
 const h=hero('Wizard',17,['shock','missile','false-life']),g={...r.newAdventure(h),stage:'combat',map:undefined},hp={current:20,temp:0};
@@ -67,12 +73,12 @@ assert.equal(r.castError(h,g,{id:'wish',slot:9,intent:'Wish.',componentsConfirme
 const life={...hero('Cleric',3,['cure']),plannedSubclass:'Life Domain'};
 const healed=r.requestSpell(life,{...r.newAdventure(life),stage:'combat',map:undefined},{current:1,temp:0},100,{id:'cure',slot:2,intent:'Heal yourself.',componentsConfirmed:true},()=>0);
 assert.equal(healed.health.current,12); // 4d8 minimum + WIS 3 + Disciple 4 + initial 1.
-const concentration={...g,concentration:{id:'bless',remaining:10,duration:'1 minute'}};
+const concentration={...g,concentration:{id:'hold-person',remaining:10,duration:'1 minute'}};
 assert.equal(r.concentrationAfterDamage(h,concentration,10,()=>0).game.concentration,undefined);
 assert.ok(r.concentrationAfterDamage(h,concentration,10,()=>0.99).game.concentration);
 assert.equal(r.concentrationAfterDamage(h,concentration,0,()=>0).game,concentration);
-fs.writeFileSync('SPELL-COVERAGE.json',JSON.stringify({catalogCount:catalog.length,automaticCount:report.filter(x=>x.mode==='automatic').length,dmCount:report.filter(x=>x.mode==='dm').length,fullRulesAutomation:false,scope:'Casting routes, cost accounting, save/restore and selected effect boundaries. A passing DM route is not a passing automated spell implementation.',spells:report},null,2));
-console.log('Passed: exactly 4 subclasses × 13 classes; level 1–20 stats; passive subclass gates; all 339 casting routes, costs and save states; scaling, concentration and slot limits. Full spell/subclass automation remains incomplete.');
+// SPELL-COVERAGE.json is written by verify-spell-routes.cjs, which replays every spell through the real routes.
+console.log('Passed: four subclasses for each class (five for the Artificer), each valid from level 3 to 20; level 1–20 stats; passive subclass gates; all 339 casting routes, costs and save states; scaling, concentration and slot limits. Full spell/subclass automation remains incomplete.');
 const low = {'acid-splash':4,'sacred-flame':4,'vicious-mockery':4,shock:0,blast:0,'fire-bolt':0,'poison-spray':0,'chill-touch':0,'ray-of-frost':0,'burning-hands':3,fireball:8,'lightning-bolt':8,'chain-lightning':10,'circle-of-death':8,'scorching-ray':0,'inflict-wounds':2,missile:6};
 const high = {'acid-splash':0,'sacred-flame':0,'vicious-mockery':0,shock:64,blast:80,'fire-bolt':80,'poison-spray':96,'chill-touch':80,'ray-of-frost':64,'burning-hands':9,fireball:24,'lightning-bolt':24,'chain-lightning':40,'circle-of-death':32,'scorching-ray':72,'inflict-wounds':10,missile:15};
 for(const [id,expected] of Object.entries(low)){

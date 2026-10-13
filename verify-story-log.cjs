@@ -1,10 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // The Log: one short line for every thing that matters in the hero's story (places reached and found, people met,
 // fights and how they ended, deaths, debts and grudges, gold and finds, rests, levels, the end of the tale), worked
 // out from the game itself turn by turn, kept in the save, carried into the next chapter.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,validAdventure,adventureSnapshot,freshStoryGame,joinRegion,carriedBase,resolveRecruitment,withAttackIntent,storyEvents,withStoryLog,appendStoryLog,validStoryLog,storyLogKinds,maxStoryLog})',{AsyncStorage:{}});
+const source=rulesSource();
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,validAdventure,adventureSnapshot,freshStoryGame,joinRegion,carriedBase,resolveRecruitment,withAttackIntent,storyEvents,withStoryLog,appendStoryLog,validStoryLog,storyLogKinds,maxStoryLog,memoryOf,withMemory})',{AsyncStorage:{}});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=(g,h=hp)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
@@ -31,6 +31,10 @@ const joined=r.resolveRecruitment(kara,g,hp,[{npcId:'mara',decision:'join',reaso
 g=r.withStoryLog(g,joined.game,kara,{});same(last(g),['Tobin Reed joined you.']);
 const murder=turn({...g,followers:undefined},{type:'npc-attack',target:'keeper',weapon:'Greatsword'},{random:()=>0.99});
 assert.ok(texts(murder.game).includes('You killed Captain Oona Brask.'));assert.ok(texts(murder.game).some(t=>/^A fight broke out/.test(t))||texts(murder.game).includes('Tobin Reed swore never to forgive you.'),texts(murder.game).slice(-4).join(' | '));
+// A grudge set down is a line of its own (amends made, a night gone by since it was sworn).
+const sinceId=g.storyLog.at(-1).id,grudging={...g,followers:undefined,npcMemory:{...g.npcMemory,mara:{attitude:'hostile',response:'Holds a grudge.',memories:['x y z'],grudge:'The player burned my cart.',grudgeWeight:'grave',grudgeSince:sinceId,amends:2}},storyLog:r.appendStoryLog(g.storyLog,'rest','Took a long rest at Caravan Camp.')};
+const pardoned=turn(grudging,null,{words:{question:'I stand with Tobin at the ashes.',narration:'He sighs.',relationships:[{npcId:'mara',change:'forgave',memory:'You rebuilt what you burned. I forgive you.'}]}});
+same(last(pardoned.game),['Tobin Reed forgave you.']);assert.ok(valid(pardoned.game));
 // ---- Fights: begun, won, fled, lost ----
 let f=fight,h={current:60,temp:0};const before=f;
 for(let i=0;i<80&&f.stage==='combat';i++){const s=turn(f,f.actionUsed?'end-turn':'attack:Greatsword',{health:h,random:()=>0.7});f=s.game;h=s.health;}
@@ -66,4 +70,11 @@ const story2={...g.story,id:'s2',title:'The Salt Road',status:'active',locations
 const next=r.joinRegion(r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g))),g,{sameRegion:true,bearing:'N',miles:5});
 assert.equal(next.storyLog.length,g.storyLog.length+1);same(last(next),['The Salt Road: a new tale began nearby, at Saltmere.']);assert.equal(next.storyLog.at(-1).kind,'story');assert.ok(valid(next,null));
 same(last(r.joinRegion(r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g))),g,{sameRegion:false})),['The Salt Road: a new tale began, far away, at Saltmere.']);
-console.log('Passed: the log opens with the tale and gains one short line for each place heard of, found, reached or returned to, each person met, joined, won over or killed, each fight begun and how it ended, deaths, gold and finds, rests and the end of the tale; nothing for small talk; it is bounded, guarded in saves and carried into the next chapter.');
+// The log keeps 400 lines; the lasting memory (memoryRules.js, verify-memory.cjs) keeps every tale it has told, the
+// lines that matter word for word and the rest folded into counts.
+{let long=r.withMemory(g);const kept=g.storyLog.filter(l=>['person','deed'].includes(l.kind)).map(l=>l.text);
+ for(let i=0;i<450;i++)long=r.withMemory({...long,storyLog:r.appendStoryLog(long.storyLog,'travel','Returned to the camp '+i+'.')});
+ assert.equal(long.storyLog.length,r.maxStoryLog);assert.ok(long.storyLog[0].id>g.storyLog.at(-1).id,'the first lines have left the log');
+ const m=r.memoryOf(long),c=m.tales[0].chapters[0];assert.equal(m.tales[0].title,g.story.title);
+ assert.ok(kept.length&&kept.every(t=>c.beats.includes(t)),'what mattered is still remembered word for word');assert.ok(c.folded.more>=430,'and the rest is counted: '+c.folded.more);assert.ok(valid(long));}
+console.log('Passed: the log opens with the tale and gains one short line for each place heard of, found, reached or returned to, each person met, joined, won over or killed, each fight begun and how it ended, deaths, gold and finds, rests and the end of the tale; nothing for small talk; it is bounded, guarded in saves and carried into the next chapter, and the lasting memory keeps what scrolls out of it.');

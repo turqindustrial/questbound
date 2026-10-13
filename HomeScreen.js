@@ -3,51 +3,38 @@ import {View,Text,Pressable,StyleSheet} from 'react-native';
 import {MenuItem,StatBar,Ornament} from './ui';
 import Icon from './Icon';
 import HeroPortrait from './HeroPortrait';
+import TitleEmblem from './TitleEmblem';
 import {combatBasics} from './combatRules';
 import {fonts,colors,tint} from './theme';
 import {playSound} from './audio';
-// The title screen: the battle painting behind, the name in crimson foil, and a console-style menu. Wide screens put
-// the menu in a column on the left (where the painting is dark) and the saved hero's "slot" on the right. An upright
-// phone shows the tall painting under the name and a compact menu beneath the battle; a phone on its side keeps the
-// name and the compact menu on the left so the fight fills the rest.
+// The title screen: the name in crimson foil, a console-style menu and the emblem (TitleEmblem: the host's painting,
+// its serpent ring turning round the still Q and dagger) on the launch glow. Desktop places the seal beside the menu with the saved hero in a slim strip below
+// it; upright phones place it above the hero strip and the compact menu; a phone on its side keeps the name and the
+// compact menu on the left with the seal beside them.
 export function homeLayout(width,height){
  const landscape=!(width>=860&&height>=560)&&width>=600&&width>height*1.3;
  const wide=(width>=860&&height>=560)||landscape,short=height<700,tiny=height<560&&!landscape;
  const logo=Math.max(landscape?26:34,Math.min(wide?96:72,Math.floor((landscape?width*.36:wide?Math.min(width*.58,860):width-40)/9.6),Math.floor(height/(landscape?7:short?8.5:7.2))));
  return {landscape,wide,short,tiny,logo,narrow:!wide};
 }
-// How the painting is framed. A wide screen is covered by the wide painting. An upright phone has a band between the
-// name and the menu: a long phone shows the tall painting there (the lich over the four heroes, from his crown to their
-// feet, a little narrower than the screen if it must be); a shorter one shows the wide painting across the band, so
-// the menu never sits on top of the fight.
-export function titleArt(width,height,{protect=false}={}){
- const shape=homeLayout(width,height),menuHeight=menuBase+(protect&&!shape.short?42:0);
- if(shape.wide)return {frame:'wide',top:0,size:0,edge:0,fade:0};
- const bandTop=48+(shape.short?4:10)+20+Math.round(shape.logo*1.2)+(shape.tiny?0:52)+8,band=Math.max(120,height-menuHeight-bandTop);
- const tallHeight=Math.min(width*1.5,(band+20)/.75),tallWidth=tallHeight/1.5;
- if(tallWidth>=width*.78){const edge=Math.max(0,Math.round((width-tallWidth)/2));return {frame:'tall',top:Math.round(bandTop-tallHeight*.07),size:Math.round(tallHeight),edge,fade:edge>4?28:0};}
- const wideHeight=width/1.5;
- return {frame:'band',top:Math.round(Math.max(bandTop-28,bandTop+(band-wideHeight)/2)),size:Math.round(wideHeight),edge:0,fade:0};
-}
-// The compact menu and the feedback link under it take about this much of an upright phone.
-const menuBase=236;
 export default function HomeScreen({hero,game,health,saved,unprotected=false,disabled,onContinue,onNew,onOpen,onFeedback,onLegal,width,height,notice}){
  const {landscape,wide,short,tiny,logo}=homeLayout(width,height);
  const stats=hero?combatBasics(hero):null,hp=health?.current??stats?.hp;
  const where=game?.story?.title??(saved?'The Lantern at the Crossroads':null);
  // A hero who died keeps their slot as a memorial; a new hero is the way forward.
  const fallen=saved&&game?.stage==='dead';
- // On a phone the menu is compact (the two main entries, then the other four two to a row) so the painting keeps the
+ // On a phone the menu is compact (the two main entries, then the other four two to a row) so the emblem keeps the
  // middle of the screen; a desktop lists them in a column.
  const grid=!wide||landscape,others=[['sheet','Heroes','Character Selection'],['people',grid&&width<350?'Together':'Play Together','Multiplayer'],['d20','Dice','Dice Roller'],['settings','Settings','Settings']];
  const menu=<View style={[s.menu,!wide&&s.menuNarrow,landscape&&{marginTop:4,paddingLeft:0}]}>
-  {!!hero&&<MenuItem primary={saved&&!fallen} icon="play" label="Continue" sub={fallen?hero.name+' has fallen':hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide} style={grid&&{paddingVertical:5}}/>}
+  {!!hero&&<MenuItem primary={saved&&!fallen} icon="play" label="Continue" sub={!wide&&!short&&stats?.available?null:fallen?hero.name+' has fallen':hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide} style={grid&&{paddingVertical:5}}/>}
   <MenuItem primary={!saved||fallen} icon="compass" label="New Adventure" sub={saved&&!fallen?null:'Pick a hero and choose where the story begins'} onPress={onNew} disabled={disabled} center={!wide} style={grid&&{paddingVertical:5}}/>
   {grid?<View style={[s.menuGrid,landscape&&{maxWidth:360}]}>{others.map(([icon,label,target])=><View key={target} style={s.menuCell}><MenuItem icon={icon} label={label} size="small" tight onPress={()=>onOpen(target)} disabled={disabled} center={!wide}/></View>)}</View>
   :<View style={s.menuGroup}>{others.map(([icon,label,target])=><MenuItem key={target} icon={icon} label={label} size={short?'small':'large'} onPress={()=>onOpen(target)} disabled={disabled}/>)}</View>}
  </View>;
- // The saved hero, as a slim strip along the bottom of a wide screen: it must never cover the painting's fighters.
- const slot=!!hero&&stats?.available&&<Pressable accessibilityRole="button" accessibilityLabel={'Continue as '+hero.name} disabled={disabled} onPress={()=>{playSound('page');onContinue();}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'slot'}} style={s.slot}>
+ // The saved hero, as a slim strip beneath the seal on a wide screen, or above the menu on
+ // an upright phone, where it stands in for Continue's second line.
+ const slot=!!hero&&stats?.available&&<Pressable accessibilityRole="button" accessibilityLabel={'Continue as '+hero.name} disabled={disabled} onPress={()=>{playSound('page');onContinue();}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'slot'}} style={[s.slot,!wide&&s.slotNarrow]}>
   <HeroPortrait hero={hero} size={44} level={hero.level}/>
   <View style={{flex:1,minWidth:0,gap:3}}>
    <View style={s.slotTop}><Text numberOfLines={1} style={s.slotName}>{hero.name}</Text><Text numberOfLines={1} style={[s.slotOverline,fallen&&{color:colors.bloodBright}]}>{fallen?'Fallen':'Level '+hero.level+' '+hero.class}</Text></View>
@@ -72,19 +59,21 @@ export default function HomeScreen({hero,game,health,saved,unprotected=false,dis
   {wide&&!landscape&&<View style={{flexDirection:'row',alignItems:'center',gap:14}}>{legal}<Text style={s.version}>Early access 0.1 · Playtest</Text></View>}
  </View>;
  if(landscape)return <View dataSet={{qb:'enter-slow'}} style={s.landscape}>
-  {/* A phone on its side: the name, the compact menu and the feedback link share the dark left of the painting. */}
+  {/* A phone on its side: the name, the compact menu and the feedback link share left side of the screen. */}
   <View style={s.landLeft}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{footer}</View>
+  <View style={{flex:1,alignItems:'center'}}><TitleEmblem size={Math.min(height*.48,width*.23)}/></View>
  </View>;
  if(wide)return <View dataSet={{qb:'enter-slow'}} style={s.wide}>
-  {/* On a tall screen the name sits above the monk's leap rather than across it. */}
+  {/* The name and menu sit beside the animated emblem. */}
   <View style={[s.left,height>=760&&{justifyContent:'flex-start',paddingTop:Math.round(height*.04)}]}>{brand}{!!notice&&<View style={s.notice}>{notice}</View>}{menu}{protect}</View>
-  <View style={s.right}>{slot}</View>
+  <View style={s.right}><View style={{flex:1,alignSelf:'stretch',alignItems:'center',justifyContent:'center'}}><TitleEmblem size={Math.min(width*.24,height*.4)}/></View>{slot}</View>
   <View style={s.footerWide}>{footer}</View>
  </View>;
  return <View dataSet={{qb:'enter-slow'}} style={[s.narrow,short&&{paddingTop:4}]}>
   {brand}
-  <View style={{flexGrow:1,minHeight:tiny?8:16}}/>
+  <View style={{flexGrow:1,minHeight:tiny?8:16,alignItems:'center',justifyContent:'center'}}>{!tiny&&<TitleEmblem size={Math.max(60,Math.min(width*.45,(height-440)/1.42))}/>}</View>
   {!!notice&&<View style={[s.notice,{alignSelf:'center'}]}>{notice}</View>}
+  {!short&&slot}
   {menu}
   {!short&&protect}
   {footer}
@@ -103,11 +92,12 @@ const s=StyleSheet.create({
  overline:{fontFamily:fonts.display,fontSize:11,letterSpacing:5,color:colors.goldMid,textTransform:'uppercase',marginBottom:4},
  logo:{fontFamily:fonts.logo,fontWeight:'900',color:colors.gold},
  rule:{width:'70%',maxWidth:340,marginVertical:8,alignSelf:'flex-start'},
- tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:20,color:'#decfc8',letterSpacing:.4},
+ tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:20,color:tint('#decfc8'),letterSpacing:.4},
  menu:{marginTop:14,paddingLeft:22,gap:2},menuNarrow:{paddingLeft:0,alignItems:'stretch',marginTop:6},
  menuGroup:{marginTop:10,gap:0},
  slot:{width:360,maxWidth:'100%',flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:14,borderRadius:6,overflow:'hidden',borderWidth:1,borderColor:tint('rgba(178,34,58,.5)')},
  slotOverline:{fontFamily:fonts.display,fontSize:9.5,letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase',flexShrink:0},
+ slotNarrow:{alignSelf:'center',width:'100%',maxWidth:420,marginBottom:8},
  slotTop:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:10},
  slotName:{fontFamily:fonts.display,fontSize:16,fontWeight:'700',letterSpacing:.6,color:colors.parchment,flexShrink:1},
  slotHp:{flexDirection:'row',alignItems:'center',gap:8},slotHpText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',color:colors.muted,fontVariant:['tabular-nums']},
@@ -118,5 +108,5 @@ const s=StyleSheet.create({
  notice:{maxWidth:460,marginTop:4},
  protect:{flexDirection:'row',alignItems:'center',gap:8,minHeight:36,marginTop:6,paddingLeft:22},
  legalLinks:{flexDirection:'row',alignItems:'center',gap:6},legalLink:{minHeight:36,justifyContent:'center',paddingHorizontal:4},legalText:{fontFamily:fonts.display,fontSize:10.5,letterSpacing:2,color:tint('rgba(221,214,219,.6)'),textTransform:'uppercase'},legalDot:{color:tint('rgba(221,214,219,.4)'),fontSize:12},
- protectText:{fontFamily:fonts.ui,fontSize:12.5,color:'#c4b5af',textShadowColor:'rgba(0,0,0,.9)',textShadowRadius:6},protectLink:{color:colors.goldBright,fontWeight:'600',textDecorationLine:'underline'},
+ protectText:{fontFamily:fonts.ui,fontSize:12.5,color:tint('#c4b5af'),textShadowColor:tint('rgba(0,0,0,.9)'),textShadowRadius:6},protectLink:{color:colors.goldBright,fontWeight:'600',textDecorationLine:'underline'},
 });

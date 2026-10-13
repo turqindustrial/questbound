@@ -1,10 +1,21 @@
-# Windows scripts keep Windows line endings in every download.
+# Windows scripts keep Windows line endings in every download (launch.ps1 is also kept pure ASCII).
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
-# Everything else is normalised; images are binary.
+# Everything else is normalised; images and fonts are binary.
 * text=auto
 *.png binary
 *.jpg binary
 *.jpeg binary
+*.webp binary
 *.ico binary
+*.woff2 binary
 *.zip binary
+# Files the checks write and then compare as they are on disk keep LF in every checkout, so a fresh Windows clone
+# passes the same checks as any other: the legal pages and documents (node verify-legal.cjs --write), the loading
+# card's colour table in public/index.html (node verify-theme.cjs --write) and the spell reports the spell checks
+# rewrite. The checks also read these files without regard to line endings, for checkouts made before this.
+public/*.html text eol=lf
+PRIVACY.md text eol=lf
+TERMS.md text eol=lf
+PERMISSIONS.md text eol=lf
+SPELL-*.json text eol=lf

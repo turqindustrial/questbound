@@ -1,8 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Gold and the pack: loot found, rewards paid, purchases and gifts; arrows used up; found weapons fought with at once;
 // healing draughts drunk away from a fight or given to someone (bringing round a companion lying senseless).
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','iconPaths.js','quickActions.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource();
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmCommand,dmContext,dmChoices,validAdventure,adventureSnapshot,applyLoot,packOf,arrowsLeft,gearedHero,attackOptions,quickActions})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),pip=r.readyHero('rogue'),hp={current:12,temp:0};
@@ -17,7 +17,11 @@ same(l.game.pack.items.map(i=>[i.name,i.kind,i.qty]),[['Longsword','weapon',1],[
 assert.ok(l.lines.includes('You gain 25 gold (now '+(kara.equipment.totalGold+25)+').'));assert.ok(valid(kara,l.game));
 g=l.game;
 assert.match(r.applyLoot(g,kara,{gold:-1000,items:[]}).error,/enough gold/);assert.match(r.applyLoot(g,kara,{gold:9999,items:[]}).error,/not plausible/);
-assert.match(r.applyLoot(g,kara,{gold:0,items:[{name:'Crown of Ages',kind:'quest',qty:-1}]}).error,/do not have/);assert.match(r.applyLoot(g,kara,{gold:0,items:[{name:'Laser',kind:'weapon',qty:1}]}).error,/not described clearly|Only weapons/);
+assert.match(r.applyLoot(g,kara,{gold:0,items:[{name:'Crown of Ages',kind:'quest',qty:-1}]}).error,/do not have/);{const odd=r.applyLoot(g,kara,{gold:0,items:[{name:'Laser',kind:'weapon',qty:1}]});assert.equal(odd.error,undefined,'A weapon the game does not know never fails the turn');assert.equal(odd.game.pack.items.find(i=>i.name==='Laser').kind,'gear','It is carried as gear');}
+// A magic weapon named by the Dungeon Master: an ordinary one of its kind without a magic id, the real thing with one.
+{const plain=r.applyLoot(g,kara,{items:[{name:'+1 Longsword',kind:'weapon',qty:1}]});assert.equal(plain.error,undefined,'"+1 Longsword" no longer fails the turn');assert.ok(plain.game.pack.items.some(i=>i.name==='Longsword'&&i.kind==='weapon'&&!i.magic));
+ const real=r.applyLoot(g,kara,{items:[{name:'+1 Longsword',kind:'weapon',qty:1,magic:'weapon+1'}]});assert.equal(real.error,undefined);const blade=real.game.pack.items.find(i=>i.magic);same([blade.name,blade.kind,blade.base,blade.magic.plus],['Longsword +1','weapon','Longsword',1],'A magic weapon is built from the catalogue');assert.ok(valid(kara,real.game));
+ const greater=r.applyLoot(g,kara,{items:[{name:'Potion of Greater Healing',kind:'potion',qty:2}]});assert.equal(greater.error,undefined);assert.equal(greater.game.potions,g.potions??0,'A greater draught is not downgraded to an ordinary one');same(greater.game.pack.items.find(i=>i.kind==='potion'),{name:'Potion of Greater Healing',kind:'potion',qty:2,magic:{id:'potion-greater-healing'}});assert.ok(valid(kara,greater.game));}
 const sold=r.applyLoot(g,kara,{gold:7,items:[{name:'Silver locket',kind:'treasure',qty:-1}]});assert.equal(sold.game.pack.items.length,1,'A sold item leaves the pack');
 // A found weapon can be fought with straight away.
 assert.ok(r.attackOptions(r.gearedHero(kara,g)).some(w=>w.name==='Longsword'));

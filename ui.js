@@ -4,6 +4,7 @@ import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {playSound} from './audio';
 import {displayState} from './fullscreen';
+import {wrapLimit,wrapOverflows} from './fitRules';
 const web=Platform.OS==='web';
 // Building blocks for the crimson and violet look. On web, dataSet hooks add gradients, glows and corner filigree from webTheme.js.
 export function Panel({children,style,variant='panel',...props}){
@@ -42,9 +43,9 @@ export function Crest({icon='star',size=56,level,style,color=colors.goldBright})
  </View>;
 }
 // Round icon buttons for the HUD and top bars. `tip` shows a label on hover with a mouse.
-export function IconButton({icon,label,tip,onPress,hot=false,size=40,disabled,style,children,active=false}){
- return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:tip??label}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
-  <Icon name={icon} size={Math.round(size*.46)} color={hot?'#ffd2c2':active?colors.goldBright:colors.gold}/>{children}
+export function IconButton({icon,label,tip,tipSide,onPress,hot=false,size=40,disabled,style,children,active=false}){
+ return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:!!disabled}} disabled={disabled} onPress={onPress} onHoverIn={()=>!disabled&&playSound('tick')} dataSet={{qb:hot?'hud-btn-hot':'hud-btn',tip:tip??label,tipSide}} style={[s.iconButton,{minWidth:size,height:size,borderRadius:size/2},hot&&s.iconHot,active&&{borderColor:colors.gold},disabled&&s.disabled,style]}>
+  <Icon name={icon} size={Math.round(size*.46)} color={hot?tint('#ffd2c2'):active?colors.goldBright:colors.gold}/>{children}
  </Pressable>;
 }
 // Title-screen menu entries: large engraved words with an icon; the primary one is bigger and lit violet.
@@ -60,9 +61,28 @@ export function MenuItem({label,sub,icon,onPress,primary=false,disabled=false,ce
 }
 // Segmented tabs (character sheet, journal, settings).
 export function Segmented({options,value,onChange,style}){
- // On a phone the tabs drop their icons and capitals so every tab stays on one row.
- const narrow=useWindowDimensions().width<520;
- return <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.seg,narrow&&{flexWrap:'nowrap'},style]}>{options.map(([id,label,icon])=>{const on=value===id;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on){playSound('page');onChange(id);}}} dataSet={{qb:on?'seg-on':undefined}} style={[s.segItem,narrow&&s.segNarrow,on&&s.segOn]}>{!!icon&&!narrow&&<Icon name={icon} size={15} color={on?colors.goldBright:colors.muted}/>}<Text numberOfLines={1} style={[s.segText,narrow&&s.segTextNarrow,on&&{color:colors.goldBright}]}>{label}</Text></Pressable>;})}</View>;
+ // On a phone the tabs drop their icons and wrap instead of being cut short: a long label takes two lines, and four or
+ // more tabs on a narrow phone sit two to a row. Nothing scrolls sideways.
+ const {width}=useWindowDimensions(),narrow=width<520,pairs=narrow&&options.length>=4&&width<420;
+ return <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.seg,style]}>{options.map(([id,label,icon])=>{const on=value===id;return <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:on}} onPress={()=>{if(!on){playSound('page');onChange(id);}}} dataSet={{qb:on?'seg-on':undefined}} style={[s.segItem,narrow&&s.segNarrow,pairs&&s.segPair,on&&s.segOn]}>{!!icon&&!narrow&&<Icon name={icon} size={15} color={on?colors.goldBright:colors.muted}/>}<Text numberOfLines={narrow?2:1} style={[s.segText,narrow&&s.segTextNarrow,on&&{color:colors.goldBright}]}>{label}</Text></Pressable>;})}</View>;
+}
+// A row of chips that wraps onto at most `rows` lines; when more would be needed, a More chip shows the rest in place
+// (and Less folds them away again; `resetKey` folds them on a new turn). Nothing in the game scrolls sideways
+// (verify-presentation.cjs). Every chip sits in a cell of the row's height, so a line held back is never half shown, and
+// a chip wider than the row is cut to it (its words end in an ellipsis). Opened, it grows to `openRows` lines at most
+// and scrolls up and down beyond that, so a long list never pushes the message box off a small phone.
+const rowItems=children=>React.Children.toArray(children).flatMap(child=>child?.type===React.Fragment?rowItems(child.props.children):[child]);
+export function WrapRow({rows=2,openRows=0,rowHeight=36,gap=6,resetKey,children,style,label,moreLabel='More',dataSet,accessibilityRole}){
+ const [natural,setNatural]=useState(0),[open,setOpen]=useState(false);
+ useEffect(()=>{setOpen(false);},[resetKey]);
+ const items=rowItems(children),limit=wrapLimit(rows,rowHeight,gap),over=wrapOverflows(natural,limit),openLimit=openRows>rows?wrapLimit(openRows,rowHeight,gap):0;
+ if(!items.length)return null;
+ return <View accessibilityLabel={label} dataSet={dataSet??{qb:'wrap-row'}} style={[s.wrapRow,{gap},style]}>
+  <View accessibilityRole={accessibilityRole} style={[s.wrapClip,over&&!open&&{maxHeight:limit},over&&open&&openLimit>0&&wrapOverflows(natural,openLimit)&&{maxHeight:openLimit,overflowY:'auto'}]}>
+   <View onLayout={e=>setNatural(Math.round(e.nativeEvent.layout.height))} style={[s.wrapFlow,{gap}]}>{items.map(item=><View key={item.key} style={[s.wrapCell,{height:rowHeight}]}>{item}</View>)}</View>
+  </View>
+  {over&&<Pressable accessibilityRole="button" accessibilityState={{expanded:open}} accessibilityLabel={open?'Show fewer':'Show all'} onPress={()=>{playSound('click');setOpen(v=>!v);}} dataSet={{qb:'chip',keepfocus:'true'}} style={[s.more,{height:rowHeight,borderRadius:rowHeight/2}]}><Icon name={open?'close':'dots'} size={14} color={colors.gold}/><Text style={s.moreText}>{open?'Less':moreLabel}</Text></Pressable>}
+ </View>;
 }
 export function StatBar({value,maximum,kind='hp',height=10,style}){
  const pct=Math.max(0,Math.min(100,100*(value??0)/Math.max(1,maximum)));
@@ -102,8 +122,8 @@ export function HpFloaters({value,style}){
  return <View style={[s.floaters,{pointerEvents:'none'},style]}>{items.map(i=><Text key={i.id} dataSet={{qb:'floater'}} style={[s.floater,{color:i.delta<0?colors.bloodBright:colors.heal}]}>{i.delta<0?'−':'+'}{Math.abs(i.delta)}</Text>)}</View>;
 }
 // An on/off switch with a label and an optional description underneath.
-export function Toggle({value,onChange,label,description,style}){
- return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value}} accessibilityLabel={label} onPress={()=>onChange(!value)} style={[s.toggleRow,style]}>
+export function Toggle({value,onChange,label,description,style,disabled=false}){
+ return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value,disabled}} accessibilityLabel={label} disabled={disabled} onPress={()=>onChange(!value)} style={[s.toggleRow,disabled&&{opacity:.62},style]}>
   <View style={{flex:1,minWidth:0}}><Text style={s.toggleLabel}>{label}</Text>{!!description&&<Text style={s.toggleDescription}>{description}</Text>}</View>
   <View dataSet={{qb:value?'btn-primary':'seg'}} style={[s.track2,value&&s.trackOn]}><View style={[s.knob,value&&s.knobOn]}/></View>
  </Pressable>;
@@ -116,7 +136,7 @@ const s=StyleSheet.create({
  buttonRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
  buttonNarrow:{paddingHorizontal:12},buttonTextNarrow:{fontSize:13,letterSpacing:1.1,flexShrink:1},
  primary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},
- danger:{backgroundColor:'#5a1d17',borderColor:'#c8412f'},
+ danger:{backgroundColor:tint('#5a1d17'),borderColor:tint('#c8412f')},
  pressed:{transform:[{scale:.985}]},
  disabled:{opacity:.5},
  buttonText:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:2,color:colors.parchment,textAlign:'center',textTransform:'uppercase'},
@@ -126,31 +146,34 @@ const s=StyleSheet.create({
  glyph:{color:colors.gold,fontSize:10},
  screenTitle:{marginBottom:18},eyebrowRow:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:6},
  screenHeading:{fontFamily:fonts.display,fontSize:28,fontWeight:'700',letterSpacing:1.2,color:colors.parchment},
- screenSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,lineHeight:25,color:'#cfc0ba',marginTop:6},
+ screenSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:17,lineHeight:25,color:tint('#cfc0ba'),marginTop:6},
  titleRule:{flexDirection:'row',alignItems:'center',gap:8,marginTop:12,width:'100%',maxWidth:420},titleRuleLine:{height:1,backgroundColor:colors.goldLine},
  titleLozenge:{width:7,height:7,transform:[{rotate:'45deg'}],backgroundColor:colors.gold},
  section:{flexDirection:'row',alignItems:'center',gap:10,marginTop:22,marginBottom:12},sectionText:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:1.8,color:colors.gold,textTransform:'uppercase'},sectionRule:{flex:1,height:1,backgroundColor:colors.goldFaint},
  levelBadge:{position:'absolute',right:-4,bottom:-4,paddingHorizontal:4,alignItems:'center',justifyContent:'center',backgroundColor:colors.gold,borderWidth:1,borderColor:tint('#f06e80')},
  levelText:{fontFamily:fonts.display,fontWeight:'800',color:tint('#ffeef0')},
  iconButton:{paddingHorizontal:8,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(20,15,21,.85)'),flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},
- iconHot:{borderColor:'rgba(240,106,79,.75)',backgroundColor:'rgba(60,18,14,.85)'},
+ iconHot:{borderColor:tint('rgba(240,106,79,.75)'),backgroundColor:tint('rgba(60,18,14,.85)')},
  menuItem:{paddingVertical:9,alignSelf:'stretch'},menuRow:{flexDirection:'row',alignItems:'center',gap:12},
- menuLabel:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:3,color:'#dfd0ca',textTransform:'uppercase'},
- menuPrimary:{fontSize:27,letterSpacing:3.5,color:colors.goldBright},menuSmall:{fontSize:14,letterSpacing:2.2,color:'#c4b5af'},menuTight:{fontSize:13,letterSpacing:1,flexShrink:1},
- menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:'#b0a39e',marginTop:1},
+ menuLabel:{fontFamily:fonts.display,fontSize:21,fontWeight:'700',letterSpacing:3,color:tint('#dfd0ca'),textTransform:'uppercase'},
+ menuPrimary:{fontSize:27,letterSpacing:3.5,color:colors.goldBright},menuSmall:{fontSize:14,letterSpacing:2.2,color:tint('#c4b5af')},menuTight:{fontSize:13,letterSpacing:1,flexShrink:1},
+ menuSub:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:tint('#b0a39e'),marginTop:1},
  seg:{flexDirection:'row',flexWrap:'wrap',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(10,7,11,.55)'),marginVertical:14},
  segItem:{flexGrow:1,flexBasis:0,minWidth:96,minHeight:42,paddingHorizontal:10,borderRadius:4,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderWidth:1,borderColor:'transparent'},
  // On a phone each tab takes the room its word needs (not an equal share), so longer labels are not cut short.
- segNarrow:{minWidth:0,paddingHorizontal:5,flexBasis:'auto',flexShrink:1},segTextNarrow:{fontSize:11.5,letterSpacing:.2},
+ segNarrow:{minWidth:0,paddingHorizontal:6,paddingVertical:3,flexBasis:'auto',flexShrink:1,maxWidth:'100%'},segPair:{flexBasis:'45%'},segTextNarrow:{fontSize:11,lineHeight:13,letterSpacing:.2,textAlign:'center',flexShrink:1},
+ wrapRow:{flexDirection:'row',alignItems:'flex-start'},wrapClip:{flex:1,minWidth:0,overflow:'hidden'},wrapFlow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center'},wrapCell:{maxWidth:'100%',minWidth:0,justifyContent:'center'},
+ more:{flexDirection:'row',alignItems:'center',gap:5,flexShrink:0,paddingHorizontal:10,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(31,24,32,.92)')},
+ moreText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
  segOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
  segText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.3,color:colors.muted,textTransform:'uppercase'},
- track:{width:'100%',borderRadius:2,backgroundColor:'rgba(0,0,0,.55)',borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),overflow:'hidden'},
+ track:{width:'100%',borderRadius:2,backgroundColor:tint('rgba(0,0,0,.55)'),borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),overflow:'hidden'},
  fill:{height:'100%'},ghost:{position:'absolute',left:0,top:0,bottom:0,backgroundColor:tint('rgba(255,214,224,.4)')},
- floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:'0 2px 6px rgba(0,0,0,.9)'}:{})},
+ floaters:{position:'absolute',right:0,bottom:'100%',alignItems:'flex-end'},floater:{position:'absolute',right:0,bottom:0,fontFamily:fonts.display,fontSize:18,fontWeight:'800',...(web?{textShadow:tint('0 2px 6px rgba(0,0,0,.9)')}:{})},
  toggleRow:{flexDirection:'row',alignItems:'center',gap:14,minHeight:48,paddingVertical:4},toggleLabel:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.8,color:colors.parchment},
  toggleDescription:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,marginTop:2},
  track2:{width:48,height:28,borderRadius:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(10,7,11,.7)'),justifyContent:'center',paddingHorizontal:3},trackOn:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},
  knob:{width:20,height:20,borderRadius:10,backgroundColor:tint('#a0959d'),...(web?{transitionProperty:'transform, background-color',transitionDuration:'220ms'}:{})},knobOn:{backgroundColor:tint('#ffeef0'),transform:[{translateX:20}]},
- key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:'rgba(0,0,0,.4)',alignItems:'center',justifyContent:'center'},
+ key:{minWidth:18,height:18,paddingHorizontal:4,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(0,0,0,.4)'),alignItems:'center',justifyContent:'center'},
  keyText:{fontFamily:fonts.ui,fontSize:10,fontWeight:'700',color:colors.muted},
 });

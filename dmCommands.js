@@ -1,10 +1,15 @@
-import {attackOptions,canThrow} from './weaponRules';
+import {partyRevivalError} from './deathRules';
+import {attackOptions,canThrow,weaponAttacks,shieldSlung} from './weaponRules';
 import {gearedHero} from './inventoryRules';
+import {spoilsHere,lootError,packMagic,carriedDraughts} from './lootRules';
 import {offhandWeapons} from './masteryRules';
-import {npcScene,npcIdsOf,npcLore} from './npcRules';
+import {subclassAction} from './subclassRules';
+import {npcScene,npcIdsOf,npcLore,mentionsName} from './npcRules';
+import {standingOffers} from './followerRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError,lastingSpells,againError,sustainTargets,allySpell,alliesNamed,defaultAllies} from './spellRules';
+import {turnCost} from './classActions';
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
 // feet (or no weapon at all) make an Unarmed Strike, and "shoot" reaches for a bow.
 const VERBS='attack|strike|stab|slash|hit|punch|kick|swing at|smash|bash|cut down|cut|hack at|hack|chop at|chop|lunge at|charge at|charge|shoot at|shoot|headbutt|kill|slay|murder|finish off|cleave|club|bludgeon|thrust at|jab|knock out';
@@ -25,6 +30,8 @@ function commandWeapon(hero,text,requested){
 }
 const missingWeapon=(hero,requested)=>{const carried=attackOptions(hero).filter(w=>!w.unarmed).map(w=>w.name);return {error:requested?'You don\'t carry '+(/^(?:a|an|my|the)\s/i.test(requested)?requested.replace(/^(?:my|the)\s/i,'a '):'a '+requested)+'. '+(carried.length?'You have: '+carried.join(', ')+', or your fists.':'You can fight with your fists.'):'You have no bow ready (or no arrows).'};};
 // Which creature beside the foe a phrase names, if any: its name, or a word of it or of its kind ("hound", "wolf").
+// Words that search the fallen or a lair (only acted on when something lies here unsearched).
+export const lootWords=/^(?:I )?(?:(?:loot|skin)\b|(?:search|rifle through|go through|strip|check|rummage through|go over)\s+(?:(?:him|her|them|it)\b|.*\b(?:bod(?:y|ies)|corpses?|remains|fallen|dead|pockets|belongings|purse|lair|den|nest|hoard|carcass(?:es)?|pelts?)\b))/i;
 export function allyNamed(game,phrase){
   const said=String(phrase??'').toLowerCase().replace(/^(?:the|that|this|a|an) /,'').split(/[^a-z]+/).filter(w=>w.length>=3);
   const found=livingAllies(game).filter(a=>{const words=[...a.name.toLowerCase().split(/[^a-z]+/),a.template].filter(w=>w.length>=3);return said.some(w=>words.some(n=>n===w||n===w.replace(/s$/,'')||n.startsWith(w)));});
@@ -43,17 +50,149 @@ export function spellNickname(known,phrase){
 // Setting out to knock someone out rather than kill them: a finishing melee blow then leaves them alive.
 export const subdueIntent=text=>/\bknock (?:\w+ )?(?:out|unconscious|senseless|cold)\b|\bsubdue|\bnon-?lethal|\bspare (?:him|her|them|it)\b|\bwithout killing\b|\b(?:take|capture) (?:him|her|them|it) alive\b|\bpommel\b|\bflat of (?:my|the) blade\b/i.test(String(text??''));
 export const withAttackIntent=(game,text)=>subdueIntent(text)?{...game,subdue:true}:game;
+// Two moves in one sentence ("I attack the bandit, then drink a potion"): where the second begins, when it starts with
+// something a turn can be spent on. Returns [first, second] (the second as "I …"), or null.
+const turnJoin=/(?:\s*,\s*(?:and\s+)?(?:then\s+)?|\s+and\s+then\s+|\s+then\s+|\s+and\s+(?:also\s+)?|\s*;\s*|[.!]\s+(?:then\s+)?)(?=(?:I\s+)?(?:cast|drink|quaff|swig|attack|strike|stab|slash|hit|punch|kick|swing|smash|bash|hack|chop|lunge|charge|shoot|throw|hurl|toss|fling|shove|grapple|trip|give|pour|end my turn|end turn|use (?:my )?second wind|use action surge|action surge|lay on hands|dodge)\b)/i;
+// `from`: where the search may begin (after a spell's own name, so "Purify Food and Drink" is not two moves).
+export function splitTurn(text,from=0){
+  const said=String(text??'').trim(),skip=Math.max(1,from),found=said.slice(skip).search(turnJoin);if(found<0)return null;
+  const at=skip+found-1;
+  const first=said.slice(0,at+1).trim(),match=said.slice(at+1).match(turnJoin),rest=said.slice(at+1+match[0].length).trim().replace(/^then\s+/i,'');
+  if(first.length<3||rest.length<3)return null;
+  return [first,/^I\s/i.test(rest)?rest:'I '+rest];
+}
+const sameAttack=(a,b)=>{
+  const target=x=>typeof x==='string'?(/^(attack|throw):|^(grapple|shove)$/.test(x)?'foe':null):['encounter-attack','npc-attack'].includes(x?.type)?(x.type==='npc-attack'?'npc:'+x.target:x.target??'foe'):null;
+  const t=target(a);return !!t&&t===target(b);
+};
+// A sentence with two moves (dmCommand): an action and a bonus action in a fight become one whole turn ({type:'turn'},
+// played step by step by adventureStep); two blows at the same target are one Attack action (Extra Attack makes every
+// swing the hero has); anything more is resolved as the first move only, and the rest is told to wait.
+function twoMoves(hero,game,text,health,currentTarget){
+  const cast=text.match(/^(?:I )?cast\s+/i),named=cast?knownSpells(hero).filter(s=>text.slice(cast[0].length).toLowerCase().startsWith(s.name.toLowerCase())).sort((a,b)=>b.name.length-a.name.length)[0]:null;
+  const parts=splitTurn(text,named?cast[0].length+named.name.length:0);if(!parts)return null;
+  const first=dmCommand(hero,game,parts[0],health,currentTarget);
+  if(!first?.action||first.error||first.action?.type==='turn')return null;
+  const second=dmCommand(hero,game,parts[1],health,currentTarget),next=second?.action&&!second.error&&second.action?.type!=='turn'?second.action:null;
+  if(next&&sameAttack(first.action,next))return first;
+  const fight=game.stage==='combat'||!!game.npcCombat?.active,rest=parts[1].slice(0,200);
+  // A spell the Dungeon Master must rule on goes alone, as it always has.
+  if(first.action?.type==='spell'&&first.action.request?.forceDM)return first;
+  const costs=next?[turnCost(hero,game,first.action),turnCost(hero,game,next)]:[];
+  if(fight&&next&&!(next.type==='spell'&&next.request?.forceDM)&&costs.filter(c=>c==='action').length===1&&costs.some(c=>c!=='action'))return {action:{type:'turn',steps:[first.action,next],rest}};
+  const why=!fight?'one thing at a time':!next?'send it on its own':costs[0]==='bonus'&&costs[1]==='bonus'?'a turn has only one bonus action':'a turn has one action and one bonus action';
+  return {action:{type:'turn',steps:[first.action],rest,why}};
+}
+// The shield on the back, or taken up again, in the player's own words ("I put my shield on my back and grip my
+// longsword with both hands", "I sling my shield", "I take up my shield"): {type:'shield', away, weapon?}, played by
+// the engine (adventureRules.js heroStep: free out of a fight, the hero's action in one). Only for a hero who carries a
+// shield and only when it changes something; questions, negatives and anything else are left to the Dungeon Master.
+const shieldUpWords=/\b(?:take up|takes up|pick up|picks up|raise|raises|ready|readies|lift|lifts|unsling|unslings|strap on|straps on|back on|on (?:my|your|his|her|their) arm|onto (?:my|your|his|her|their) arm|to (?:my|your|his|her|their) arm|off (?:my|your|his|her|their) back|from (?:my|your|his|her|their) back)\b/i;
+const shieldAwayWords=/\b(?:on|onto|over|across|to) (?:my|your|his|her|their) (?:back|shoulders?)\b|\b(?:sling|slings|stow|stows|tuck|tucks|strap|straps|hang|hangs)\b.*\bshield\b|\bshield\b.*\b(?:away|aside)\b/i;
+const bothHandsWords=/\b(?:in|with|using) both hands\b|\btwo-?handed\b|\btwo hands\b|\bdouble-?handed\b/i;
+export function shieldCommand(hero,game,text){
+  const said=String(text??'').trim();
+  if(!said||said.length>200||/\?\s*$/.test(said)||/^(?:why|how|what|who|when|where|did|does|do|is|was|were|has|have|can|could|should|would|may|might|if)\b/i.test(said)||/\b(?:don'?t|do not|never|no longer|without)\b/i.test(said))return null;
+  if(!(hero?.equipment?.items??[]).some(i=>i.name==='Shield'&&i.quantity>0))return null;
+  const shield=/\bshield\b/i.test(said),slung=shieldSlung(hero);
+  const away=shield?!shieldUpWords.test(said)&&shieldAwayWords.test(said):/^(?:I )?(?:grip|grips|hold|holds|wield|wields|take|takes|grasp|grasps|heft|hefts|seize|seizes)\b/i.test(said)&&bothHandsWords.test(said);
+  const up=shield&&shieldUpWords.test(said);
+  if(up)return slung?{action:{type:'shield',away:false}}:null;
+  if(!away||slung)return null;
+  // The weapon to hold in both hands, when one is named ("my longsword", "the spear", "my sword").
+  const lower=said.toLowerCase(),carried=weaponAttacks(hero).filter(w=>!w.ranged);
+  const named=carried.find(w=>lower.includes(w.name.toLowerCase())||(w.base&&lower.includes(w.base.toLowerCase())))
+    ??['sword','axe','staff','spear','trident','hammer','maul','glaive','halberd'].map(word=>new RegExp('\\b'+word+'\\b').test(lower)?carried.find(w=>w.name.toLowerCase().includes(word)):null).find(Boolean);
+  return {action:{type:'shield',away:true,...(named?{weapon:named.name}:{})}};
+}
+// Orders to companions, said in the player's own words: "Mara, wait here.", "Everyone stay behind.", "Tobin, follow
+// me." (to one waiting here), "Send word to Mara." (one waiting elsewhere catches up), "Mara, we part ways here.";
+// and a yes to someone who offered to come along ("Yes, Tobin, come with us."). Out of a fight only, and only when
+// the words name who they are for (or "everyone"). Questions about them and negatives are left to the Dungeon Master.
+export function followerCommand(game,text){
+  const said=String(text??'').trim();
+  if(!said||game.stage==='combat'||game.npcCombat?.active||game.pendingSpell||['dying','dead'].includes(game.stage))return null;
+  if(/^(?:why|how|what|who|when|where|did|does|do|is|was|were|has|have)\b/i.test(said)||/\b(?:don'?t|do not|never|no longer)\b/i.test(said))return null;
+  const scene=npcScene(game),nameOf=id=>npcLore(game,id)?.name??scene.find(n=>n.id===id)?.name??id;
+  const companions=Object.entries(game.followers??{}).filter(([,f])=>['following','waiting'].includes(f?.status)).map(([id,f])=>({id,status:f.status,present:!!scene.find(n=>n.id===id)?.present}));
+  const named=ids=>ids.filter(id=>mentionsName(said,nameOf(id)));
+  const everyone=/\b(?:everyone|everybody|all of you|you all|both of you|the (?:others|rest of you)|my (?:companions|friends))\b/i.test(said);
+  // Taking up an offer: the one who offered is named and the words say yes, or (when only one offer stands) the words
+  // plainly ask them along. A bare "yes" to someone else ("Yes, I'll take the room") is not an answer to the offer.
+  const offers=standingOffers(game);
+  if(offers.length){
+    const along=/\b(?:come (?:along|with (?:me|us))|join (?:me|us)|you can come|you may come|i accept|accept your offer|take you (?:up|along|with)|glad to have you|welcome aboard)\b/i.test(said),yes=along||/\b(?:yes|gladly|welcome|very well|all right|alright|of course)\b/i.test(said);
+    const who=named(offers);
+    if(who.length===1&&yes||!who.length&&along&&offers.length===1&&!companions.some(c=>mentionsName(said,nameOf(c.id)))&&!scene.some(n=>n.present&&!offers.includes(n.id)&&mentionsName(said,nameOf(n.id))))return {action:{type:'accept-offer',id:who[0]??offers[0]}};
+  }
+  if(!companions.length)return null;
+  const addressed=everyone?companions:companions.filter(c=>mentionsName(said,nameOf(c.id)));
+  if(!addressed.length)return null;
+  const order=(o,list)=>list.length?{action:list.length===1?{type:'follower',id:list[0].id,order:o}:{type:'follower',ids:list.map(c=>c.id),order:o}}:null;
+  if(/\bpart (?:ways|company)\b/i.test(said))return order('dismiss',addressed);
+  if(/\b(?:send (?:word|for)|call (?:for|back)|summon|fetch)\b/i.test(said)){const away=addressed.filter(c=>c.status==='waiting');return order('call',away);}
+  if(/\b(?:follow me|come (?:with me|along|on)|let'?s go|with me|fall in|rejoin|join me again|stay (?:with|close to|beside|by) (?:me|us)|catch up)\b/i.test(said))return order('resume',addressed.filter(c=>c.status==='waiting'&&c.present));
+  if(/\b(?:wait|stay|remain|keep watch|hold (?:here|this place|the (?:door|gate|line|fort)))\b/i.test(said)){
+    // "Wait for me at the inn" while elsewhere is a wish the engine cannot carry out: the Dungeon Master answers it.
+    const at=said.match(/\b(?:at|in) (?:the )?([A-Za-z' -]{3,40})/i);
+    if(at&&!/^(?:here|this|camp|my|our)\b/i.test(at[1])&&!mentionsName(said,String(placeNameHere(game))))return null;
+    return order('wait',addressed.filter(c=>c.status==='following'));
+  }
+  return null;
+}
+const placeNameHere=game=>{const id=game.dungeon?.active?null:game.wildFight?.place??(game.stage==='wild'?game.world?.at:game.stage);return id?(game.world?.places?.find(p=>p.id===id)?.name??game.story?.locations?.[id]?.name??id):'';};
 // Explicit casting commands are resolved locally so model prose cannot choose a target or spend a slot.
+// A held spell used again, or Hex or Hunter's Mark moved, in the player's own words: "I strike with my spiritual weapon
+// at the hound", "I heat the metal again", "I roll the sphere into the bandit", "I call down lightning", "I move my hex
+// to the hound". Null when the words are about something else.
+const againWords={
+  'spiritual-weapon':/\bspiritual weapon|spectral (?:weapon|mace|hammer|blade|sword)\b/i,'heat-metal':/\bheat(?:ed)? (?:the |its |his |her |their )?metal|\bred-hot\b|\bheat metal\b/i,
+  'flaming-sphere':/\b(?:flaming )?sphere\b|\bfire ?ball\b(?!.*cast)/i,moonbeam:/\bmoon ?beam\b|\bthe beam\b/i,'call-lightning':/\bcall(?:ing)? (?:down )?(?:the )?lightning\b|\blightning (?:again|down)\b/i,
+  'vampiric-touch':/\bvampiric touch\b|\bdrain\b|\bsiphon\b/i,
+};
+function heldSpellCommand(game,text){
+  const held=game.concentration;if(!held||/^(?:I )?cast\b/i.test(text))return null;
+  const targets=sustainTargets(game),said=(text.match(/\b(?:at|on|onto|into|to|toward|towards|against)\s+(.+?)[.!]?$/i)?.[1]??'').toLowerCase().replace(/^(?:the|that|this)\s+/,'');
+  const pick=fallback=>{
+    if(!said||/^(?:it|him|her|them|the enemy|enemy|foe)$/.test(said))return fallback;
+    const found=targets.find(t=>{const n=t.name.toLowerCase().replace(/^the /,'');return n===said||said.split(/[^a-z]+/).some(w=>w.length>=4&&n.split(/[^a-z]+/).some(x=>x.startsWith(w.replace(/s$/,''))||w.startsWith(x)&&x.length>=4));});
+    return found?.key??null;
+  };
+  // Moving Hex or Hunter's Mark.
+  if(automaticEffects[held.id]?.rider&&/\b(?:move|shift|switch|transfer|put|turn|pass)\b.*\b(?:hex|curse|mark|quarry)\b/i.test(text)){
+    if(!held.lost)return {error:(held.id==='hex'?'Hex':'Hunter’s Mark')+' moves only once the creature it is on has dropped.'};
+    const key=pick(targets[0]?.key??null);return key?{action:'move-mark:'+key}:{error:'Name a creature that is here.',soft:true};
+  }
+  const l=lastingSpells[held.id],words=againWords[held.id];
+  if(!l?.again||!words||!words.test(text))return null;
+  const error=againError(game);if(error)return {error};
+  const key=l.same&&held.target?held.target:pick(held.target&&targets.some(t=>t.key===held.target)?held.target:targets[0]?.key??null);
+  return key?{action:'again:'+key}:{error:'Name a creature that is here.',soft:true};
+}
 export function dmCommand(hero,game,message,health=null,currentTarget=null){
   hero=gearedHero(hero,game);
   let text=message.trim();
   // A dying hero can only fight to hold on.
   if(game.stage==='dying')return /\b(?:death sav|saving throw|hold on|stay alive|survive|breathe|stay conscious|fight (?:to|for)|roll)\w*/i.test(text)?{action:'death-save'}:null;
+  {const both=twoMoves(hero,game,text,health,currentTarget);if(both)return both;}
+  // Searching the fallen ("I search the bandit's body", "loot the lair", "skin the wolf"), while something lies here
+  // that has not been searched; otherwise the words go to the Dungeon Master as before.
+  if(lootWords.test(text)&&spoilsHere(game).length&&!lootError(game,health))return {action:{type:'loot'}};
+  // The shield on the back to hold a weapon in both hands, or taken up again.
+  {const shield=shieldCommand(hero,game,text);if(shield)return shield;}
+  // Orders to companions (wait here, follow me, send word) and a yes to someone's offer to come along.
+  {const order=followerCommand(game,text);if(order)return order;}
+  // A stronger healing draught by name ("I drink the potion of greater healing", "quaff a superior potion").
+  {const strong=text.match(/^(?:I )?(?:drink|quaff|down|swig|take|use) (?:a |my |one |the )?(?:potion of )?(greater|superior|supreme)\b/i);if(strong){const id='potion-'+strong[1].toLowerCase()+'-healing';return carriedDraughts(game).some(d=>d.magic.id===id)?{action:'drink:'+id}:{error:'You carry no '+strong[1].toLowerCase()+' healing draught.'};}}
+  // The Wand of Magic Missiles in a fight ("I use my wand on the hound", "I zap it with the wand").
+  if(game.stage==='combat'&&/\bwand\b/i.test(text)&&/^(?:I )?(?:use|point|aim|zap|fire|blast|raise|wave)\b/i.test(text)&&packMagic(game,'wand-of-magic-missiles')){const on=text.match(/\b(?:on|at)\s+(.+)$/i),ally=on?allyNamed(game,on[1]):null;return {action:ally!==null?{type:'use-item',id:'wand-of-magic-missiles',target:'ally:'+ally}:'item:wand-of-magic-missiles'};}
   // Two-weapon fighting: after a Light weapon's attack, the other hand ("I stab with my other dagger", "off-hand").
   if(game.stage==='combat'&&game.lightAttack&&/\b(?:off-?hand|other hand|other (?:dagger|sickle|scimitar|shortsword|handaxe|blade|sword|axe|knife))\b/i.test(text)){
     const options=offhandWeapons(hero,game.lightAttack.weapon),named=options.find(w=>text.toLowerCase().includes(w.name.toLowerCase()))??options[0];
     return named?{action:'offhand:'+named.name}:{error:'Your other hand needs a second light weapon, and no shield, for that.'};
   }
+  // A held spell used again, or Hex moved (heldSpellCommand).
+  {const again=heldSpellCommand(game,text);if(again)return again;}
   // A short attack keeps the current conversation/combat target. Resolve it once
   // into an explicit command so preview and commit cannot choose different people.
   const short=text.match(new RegExp('^(?:I )?(?:'+VERBS+')(?: (?:them|him|her|it))?(?: out)?(?: (?:with|using) (?:my |the |a |an )?(.+?))?[.!]?$','i'));
@@ -105,7 +244,23 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(game.stage==='combat'){
     if(/^(?:I )?(?:end|finish|pass|skip) (?:my |the |this )?turn\b|^(?:end turn|pass|done|I(?:'m| am) done)[.!]?$/i.test(text))return {action:'end-turn'};
     if(hero.class==='Fighter'&&/\bsecond wind\b/i.test(text))return {action:'class:wind'};
+    if(hero.class==='Fighter'&&/\baction surge\b/i.test(text))return {action:'class:surge'};
+    if(/^(?:I )?(?:dodge|take the dodge(?: action)?)[.!]?$/i.test(text))return {action:'dodge'};
     if(hero.class==='Paladin'&&/\blay(?:ing)? (?:on )?hands\b/i.test(text))return {action:'class:hands'};
+    // The hero's subclass action by name or as it is usually said (subclassRules.js).
+    const feat=subclassAction(hero);if(feat?.say.test(text))return {action:'class:'+feat.id};
+  }
+  // In a brawl with people, the subclass action too: one that heals or shields the hero is theirs; one aimed at
+  // someone goes at the person named, or at the only one still fighting.
+  if(game.npcCombat?.active){
+    const feat=subclassAction(hero);
+    if(feat?.say.test(text)){
+      if(feat.effect.heal||feat.effect.temp)return {action:'class:'+feat.id};
+      const foes=game.npcCombat.order.filter(n=>n.side==='enemy'&&(game.npcHP?.[n.id]??1)>0).map(n=>n.id);
+      const named=foes.filter(id=>new RegExp('\\b'+id+'\\b','i').test(text)||mentionsName(text,npcLore(game,id)?.name??'-'));
+      const target=named.length===1?named[0]:foes.length===1?foes[0]:null;
+      if(target)return {action:{type:'npc-attack',target,feat:true}};
+    }
   }
   const gift=text.match(/^(?:I )?(?:give|feed|hand|pour)\s+(?:(keeper|mara|n\d{1,2})\s+(?:a |my |one |the )?(?:healing )?(?:potion|draught)|(?:a |my |one |the )?(?:healing )?(?:potion|draught)\s+(?:to|into|down)\s+(?:the )?(keeper|mara|n\d{1,2}))/i);
   if(gift)return {action:{type:'give-potion',target:(gift[1]??gift[2]).toLowerCase()}};
@@ -151,20 +306,38 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   }
   const cast=text.match(/^(?:I )?cast\s+(.+)$/i);if(!cast)return null;
   const known=knownSpells(hero).sort((a,b)=>b.name.length-a.name.length);
-  let spell=known.find(s=>cast[1].toLowerCase()===s.name.toLowerCase()||cast[1].toLowerCase().startsWith(s.name.toLowerCase()+' ')),detail=spell?cast[1].slice(spell.name.length).trim():'';
+  // A full stop or an exclamation at the end is not part of the spell's name ("I cast Fly.").
+  const words=cast[1].replace(/\s*[.!]+$/,'').trim();
+  let spell=known.find(s=>words.toLowerCase()===s.name.toLowerCase()||words.toLowerCase().startsWith(s.name.toLowerCase()+' ')||words.toLowerCase().startsWith(s.name.toLowerCase()+',')),detail=spell?words.slice(spell.name.length).trim():'';
   // Obvious shortenings that fit exactly one known spell: initials ("FB") or a word of its name ("missiles", "cure").
-  if(!spell){const nick=spellNickname(known,cast[1]);if(nick){spell=nick.spell;detail=nick.rest;}}
-  if(!spell)return {error:'Name one of your prepared spells, for example: I cast Cure Wounds on myself.'};
-  if(/\b(and|then) (?:I |cast |attack |move |go |flip )/i.test(detail))return {error:'Send one action at a time, including one spell and one target.'};
-  if(!/\b(on|at|targeting|toward|towards)\s+\S/i.test(detail)&&spell.range!=='Self')return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`};
-
-  const costs=spellCostOptions(hero,game,spell),level=detail.match(/\blevel (\d) slot\b/i);
-  const slot=/\bas a ritual\b/i.test(detail)?'ritual':/\barcanum\b/i.test(detail)?'arcanum':level?Number(level[1]):costs.find(c=>typeof c==='number')??costs[0];
-  if(!costs.includes(slot))return {error:'That casting resource is unavailable. Choose an available slot or rest first.'};
-  const target=detail.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:,|\s+using\b|\s+with\b|\s+at level\b|\s+level \d slot\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(spell.range==='Self'?'myself':undefined);
-  if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.'};
-  if(spell.concentration&&game.concentration&&game.concentration.id!==spell.id&&!/replace concentration/i.test(detail))return {error:`Casting ${spell.name} will end ${game.concentration.id}. Add “replace concentration” to your cast if that is your intention.`};
+  if(!spell){const nick=spellNickname(known,words);if(nick){spell=nick.spell;detail=nick.rest;}}
+  // Wording problems are soft: the Dungeon Master may read what the player meant (context.castingIssue). Every other
+  // refusal is a rule and is shown as it is.
+  if(!spell)return {error:'Name one of your prepared spells, for example: I cast Cure Wounds on myself.',soft:true};
+  if(/\b(and|then) (?:I |cast |attack |move |go |flip )/i.test(detail))return {error:'Send one action at a time, including one spell and one target.',soft:true};
+  const effect=automaticEffects[spell.id],fighting=game.stage==='combat'||!!game.npcCombat?.active;
+  // A spell the fight does not allow is refused before anything else is asked.
+  const timing=fightTimingError(spell,game,spell.id==='hellish-rebuke'&&!!game.hurtBy);if(timing)return {error:timing};
+  // A slot level said any common way: "level 2 slot", "at 2nd level", "using a 3rd-level slot", "at level 3".
+  const upcast=/\b(?:using |with )?(?:a |my )?(?:level (\d) slot|(\d)(?:st|nd|rd|th)[- ]level slot|at (?:level (\d)|(\d)(?:st|nd|rd|th) level))\b/i,level=detail.match(upcast),named=level?Number(level[1]??level[2]??level[3]??level[4]):null;
+  const said=detail.replace(upcast,'').replace(/\s{2,}/g,' ');
+  const bare=!/\b(on|at|targeting|toward|towards)\s+\S/i.test(said);
+  // Spells that need no one named: sensing and everyday magic, buffs on yourself, Divine Smite after a hit, spells the
+  // Dungeon Master rules on (it asks if it needs to know), and (in a creature fight) anything aimed at the creature.
+  // Mass healing goes to the caster and their friends with no one named.
+  const mass=!!effect?.heal&&spell.id.startsWith('mass-');
+  const untargeted=mass||spell.range==='Self'||!effect||!!effect?.narrated||!!effect?.buff||!!effect?.aid||!!effect?.smite||(game.stage==='combat'&&!!effect&&!!(effect.attack||effect.save||effect.missile||effect.inflict||effect.rider||effect.trueStrike||effect.heat));
+  if(bare&&!untargeted)return {error:`Who or what is the target? Send: I cast ${spell.name} on [target]. Include a slot level if you want to upcast.`,soft:true};
+  const costs=spellCostOptions(hero,game,spell);
+  // A free casting from the hero's species comes first, then (out of a fight) a ritual, which needs no slot, then a slot.
+  const slot=/\bas a ritual\b/i.test(detail)?'ritual':/\barcanum\b/i.test(detail)?'arcanum':named!==null?named:costs.includes('species')&&!/\bslot\b/i.test(detail)?'species':!fighting&&costs.includes('ritual')?'ritual':costs.find(c=>typeof c==='number')??costs[0];
+  if(!costs.includes(slot))return {error:named!==null&&named<spell.level?`${spell.name} needs a slot of level ${spell.level} or higher.`:'That casting resource is unavailable. Choose an available slot or rest first.'};
+  const target=said.match(/\b(?:on|at|targeting|towards?)\s+(.+?)(?:[,:;]|\s+using\b|\s+with\b|\s+as a ritual\b|\s+replace concentration\b|\s+components ready\b|$)/i)?.[1]?.trim().replace(/[.!]$/,'').toLowerCase()??(game.stage==='combat'&&!!effect&&!!(effect.save||effect.attack||effect.inflict)&&!effect.narrated&&spell.id!=='burning-hands'?'the enemy':spell.range==='Self'||effect?.buff||effect?.aid||mass?'myself':effect?.smite?'the creature i struck':game.stage==='combat'&&effect&&!effect.narrated?'the enemy':'the scene');
+  if(spell.id==='burning-hands'&&target==='myself')return {error:'Which direction should the 15-foot cone face, and who is in it? For example: I cast Burning Hands toward the wisp.',soft:true};
   const request={id:spell.id,slot,intent:text.slice(0,500),componentsConfirmed:true};
+  // Hellish Rebuke answers the creature that has just hurt you (a reaction); Divine Smite follows your last hit.
+  if(fighting&&spell.id==='hellish-rebuke'&&game.hurtBy){request.reaction=true;if(String(game.hurtBy).startsWith('ally:'))request.aim=game.hurtBy;}
+  if(effect?.smite&&game.lastHit&&String(game.lastHit.target).startsWith('ally:'))request.aim=game.lastHit.target;
   if(game.stage==='combat'&&target){const aimed=allyNamed(game,target);if(aimed!==null)request.aim='ally:'+aimed;}
   // A person who is here (named, or by title at the crossroads inn) is the spell's target, wherever you are.
   if(npcScene(game).some(n=>n.present&&n.id===target))request.npcTarget=target;
@@ -172,10 +345,22 @@ export function dmCommand(hero,game,message,health=null,currentTarget=null){
   if(request.npcTarget&&game.npcFate?.[request.npcTarget]==='dead')return {error:'They are dead. No spell you know can bring them back.'};
   // Another player's hero in the party, by name ("on Bram", "on Bram Ironfist").
   if(!request.npcTarget&&target&&game.party?.members){
-    const named=Object.keys(game.party.members).find(id=>{if(id===game.party.lead)return false;let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase();}catch{}const first=name.split(' ')[0];return !!name&&(target===name||target===first||target.startsWith(first+' '));});
+    // The whole name first, then a first name only one other hero has; among namesakes, one still living.
+    const others=Object.keys(game.party.members).filter(id=>id!==game.party.lead).map(id=>{let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase().trim();}catch{}return {id,name,first:name.split(' ')[0],dead:game.party.members[id].status==='dead'};}).filter(m=>m.name);
+    const whole=others.filter(m=>target===m.name||target.startsWith(m.name+' ')),byFirst=others.filter(m=>target===m.first||target.startsWith(m.first+' '));
+    const pool=whole.length?whole:byFirst.length===1?byFirst:[],named=(pool.find(m=>!m.dead)??pool[0])?.id;
+    if(!pool.length&&byFirst.length>1)return {error:'More than one hero here is called '+byFirst[0].first.replace(/^./,c=>c.toUpperCase())+'. Name them in full.',soft:true};
+    // Revivify on a friend who has just died (deathRules.js): the same move as the chip.
+    if(named&&spell.id==='revivify'&&game.party.members[named].status==='dead'){const why=partyRevivalError(game,hero,named,health);return why?{error:why}:{action:{type:'revive',target:'party:'+named}};}
     if(named){if(game.party.members[named].status==='dead')return {error:'They are dead. No spell you know can bring them back.'};request.partyTarget=named;}
   }
+  // A spell for friends (Bless, Aid, Shield of Faith and the like): the friends named ("on me, Bram and Mara", "on the
+  // party"), or with no one named the caster (and for Bless and Aid everyone it reaches).
+  if(allySpell(spell.id)){
+    const lvl=typeof slot==='number'?slot:spell.level,allies=bare?defaultAllies(game,spell,lvl):alliesNamed(game,spell,target,lvl);
+    if(allies){request.allies=allies;delete request.npcTarget;delete request.partyTarget;}
+  }
   const check=inspectSpellCast(hero,game,health,spell,request,target);if(check.error)return check;
-  request.forceDM=check.manual||!!(game.story&&automaticEffects[spell.id]?.detection);
+  request.forceDM=check.manual;
   return {action:{type:'spell',request},narration:check.summary};
 }

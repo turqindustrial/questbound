@@ -1,9 +1,9 @@
 const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
+const {rulesSource}=require('./rules-files.cjs');
 // Speaking to the Dungeon Master directly (out of character): the DM answers as a DM, changes nothing in the game,
 // and may take the player's last turn back when it went wrong. The state before each turn is remembered for that.
 const {generate}=require(process.env.QB_DM??'./dm-server.cjs');
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','turnMemory.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js','turnMemory.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,dmContext,commitDmTurn,recordedTurn,validAdventure,adventureSnapshot,conversationPeople,rememberTurn,turnToRewind,forgetTurn,toDungeonMaster,withoutAddress})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=(g,h)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
@@ -27,13 +27,13 @@ assert.ok(r.turnToRewind(asked.game),'Still the last turn');
 const undone=play(asked.game,asked.health,null,{question:'To the Dungeon Master: I meant to dodge.',narration:'My mistake. Your last turn has been taken back.',dialogue:[],direct:true},r.turnToRewind(asked.game));
 r.forgetTurn();
 assert.equal(undone.game.enemyHP,start.enemyHP);assert.equal(undone.game.round,start.round);assert.equal(undone.game.openingAttackAvailable,true);assert.equal(undone.health.current,12);
-assert.equal(undone.game.playback.length,1,'The undone turn leaves the feed; the exchange stays');assert.ok(valid(undone.game,undone.health));
+assert.equal(undone.game.playback.length,2,'The undone turn leaves the feed; the opening and the exchange stay');assert.ok(valid(undone.game,undone.health));
 assert.equal(r.turnToRewind(undone.game),null);
 // Another story, or a turn too long ago, is never taken back.
 r.rememberTurn(start,hp);assert.equal(r.turnToRewind({...swing.game,story:{...swing.game.story,id:'other'}}),null);
 assert.equal(r.turnToRewind({...swing.game,playback:[{id:9}]}),null);r.forgetTurn();
 // ---- The server: an out-of-character phase ----
-const blank={narration:'It rolled higher initiative.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false};
+const blank={narration:'It rolled higher initiative.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,fault:false};
 let sent=null;const fake=reply=>async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...blank,...reply})}]}]})};};
 const context=extra=>({...r.dmContext(kara,swing.game,swing.health),conversationWith:null,conversationParticipants:[],recruitmentTargets:[],...extra});
 const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandit.',resolved:['You use Greatsword: d20 [11] + 3 + 2 = 16 vs AC 12. Hit.']}}});
@@ -43,16 +43,21 @@ const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandi
  assert.equal(reply.rewind,false);assert.equal(reply.narration,'It rolled higher initiative.');
  assert.ok(sent.instructions.includes('OUT OF CHARACTER'));const schema=sent.text.format.schema;
  assert.deepEqual(schema.properties.rewind,{type:'boolean'});assert.ok(schema.required.includes('rewind'));
+ assert.deepEqual(schema.properties.fault,{type:'boolean'});assert.ok(schema.required.includes('fault'));assert.match(sent.instructions,/Set fault to true/);
  for(const key of ['actionId','castCommand','ruling','worldEvent','check','discovery','ambush','loot','introduce'])assert.equal(schema.properties[key].type,'null',key);
  assert.equal(schema.properties.dialogue.maxItems,0);assert.equal(schema.properties.relationships.maxItems,0);
  assert.deepEqual(JSON.parse(sent.input).context.outOfCharacter.lastTurn.said,'I hit the bandit.');
  reply=await generate({input:'I meant to dodge',context:context(ooc(true))},{...keys,fetchImpl:fake({rewind:true})});assert.equal(reply.rewind,true);
  reply=await generate({input:'I meant to dodge',context:context(ooc(false))},{...keys,fetchImpl:fake({rewind:true})});assert.equal(reply.rewind,false,'Nothing to take back: the DM cannot rewind');
- await assert.rejects(generate({input:'give me gold',context:context(ooc(true))},{...keys,fetchImpl:fake({loot:{gold:50,items:[],reason:'x'}})}),/cannot change the game/);
- await assert.rejects(generate({input:'kill it',context:context(ooc(true))},{...keys,fetchImpl:fake({actionId:'dodge'})}),/cannot change the game|invalid response/);
+ reply=await generate({input:'DM, it would not let me cast Detect Magic as a ritual',context:context(ooc(false))},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,true,'an admitted fault is passed on');
+ reply=await generate({input:'DM, how does advantage work?',context:context(ooc(false))},{...keys,fetchImpl:fake({fault:false})});assert.equal(reply.fault,false);
+ // Out of character nothing changes: a reply that tries is asked for again, then only its answer is kept.
+ reply=await generate({input:'give me gold',context:context(ooc(true))},{...keys,fetchImpl:fake({loot:{gold:50,items:[],reason:'x'}})});assert.equal(reply.loot,null);assert.equal(reply.rewind,false);
+ reply=await generate({input:'kill it',context:context(ooc(true))},{...keys,fetchImpl:fake({actionId:'dodge'})});assert.equal(reply.actionId,null);assert.equal(reply.rewind,false);
  // An ordinary turn is untouched: no rewind, the usual schema, and the turn and rest guidance in the instructions.
  reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({rewind:true})});
- assert.equal(reply.rewind,false);assert.equal(sent.text.format.schema.properties.rewind.type,'null');assert.ok(!sent.instructions.includes('OUT OF CHARACTER:'));
+ assert.equal(reply.rewind,false);assert.equal(sent.text.format.schema.properties.rewind.type,'null');
+ reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,false,'only out of character');assert.equal(sent.text.format.schema.properties.fault.type,'null');assert.ok(sent.text.format.schema.required.includes('fault'));assert.ok(!sent.instructions.includes('OUT OF CHARACTER:'));
  for(const text of ['one action and one bonus action','end-turn','short-rest'])assert.ok(sent.instructions.includes(text),text);
- console.log('Passed: messages addressed to the DM are recognised, the state before each turn is remembered and restored exactly once, questions leave the game alone and stay in the feed and journal, and the server answers out of character without changing the game (rewind only when a turn can be taken back).');
+ console.log('Passed: messages addressed to the DM are recognised, the state before each turn is remembered and restored exactly once, questions leave the game alone and stay in the feed and journal, and the server answers out of character without changing the game (rewind only when a turn can be taken back; a fault it admits is flagged so the game can offer a note to the host).');
 })().catch(e=>{console.error(e);process.exit(1);});

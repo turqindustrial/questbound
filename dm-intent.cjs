@@ -21,6 +21,10 @@ const hedged=text=>/\b(tell|tells|told|ask|asks|asked|say|says|said|suggest|sugg
 const moving=text=>/\b(go|goes|going|walk|walking|head|heading|travel|return|returning|ride|run|climb|hike|march|journey|hurry|sneak|proceed|trek|wander|stroll|jog|sprint|sail|row|swim|set (?:out|off)|make (?:my|our) way|making (?:my|our) way|leave|depart|follow|cross|enter|approach|move|get back|come back|make for|strike out|press on|venture)\b/.test(text);
 const exploring=text=>/\b(north|south|east|west|northeast|northwest|southeast|southwest|northward|southward|eastward|westward|beyond|until i (?:find|reach|come)|what lies|explore|exploring|deeper|further|farther|onward|upstream|downstream|uphill|downhill|inland|horizon|somewhere new|new place|strike out|into the (?:wilds|wild|woods|forest|hills|mountains|marsh|swamp|desert|dunes|unknown|dark|depths)|follow(?:ing)? the [a-z' -]{3,40}|along the (?:shore|coast|river|road|trail|ridge|path|track|tracks|stream|cliffs?))\b/.test(text);
 const compass=text=>(/\b(north|south|east|west)(?:-| )?(east|west)?(?:ward|wards)?\b/.exec(text)?.[0])??null;
+// Leaving the land on the map altogether, in a direction (the game's beyond choices: mapRules.js goBeyond).
+const offLand=text=>/\b(?:beyond|past|off|over) the (?:edge of (?:the |my |our |this )?)?map\b|\b(?:off|past|beyond|over) the edge\b|\bleav(?:e|ing) (?:this|the) (?:land|country|region|realm|valley|map)\b|\bout of (?:this|the) (?:land|country|region)\b|\b(?:a|some) new (?:land|country)\b|\bbeyond (?:this|the) (?:land|country|region|borders?)\b/.test(text);
+const compassIds={north:'N',northeast:'NE',east:'E',southeast:'SE',south:'S',southwest:'SW',west:'W',northwest:'NW'};
+const bearingOf=text=>{const m=/\b(north|south)[- ]?(east|west)\b|\b(north|south|east|west)(?:ward|wards)?\b/.exec(text);return m?compassIds[m[3]??(m[1]+m[2])]:null;};
 const fighting=context=>['combat','dying','dead'].includes(context?.stage)||!!context?.encounter||!!context?.npcCombat?.active;
 // The journeys on offer right now: each travel choice with the place it leads to.
 function journeys(context){
@@ -30,7 +34,8 @@ function journeys(context){
 // Which of those journeys the player's words name. A place is named by its whole name, or by a word no other known
 // place shares ("the lookout" for Lookout Rock). `strong` means there is no doubt which place is meant.
 function namedJourneys(text,context){
- const offered=journeys(context),all=[...(context?.world?.knownPlaces??[]).map(p=>p?.name),...offered.map(j=>j.name)].filter(Boolean);
+ const far=(Array.isArray(context?.world?.farLands)?context.world.farLands:[]).flatMap(l=>Array.isArray(l?.places)?l.places.map(n=>String(n).replace(/ \(heard of\)$/,'')):[]);
+ const offered=journeys(context),all=[...(context?.world?.knownPlaces??[]).map(p=>p?.name),...far,...offered.map(j=>j.name)].filter(Boolean);
  const count=word=>new Set(all.filter(name=>wordsOf(name).includes(word))).size;
  return offered.map(j=>{
   const words=wordsOf(j.name),whole=text.includes(j.name.toLowerCase()),own=words.filter(w=>count(w)===1&&hasWord(text,w));
@@ -46,16 +51,26 @@ function situation(context){
  else if(c.stage==='dying'||c.dying)lines.push('The player\'s hero is down and dying; whatever dropped them has turned away.');
  else if(inFight)lines.push('A fight is in progress'+(c.encounter?.name?' against '+c.encounter.name:c.npcCombat?.active?' with people here':'')+'.');
  else lines.push('No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.');
+ // What the player still has this turn (one action, one bonus action), worked out by the game.
+ if(inFight&&c.stage!=='dying'&&!c.dying&&typeof c.turnResources?.left==='string')lines.push('This turn the player has left: '+c.turnResources.left+'.');
  if(foe){
   if(c.foeFate==='slain'||(c.enemyHP===0&&c.foeFate!=='subdued'))lines.push(foe+' is dead and no longer a threat.');
   else if(c.foeFate==='subdued')lines.push(foe+' is beaten and no longer a threat.');
   else if(!inFight&&place&&c.stage!=='bridge')lines.push(foe+' is not at '+place+' and is not attacking the player.');
  }
+ // Who is here to be spoken to, by name (the foe in a fight is not one of them).
+ const here=(Array.isArray(c.nearbyNPCs)?c.nearbyNPCs:[]).filter(n=>n&&typeof n.id==='string'&&typeof n.name==='string').map(n=>n.name.slice(0,60)).slice(0,8);
+ if(here.length)lines.push('Named people here: '+here.join(', ')+'.');
  const offered=journeys(c);
  if(offered.length&&!inFight)lines.push('The player may set out at once for any of: '+offered.map(j=>j.name+' ('+j.actionId+')').join(', ')+'. Nothing has to happen first.');
  return lines;
 }
-const started=reply=>[reply?.actionId,reply?.castCommand,reply?.check,reply?.discovery,reply?.ambush,reply?.ruling].some(v=>v!=null);
+// Places where people would be found: arriving at one with nobody named there is a scene with no one to talk to.
+const busyKinds=['settlement','camp','road','water','shrine','starting place'];
+const arrivedAt=context=>(context?.engineResolved??[]).some(t=>/^You (?:travel to|arrive at|return to|reach) /.test(String(t)));
+// A recruitment decision is a game action too: a reply in which someone joins (the journey waits for the next turn,
+// dm-server.cjs steadied) is never asked again for the journey.
+const started=reply=>[reply?.actionId,reply?.castCommand,reply?.check,reply?.discovery,reply?.ambush,reply?.ruling].some(v=>v!=null)||(Array.isArray(reply?.recruitment)&&reply.recruitment.length>0);
 const offers=(context,id)=>(context?.choices??[]).some(c=>c?.id===id);
 const phantomFight=text=>/\b(ambush|fight|encounter|battle|combat|attack|attacker)\b[^.!?]{0,70}\b(still|remains?)\b[^.!?]{0,40}\b(underway|in progress|active|unresolved|ongoing|unfinished|going on)\b|\b(?:can(?:no|')t|cannot|unable to)\s+(?:leave|abandon|walk away from|slip away from)\s+the\s+(?:fight|encounter|battle|ambush)\b|\bleaving the (?:fight|encounter|battle)\b/i.test(String(text??''));
 // Simple requests a choice covers outright.
@@ -63,6 +78,9 @@ const plainChoices=[
  ['short-rest',/\b(short rest|catch (?:my|our) breath|take a breather|rest (?:a while|a little|briefly|for an hour|for a bit)|bind (?:my|our) wounds)\b/,'taking a short rest'],
  ['long-rest',/\b(long rest|rest for the night|rest until (?:morning|dawn)|sleep|bed down|turn in for the night|make camp for the night|get a night's rest)\b/,'resting for the night'],
  ['potion',/\b(drink|quaff|down|swallow|use)\b[^.!?]{0,30}\b(potion|draught)\b/,'drinking a healing draught'],
+ // Searching the fallen or a lair (the game rolls what they held: lootRules.js): a search verb with the body, the
+ // remains or the lair within three words. Checking a pulse or wounds, or going over what the dead said, is not looting.
+ ['loot',/^(?:i |we |let me |let's )?(?:(?:loot|skin)\b(?! is)|(?:search|rifle through|go through|strip|rummage through)\s+(?:(?:him|her|them|it)\b(?!\s+for\s+(?:wounds?|injur|a pulse|signs?\s+of\s+life|breath))|(?:\S+\s+){0,3}?(?:bod(?:y|ies)|corpses?|remains|fallen|dead|pockets|belongings|purse|lair|den|nest|hoard|carcass(?:es)?|pelts?)\b))/,'searching the fallen'],
 ];
 // A side errand (a lead) the player's words seem to settle: they name it (a word of its title) and do something that
 // ends such errands (hand over, return, tell, pay, free, destroy...).
@@ -77,8 +95,27 @@ function settledLead(text,context){
 // Is this reply what the player's words asked for? Returns null when it is (or when there is nothing to hold it to),
 // else {kind, note, sure, actionId, say}: what is wrong, what to tell the model, and (sure) whether the request is so
 // plain that the game may start actionId itself, with `say` as the telling.
+// A telling that has someone present join the hero (narration, or their own words) while recruitment records nothing:
+// they would never reach the Companions list and would be left behind at the next place.
+const joinsTold=/\b(?:joins? (?:you|your)|comes? (?:along )?with you|will (?:travel|come|ride|walk|go) with you|falls? in (?:beside|behind|alongside|with) you|(?:shoulders|takes up|hefts) (?:a|his|her|their) pack|sets? out with you|travels? with you now)\b/i;
+const joinsSaid=/\b(?:I'?ll|I will|I shall|I'?m going to) (?:come|go|travel|ride|walk) (?:along )?with you\b|\bI'?m coming with you\b|\bcount me in\b|\bI'?ll join you\b/i;
+function unrecordedJoin(context,reply){
+ if((reply?.recruitment??[]).length||started(reply))return null;
+ const people=(Array.isArray(context?.nearbyNPCs)?context.nearbyNPCs:[]).filter(n=>n&&typeof n.id==='string'&&typeof n.name==='string'&&n.standing!=='companion');
+ const sentences=String(reply?.narration??'').split(/(?<=[.!?])\s+/);
+ for(const n of people){
+  const words=wordsOf(n.name).filter(w=>w.length>=3);
+  const named=t=>words.some(w=>hasWord(t.toLowerCase(),w))||/\b(?:she|he|they)\b/i.test(t)&&people.length===1;
+  if(sentences.some(t=>named(t)&&joinsTold.test(t))||(reply?.dialogue??[]).some(l=>l?.speakerId===n.id&&joinsSaid.test(String(l.text??''))))return n;
+ }
+ return null;
+}
 function secondLook(body,reply,{canDiscover=false}={}){
  const context=body?.context??{},text=tidyInput(body?.input);
+ // Arriving somewhere people live (a town, a camp, a landing, a crossing, a shrine) and finding nobody named there:
+ // the player is shown someone to talk to (never settled by the game: the Dungeon Master names them).
+ {const here=context.world?.current,lonely=here&&busyKinds.includes(here.kind??'starting place')&&context.world?.peopleHere===0&&context.world?.canIntroduce===true&&!reply?.introduce&&!fighting(context)&&!context.sceneTrigger&&!context.outOfCharacter&&!context.pendingSpell;
+  if(lonely&&arrivedAt(context))return {kind:'nobody here',sure:false,note:'Your telling brings the player to '+String(here.name).slice(0,60)+', '+(here.kind?'a '+here.kind:'a place')+' where people would be, but nobody is named there (context.world.peopleHere is 0). Tell the same moment again, and this time return introduce for the one person the player would notice first on arriving (who they are, what they are doing), and let them speak if it fits. Keep everything else as you told it; all mechanical fields stay null.'};}
  if(!text||text.length>400||fighting(context)||context.engineResolved||context.sceneTrigger||context.outOfCharacter||context.pendingSpell)return null;
  const asking=question(text),plain=!asking&&!negated(text)&&!hedged(text)&&text.length<=200;
  const none=!started(reply),goes=!asking&&!negated(text)&&moving(text),named=goes?namedJourneys(text,context):[];
@@ -86,6 +123,14 @@ function secondLook(body,reply,{canDiscover=false}={}){
   const j=named[0];
   return {kind:'known place',actionId:j.actionId,sure:plain&&j.strong,say:'You set out for '+j.name+'.',
    note:'Your last reply started no game action. The player\'s message reads as setting out for '+j.name+' now, and '+j.actionId+' is on offer and allowed (context.now says so). If they are setting out, select actionId '+j.actionId+' and narrate them leaving: no obstacle, warning or condition in the way, and nobody stopping them. Only if the message is plainly not a decision to go now (a question, a plan for later, something said to someone) answer it without the journey.'};
+ }
+ // Off the edge of this land's map: the beyond choice that way (the game opens the new land).
+ if(none&&!asking&&!negated(text)&&offLand(text)){
+  const b=bearingOf(text),id=b?'beyond-'+b:null,ways=(context.choices??[]).filter(c=>typeof c?.id==='string'&&c.id.startsWith('beyond-')).map(c=>c.id);
+  const word=b?Object.keys(compassIds).find(k=>compassIds[k]===b).replace(/^(north|south)(east|west)$/,'$1-$2'):null;
+  if(id&&ways.includes(id))return {kind:'beyond the map',actionId:id,sure:plain,say:'You set out '+word+', beyond the edge of your map.',
+   note:'Your last reply started no game action. The player\'s message reads as leaving this land altogether, '+word+', past the edge of the map, and '+id+' is on offer. Select actionId '+id+' and narrate them setting out on the long road; the game opens the new land. Only if the message is plainly not a decision to go now answer it without the journey.'};
+  if(!b&&ways.length)return {kind:'beyond the map',sure:false,note:'Your last reply started no game action. The player\'s message reads as leaving this land altogether, past the edge of the map. Select the beyond choice ('+ways.join(', ')+') nearest the way their words point (ask which way only if nothing in the scene suggests one), or use discovery with region for a land they name.'};
  }
  const wandering=goes&&!named.length&&exploring(text)&&canDiscover,toward=compass(text);
  if(wandering&&none)return {kind:'new place',sure:false,
@@ -98,13 +143,17 @@ function secondLook(body,reply,{canDiscover=false}={}){
  if(none&&phantomFight(reply?.narration))return {kind:'phantom fight',sure:false,
   note:'Your last reply spoke of a fight or encounter as still going on. context.now is the truth: no fight is in progress and nothing is attacking the player. Answer the player\'s message again on that footing; if they asked for something a choice covers, select that actionId, and if they set out for somewhere new, use discovery.'};
  // A lead the player's words seem to settle: the model is asked whether this is the moment (the game never decides that itself).
+ // Someone told as joining the hero that the game did not record (never settled by the game).
+ const joiner=unrecordedJoin(context,reply);
+ if(joiner)return {kind:'unrecorded join',sure:false,
+  note:'Your narration has '+joiner.name+' coming along, but recruitment is empty: record it with recruitment ('+((context.recruitmentTargets??[]).includes(joiner.id)?'join or check':'decision offer, so the player can choose')+', with their class), or tell the scene so that they do not come. A reply that records a join starts no other action; any journey can follow on the next turn.'};
  const lead=none&&!asking?settledLead(text,context):null;
  if(lead)return {kind:'lead',sure:false,
   note:'Your last reply closed nothing. The player\'s message may settle the lead "'+String(lead.title).slice(0,80)+'", and lead-done:'+lead.id+' is on offer. If this message completes it (the thing is handed over, the truth is told to the one who asked, the matter is settled for good or ill), select actionId lead-done:'+lead.id+' in this reply; the telling of the moment follows. If it only moves the errand along, answer as you did.'};
- if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.'}[id],
+ if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.','loot':'You search the fallen.'}[id],
   note:'Your last reply started no game action. The player\'s message reads as '+what+', and '+id+' is on offer. Select actionId '+id+' unless the message is plainly not doing so now.'};
  return null;
 }
 // The reply the game gives itself when the model would not act on an unmistakable request: the action, a one-line telling.
-function settled(fault){return {narration:fault.say,dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:fault.actionId,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false};}
+function settled(fault){return {narration:fault.say,dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:fault.actionId,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,remember:[],suggestions:[]};}
 module.exports={situation,secondLook,settled,journeys,namedJourneys,fighting,started};

@@ -33,6 +33,9 @@ v=d('roll','Chapter 2 complete: The Windglass Index. The Index reveals that a pu
 v=d('action','Chapter 3 begins: The Bell Archive. Journey to the Bellwether Archive in the Namarra Crown.');assert.equal(v.type,'chapter');assert.equal(v.number,3);assert.equal(v.title,'The Bell Archive');assert.equal(v.text,'Journey to the Bellwether Archive in the Namarra Crown.');
 v=d('action','Lead seen through: Nemi\'s Dry Measure.');assert.equal(v.type,'lead');assert.equal(v.title,'Nemi\'s Dry Measure');
 assert.equal(d('action','You have earned a level. Take it when you are ready.').type,'level');
+{const x=d('action','Experience: +168 (Grey Wolf defeated).');assert.equal(x.type,'xp');assert.equal(x.amount,'168');assert.equal(x.label,'Grey Wolf defeated');assert.equal(x.party,false);
+ const p=d('action','Experience: +1,313 (Chapter 2 finished; Reached Old Mill). Every hero in the party gains experience too.');assert.equal(p.type,'xp');assert.equal(p.amount,'1,313');assert.equal(p.label,'Chapter 2 finished; Reached Old Mill');assert.equal(p.party,true);
+ assert.equal(d('action','The party gains experience (Tale complete).').type,'xp');}
 assert.equal(d('narration','Chapter 3 begins: The Bell Archive. A storyteller might say this too.').type,'text','Only the game\'s own lines become cards');
 // No engine line may throw, whatever it says.
 for(const text of ['',':','d20','d20 [] = vs AC','Round x begins.','→ HP','0 HP lost','restored HP'])for(const kind of ['roll','initiative','effect','action','narration'])describeEvent({kind,text});

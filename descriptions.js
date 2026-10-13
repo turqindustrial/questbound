@@ -1,9 +1,11 @@
-import {weapons,attackOptions,attacksPerAction,canThrow} from './weaponRules';
+import {weapons,attackOptions,attacksPerAction,canThrow,thrownAttack} from './weaponRules';
 import {masteryOf,masteryText,unarmedDC} from './masteryRules';
 import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
+import {subclassAction,subclassUses,subclassUsesLeft,subclassScaled} from './subclassRules';
 import {knownSpells} from './spellRules';
 import {placeName,travelRoute,mapLocation,distanceText,durationText} from './mapRules';
+import {magicItems,packMagic} from './lootRules';
 // What things are, in a sentence or two: every item a hero can carry, every action the game offers and every spell
 // they know. The inventory, the action guide and the spell picker all read from here, so nothing on screen is
 // without an explanation.
@@ -14,11 +16,12 @@ const weaponNotes={
  Quarterstaff:'A stout wooden staff, used in one hand or two.',Sickle:'A curved harvesting blade pressed into service.',Spear:'A long shaft with an iron point, for thrusting or throwing.',
  Greataxe:'A huge two-handed axe that cleaves through whatever it meets.',Greatsword:'A two-handed blade as long as its wielder is tall.',Flail:'A spiked weight on a chain.',Longsword:'A straight, double-edged blade, used in one hand or two.',
  Scimitar:'A light curved blade, made for quick cuts.',Shortsword:'A short stabbing blade for close work.',Shortbow:'A small bow, quick to draw.',Longbow:'A tall war bow with a long reach.',
+ Battleaxe:'A broad axe head on a stout haft, swung in one hand or two.',Trident:'A three-pronged fishing spear made for war, thrust or thrown.',Maul:'A massive two-handed hammer that knocks the strongest off their feet.',Glaive:'A heavy blade on a long pole, reaching past the front rank.',Halberd:'An axe blade and spike on a long pole, for sweeping wide cuts.',
 };
 // How a weapon reads on its own (no hero): what kind it is, its damage and its properties.
 export function weaponSummary(name){
  const w=weapons[name];if(!w)return '';
- const traits=[w.finesse?'finesse (Strength or Dexterity)':null,w.light?'light (one in each hand)':null,w.versatile?'versatile':null,w.heavy?'heavy':null,w.twoHands?'two-handed':null,w.range?w.range.replace(/\.$/,'').toLowerCase():null].filter(Boolean);
+ const traits=[w.finesse?'finesse (Strength or Dexterity)':null,w.light?'light (one in each hand)':null,w.versatile?'versatile ('+(w.count??1)+'d'+w.versatile+' in both hands)':null,w.heavy?'heavy':null,w.twoHands?'two-handed':null,w.reach?'reach':null,w.range?w.range.replace(/\.$/,'').toLowerCase():null].filter(Boolean);
  return (w.martial?'Martial ':'Simple ')+(w.ranged?'ranged':'melee')+' weapon: '+(w.count??1)+'d'+w.die+' '+w.type.toLowerCase()+' damage'+(traits.length?'; '+traits.join(', '):'')+'.';
 }
 const gearNotes={
@@ -26,7 +29,7 @@ const gearNotes={
  'Chain Shirt':'A shirt of mail worn between layers of cloth: armor class 13 + Dexterity (at most +2).',
  'Studded Leather Armor':'Tough leather set with close rivets: armor class 12 + Dexterity.',
  'Leather Armor':'Boiled leather shaped to the body: armor class 11 + Dexterity.',
- Shield:'Carried on one arm: +2 to armor class. It leaves one hand free for a weapon.',
+ Shield:'Carried on one arm: +2 to armor class. It leaves one hand free for a weapon; with a two-handed weapon in hand it goes on your back and adds nothing.',
  Robe:'Plain robes with deep pockets. No protection at all.',
  Arrow:'Ammunition for a bow. Each shot spends one.',
  Quiver:'Keeps your arrows at your hip, ready to draw.',
@@ -48,11 +51,23 @@ const gearNotes={
  "Entertainer’s Pack":'A backpack with a bedroll, costumes, candles, rations, a waterskin and a disguise kit.',
  "Burglar’s Pack":'A backpack with ball bearings, string, a bell, candles, a crowbar, a hammer, pitons, a hooded lantern, oil, rations, a tinderbox, a waterskin and rope.',
  "Scholar’s Pack":'A backpack with a book of lore, ink and a pen, parchment, a little bag of sand and a small knife.',
- 'Potion of Healing':'A red draught. Drink it to regain 2d4 + 2 hit points (a bonus action in a fight), or give it to a companion.',
+ 'Potion of Healing':'A red draught. Drink it to regain 2d4 + 2 hit points (a bonus action in a fight), or give it to someone beside you (also a bonus action).',
 };
 const kindNotes={weapon:'A weapon you can fight with.',ammunition:'Ammunition for a weapon that shoots or is thrown.',treasure:'Something of value: sell it for about half its worth, or trade it.',gear:'Useful gear. Tell the Dungeon Master how you use it.',quest:'It matters to your errand. Keep it safe.',potion:'A draught to drink. Ask the Dungeon Master what it does.'};
-// What an item is. note is what the Dungeon Master said of it when it was found.
-export function itemDescription(name,kind=null,note=null){
+// A magic item in a sentence or two: the weapon or armour it is made as, then the catalogue's own words for what it
+// does (attunement, charges), then what it looks like or what the teller said of it.
+export function magicDescription(item){
+ const m=magicItems[item?.magic?.id];if(!m)return '';
+ const said=typeof item.note==='string'&&item.note.trim()?' '+item.note.trim():m.look?' '+m.look:'';
+ if(item.magic.id.startsWith('weapon+')&&weapons[item.base])return weaponNotes[item.base]+' '+weaponSummary(item.base)+' Magic ('+m.rarity+'): +'+m.plus+' to attack and damage rolls.'+said;
+ if(item.magic.id.startsWith('armor+')||item.magic.id.startsWith('shield+'))return (gearNotes[item.base]??'')+' Magic ('+m.rarity+'): '+m.effect+(item.magic.id.startsWith('armor+')?' It counts only while it is the armor you wear.':'')+said;
+ const charges=item.magic.charges!==undefined?' '+item.magic.charges+' of '+m.charges+' charges left.':'';
+ const attune=m.attune?(item.attuned?' Attuned: it is working for you.':' It needs attunement before it works (three attuned items at most).'):'';
+ return m.name+' ('+m.rarity+'): '+m.effect+charges+attune+said;
+}
+// What an item is. note is what the Dungeon Master said of it when it was found; `item` is the pack entry (its magic).
+export function itemDescription(name,kind=null,note=null,item=null){
+ if(item?.magic&&magicItems[item.magic.id])return magicDescription(item);
  const plain=String(name??'').trim(),weapon=plain.includes('(Quarterstaff)')?null:weapons[plain];
  // Its mastery property, which heroes trained in the weapon can use (Barbarians, Fighters, Paladins, Rangers, Rogues).
  if(weapon)return weaponNotes[plain]+' '+weaponSummary(plain)+(weapon.mastery?' Mastery for those trained in it: '+masteryText[weapon.mastery]:'');
@@ -67,7 +82,8 @@ export const draughtDescription=gearNotes['Potion of Healing'];
 const damageText=w=>w.flat?(1+w.bonus)+' bludgeoning':(w.count>1?w.count:1)+'d'+w.die+(w.bonus?' '+(w.bonus>0?'+ ':'− ')+Math.abs(w.bonus):'')+' '+w.type.toLowerCase();
 // A throw: the same roll and damage as a ranged attack, and the weapon lands where it falls until the fight is over.
 function throwText(hero,name){
- const w=attackOptions(hero).find(o=>o.name===name&&canThrow(o));if(!w)return 'Throw it. Uses your action.';
+ const found=attackOptions(hero).find(o=>o.name===name&&canThrow(o));if(!found)return 'Throw it. Uses your action.';
+ const w=thrownAttack(found);
  const swings=attacksPerAction(hero);
  return 'Throw it: roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage. A ranged attack: with the foe right beside you it has disadvantage. The '+w.name.toLowerCase()+' stays where it lands until you gather it up after the fight. Uses your action'+(swings>1?' ('+swings+' throws)':'')+'.';
 }
@@ -75,7 +91,7 @@ function attackText(hero,name){
  const w=attackOptions(hero).find(o=>o.name===name);if(!w)return 'Attack with it. Uses your action.';
  const swings=attacksPerAction(hero);
  const mastery=masteryOf(hero,w);
- return 'Roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage'+(w.heavyDisadvantage?' (disadvantage: this weapon is too heavy for you)':'')+(w.ranged?', and each shot spends an arrow':'')+'. Uses your action'+(swings>1?' ('+swings+' attacks)':'')+'.'+(mastery?' Your mastery: '+masteryText[mastery]:'');
+ return 'Roll a d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+' against the target’s armor class; a hit deals '+damageText(w)+' damage'+(w.versatile?(w.grip==='two'?' (both hands on it; '+w.count+'d'+w.oneHandDie+' in one hand)':' (one-handed, with your shield on your arm)'):'')+(w.heavyDisadvantage?' (disadvantage: this weapon is too heavy for you)':'')+(w.ranged?', and each shot spends an arrow':'')+'. Uses your action'+(swings>1?' ('+swings+' attacks)':'')+'.'+(mastery?' Your mastery: '+masteryText[mastery]:'');
 }
 // Grapple or Shove: an Unarmed Strike that seizes or knocks down instead of striking.
 function unarmedText(hero,kind){
@@ -88,7 +104,12 @@ export function actionDescription(action,hero,game){
  if(key==='level-up')return 'You have earned a new level. Choose what you gain.';
  if(key==='cast')return 'Choose one of your spells to cast.';
  if(key==='spells-back')return 'Back to your other actions.';
- if(key.startsWith('spell:'))return spellSummary(knownSpells(hero).find(s=>'spell:'+s.id===key));
+ if(key==='cast-back')return 'Back to your spells.';
+ // A spell chip (a friend's heal and a way of casting from the slot organizer carry the spell's id too).
+ if(key.startsWith('spell:')){const id=action.spell??key.slice(6).split(/[:@]/)[0],spell=knownSpells(hero).find(s=>s.id===id),text=spellSummary(spell);
+  if(action.slot===undefined||!spell)return text;
+  const way=typeof action.slot==='number'?'Cast with a level '+action.slot+' slot'+(action.slot>spell.level?', above the spell\'s own level':'')+(action.detail?' ('+action.detail+')':'')+'.':action.slot==='ritual'?'Cast as a ritual: it takes ten minutes longer and spends no slot.':action.slot==='species'?'Cast without a slot, as your people can, once between long rests.':'Cast with your Mystic Arcanum, once between long rests.';
+  return (text?text+' ':'')+way;}
  if(key==='end-turn')return game.actionUsed?'Finish your turn without a bonus action. The enemy acts next.':'Pass your turn without acting. The enemy acts next.';
  if(key==='attack-menu')return 'Choose a weapon to attack with: everything you carry for close fighting under Melee, bows and throwing weapons under Ranged, and who to attack when there is more than one.';
  if(key==='attack-back')return 'Back to your other actions.';
@@ -96,6 +117,9 @@ export function actionDescription(action,hero,game){
  if(/^(grapple|shove)$/.test(key))return unarmedText(hero,key);
  if(/^ally-(grapple|shove):/.test(key))return 'The creature fighting beside your foe. '+unarmedText(hero,key.slice(5).split(':')[0]);
  if(/^npc-(grapple|shove):/.test(key))return 'Someone you lay hands on will remember it. '+unarmedText(hero,key.slice(4).split(':')[0]);
+ // A lasting spell used again, and Hex or Hunter's Mark moved (spellRules.js lastingSpells, moveMark).
+ if(key.startsWith('again:')){const held=game.concentration?.id;return ({'spiritual-weapon':'Your spiritual weapon moves and strikes again: a melee spell attack for 1d8 Force damage plus your spellcasting modifier (more from a higher slot).','heat-metal':'The metal glows red-hot again: 2d8 Fire damage with no save (more from a higher slot), and if it holds on, its attacks have disadvantage until your next turn.','flaming-sphere':'Roll the sphere into the creature: it makes a Dexterity save or takes 2d6 Fire damage (half on a success), and the sphere stays beside it.','moonbeam':'Move the beam onto the creature: it makes a Constitution save or takes 2d10 Radiant damage (half on a success), and again whenever it ends its turn in the light.','call-lightning':'Call down another bolt: the creature makes a Dexterity save or takes 3d10 Lightning damage (half on a success).','vampiric-touch':'Touch it again: a melee spell attack for 3d6 Necrotic damage, and you regain half of it as hit points.'})[held]??'Use the spell you hold again.';}
+ if(key.startsWith('move-mark:'))return 'The creature you cursed or marked has dropped: move the spell to this one, and your hits on it deal the extra damage.';
  if(key.startsWith('offhand:')){const w=attackOptions(hero).find(o=>o.name===key.slice(8)),nick=action.detail==='Nick',mastery=w?masteryOf(hero,w):null;return 'Two-weapon fighting: strike once with the '+key.slice(8).toLowerCase()+' in your other hand'+(w?' (d20 '+(w.attackBonus>=0?'+ ':'− ')+Math.abs(w.attackBonus)+'; '+(w.flat?'1':w.count+'d'+w.die)+(w.bonus<0?' − '+Math.abs(w.bonus):'')+' '+w.type.toLowerCase()+' damage, without your ability bonus)':'')+'. '+(nick?'With Nick it is part of your Attack action, so your bonus action stays free.':'It costs your bonus action.')+(mastery&&mastery!=='Nick'?' Your mastery: '+masteryText[mastery]:'');}
  if(/^(throw|encounter-throw):/.test(key))return throwText(hero,key.split(':').pop());
  if(key.startsWith('ally-throw:'))return 'Throw at the creature fighting beside your foe. '+throwText(hero,key.split(':').pop());
@@ -109,11 +133,16 @@ export function actionDescription(action,hero,game){
  if(key==='npc-wait')return 'Hold your ground and let the others act.';
  if(key==='npc-surrender')return 'Lay down your weapon and give yourself up. The fight ends.';
  if(key==='potion')return 'Drink a healing draught: regain 2d4 + 2 hit points. In a fight it costs your bonus action, not your action.';
- if(key.startsWith('give-potion:'))return 'Give them one of your healing draughts: they regain 2d4 + 2 hit points and come round. Someone you bring back will not forget it.';
+ if(key==='loot')return 'Search the fallen and anything they guarded. What you find goes into your pack; each foe can be searched once.';
+ if(key.startsWith('drink:')){const m=magicItems[key.slice(6)];return m?m.name+': '+m.effect:'Drink a healing draught.';}
+ if(key==='item:wand-of-magic-missiles'||key.startsWith('ally-item:')){const wand=packMagic(game,'wand-of-magic-missiles');return 'Wand of Magic Missiles: three darts of force strike '+(key.startsWith('ally-')?'the creature beside your foe':'your foe')+' for 1d4 + 1 each, and never miss. Uses your action and one charge'+(wand?' ('+wand.magic.charges+' left)':'')+'; it regains 1d6 + 1 charges after a long rest.';}
+ if(key.startsWith('give-potion:'))return 'Give them one of your healing draughts: they regain 2d4 + 2 hit points and come round. A bonus action in a fight. Someone you bring back will not forget it.';
  if(key==='class:wind')return 'Second Wind: catch your breath and regain 1d10 + '+level+' hit points. A bonus action; '+windLimit(hero)+' uses, which return when you rest.';
  if(key==='class:hands')return 'Lay on Hands: heal your own wounds from a pool of '+5*level+' hit points that returns after a long rest. A bonus action.';
  if(key==='class:strike')return 'Martial Arts: follow up with one unarmed strike. A bonus action.';
- if(key==='short-rest')return 'Rest for an hour: you and each companion regain half your hit points, and a Fighter’s Second Wind and a Warlock’s spell slots return. '+shortRestLimit(hero)+' short rests between long rests.';
+ if(key==='class:surge')return 'Action Surge: push past your limits and take one more action this turn (an attack, a Dodge, anything but casting a spell). Free; once a turn, and '+(hero?.level>=17?'twice':'once')+' between rests: a short or long rest brings it back.';
+ {const feat=subclassAction(hero);if(feat&&key==='class:'+feat.id){const limit=subclassUses(hero,feat.uses),back=subclassScaled(feat.recharge,level,'long')==='short'?'a short or long rest':'a long rest';return feat.description+' '+subclassUsesLeft(hero,game??{})+' of '+limit+' uses left; they return after '+back+'.';}}
+ if(key==='short-rest')return 'Rest for an hour: you and each companion regain half your hit points, and a Fighter’s Second Wind and Action Surge and a Warlock’s spell slots return. '+shortRestLimit(hero)+' short rests between long rests.';
  if(key==='long-rest')return 'Sleep the night somewhere safe: all hit points, spell slots, abilities and short rests return.';
  if(key==='death-save')return 'Roll a d20. Ten or more is a success: three successes and you live, three failures and you die. A 20 puts you back on your feet with 1 hit point; a 1 counts as two failures.';
  if(key==='approach')return 'Go and face it. The fight begins.';
@@ -127,9 +156,14 @@ export function actionDescription(action,hero,game){
 export function actionCost(action,game){
  const key=String(action?.key??'');
  if(game.stage!=='combat'&&!game.npcCombat?.active)return null;
- if(['potion','class:wind','class:hands','class:strike'].includes(key))return 'Bonus action';
+ if(['potion','class:wind','class:hands','class:strike'].includes(key)||key.startsWith('drink:'))return 'Bonus action';
+ // A subclass's own action: its chip says Bonus when it costs the bonus action.
+ if(key.startsWith('class:'))return /^Bonus\b/.test(action.detail??'')?'Bonus action':'Action';
  if(key.startsWith('offhand:'))return action.detail==='Nick'?null:'Bonus action';
- if(key.startsWith('spell:'))return action.detail?.includes('Bonus')?'Bonus action':'Action';
+ if(key.startsWith('again:')||key.startsWith('move-mark:'))return /^Bonus/.test(action.detail??'')?'Bonus action':'Action';
+ if(key.startsWith('spell:'))return action.bonus||action.detail?.includes('Bonus')?'Bonus action':'Action';
+ if(key.startsWith('give-potion:'))return 'Bonus action';
+ if(key==='class:surge')return null;
  if(key==='end-turn'||key==='cast'||key==='spells-back'||key==='death-save')return null;
  return 'Action';
 }

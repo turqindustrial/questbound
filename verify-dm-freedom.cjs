@@ -25,7 +25,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const found=await generate(free,{...keys,fetchImpl:success({narration:'You climb toward the ridge.',discovery:ridge})});
  assert.equal(found.discovery.name,'Thornback Ridge');assert.equal(found.discovery.miles,12);
  assert.equal(lastRequest.text.format.schema.properties.discovery.type[0],'object');assert.ok(lastRequest.text.format.schema.required.includes('discovery'));
- await assert.rejects(generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})}),/new place the map could not use/);
+ assert.equal((await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})})).discovery,null,'a place the map could not use is never added (asked again, then left out)');
  await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','No new places while the player is not free to travel');
  await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','Narrating a resolved turn reveals nothing');
  // One game action per reply: when two arrive together the first is kept and the other dropped, not the whole reply.
@@ -33,7 +33,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const both=await generate(free,{...keys,fetchImpl:success({narration:'Both.',discovery:ridge,check:look})});assert.equal(both.discovery.name,'Thornback Ridge');assert.equal(both.check,null,'The journey is kept, the check dropped');
  const walk=await generate({...free,context:{...free.context,choices:[{id:'travel-tower',label:'Travel to Lookout Rock'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-tower',check:look,discovery:ridge})});assert.equal(walk.actionId,'travel-tower');assert.equal(walk.check,null);assert.equal(walk.discovery,null);
  assert.match(lastRequest.instructions,/WHAT IS TRUE NOW:/);assert.match(lastRequest.instructions,/never invent an obstacle/);
- await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})}),/new place the map could not use/);
+ assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})})).discovery,null,'new place the map could not use');
  // Danger in the wilds: a lair's creature, a feature, and ambushes only where the player is out in the wilds.
  const widow={template:'spider',name:'Grey Widow',appearance:'A spider as large as a pony, grey and bristled.'};
  const den=await generate(free,{...keys,fetchImpl:success({narration:'Silk glints.',discovery:{...ridge,miles:2,danger:'lair',feature:'A satchel under the webs.',lair:widow}})});
@@ -42,8 +42,8 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const wild=body('I kick the sleeping boar.',{world:{canDiscover:true,canAmbush:true}});
  const sprung=await generate(wild,{...keys,fetchImpl:success({narration:'It wakes.',ambush:{template:'boar',name:'Tusked Brute',appearance:'A boar with tusks like sickles.'}})});
  assert.equal(sprung.ambush.template,'boar');assert.equal(lastRequest.text.format.schema.properties.ambush.type[0],'object');
- await assert.rejects(generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})}),/could not use/,'No ambush away from the wilds');
- await assert.rejects(generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})}));
+ assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})})).ambush,null,'No ambush away from the wilds');
+ assert.equal((await generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})})).ambush,null);
  assert.ok(lastRequest.instructions.includes('DANGER IN THE WILDS'));
  // Loot: handed over with the narration, never mid-fight, never more gold than the hero has.
  const shop=body('I buy a healing potion from the captain.',{stage:'inn',inventory:{gold:60},player:{level:1}});
@@ -53,6 +53,26 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal((await generate({...shop,context:{...shop.context,choices:[{id:'travel-inn',label:'Travel'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',loot:potionBuy})})).loot,null,'Loot waits for the narration of an action');
  await generate(body('I loot it.',{stage:'combat',inventory:{gold:60}}),{...keys,fetchImpl:success({narration:'Not now.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','No loot mid-fight');
  assert.ok(lastRequest.instructions.includes('LOOT AND TRADE'));
+{// Spoils and magic (lootRules.js): the schema knows armor and magic ids; the engine's own search is never doubled;
+ // gold over the level's most is cut to it (not dropped); magic only rewards a chapter or a lead, within the level.
+  const chest=body('I search the chest.',{stage:'inn',inventory:{gold:10},player:{level:1}});
+ await generate(chest,{...keys,fetchImpl:success({narration:'You open it.'})});
+ const itemSchema=lastRequest.text.format.schema.properties.loot.anyOf?.[0]??lastRequest.text.format.schema.properties.loot;
+ assert.ok(itemSchema.properties.items.items.properties.kind.enum.includes('armor'),'armor is a kind');assert.ok(itemSchema.properties.items.items.properties.magic.enum.includes('cloak-of-protection')&&itemSchema.properties.items.items.required.includes('magic'),'magic is an id from the catalogue');
+ assert.ok(lastRequest.instructions.includes('SPOILS: context.spoils')&&lastRequest.instructions.includes('MAGIC REWARDS'));
+ const hoard={gold:150,items:[{name:'Silver chalice',kind:'treasure',qty:1,value:25,note:'A dented cup.',magic:null}],reason:'Found in the chest.'};
+ const clamped=await generate(chest,{...keys,fetchImpl:success({narration:'Coins spill out.',loot:hoard})});assert.equal(clamped.loot.gold,100,'gold over the cap is cut to the most a level-1 hero may find, not dropped');assert.equal(clamped.loot.items.length,1);
+ const searched=body('I search the bandit.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['You search the Bandit Cutthroat.','Found: 9 gold, Scimitar.']});
+ assert.equal((await generate(searched,{...keys,fetchImpl:success({narration:'You find 9 gold and a scimitar.',loot:{gold:9,items:[],reason:'Searched.'}})})).loot,null,'the engine\'s search is never doubled');
+ const wonFight=body('I finish it.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['The Bandit Cutthroat is slain.']});
+ await generate(wonFight,{...keys,fetchImpl:success({narration:'It falls.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','no loot of its own on the turn a fight is won');
+ const cloak={gold:0,items:[{name:'Grey Mantle',kind:'gear',qty:1,value:0,note:'A grey cloak.',magic:'cloak-of-protection'}],reason:'The reward.'};
+ assert.equal((await generate(chest,{...keys,fetchImpl:success({narration:'A cloak lies inside.',loot:cloak})})).loot.items[0].magic,null,'no magic outside a chapter or lead reward');
+ const reward=body('I take the reward.',{stage:'inn',inventory:{gold:10},player:{level:1},engineResolved:['Lead seen through: The Copyist\'s Debt.']});
+ assert.equal((await generate(reward,{...keys,fetchImpl:success({narration:'She gives you her cloak.',loot:cloak})})).loot.items[0].magic,'cloak-of-protection','a lead\'s reward may be magic');
+ const ring={...cloak,items:[{...cloak.items[0],name:'Iron Ring',magic:'ring-of-protection'}]};
+ assert.equal((await generate(reward,{...keys,fetchImpl:success({narration:'A ring.',loot:ring})})).loot.items[0].magic,null,'no rarer than the level allows');
+ assert.equal((await generate({...reward,context:{...reward.context,player:{level:5}}},{...keys,fetchImpl:success({narration:'A ring.',loot:ring})})).loot.items[0].magic,'ring-of-protection');}
  // Relationship notes: kept on an ordinary turn or when narrating a resolved one; dropped when the turn starts an
  // action (recorded when it is narrated), for the dead, and for scene cues.
  const note={npcId:'mara',change:'grateful',memory:'The player shared their last rations with me.'};

@@ -1,4 +1,6 @@
 import {combatBasics} from './combatRules';
+import {gearedHero} from './inventoryRules';
+import {heroSpecies} from './characterRules';
 // A party at the shared table: every player brings their own hero into one adventure. The world (the story, the map,
 // the people, the fight) is shared; each hero's own state (hit points, draughts, pack, slots, deeds, dying...) is kept
 // per hero in game.party.members. A snapshot always has one hero in the lead: the one whose device sent it. Every
@@ -7,15 +9,16 @@ import {combatBasics} from './combatRules';
 // (adventureRules.js), and the Dungeon Master is told about them but never speaks or acts for them (dmContext.js).
 // Turning the view is not a move: the table compares snapshots in their settled form (canonicalParty), which is the
 // same from every point of view, so only real changes are sent.
-export const heroFields=['potions','pack','wield','skillTraining','levelsOwed','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','dying','death'];
+export const heroFields=['potions','pack','wield','shieldAway','skillTraining','levelsOwed','xp','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
 // What belongs to one hero's turn and does not outlast it.
-const turnFields=['actionUsed','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed'];
+const turnFields=['actionUsed','surged','bonusUsed','reactionUsed','dodging','aim','subdue','slotSpentThisTurn','lightAttack','nickUsed','cleaveUsed','featTurn'];
 export const maxPartySize=4;
 export const isPartyGame=game=>!!game?.party&&typeof game.party==='object'&&!!game.party.members&&typeof game.party.lead==='string';
 const pick=(o,keys)=>Object.fromEntries(keys.filter(k=>o?.[k]!==undefined).map(k=>[k,o[k]]));
 const omit=(o,keys)=>{const c={...o};for(const k of keys)delete c[k];return c;};
 const parse=text=>{try{return JSON.parse(text);}catch{return null;}};
-const statsOf=character=>{const hero=parse(character);if(!hero)return {ac:10,hp:1};const b=combatBasics(hero);return {ac:b.ac,hp:b.hp};};
+// A hero's armor class with their pack and magic counted (what foes roll against); hit points are the hero's own.
+const statsOf=(character,state=null)=>{const hero=parse(character);if(!hero)return {ac:10,hp:1};const b=combatBasics(hero),g=state?combatBasics(gearedHero(hero,state)):b;return {ac:g.available&&g.ac!==null?g.ac:b.ac,hp:b.hp};};
 // Where the party stands when the hero in the lead has just fallen: a fight in the wilds or with the story's foe goes
 // on for the others; a brawl, a hazard or a vault ends where it happened.
 const placeOf=record=>{const place=record?.at??record?.place??'inn';return place==='dungeon'?'bridge':['inn','bridge','tower','wild'].includes(place)?place:'inn';};
@@ -34,7 +37,7 @@ export function settleParty(snapshot){
  // change made meanwhile at another device cannot hand them a second action.
  const holder=turnHolder(game),members=Object.fromEntries(Object.entries(party.members).map(([id,m])=>[id,id===holder?m:omit(m,['turn'])]));
  const turn=holder===lead&&status==='up'?pick(game,turnFields):{};
- members[lead]={...omit(members[lead]??{},['turn']),character:snapshot.character,health:snapshot.health,hero:omit(pick(game,heroFields),status==='up'?['dying','death']:[]),status,stats:statsOf(snapshot.character),...(Object.keys(turn).length?{turn}:{})};
+ members[lead]={...omit(members[lead]??{},['turn']),character:snapshot.character,health:snapshot.health,hero:omit(pick(game,heroFields),status==='up'?['dying','death']:[]),status,stats:statsOf(snapshot.character,game),...(Object.keys(turn).length?{turn}:{})};
  // The world's own place: where the party was when this hero, down already, took their turn (party.stage), or where
  // it stands now.
  let stage=party.stage??(status==='up'?game.stage:stageAfterFall(game));
@@ -50,7 +53,7 @@ export function partyView(snapshot,me){
  if(mine.status!=='up'){game.party.stage=settled.world.stage;game.stage=mine.status==='dead'?'dead':'dying';}
  if(mine.status==='up'){delete game.dying;delete game.death;if(mine.turn&&turnHolder(settled.world)===me)Object.assign(game,mine.turn);}
  game.potions=game.potions??0;
- return {version:1,chosen:settled.chosen,character:mine.character,health:mine.status==='up'?mine.health:{current:0,temp:0},game};
+ return {version:1,...(snapshot.saveVersion!==undefined?{saveVersion:snapshot.saveVersion}:{}),chosen:settled.chosen,character:mine.character,health:mine.status==='up'?mine.health:{current:0,temp:0},game};
 }
 // The same text from every point of view (keys sorted), for deciding whether anything really changed.
 const stable=value=>Array.isArray(value)?'['+value.map(stable).join(',')+']':value&&typeof value==='object'?'{'+Object.keys(value).filter(k=>value[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(value[k])).join(',')+'}':JSON.stringify(value);
@@ -62,7 +65,7 @@ export function canonicalParty(snapshot){
 const ownState=(game,health)=>({hero:{potions:1,...omit(pick(game??{},heroFields),['dying','death','pendingSpell','concentration'])},health:health&&health.current>0?health:null});
 // The host turns their own table into a party with their hero in the lead.
 export function startParty(snapshot,me,name){
- return {...snapshot,game:{...snapshot.game,party:{lead:me,order:[me],members:{[me]:{name:String(name||'').slice(0,40),character:snapshot.character,health:snapshot.health,hero:{},status:'up',stats:statsOf(snapshot.character)}}}}};
+ return {...snapshot,game:{...snapshot.game,party:{lead:me,order:[me],members:{[me]:{name:String(name||'').slice(0,40),character:snapshot.character,health:snapshot.health,hero:{},status:'up',stats:statsOf(snapshot.character,snapshot.game)}}}}};
 }
 // A player joins with their own hero (or replaces a hero of theirs who has died). Returns the table seen from them, or
 // an error.
@@ -71,7 +74,7 @@ export function joinParty(snapshot,me,{character,game,health,name}){
  if(known&&known.status!=='dead'&&known.character===character)return {snapshot:partyView(snapshot,me)};
  if(!known&&Object.keys(settled.members).length>=maxPartySize)return {error:'This party is full: four heroes at most.'};
  const own=ownState(game,health);
- const members={...settled.members,[me]:{name:String(name||'').slice(0,40),character,health:own.health,hero:own.hero,status:'up',stats:statsOf(character)}};
+ const members={...settled.members,[me]:{name:String(name||'').slice(0,40),character,health:own.health,hero:own.hero,status:'up',stats:statsOf(character,own.hero)}};
  const order=[...settled.order.filter(id=>id!==me),me];
  // The lead's own state stays in the snapshot, where settling reads it.
  return {snapshot:partyView({...snapshot,game:{...snapshot.game,party:{...snapshot.game.party,members,order}}},me)};
@@ -81,6 +84,9 @@ export function joinParty(snapshot,me,{character,game,health,name}){
 export function soloFromParty(snapshot,level=null){
  if(!isPartyGame(snapshot?.game))return snapshot;
  const game=omit(snapshot.game,['party','turnOrder']);if(snapshot.game.party.stage&&!['dying','dead'].includes(game.stage))game.stage=snapshot.game.party.stage;
+ // A foe scaled to the party (encounterRules.js foeScale) goes back to its numbers for one hero, wounds kept in proportion.
+ if(game.foeScale){if(game.enemyHP>0)game.enemyHP=Math.max(1,Math.round(game.enemyHP/game.foeScale.f));delete game.foeScale;}
+ if(game.wildFight?.storyFoeScale){const w={...game.wildFight};if(w.storyFoeHP>0)w.storyFoeHP=Math.max(1,Math.round(w.storyFoeHP/w.storyFoeScale.f));delete w.storyFoeScale;game.wildFight=w;}
  if(Number.isInteger(level)&&game.encounterLevel!==undefined&&game.encounterLevel!==level){
   game.encounterLevel=level;
   const most=Math.max(10+8*(level-1),game.dungeon?14+4*(level-1):0,game.story?.foeStats?.maximum??0,game.wildFight?.stats?.maximum??0);
@@ -91,11 +97,5 @@ export function soloFromParty(snapshot,level=null){
 // The others, for the screen and the Dungeon Master: name, player, condition and hit points.
 export function partyMembers(game){
  if(!isPartyGame(game))return [];
- return (game.party.order??Object.keys(game.party.members)).filter(id=>game.party.members[id]).map(id=>{const m=game.party.members[id],hero=parse(m.character)??{};return {id,lead:id===game.party.lead,name:hero.name??'A hero',player:m.name||null,species:hero.species??hero.race??'',heroClass:hero.class??'',level:hero.level??1,status:m.status,hp:m.health?.current??m.stats?.hp??null,maxHp:m.stats?.hp??null};});
-}
-// A won fight earns a level for every other hero still alive (taken on their own next turn, as an owed level).
-export function partyVictory(before,after){
- if(!isPartyGame(after)||after.stage!=='victory'||before?.stage==='victory')return after;
- const members=Object.fromEntries(Object.entries(after.party.members).map(([id,m])=>[id,id===after.party.lead||m.status==='dead'?m:{...m,hero:{...m.hero,levelsOwed:Math.min(5,(m.hero?.levelsOwed??0)+1)}}]));
- return {...after,party:{...after.party,members}};
+ return (game.party.order??Object.keys(game.party.members)).filter(id=>game.party.members[id]).map(id=>{const m=game.party.members[id],hero=parse(m.character)??{};return {id,lead:id===game.party.lead,name:hero.name??'A hero',player:m.name||null,species:heroSpecies(hero),heroClass:hero.class??'',level:hero.level??1,status:m.status,hp:m.health?.current??m.stats?.hp??null,maxHp:m.stats?.hp??null};});
 }

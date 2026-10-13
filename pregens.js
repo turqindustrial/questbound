@@ -11,7 +11,7 @@ export const readyHeroes=[
   description:'A small, quick halfling with bright eyes, a patched green coat and more pockets than seem reasonable.',
   backstory:'Pip grew up running messages, and later locks, for a thieves’ guild. When the guild sold out a friend, Pip left with the ledger and a price on their head.'}},
  {key:'wizard',glyph:'✧',role:'Powerful magic',tagline:'Fragile but fierce: fire bolts, magic missiles and a spellbook of tricks.',form:{
-  name:'Ilyra Dawnmere',species:'Elf',class:'Wizard',background:'Sage',baseScores:[8,14,13,15,12,10],plusTwo:'Intelligence',plusOne:'Constitution',age:'112',
+  name:'Ilyra Dawnmere',species:'High Elf',keenSense:'Perception',class:'Wizard',background:'Sage',baseScores:[8,14,13,15,12,10],plusTwo:'Intelligence',plusOne:'Constitution',age:'112',
   spells:['fire-bolt','ray-of-frost','shock','missile','burning-hands','false-life','detect-magic'],spellbook:['missile','burning-hands','false-life','detect-magic','shield','sleep'],
   description:'A slender elf with ink-stained fingers, silver-streaked black hair and a spellbook bound in blue leather.',
   backstory:'Ilyra spent a century copying other wizards’ spells in a quiet library. One of those spells opened a door that should have stayed shut, and she has been chasing what came through ever since.'}},

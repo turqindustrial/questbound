@@ -1,11 +1,11 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // The next chapter: continuing in the same region carries the old story's places (shifted a few miles off and joined
 // to the new start), its people and everyone met since (with memories, ties, fates, companions), the pack and
 // draughts; setting out somewhere new keeps only the companions and the pack. The roster sets heroes aside with
 // their adventures; the fallen go to the graveyard.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','rosterRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const source=rulesSource({extra:['worldArtRules.js','rosterRules.js']});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute,worldPlaces,mapRegions,oldPlaceLimit,memoryOf})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=(g,h=null)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
@@ -28,6 +28,8 @@ const story2={...g.story,id:'s2',title:'The Salt Road',status:'active',premise:'
  npcs:{keeper:{...g.story.npcs.keeper,name:'Ysolde Fenn'},mara:{...g.story.npcs.mara,name:'Pim Ashdown'}}};
 delete story2.openingDialogue;
 const fresh=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g)));
+// Experience carries into the next tale; the tale's tally (fights, places, leads) starts again.
+{const withXp=r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase({...g,xp:250,xpTally:{tale:g.story.id,fights:4,places:2,leads:[]}})));assert.equal(withXp.xp,250);assert.equal(withXp.xpTally,undefined);assert.ok(valid(withXp));}
 let next=r.joinRegion(fresh,g,{sameRegion:true,bearing:'N',miles:5});
 assert.ok(valid(next),'The continued story is a valid save');
 // Places: the old start, its two neighbours, then the places found there, joined in order.
@@ -76,4 +78,19 @@ const buried=r.setAside(lists.roster,lists.graves,pip,dead,{current:0,temp:0},tr
 assert.equal(buried.graves.length,1);assert.ok(r.validGrave(buried.graves[0]));assert.equal(buried.graves[0].cause,'Killed by the Grey Widow');assert.equal(buried.roster.length,1,'The dead are not playable');
 const full=Array.from({length:r.maxRoster},(_,i)=>({...lists.roster[0],id:'x'+i,character:JSON.stringify({...kara,name:'Hero '+i})}));
 assert.match(r.setAside(full,[],pip,r.newAdventure(pip),null,false).error,/already has 8 heroes/);
-console.log('Passed: the next chapter keeps the region (old places joined a few miles off, people with homes, ties, memories, fates and companions, the pack and the history), somewhere new keeps only companions and the pack, names are told apart, and heroes are set aside in the roster or remembered in the graveyard.');
+// ---- Lands travelled are never forgotten (2026-10-12): places the hero went to come along however far down the list
+// they are (past the twenty places only heard of that come too), as lands of their own, with the roads back ----
+{let w=g;for(let i=0;i<30;i++)w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Heard-of Cairn '+i,description:'A cairn someone spoke of, never visited.',kind:'ruin',bearing:'S',miles:1+i/10},travel:false},()=>0.5).game;
+ w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Saltglass Harbour',description:'A harbour of green glass towers across the strait.',kind:'settlement',bearing:'E',miles:120,region:{name:'The Glass Coast',terrain:'coast'}},travel:true},()=>0.9).game;
+ w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Glass Market',description:'A market of glassblowers above the harbour.',kind:'settlement',bearing:'N',miles:2},travel:true},()=>0.9).game;
+ w=r.adventureStep(w,hp,kara,{type:'travel',destination:'inn'},()=>0.5).game;assert.ok(valid(w));
+ const joined=r.joinRegion(r.freshStoryGame(kara,{...story2,id:'s3'},r.newAdventure(kara,r.carriedBase(w))),w,{sameRegion:true,bearing:'N',miles:5}),names=r.worldPlaces(joined).map(p=>p.name);
+ assert.ok(names.includes('Saltglass Harbour')&&names.includes('Glass Market'),'places visited in a far land come along');
+ {const heard=names.filter(n=>n.startsWith('Heard-of Cairn')).length;assert.ok(heard<=r.oldPlaceLimit&&heard>=r.oldPlaceLimit-2,'and up to twenty places only heard of: '+heard);}
+ assert.ok(r.mapRegions(joined).some(x=>x.name==='The Glass Coast'),'as a land of its own');
+ assert.ok(r.travelRoute(joined,'inn',r.worldPlaces(joined).find(p=>p.name==='Glass Market').id),'with the road back');assert.ok(valid(joined));}
+// The hero's whole story comes along either way (memoryRules.js, verify-memory.cjs): the earlier tale closed in the
+// chronicle, the new one under way.
+for(const sameRegion of [true,false]){const m=r.memoryOf(r.joinRegion(r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g))),g,{sameRegion,bearing:'N'}));
+ assert.deepEqual(JSON.parse(JSON.stringify(m.tales.map(t=>[t.title,t.status,!!t.summary]))),[[g.story.title,'complete',true],['The Salt Road','active',false]],'the chronicle carries on ('+(sameRegion?'same region':'somewhere new')+')');}
+console.log('Passed: the next chapter keeps the region (old places joined a few miles off, people with homes, ties, memories, fates and companions, the pack and the history), somewhere new keeps only companions and the pack (and the whole chronicle, both ways), names are told apart, and heroes are set aside in the roster or remembered in the graveyard.');

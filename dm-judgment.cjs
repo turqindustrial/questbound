@@ -1,12 +1,13 @@
 // Does the running Dungeon Master judge well? Not whether it acts (dm-probe.cjs), but how: people true to their
-// grudges and bonds, deeds recorded, gold and goods handled sensibly, a fight kept to its tempo, resolved results
+// grudges and bonds (an apology too early is not forgiveness; enough amends and time may be), anyone addressed answering
+// (alone when asked, and in a brawl), deeds recorded, gold and goods handled sensibly, a fight kept to its tempo, resolved results
 // told as they fell. Asks the live service on localhost:8084 (it must be running; a fraction of a cent), one request
 // every three seconds so players keep their share of the provider's allowance.
 // Usage: node dm-judgment.cjs [rounds]
 const fs=require('node:fs'),vm=require('node:vm');process.chdir(__dirname);
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,dmContext,conversationPeople,adventureStep,freshStoryGame,recordDeed,recruitmentTargets,npcLore})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const {rulesSource}=require('./rules-files.cjs');
+const source=rulesSource({extra:['worldArtRules.js']});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,dmContext,conversationPeople,speakingPeople,adventureStep,freshStoryGame,recordDeed,recruitmentTargets,npcLore,appendStoryLog})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('fighter'),well={current:12,temp:0},hurt={current:4,temp:0};
 const fight=r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0);
 // The bandit lies dead where it fell: the player is still at the roadside, over the body.
@@ -17,6 +18,11 @@ delete story.openingDialogue;delete story.geography;delete story.foeStats;delete
 const salt=r.freshStoryGame(hero,story,r.newAdventure(hero)),keeper=r.npcLore(salt,'keeper').name,mara=r.npcLore(salt,'mara').name;
 const grudge=r.recordDeed(salt,'keeper','grudge','The player cut down my brother at the roadside and left him in the mud.').game;
 const bond=r.recordDeed(salt,'mara','bond','The player hauled me out of the marsh when the tide had me by the legs.').game;
+// Forgiveness: the grudge above once two acts of amends are made and a night has passed (the game says canForgive).
+const atoned={...grudge,npcMemory:{...grudge.npcMemory,keeper:{...grudge.npcMemory.keeper,amends:2}},storyLog:r.appendStoryLog(grudge.storyLog,'rest','Took a long rest at Saltmere.')};
+// A brawl: the player swung at Tobin and missed; he is still on his feet.
+const brawl=(()=>{const s=r.adventureStep(salt,{current:12,temp:0},hero,{type:'npc-attack',target:'mara',weapon:'Greatsword'},()=>.02).game;return {...s,npcHP:{...s.npcHP,mara:2}};})();
+const voices=b=>[...new Set((b.dialogue??[]).map(l=>l.speakerId))].join(',');
 const rich={...salt,pack:{gold:57,items:[],spent:{}}},poor={...salt,pack:{gold:12,items:[],spent:{}}};
 // A seller who is known to have a draught, a found trinket to sell, and nothing to give away.
 const seller={...rich,worldFacts:[...(rich.worldFacts??[]),keeper+' keeps two healing draughts in her kit and will sell one for 50 gold.']};
@@ -36,6 +42,10 @@ const acted=b=>b.actionId?'action '+b.actionId:b.castCommand?'cast':b.check?'che
 const cases=[
  ['grudge: asked to travel','Oona, come with me to the causeway. I need you at my side.',grudge,well,{conversationWith:'keeper'},b=>recruits(b)!=='join'&&!/join|check/.test(recruits(b))&&!/pleased|grateful|bond/.test(relates(b)),b=>'recruit '+(recruits(b)||'-')+' relate '+(relates(b)||'-')],
  ['grudge: asked for help','Oona, I need your help finding the lost caravans. Will you tell me what you know?',grudge,well,{conversationWith:'keeper'},b=>says(b,/\b(no|never|refuse|nothing|won't|will not|not|brother)\b/i)&&!/pleased|grateful|bond/.test(relates(b)),b=>'relate '+(relates(b)||'-')+' | '+String(b.dialogue?.[0]?.text??b.narration).slice(0,120)],
+ ['grudge: an early apology','Oona, I am sorry about your brother. Can you forgive me?',grudge,well,{conversationWith:'keeper',oneOnOne:true},b=>!/keeper:forgave/.test(relates(b))&&voices(b)==='keeper',b=>'relate '+(relates(b)||'-')+' voices '+(voices(b)||'-')],
+ ['grudge: amends that settle it','Oona, I brought your brother home from the marsh and paid his debts. I ask you, once more, to forgive me.',atoned,well,{conversationWith:'keeper',oneOnOne:true},b=>/keeper:forgave/.test(relates(b)),b=>'relate '+(relates(b)||'-')+' | '+String(b.dialogue?.[0]?.text??'').slice(0,100)],
+ ['grudge: one on one answers','Oona, just tell me what you saw on the causeway that night.',grudge,well,{conversationWith:'keeper',oneOnOne:true},b=>voices(b)==='keeper',b=>'voices '+(voices(b)||'-')+' | '+String(b.narration).slice(0,100)],
+ ['brawl: yielding in words','Yield, Tobin! Drop the knife and this ends now.',brawl,well,{},b=>/\bmara\b/.test(voices(b))&&!acted(b)?.startsWith('action npc-attack'),b=>'voices '+(voices(b)||'-')+' '+(acted(b)??'no action')],
  ['bond: asked to travel','Tobin, will you come with me to Gull Tower?',bond,well,{conversationWith:'mara'},b=>/join/.test(recruits(b))||(/check/.test(recruits(b))&&(b.recruitment[0].dc??25)<=14),b=>'recruit '+(recruits(b)||'-')+(b.recruitment?.[0]?.dc?' dc '+b.recruitment[0].dc:'')],
  ['gift recorded','I press five gold pieces into Oona\'s hand. "For your trouble, captain."',rich,well,{conversationWith:'keeper'},b=>/keeper:(pleased|grateful)/.test(relates(b))&&(b.loot?.gold===-5),b=>'relate '+(relates(b)||'-')+' loot '+JSON.stringify(b.loot?.gold??null)],
  ['insult recorded','"You\'re a coward, Oona, hiding in camp while your people die on the road."',rich,well,{conversationWith:'keeper'},b=>/keeper:(offended|angered)/.test(relates(b)),b=>'relate '+(relates(b)||'-')],
@@ -64,7 +74,7 @@ const cases=[
  const rounds=Math.max(1,Number(process.argv[2])||1);let good=0,total=0,ms=0;const misses=[];
  for(let round=0;round<rounds;round++)for(const [label,input,game,hp,extra,ok,seen] of cases){
   const talkingTo=extra.conversationWith?{id:extra.conversationWith,name:r.npcLore(game,extra.conversationWith).name,role:r.npcLore(game,extra.conversationWith).role}:null;
-  const context={...r.dmContext(hero,game,hp),turnStart:{hp:hp.current,max:12},storyPreferences:{brutality:'gritty'},conversationWith:talkingTo,conversationParticipants:r.conversationPeople(game).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(game,input,talkingTo?.id??null),...(extra.engineResolved?{engineResolved:extra.engineResolved}:{})};
+  const context={...r.dmContext(hero,game,hp),turnStart:{hp:hp.current,max:12},storyPreferences:{brutality:'gritty'},conversationWith:talkingTo&&extra.oneOnOne?{...talkingTo,oneOnOne:true}:talkingTo,conversationParticipants:r.speakingPeople(game).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(game,input,talkingTo?.id??null),...(extra.engineResolved?{engineResolved:extra.engineResolved}:{})};
   const t=Date.now();let body;
   try{body=await (await fetch('http://localhost:8084/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({input,context})})).json();}catch(e){body={error:e.message};}
   ms+=Date.now()-t;total++;

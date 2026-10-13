@@ -1,4 +1,5 @@
-import {modifier,proficiencyBonus} from './characterRules';
+import {modifier,proficiencyBonus,speciesSkills} from './characterRules';
+import {subclassPassive} from './subclassRules';
 // Revised SRD 5.2: Playing the Game, Classes, Character Origins.
 export const skillAbilities={Acrobatics:'Dexterity','Animal Handling':'Wisdom',Arcana:'Intelligence',Athletics:'Strength',Deception:'Charisma',History:'Intelligence',Insight:'Wisdom',Intimidation:'Charisma',Investigation:'Intelligence',Medicine:'Wisdom',Nature:'Intelligence',Perception:'Wisdom',Performance:'Charisma',Persuasion:'Charisma',Religion:'Intelligence','Sleight of Hand':'Dexterity',Stealth:'Dexterity',Survival:'Wisdom'};
 export const backgroundSkills={Acolyte:['Insight','Religion'],Criminal:['Sleight of Hand','Stealth'],Sage:['Arcana','History'],Soldier:['Athletics','Intimidation'],Farmer:['Animal Handling','Nature']};
@@ -13,7 +14,8 @@ export const classSkills={
 export const classSkillCount=hero=>hero.class==='Rogue'?4:['Bard','Ranger'].includes(hero.class)?3:classSkills[hero.class]?2:0;
 export const expertiseCount=hero=>hero.class==='Rogue'?(hero.level>=6?4:2):hero.class==='Bard'?(hero.level>=9?4:hero.level>=2?2:0):hero.class==='Ranger'?(hero.level>=9?3:hero.level>=2?1:0):hero.class==='Wizard'&&hero.level>=2?1:0;
 export const expertiseEligible=(hero,skill)=>hero.class!=='Wizard'||['Arcana','History','Investigation','Medicine','Nature','Religion'].includes(skill);
-export function trainedSkills(hero,game={}){return [...new Set([...(backgroundSkills[hero.background]??[]),...(hero.skillProficiencies??[]).filter(s=>Object.hasOwn(skillAbilities,s)),...(game.skillTraining?.skills??[])])];}
+// An elf's Keen Senses (characterRules.js speciesSkills) counts with the background's skills.
+export function trainedSkills(hero,game={}){return [...new Set([...(backgroundSkills[hero.background]??[]),...(hero.skillProficiencies??[]).filter(s=>Object.hasOwn(skillAbilities,s)),...(game.skillTraining?.skills??[]),...speciesSkills(hero),...subclassPassive(hero).skills.filter(s=>Object.hasOwn(skillAbilities,s))])];}
 export function validSkillTraining(value,hero){
  if(value===undefined)return true;
  const validList=v=>Array.isArray(v)&&new Set(v).size===v.length&&v.every(s=>Object.hasOwn(skillAbilities,s));
@@ -24,5 +26,7 @@ export function skillCheckBonus(hero,game,ability,skill=null){
  const expert=trained&&(game.skillTraining?.expertise??hero.skillExpertise??[]).includes(skill);
  const pb=proficiencyBonus(hero.level),abilityBonus=modifier(hero.scores[ability]);
  const trainingBonus=expert?2*pb:trained?pb:hero.class==='Bard'&&hero.level>=2&&!!skill?Math.floor(pb/2):0;
- return {ability,skill,abilityBonus,trainingBonus,total:abilityBonus+trainingBonus,trained,expert,reliable:hero.class==='Rogue'&&hero.level>=7&&trained};
+ // A Stone of Good Luck adds to every ability check (a geared hero's magic, lootRules.js).
+ const magicBonus=hero.equipment?.magic?.checks??0;
+ return {ability,skill,abilityBonus,trainingBonus,magicBonus,total:abilityBonus+trainingBonus+magicBonus,trained,expert,reliable:hero.class==='Rogue'&&hero.level>=7&&trained,...((hero.equipment?.magic?.advantage??[]).includes(skill)?{advantage:true}:{})};
 }

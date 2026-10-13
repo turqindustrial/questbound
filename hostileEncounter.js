@@ -1,4 +1,4 @@
-import {freshStoryGame} from './storyRules';
+import {freshStoryGame,easedBonus} from './storyRules';
 import {combatBasics} from './combatRules';
 // Written locally so combat can be tested instantly without story generation.
 // Stat blocks are tuned for a level-1 hero and scale with level; groups share one HP pool and every standing member attacks.
@@ -18,7 +18,7 @@ export const hostileFoes=[
 // attacks and armor. Tuned with balance-check.cjs so a plain hero of the level keeps a fair chance on their own.
 export function foeStatsFor(f,level=1){
  const up=Math.max(0,level-1),memberHP=Math.round((f.group?f.group.memberHP:f.hp)*(1+(f.group?0.3:0.45)*up));
- return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/3),die:f.die,count:1+Math.floor(up/5),bonus:f.bonus+Math.floor(up/3),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
+ return {maximum:memberHP*(f.group?.size??1),ac:f.ac+Math.floor(up/4),attackBonus:f.atk+Math.floor(up/3),die:f.die,count:1+Math.floor(up/5),bonus:easedBonus(f.bonus+Math.floor(up/3),level),type:f.type,saves:f.saves,...(f.group?{group:{size:f.group.size,memberHP,plural:f.group.plural}}:{})};
 }
 export function hostileEncounterGame(hero,base,random=Math.random){
  // Fragile low-level heroes (under 12 HP: a new wizard, rogue or cleric) meet a single foe, never a pack or the orc.
@@ -28,7 +28,9 @@ export function hostileEncounterGame(hero,base,random=Math.random){
   premise:'A combat test: '+(f.group?f.group.count.toLowerCase()+' '+f.group.plural:'a '+f.foe)+(f.group?' ambush ':' ambushes ')+hero.name+' at the '+f.place+' while travelling with a small caravan.',
   opening:many+(f.group?' burst from cover at the ':' bursts from cover at the ')+f.place+' and '+(f.group?'close in':'lunges for you')+'. '+(f.group?'They haven\'t':'It hasn\'t')+' closed the gap yet — you have the first move. Describe your attack, spell or other action.',
   objective:'Defeat or drive off the '+(f.group?f.group.plural:f.foe)+'.',resolution:'Every attacker is defeated, or the player escapes and regroups at the caravan camp.',secret:'There is no hidden twist; this is a straightforward combat test encounter.',
-  foe:f.foe,foeSpecies:f.species,foeAppearance:f.appearance,foeDamageType:f.type,foeStats:stats,region:'The Caravan Road',terrain:{wolf:'snow',wolves:'forest',bandit:'forest',skeleton:'hills',spider:'mountains',zombies:'marsh'}[f.key]??'plains',
+  foe:f.foe,foeSpecies:f.species,foeAppearance:f.appearance,foeDamageType:f.type,foeStats:stats,
+  // The Skirmish opens with the same clear introduction as every tale (storyRules.js validIntroduction).
+  introduction:{you:'You are a hired escort riding with Captain Oona Brask\'s caravan.',place:(f.place+', on the Caravan Road. '+f.scene).slice(0,200),trouble:(many+(f.group?' have':' has')+' sprung an ambush on the road, and the fight is on.').slice(0,300),people:'Captain Oona Brask, the caravan\'s guard captain, and Tobin Reed, her young scout, are back at the Caravan Camp.',first:'You have the first move: make the opening attack, cast a spell, or fall back toward the camp.'},region:'The Caravan Road',terrain:{wolf:'snow',wolves:'forest',bandit:'forest',skeleton:'hills',spider:'mountains',zombies:'marsh'}[f.key]??'plains',
   locations:{inn:{name:'Caravan Camp',description:'A ring of covered wagons around a smoky campfire, a short walk back along the road.',kind:'camp'},bridge:{name:f.place,description:f.scene,kind:'road'},tower:{name:'Lookout Rock',description:'A lichen-covered boulder above the road with a clear view of the surrounding country.',kind:'landmark'}},
   npcs:{keeper:{name:'Captain Oona Brask',species:'Dwarf',role:'Caravan guard captain who hired the player as an escort.',motive:'Get the wagons through safely and pay out only for honest work.',gender:'woman',appearance:'A stocky middle-aged dwarf woman with a thick copper-red braid over one shoulder, weathered tan skin, a dented steel cap and a green caravan tabard over chain mail. A ledger hangs from her belt.',personality:'Blunt, dry-humoured and practical; speaks in short clipped sentences.',ties:{other:'friend',foe:'enemy',note:'Took Tobin on as a favour to his late mother and quietly looks out for him.'}},
    mara:{name:'Tobin Reed',species:'Halfling',gender:'man',role:'Young caravan scout and cook.',motive:'Prove himself useful to the captain without getting anyone hurt.',appearance:'A slight young halfling man with unruly sandy hair, freckles, a patched brown cloak, a sling at his hip and a wooden spoon tucked behind one ear.',personality:'Eager, talkative and a little nervous; jokes when frightened.',ties:{other:'friend',foe:'enemy',note:'Idolises the captain, who gave him his first real job.'}}}};

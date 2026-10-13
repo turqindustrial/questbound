@@ -1,5 +1,5 @@
 const fs = require('fs'), vm = require('vm'), assert = require('node:assert/strict');
-const rules = vm.runInNewContext((fs.readFileSync('equipmentRules.js','utf8') + '\n' + fs.readFileSync('characterRules.js','utf8')).replace(/^import .*;\r?\n/gm,'').replace(/export /g,'') + '\n({blankBuild,makeCharacter,buildError,modifier,backgrounds,species,classes})');
+const rules = vm.runInNewContext((fs.readFileSync('saveVersion.js','utf8') + '\n' + fs.readFileSync('equipmentRules.js','utf8') + '\n' + fs.readFileSync('characterRules.js','utf8')+'\n'+fs.readFileSync('subclassRules.js','utf8')).replace(/^import .*;\r?\n/gm,'').replace(/export /g,'') + '\n({blankBuild,makeCharacter,buildError,modifier,backgrounds,species,classes})');
 for (const [background, data] of Object.entries(rules.backgrounds)) {
   const form = {...rules.blankBuild(),name:'Test',species:'Elf',class:'Wizard',background,plusTwo:data.abilities[0],plusOne:data.abilities[1]};
   const result = rules.makeCharacter(form);

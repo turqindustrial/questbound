@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Weapon Mastery, two-weapon fighting, and grappling and shoving, against the 2024 rules (SRD 5.2): each weapon's own
 // mastery property, the classes that master weapons and how many kinds, every property doing what the rules say
 // (Graze, Sap, Vex, Slow, Topple, Cleave, Nick), the Light property's extra attack (a bonus action, no ability bonus to
 // its damage, not with a shield), and an Unarmed Strike that grapples or shoves (a save against 8 + Strength +
 // proficiency, size limits, a grappled creature's speed 0 and disadvantage at others, prone's advantage and
 // disadvantage, letting go to swing a two-handed weapon). Saves stay valid; nothing outlasts the fight.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','sequelRules.js','storyLog.js','descriptions.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['descriptions.js']});
 const r=vm.runInNewContext(source+'\n({weapons,masteryCount,masteredWeapons,masteryOf,offhandWeapons,creatureSize,withinGrip,unarmedDC,readyHero,equipmentFor,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,combatBasics,dmChoices,dmCommand,dmContext,quickActions,attackActions,actionDescription,itemDescription,freshStoryGame,bonusOptions})',{AsyncStorage:{}});
 const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
 const always=v=>()=>v;

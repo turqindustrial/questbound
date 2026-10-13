@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const source=['equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=['equipmentRules.js','characterRules.js','subclassRules.js','combatRules.js','weaponRules.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
 const r=vm.runInNewContext(source+'\n({weaponAttacks,rollAttack,rollDamage,equipmentFor,classes})');
 const base={species:'Goliath',class:'Artificer',level:1,background:'Wayfarer',scores:{Strength:15,Dexterity:16,Constitution:13,Intelligence:12,Wisdom:11,Charisma:8}};
 function list(patch={}){const h={...base,...patch};h.equipment=r.equipmentFor(h);return r.weaponAttacks(h);}
@@ -8,7 +8,8 @@ assert.equal(list({scores:{...base.scores,Strength:18}})[0].ability,'Strength');
 for(const name of r.classes) {const items=list({class:name});assert.ok(items.length>0,name);assert.ok(items.every(w=>w.proficient),name);}
 assert.equal(list({class:'Monk'}).find(w=>w.name==='Dagger').die,6);
 assert.equal(list({class:'Monk'})[0].ability,'Dexterity');
-assert.equal(list({class:'Wizard'}).find(w=>w.name==='Quarterstaff').die,6);
+// A staff in both hands (no shield) deals its versatile 1d8; a druid's beside a shield its own 1d6 (verify-hands.cjs).
+assert.equal(list({class:'Wizard'}).find(w=>w.name==='Quarterstaff').die,8);assert.equal(list({class:'Druid'}).find(w=>w.name==='Quarterstaff').die,6);
 assert.equal(list({class:'Paladin'})[0].die,8);
 const axe=list({class:'Barbarian',scores:{...base.scores,Strength:8}})[0];assert.ok(axe.heavyDisadvantage);
 let values=[0.99,0];const low=r.rollAttack(axe,'normal',()=>values.shift());assert.equal(low.natural,1);assert.ok(low.miss);

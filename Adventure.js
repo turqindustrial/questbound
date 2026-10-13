@@ -4,21 +4,24 @@ import {EntityText as Text,useEncounter} from './EncounterOverlay';
 import {storyText,questState} from './storyRules';
 import {cue} from './cinematics';
 import {quickActions} from './quickActions';
-import {recordedTurn} from './playbackRules';
-import {withSceneTrigger} from './sceneTriggers';
 import {dungeonRooms,dungeonState} from './dungeonRules';
-import React,{useState,useEffect,useRef} from 'react';
+import React,{useState,useEffect,useRef,useMemo} from 'react';
+import {storyPreferences,subscribeStoryPreferences,rulesHero} from './storyPreferences';
 import {View,Text as PlainText,Pressable,ScrollView,StyleSheet,useWindowDimensions} from 'react-native';
 import Icon from './Icon';
+import {revivalOptions} from './deathRules';
 import DynamicArt from './DynamicArt';
 import {creatureArtSubject,npcArtSubject} from './worldArtRules';
-import {npcScene,npcLore} from './npcRules';
+import {npcScene,npcLore,metPerson,npcClassOf} from './npcRules';
+import {withCompanionClasses,followerPlace} from './followerRules';
 import {livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {attitudeLabel,speciesRegard,regardLabel} from './relationshipRules';
 import Inventory from './Inventory';
 import {withStoryLog} from './storyLog';
+import {chronicleView} from './memoryRules';
 import {withDeeds,deedById,deedList} from './deedRules';
-import {partyVictory} from './partyRules';
+import {withExperience} from './experienceRules';
+import {settleTurn} from './turnRules';
 import {speakTurn,stopNarrator} from './narrator';
 import ShareTale from './ShareTale';
 import {damageIcon,damageKind} from './chronicleRules';
@@ -26,22 +29,38 @@ import {useShownHp} from './cinematics';
 import {playSound} from './audio';
 import DungeonMaster from './DungeonMaster';
 import AdventureMap from './AdventureMap';
-import {commitDmTurn} from './dmContext';
 import {campaignState,earnedGold} from './campaignRules';
-import {mapState,mapLocation,placeDescription,placeName} from './mapRules';
+import {mapState,mapLocation,placeDescription,placeName,beyondWords,mapRegions,currentRegion} from './mapRules';
+import {mapMoves} from './dmContext';
 import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
-import {encounterFoe,adventureStep,foeStanding} from './adventureRules';
-import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction} from './ui';
+import {gearedHero,setShield} from './inventoryRules';
+import {attuneItem} from './lootRules';
+import {encounterFoe,foeStanding} from './adventureRules';
+import {Ornament,StatBar,useCountTo,HpFloaters,useHitReaction,IconButton} from './ui';
 import {rememberTurn} from './turnMemory';
 import {useVisualViewport} from './webLayout';
 import {fonts,colors,type,tint} from './theme';
+import {heroSpecies} from './characterRules';
 // The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
 const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
+// On wide screens the side column can be folded to a slim rail so the story and a conversation get the whole width
+// (the host, 2026-10-12: "add a minimizer for the information on the left side of the screen on pc view to help the
+// player engage fully in conversations"). Remembered per device; storage may be missing or refuse, so both are guarded.
+const sideKey='questbound.side.v1';
+export function sideFolded(){try{return JSON.parse(globalThis.localStorage?.getItem(sideKey)||'{}').folded===true;}catch{return false;}}
+function rememberSide(folded){try{globalThis.localStorage?.setItem(sideKey,JSON.stringify({folded}));}catch{}}
 // The story log's marks: an icon and a tone for each kind of line.
 const taleIcon={travel:'travel',place:'map',person:'people',fight:'swords',victory:'star',flight:'retreat',fall:'heart',death:'skull',deed:'speak',loot:'coin',rest:'rest',level:'starFill',quest:'scroll'};
-const taleTone={fight:'#f06a4f',fall:'#f06a4f',death:'#f06a4f',flight:'#e0a860',victory:tint('#cba6ff'),level:tint('#cba6ff'),rest:'#6fbf8e',quest:tint('#cba6ff')};
-export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping}){
+const taleTone={fight:tint('#f06a4f'),fall:tint('#f06a4f'),death:tint('#f06a4f'),flight:tint('#e0a860'),victory:tint('#cba6ff'),level:tint('#cba6ff'),rest:tint('#6fbf8e'),quest:tint('#cba6ff')};
+export default function Adventure({hero,game,setGame,health,setHealth,table,layout,levelUp=false,onLevelUp,onNewHero,onTyping,resting=false,onLetGo}){
+ // The hero as the rules see them on this device: whether Shield is cast for them (Settings → Story → Rules) goes
+ // with every action and every preview of one.
+ const [autoShield,setAutoShield]=useState(()=>storyPreferences().autoShield!==false);
+ useEffect(()=>subscribeStoryPreferences(p=>setAutoShield(p.autoShield!==false)),[]);
+ const ruled=useMemo(()=>rulesHero(hero,{autoShield}),[hero,autoShield]);
+ // Every journey and road beyond the edge the map can send (dmContext.js mapMoves).
+ const moves=useMemo(()=>mapMoves(game),[game]);
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
  // While the player types on a phone, everything but the story and the message box steps aside.
@@ -50,25 +69,32 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // New turns (yours, the table's or a scene moment) bring a phone player back to the story.
  const lastTurn=game.playback?.at(-1)?.id??0;
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
- const stats=combatBasics(hero),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
+ // Armor class with the hero's magic counted (a ring, a cloak, magic armour); hit points are the hero's own.
+ const stats=combatBasics(gearedHero(hero,game)),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
  const [inConversation,setInConversation]=useState(false);
  const [sideTab,setSideTab]=useState('quest');
+ const [folded,setFoldedState]=useState(sideFolded),setFolded=value=>{playSound('page');setFoldedState(value);rememberSide(value);};
  // The share sheet (the tale card), and a narrator silenced when the play screen is left.
  const [sharing,setSharing]=useState(false);
  useEffect(()=>()=>stopNarrator(),[]);
- const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
+ // Saves from before companions had classes: anyone travelling with the hero gains one (from their role) before the
+ // next turn, out of a fight, so every preview and every turn sees the same companions.
+ useEffect(()=>{if(table?.joined||game.stage==='combat'||game.npcCombat?.active||game.pendingSpell)return;const classed=withCompanionClasses(game,hero);if(classed!==game)setGame(classed);},[game,hero]);
+ const [error,setError]=useState(''),[showLog,setShowLog]=useState(false),[showEarlier,setShowEarlier]=useState(false),sendRef=useRef(null),encounter=useEncounter(),shown=useShownHp(),foeCount=useCountTo(shown.foe??game.enemyHP),foeHit=useHitReaction(shown.foe??game.enemyHP);
  // A turn is applied to the adventure as it stands, or (options.from) to the state before the last turn when the
  // Dungeon Master takes that turn back. The state before each of the player's own turns is remembered for that.
- const act=async(action,conversation,random=Math.random,options)=>{try{stopNarrator();}catch{}const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};let result=conversation?commitDmTurn(hero,from.game,from.health,action,conversation,random):adventureStep(from.game,from.health,hero,action,random);if(result.error){setError(storyText(game,result.error));return result;}if(conversation)result=recordedTurn(hero,from.game,from.health,result,result.conversation??conversation,conversation.npcId??null);result={...result,game:{...result.game}};delete result.game.sceneCue;if(!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(from.game,result.game,action);result.game=withStoryLog(from.game,result.game,hero,{action});const marked=withDeeds(result.game,hero);result.game=partyVictory(from.game,marked.game);if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
+ const act=async(action,conversation,random=Math.random,options)=>{if(table?.joined)return {game,health,error:'Send this action to the campaign server.'};try{stopNarrator();}catch{}const from=options?.from??{game,health},tablePoint=table?.joined?table.checkpoint():null;if(conversation&&table?.joined)conversation={...conversation,actorName:table.name||'Adventurer'};const settled=settleTurn({hero,ruled,game:from.game,health:from.health,action,conversation,random});if(settled.error){setError(storyText(game,settled.error));return settled.result;}let result=settled.result;const xp=settled.xp,marked={fresh:settled.fresh};if(result.game.sceneCue&&table?.joined)result.game={...result.game,sceneCue:{...result.game.sceneCue,origin:table.deviceId}};await transition.prepare(sceneArtSubjects(result.game));if(tablePoint&&!table.isCurrent(tablePoint)){const error='The table changed while this scene was preparing. Your action was not applied; try again from the latest turn.';setError(error);return {game,health,error};}if(conversation&&!conversation.trigger&&!conversation.direct)rememberTurn(from.game,from.health);setGame(result.game);setHealth(result.health);setError('');
   // Deeds earned this turn are announced one after another, and the narrator reads the turn aloud when asked to.
   marked.fresh.forEach((id,i)=>setTimeout(()=>cue('deed',{deed:deedById(id)}),1400+i*4400));
+  // Experience from a move made without the Dungeon Master (its feed card shows the rest).
+  if(!conversation&&xp.gained>0)setTimeout(()=>cue('xp',{amount:xp.gained,label:xp.labels.join(' · ')}),900);
   if(conversation&&!conversation.direct&&result.turn)try{speakTurn(result.turn);}catch{}
   // A new chapter of a long tale is announced across the screen.
   const opened=result.game.story?.chapters&&(result.game.story.chapter??0)>(from.game.story?.chapter??0)?result.game.story.chapters[result.game.story.chapter]:null;
   if(opened)setTimeout(()=>cue('area',{over:'Chapter '+(result.game.story.chapter+1),title:opened.title}),500);
   return result;};
  // A lead ticked (or reopened) by hand: the same record the Dungeon Master keeps, with its line in the story so far.
- const markLead=id=>{if(!game.story?.leads||table?.joined&&!table.synchronized)return;const next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}};setGame(withDeeds(withStoryLog(game,next,hero,{}),hero).game);};
+ const markLead=id=>{if(table?.joined){if(table.synchronized)table.edit({kind:'lead',id}).then(data=>{if(data?.xp)setTimeout(()=>cue('xp',data.xp),300);}).catch(e=>setError(e.message));return;}if(!game.story?.leads)return;const next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}};const xp=withExperience(game,next,hero);setGame(withDeeds(withStoryLog(game,xp.game,hero,{}),hero).game);if(xp.gained>0)setTimeout(()=>cue('xp',{amount:xp.gained,label:xp.labels.join(' · ')}),300);};
  if(!stats.available||stats.ac===null)return <Text style={s.text}>Complete your abilities and equipment through Character Selection before playing.</Text>;
  const scenes={inn:game.enemyHP===0?'The inn is warm. Beyond the window, the restored bridge lantern shines. The keeper welcomes you back.':map.accepted?'The keeper tends the hearth. Mara, a traveling medicine courier, sits nearby. The bridge still needs its light.':'Rain drives you into the crossroads inn. A keeper raises a flickering blue lantern. “The bridge light is missing. Will you bring it back?” A healing draught waits on the table.',tower:map.clue?'Beneath the watchtower bell, you recognize the signal: low, high, low.':'Ivy threads through a cracked bell tower. Three marks are carved beneath its bell.',bridge:game.enemyHP===0?'Warm light falls across the restored bridge. Travelers cross safely.':'A restless wisp circles the broken bridge lamp.',combat:'The Lantern Wisp hovers within melee reach. Tell the DM what you do.',victory:'The lantern shines again. You can claim the keeper’s reward and ask about further work.',defeat:'The keeper has pulled you to safety. Tell the DM when you want to begin another adventure.',escaped:'You escaped the wisp. Tell the DM when you want to begin another adventure.'};
  const standing=foeStanding(foe,game.enemyHP),sideWidth=layout==='wide'?Math.round(Math.min(370,Math.max(220,windowWidth*.36))):windowWidth;
@@ -76,23 +102,27 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game,health)];
  // Whose move it is: the player's action, or (once it is spent) a bonus action or the end of the turn.
  // In a party's fight the turn may be someone else's (adventureRules.js keeps the order).
-  const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':'Your turn';
- const travel=id=>{const trip=quick.find(a=>a.destination===id);if(!trip)return;setTab('story');sendRef.current?.(trip);};
- const travelTo=quick.filter(a=>a.destination).map(a=>a.destination);
+  const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':game.surged?'One more action':'Your turn';
+ // The map sends a journey to any place a road reaches (a chip's own words when it has one) and a road beyond the edge
+ // of the map, through the same Dungeon Master turn.
+ const travel=id=>{const move=moves.find(m=>m.action.destination===id),trip=quick.find(a=>a.destination===id)??(move?{key:move.id,glyph:'➜',icon:'travel',label:placeName(game,id),question:'I travel to '+placeName(game,id)+'.',action:move.action,destination:id}:null);if(!trip)return;setTab('story');sendRef.current?.(trip);};
+ const travelTo=moves.filter(m=>m.action.type==='travel').map(m=>m.action.destination);
+ const beyond=moves.filter(m=>m.action.type==='beyond').map(m=>m.action.bearing);
+ const goBeyond=bearing=>{const move=moves.find(m=>m.action.bearing===bearing);if(!move)return;const land=mapRegions(game).find(r=>r.id===currentRegion(game))?.name??'this land';setTab('story');sendRef.current?.({key:move.id,glyph:'➜',icon:'travel',label:'Beyond the map',question:'I leave '+land+' and head '+beyondWords[bearing]+', beyond the edge of the map.',action:move.action});};
  // Pieces of the play area, arranged below for wide screens (side column) or phones (tabs).
  const foeName=game.wildFight?foe.name:game.story?.foe??foe.name,foeHp=shown.foe??game.enemyHP,creature=creatureArtSubject(game),hitDice=foe.count+'d'+foe.die+(foe.bonus?'+'+foe.bonus:'');
  const combatStrip=game.stage==='combat'&&<Pressable accessibilityRole="button" accessibilityLabel="Show everyone's combat HP" disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} dataSet={{qb:'plate-hot'}} style={s.strip}>
   {!!creature&&<View dataSet={{hit:foeHit}}><DynamicArt dataSet={{qb:'portrait-hot'}} subject={creature} style={s.stripAvatar} compact/></View>}
   <View style={{flex:1,minWidth:0,gap:5}}>
-   <View style={s.stripTop}><PlainText numberOfLines={1} style={s.stripName}>{foe.group?standing+'× ':''}{foeName}</PlainText><View><PlainText style={s.stripStat}>{foeCount}/{foe.maximum}</PlainText><HpFloaters value={foeHp}/></View><View style={s.acBadge}><Icon name="shield" size={11} color="#ffc9b8"/><PlainText style={s.acText}>{foe.ac}</PlainText></View></View>
+   <View style={s.stripTop}><PlainText numberOfLines={1} style={s.stripName}>{foe.group?standing+'× ':''}{foeName}</PlainText><View><PlainText style={s.stripStat}>{foeCount}/{foe.maximum}</PlainText><HpFloaters value={foeHp}/></View><View style={s.acBadge}><Icon name="shield" size={11} color={tint('#ffc9b8')}/><PlainText style={s.acText}>{foe.ac}</PlainText></View></View>
    <StatBar value={foeHp} maximum={foe.maximum} kind="enemy" height={7}/>
    {livingAllies(game).map(a=><PlainText key={'ally'+a.index} numberOfLines={1} style={s.stripAlly}>+ {a.name} · {a.hp}/{a.maximum} HP</PlainText>)}
   </View>
   <View style={s.roundBadge}><PlainText style={s.roundBadgeLabel}>{game.actionUsed?'Bonus':'Rnd'}</PlainText><PlainText style={s.roundBadgeText}>{game.round}</PlainText></View>
  </Pressable>;
- const statChip=(icon,text)=><View key={text} style={s.statChip}><Icon name={icon} size={12} color="#ffc9b8"/><PlainText style={s.statChipText}>{text}</PlainText></View>;
+ const statChip=(icon,text)=><View key={text} style={s.statChip}><Icon name={icon} size={12} color={tint('#ffc9b8')}/><PlainText style={s.statChipText}>{text}</PlainText></View>;
  const combatPlate=game.stage==='combat'&&<View dataSet={{qb:'plate-hot'}} style={[s.combat,{marginTop:0}]}>
-  <View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText numberOfLines={1} style={[s.bannerText,game.actionUsed&&{letterSpacing:1.6}]}>Round {game.round} · {turnLabel}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View>
+  <View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color={tint('#ffd9c9')}/><PlainText numberOfLines={1} style={[s.bannerText,game.actionUsed&&{letterSpacing:1.6}]}>Round {game.round} · {turnLabel}</PlainText><Icon name="swords" size={13} color={tint('#ffd9c9')}/></View>
   <Pressable accessibilityRole="button" accessibilityLabel={'Show everyone\'s combat HP'} disabled={!encounter?.roster.length} onPress={()=>encounter?.open('combat')} style={[s.foeArt,{height:Math.round(Math.min(200,sideWidth*.62,Math.max(110,windowHeight*.3)))}]}>
    {!!creature&&<View dataSet={{hit:foeHit}} style={StyleSheet.absoluteFill}><DynamicArt subject={creature} style={StyleSheet.absoluteFill} compact/></View>}
    <View dataSet={{qb:'foe-shade'}} style={[StyleSheet.absoluteFill,{pointerEvents:'none'}]}/>
@@ -103,39 +133,49 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <StatBar value={foeHp} maximum={foe.maximum} kind="enemy" height={12}/>
   <View style={s.statChips}>{statChip('shield','AC '+foe.ac)}{statChip('swords','+'+foe.attackBonus+' to hit')}{statChip(damageIcon(damageKind(foe.type)),hitDice+' '+foe.type.toLowerCase())}</View>
   {/* A second creature fighting beside the foe. */}
-  {livingAllies(game).map(a=>{const st=allyStats(game,a.index,hero.level??1);return <View key={'ally'+a.index} style={s.allyRow}><Icon name="swords" size={13} color="#ffb39e"/><View style={{flex:1,minWidth:0,gap:5}}><View style={s.allyTop}><PlainText numberOfLines={1} style={s.allyName}>{a.name}</PlainText><PlainText style={s.allyStat}>{a.hp} / {a.maximum} HP · AC {st.ac}</PlainText></View><StatBar value={a.hp} maximum={a.maximum} kind="enemy" height={7}/></View></View>;})}
+  {livingAllies(game).map(a=>{const st=allyStats(game,a.index,hero.level??1);return <View key={'ally'+a.index} style={s.allyRow}><Icon name="swords" size={13} color={tint('#ffb39e')}/><View style={{flex:1,minWidth:0,gap:5}}><View style={s.allyTop}><PlainText numberOfLines={1} style={s.allyName}>{a.name}</PlainText><PlainText style={s.allyStat}>{a.hp} / {a.maximum} HP · AC {st.ac}</PlainText></View><StatBar value={a.hp} maximum={a.maximum} kind="enemy" height={7}/></View></View>;})}
   <View style={s.yourAc}><Icon name="shield" size={13} color={colors.gold}/><PlainText style={s.yourAcText}>Your armor class {spellDefense(game,stats.ac).ac}</PlainText></View>
  </View>;
  // Dying: three successes to live, three failures to die, rolled one turn at a time.
  const pips=(count,kind)=>[0,1,2].map(i=><View key={kind+i} dataSet={{qb:i<count?'pip-'+kind:undefined}} style={[s.pip,i<count&&(kind==='good'?s.pipGood:s.pipBad)]}/>);
  const dyingPanel=game.stage==='dying'&&game.dying&&<View dataSet={{qb:'plate-hot'}} accessibilityLiveRegion="polite" accessibilityLabel={'Dying. '+game.dying.successes+' successes, '+game.dying.failures+' failures.'} style={[s.dying,layout!=='wide'&&s.dyingStrip]}>
-  <View style={s.labelRow}><Icon name="skull" size={14} color="#ffb39e"/><PlainText style={[s.label,{color:'#ffb39e'}]}>Dying</PlainText></View>
+  <View style={s.labelRow}><Icon name="skull" size={14} color={tint('#ffb39e')}/><PlainText style={[s.label,{color:tint('#ffb39e')}]}>Dying</PlainText></View>
   {layout==='wide'&&<Text style={s.dyingText}>You lie unconscious{game.dying.placeName?' at '+game.dying.placeName:''}. Roll to hold on: three successes and you live, three failures and you die.</Text>}
   <View style={s.pipRows}><View style={s.pipRow}><Icon name="check" size={13} color={colors.heal}/>{pips(game.dying.successes,'good')}</View><View style={s.pipRow}><Icon name="close" size={13} color={colors.bloodBright}/>{pips(game.dying.failures,'bad')}</View></View>
  </View>;
- // Dead: the hero's epitaph, and the way to begin again with someone new.
+ // Dead: the hero's epitaph, and the way on. Someone at their side who can bring them back (deathRules.js
+ // revivalOptions) is asked from here; otherwise (or once the player lets them go) the hero is laid to rest and the
+ // way on is a new hero. At a shared table the table keeps their seat; friends there may still bring them back.
+ const revivals=game.stage==='dead'&&!resting?revivalOptions(game,hero).filter(o=>o.ready):[];
+ const atTable=!!table?.joined,first=hero.name.split(' ')[0];
+ const deathNote=atTable?(game.party?'A friend who knows Revivify can still bring '+first+' back while the party stays where they fell. To play on with a new hero, leave the table, make your hero, and join again with the campaign invite.':'This table shares one hero. The host decides how the tale goes on.'):revivals.length?revivals.map(o=>o.name.split(' ')[0]+' knows Revivify and can bring you back, for a diamond worth '+o.cost+' gp.').join(' '):first+' is gone. Their adventure ends here; they are remembered among the fallen under Heroes.';
  const deathPanel=game.stage==='dead'&&game.death&&<View dataSet={{qb:'plate'}} style={[s.epitaph,layout!=='wide'&&s.epitaphStrip]}>
   <Icon name="skull" size={layout==='wide'?24:18} color={colors.muted}/>
   <View style={{alignItems:'center',flexShrink:1}}>
    <PlainText style={s.epitaphOver}>Here lies</PlainText>
    <PlainText numberOfLines={1} style={[s.epitaphName,layout!=='wide'&&{fontSize:19}]}>{hero.name}</PlainText>
-   <PlainText style={s.epitaphLine}>Level {hero.level} {hero.species??hero.race} {hero.class}</PlainText>
+   <PlainText style={s.epitaphLine}>Level {hero.level} {heroSpecies(hero)} {hero.class}</PlainText>
    <PlainText style={s.epitaphCause}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</PlainText>
   </View>
-  {!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
+  {!!deathNote&&<PlainText style={s.epitaphNote}>{deathNote}</PlainText>}
+  {revivals.map(o=><Pressable key={o.id} accessibilityRole="button" accessibilityLabel={'Ask '+o.name+' to bring '+first+' back with Revivify, for a diamond worth '+o.cost+' gold'} onPress={()=>act({type:'revive',by:o.id})} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="spell" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>{'Ask '+o.name.split(' ')[0]}</PlainText></Pressable>)}
+  {revivals.length>0&&!!onLetGo&&<Pressable accessibilityRole="button" onPress={onLetGo} dataSet={{qb:'btn'}} style={s.epitaphQuiet}><PlainText style={s.epitaphQuietText}>{'Let '+first+' go'}</PlainText></Pressable>}
+  {!revivals.length&&!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
  </View>;
  // The people of this story and how they feel about you: a grudge or a debt, else the last thing they remember.
- const toneColor={bad:colors.bloodBright,warn:'#e0a860',good:colors.heal,best:colors.goldBright,calm:colors.muted,dead:colors.faint};
+ const toneColor={bad:colors.bloodBright,warn:tint('#e0a860'),good:colors.heal,best:colors.goldBright,calm:colors.muted,dead:colors.faint};
  const voiced=t=>String(t).replace(/^The player\b/,'You').replace(/\bthe player\b/g,'you');
  const peoplePanel=<View dataSet={{qb:'plate'}} style={s.people}>
   <View style={s.labelRow}><Icon name="people" size={14} color={colors.goldMid}/><PlainText style={s.label}>People</PlainText></View>
-  {[...npcScene(game)].sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],view=n.fate==='dead'||n.grudge||n.bond?null:speciesRegard(game,n.id,hero),sour=['hostile','unfriendly'].includes(n.attitude),warm=['friendly','devoted'].includes(n.attitude),kind=!view||(sour&&['kin','warm','curious'].includes(view.stance))||(warm&&['wary','scornful'].includes(view.stance))?null:regardLabel(view),said=n.grudge??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
+  {/* A tale's residents appear once the hero has met them (reached where they live). */}
+  {npcScene(game).filter(n=>metPerson(game,n.id)).sort((a,b)=>Number(b.present)-Number(a.present)).map(n=>{const standing=attitudeLabel(n),tone=toneColor[standing.tone],view=n.fate==='dead'||n.grudge||n.bond?null:speciesRegard(game,n.id,hero),sour=['hostile','unfriendly'].includes(n.attitude),warm=['friendly','devoted'].includes(n.attitude),kind=!view||(sour&&['kin','warm','curious'].includes(view.stance))||(warm&&['wary','scornful'].includes(view.stance))?null:regardLabel(view),said=n.grudge??n.forgave?.memory??n.bond??[...n.memories].reverse().find(m=>!/\((?:weapon-attack|harmful-spell)\)/.test(m)),name=game.story?.npcs?.[n.id]?.name??n.name;
    // Where they are now: beside you, or wherever they live (or were left waiting).
-   const follow=game.followers?.[n.id],where=n.fate==='dead'?null:follow?.status==='following'?'With you':n.present?'Here':game.story?'At '+placeName(game,follow?follow.location:game.people?.[n.id]?.home??'inn'):null;
+   const follow=game.followers?.[n.id],elsewhere=game.story?followerPlace(game,follow&&follow.status!=='following'?follow.location:game.people?.[n.id]?.home??'inn'):null,ally=game.npcMemory?.[n.id]?.allegiance==='player',where=n.fate==='dead'?null:follow?.status==='following'?'Companion · with you':follow?.status==='waiting'?'Companion · waiting'+(n.present?' here':elsewhere?' at '+elsewhere:''):ally?'Ally · '+(n.present?'here':elsewhere?'at '+elsewhere:'nearby'):n.present?'Here':elsewhere?'At '+elsewhere:null,trained=npcClassOf(game,n.id);
    return <View key={n.id} style={s.personRow}>
     <DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.personAvatar,n.fate==='dead'&&{opacity:.4}]} compact/>
     <View style={{flex:1,minWidth:0}}>
      <PlainText numberOfLines={1} style={s.personName}>{name}</PlainText>
+     {!!trained&&<PlainText numberOfLines={1} style={s.where}>Level {trained.level} {trained.class}</PlainText>}
      <View style={s.standing}><View style={[s.standingDot,{backgroundColor:tone}]}/><PlainText style={[s.standingText,{color:tone}]}>{standing.label}</PlainText>{!!where&&<PlainText numberOfLines={1} style={s.where}>· {where}</PlainText>}</View>
      {!!kind&&<PlainText numberOfLines={1} style={s.regard}>{kind}</PlainText>}
      {!!said&&n.fate!=='dead'&&<PlainText numberOfLines={3} style={s.memory}>“{voiced(said)}”</PlainText>}
@@ -152,8 +192,8 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'btn'}} style={s.shareButton}><Icon name="send" size={14} color={colors.gold}/><PlainText style={s.shareText}>Share your tale</PlainText></Pressable>
  </View>;
  // What you wear, wield and carry; a carried weapon can be taken in hand from here.
- const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>setGame({...game,wield:name})}/>;
- const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color="#ffd9c9"/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color="#ffd9c9"/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:'rgba(240,106,79,.6)'},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?'#ffb39e':colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
+ const inventoryPanel=<Inventory hero={hero} game={game} onWield={name=>table?.joined?table.edit({kind:'wield',name}).catch(e=>setError(e.message)):setGame({...game,wield:name})} onShield={away=>{if(table?.joined){table.edit({kind:'shield',away}).catch(e=>setError(e.message));return;}const done=setShield(game,hero,away);if(done.error){setError(done.error);return;}setGame({...done.game,log:[done.line,...(done.game.log??[])].slice(0,40)});}} onAttune={name=>{if(table?.joined){table.edit({kind:'attune',name}).catch(e=>setError(e.message));return;}const done=attuneItem(game,hero,name);if(done.error){setError(done.error);return;}if(done.game)setGame({...done.game,log:[...done.lines,...(done.game.log??[])].slice(0,40)});}}/>;
+ const npcCombatPanel=game.npcCombat?.active&&<View dataSet={{qb:'plate-hot'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Icon name="swords" size={13} color={tint('#ffd9c9')}/><PlainText style={s.bannerText}>Combat · Round {game.npcCombat.round}</PlainText><Icon name="swords" size={13} color={tint('#ffd9c9')}/></View><PlainText style={s.label}>Turn order</PlainText><View style={s.orderRow}>{game.npcCombat.order.map((n,i)=>{const name=n.id==='player'?'You':npcLore(game,n.id)?.name??n.id;return <React.Fragment key={n.id}>{i>0&&<Icon name="forward" size={12} color={colors.faint}/>}<View style={[s.orderChip,n.side==='enemy'&&{borderColor:tint('rgba(240,106,79,.6)')},n.id==='player'&&{borderColor:colors.gold}]}>{n.side!=='player'&&n.id!=='player'&&<Icon name={n.side==='enemy'?'swords':'shield'} size={11} color={n.side==='enemy'?tint('#ffb39e'):colors.heal}/>}<Text style={s.orderText}>{name}</Text></View></React.Fragment>;})}</View><PlainText style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</PlainText></View>;
  const questPanel=<>
   {npcCombatPanel}
   <View dataSet={{qb:'plate'}} style={s.quest}>
@@ -186,26 +226,37 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!!game.pendingSpell&&<Text style={[s.caption,{color:colors.arcane}]}>✧ Spell awaiting a DM ruling. Ask the AI to resolve the spell or provide the detail it requested. Send “Cancel spell” to cancel.</Text>}
  </>;
  const tale=game.storyLog??[];
+ // Earlier tales, as the lasting memory keeps them (memoryRules.js): folded away under the story so far, one line each.
+ const earlier=chronicleView(game);
  const logPanel=<View dataSet={{qb:'plate'}} style={s.log}>
   <View style={s.labelRow}><Icon name="journal" size={14} color={colors.goldMid}/><PlainText style={s.label}>The story so far</PlainText><Pressable accessibilityRole="button" accessibilityLabel="Share your tale" onPress={()=>{playSound('open');setSharing(true);}} dataSet={{qb:'chip'}} style={s.shareChip}><Icon name="send" size={12} color={colors.gold}/><PlainText style={s.shareChipText}>Share</PlainText></Pressable></View>
   {!tale.length&&<PlainText style={[s.caption,{marginBottom:0}]}>Nothing of note yet. Every place you reach, everyone you meet, each fight and what came of it will be written here, briefly, as it happens.</PlainText>}
   {[...tale].reverse().map(e=>e.kind==='story'
    ?<View key={e.id} style={s.taleChapter}><View dataSet={{qb:'rule-left'}} style={s.taleRule}/><Icon name="scroll" size={13} color={colors.gold}/><PlainText style={s.taleChapterText}>{e.text}</PlainText><View dataSet={{qb:'rule-right'}} style={s.taleRule}/></View>
    :<View key={e.id} style={s.taleRow}><View style={[s.taleMark,{borderColor:taleTone[e.kind]??tint('rgba(178,34,58,.4)')}]}><Icon name={taleIcon[e.kind]??'star'} size={13} color={taleTone[e.kind]??colors.gold}/></View><Text style={s.taleText}>{e.text}</Text></View>)}
+  {!!earlier.tales.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showEarlier}} onPress={()=>setShowEarlier(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')}]}><PlainText style={s.logToggleText}>{showEarlier?'Hide earlier tales':'Earlier tales ('+(earlier.tales.length+(earlier.era?.count??0))+')'}</PlainText><Icon name={showEarlier?'close':'scroll'} size={14} color={colors.gold}/></Pressable>}
+  {showEarlier&&earlier.tales.slice(0,12).map(t=><View key={t.no} style={s.taleRow}><View style={[s.taleMark,{borderColor:tint('rgba(178,34,58,.4)')}]}><Icon name="scroll" size={13} color={colors.gold}/></View><Text style={s.taleText}><PlainText style={s.earlierTitle}>{t.title}</PlainText>{t.text?' — '+t.text:' — '+t.status+'.'}</Text></View>)}
+  {showEarlier&&earlier.tales.length+(earlier.era?.count??0)>12&&<PlainText style={[s.caption,{marginTop:8,marginBottom:0}]}>And {earlier.tales.length-Math.min(12,earlier.tales.length)+(earlier.era?.count??0)} tales before those, remembered in brief.</PlainText>}
   {!!game.log.length&&<Pressable accessibilityRole="button" accessibilityState={{expanded:showLog}} onPress={()=>setShowLog(value=>!value)} style={[s.logToggle,{marginTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.18)')}]}><PlainText style={s.logToggleText}>{showLog?'Hide the latest rolls':'Latest rolls and rulings'}</PlainText><Icon name={showLog?'close':'d20'} size={14} color={colors.gold}/></Pressable>}
   {showLog&&game.log.map((entry,index)=><Text key={index} style={s.entry}>{storyText(game,entry)}</Text>)}
  </View>;
- const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
+ const master=<DungeonMaster fill quick={quick} sendRef={sendRef} hero={ruled} game={game} health={health} act={act} table={table} onConversationChange={setInConversation} onTyping={setTyping}/>;
  // With the keyboard up there is little height left: the side column, strips and tabs give it to the story.
  const cramped=typing&&(visibleHeight||windowHeight)<560;
- const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel}/>;
+ const mapPanel=<AdventureMap game={game} travelTo={travelTo} onTravel={travel} beyond={beyond} onBeyond={goBeyond}/>;
  const share=<ShareTale visible={sharing} onClose={()=>setSharing(false)} hero={hero} game={game}/>;
- const toast=!!error&&<Pressable accessibilityRole="alert" accessibilityHint="Tap to dismiss" onPress={()=>setError('')} dataSet={{qb:'enter'}} style={s.toast}><Icon name="info" size={16} color="#ffb39e"/><Text style={s.toastText}>{error}</Text><Icon name="close" size={14} color="#ffd2c2"/></Pressable>;
+ const toast=!!error&&<Pressable accessibilityRole="alert" accessibilityHint="Tap to dismiss" onPress={()=>setError('')} dataSet={{qb:'enter'}} style={s.toast}><Icon name="info" size={16} color={tint('#ffb39e')}/><Text style={s.toastText}>{error}</Text><Icon name="close" size={14} color={tint('#ffd2c2')}/></Pressable>;
  // Wide (side column) and narrow (tabs) share one element tree, so turning a phone never remounts the
  // Dungeon Master: a turn in progress, its playback and a half-typed message all survive the rotation.
  if(layout==='wide'||layout==='narrow'){const wide=layout==='wide',story=wide||tab==='story';return <View style={wide?s.wide:s.narrow}>
-  {wide&&<View style={[s.side,{width:sideWidth},cramped&&{display:'none'}]}>
-   <View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={s.sideTabs}>{sideTabs.map(([id,icon,label])=>{const on=sideTab===id;return <Pressable key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setSideTab(id);}} dataSet={{qb:on?'seg-on':undefined,tip:label}} style={[s.sideTabItem,on&&s.sideTabOn]}>{(sideWidth>=440||sideWidth<280)&&<Icon name={icon} size={16} color={on?colors.goldBright:colors.muted}/>}{sideWidth>=280&&<PlainText numberOfLines={1} style={[s.sideTabText,on&&{color:colors.goldBright}]}>{label}</PlainText>}</Pressable>;})}</View>
+  {wide&&folded&&<View dataSet={{qb:'side-rail'}} style={[s.rail,cramped&&{display:'none'}]}>
+   <IconButton icon="forward" label="Show the side panel" tipSide="right" size={36} onPress={()=>setFolded(false)}/>
+   {sideTabs.map(([id,icon,label])=><IconButton key={id} icon={icon} label={'Show '+label} tip={label} tipSide="right" size={36} onPress={()=>{setSideTab(id);setFolded(false);}}/>)}
+   {(game.stage==='combat'||game.npcCombat?.active||game.stage==='dying'||game.stage==='dead')&&<View accessibilityLabel={game.stage==='dying'?'Dying':game.stage==='dead'?'Fallen':'In a fight'} style={s.railAlert}><Icon name={game.stage==='dying'||game.stage==='dead'?'skull':'swords'} size={16} color={tint('#ffb39e')}/></View>}
+  </View>}
+  {wide&&!folded&&<View style={[s.side,{width:sideWidth},cramped&&{display:'none'}]}>
+   <View style={s.sideHead}><View accessibilityRole="tablist" dataSet={{qb:'seg'}} style={[s.sideTabs,{flex:1,minWidth:0}]}>{sideTabs.map(([id,icon,label])=>{const on=sideTab===id;return <Pressable key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(!on)playSound('page');setSideTab(id);}} dataSet={{qb:on?'seg-on':undefined,tip:label}} style={[s.sideTabItem,on&&s.sideTabOn]}>{(sideWidth>=440||sideWidth<280)&&<Icon name={icon} size={16} color={on?colors.goldBright:colors.muted}/>}{sideWidth>=280&&<PlainText numberOfLines={1} style={[s.sideTabText,on&&{color:colors.goldBright}]}>{label}</PlainText>}</Pressable>;})}</View>
+   <IconButton icon="back" label="Hide the side panel" size={36} onPress={()=>setFolded(true)}/></View>
    <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={s.sideContent}>{deathPanel}{dyingPanel}{combatPlate}{sideTab==='quest'&&questPanel}{sideTab==='map'&&mapPanel}{sideTab==='pack'&&inventoryPanel}{sideTab==='log'&&logPanel}</ScrollView>
   </View>}
   {!wide&&tab==='story'&&!cramped&&combatStrip}
@@ -228,7 +279,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   <StatBar value={game.enemyHP} maximum={foe.maximum} kind="enemy" height={12}/>
   <Text style={s.caption}>Your armor class: {spellDefense(game,stats.ac).ac}. Describe an attack, spell, dodge, potion or retreat to the Dungeon Master.</Text>
  </View>}
- <DungeonMaster hero={hero} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>
+ <DungeonMaster hero={ruled} game={game} health={health} act={act} table={table} onConversationChange={setInConversation}/>
  {!inConversation&&<>
  {game.npcCombat?.active&&<View dataSet={{qb:'plate'}} style={s.combat}><View dataSet={{qb:'banner'}} style={s.banner}><Text style={s.bannerText}>⚔  Combat · Round {game.npcCombat.round}  ⚔</Text></View><Text style={s.label}>Turn order</Text><Text style={s.order}>{game.npcCombat.order.map(n=>(n.id==='player'?'You':npcLore(game,n.id)?.name??n.id)+(n.side==='enemy'?' ⚔':n.side==='ally'?' ⛨':'')).join('   ›   ')}</Text><Text style={s.caption}>Describe an attack or spell, or send Dodge, Flee, Wait, or Surrender.</Text></View>}
  <View dataSet={{qb:'plate'}} style={s.quest}>
@@ -249,7 +300,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
 }
 const s=StyleSheet.create({
  // Screen-fitting layouts: nothing scrolls the page; each region scrolls on its own.
- wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
+ wide:{flex:1,minHeight:0,flexDirection:'row',gap:14},sideHead:{flexDirection:'row',alignItems:'center',gap:6},rail:{width:44,flexGrow:0,flexShrink:0,alignItems:'center',gap:8,paddingTop:2},railAlert:{marginTop:4,width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:tint('rgba(240,106,79,.6)')},side:{width:370,flexGrow:0,flexShrink:0,minHeight:0},sideContent:{paddingBottom:12,gap:0},
  sideTabs:{flexDirection:'row',gap:4,padding:4,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(10,7,11,.55)')},
  // Each tab takes the room its word needs, so "Inventory" is never cut short in a narrow column.
  sideTabItem:{flexGrow:1,flexShrink:1,flexBasis:'auto',minWidth:0,minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:4,borderRadius:4,borderWidth:1,borderColor:'transparent'},sideTabOn:{borderColor:tint('rgba(224,74,92,.55)'),backgroundColor:tint('rgba(48,26,78,.9)')},
@@ -258,69 +309,71 @@ const s=StyleSheet.create({
  deedWrap:{flexDirection:'row',flexWrap:'wrap',gap:6},deedChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:9,paddingVertical:5,borderRadius:14,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),backgroundColor:tint('rgba(48,26,78,.5)')},deedChipText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:.8,color:colors.parchment,textTransform:'uppercase'},
  shareButton:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,minHeight:40,borderRadius:4,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)')},shareText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.4,color:colors.gold,textTransform:'uppercase'},
  shareChip:{marginLeft:'auto',flexDirection:'row',alignItems:'center',gap:5,minHeight:28,paddingHorizontal:10,borderRadius:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)')},shareChipText:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
- taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
- taleText:{flex:1,fontFamily:fonts.story,fontSize:16,lineHeight:23,color:'#e6dfcd',paddingTop:1},regard:{fontFamily:fonts.ui,fontSize:11.5,color:'#b0a39e',marginTop:2,letterSpacing:.2},
+ taleRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:9},taleMark:{width:24,height:24,borderRadius:12,borderWidth:1,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(0,0,0,.3)')},
+ taleText:{flex:1,fontFamily:fonts.story,fontSize:16,lineHeight:23,color:tint('#e6dfcd'),paddingTop:1},earlierTitle:{fontFamily:fonts.story,fontWeight:'700',color:colors.goldBright},regard:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b0a39e'),marginTop:2,letterSpacing:.2},
  main:{flex:1,minHeight:0,minWidth:0},narrow:{flex:1,minHeight:0},tabContent:{padding:10,paddingBottom:20},
  // Phone combat strip: the foe's portrait, name, HP and armour class, and the round.
- strip:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:10,paddingVertical:7,marginHorizontal:6,borderWidth:1,borderColor:'rgba(220,90,70,.55)',borderRadius:6,marginBottom:6},
+ strip:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:10,paddingVertical:7,marginHorizontal:6,borderWidth:1,borderColor:tint('rgba(220,90,70,.55)'),borderRadius:6,marginBottom:6},
  stripAvatar:{width:38,height:38,borderRadius:19},
  stripTop:{flexDirection:'row',alignItems:'center',gap:8},
- stripName:{flex:1,fontFamily:fonts.display,color:'#f5e6e0',fontSize:15,fontWeight:'700',letterSpacing:.4},stripStat:{fontFamily:fonts.display,color:'#f5e6e0',fontSize:13,fontWeight:'800',fontVariant:['tabular-nums']},
- acBadge:{flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:6,paddingVertical:1,borderRadius:9,borderWidth:1,borderColor:'rgba(255,180,160,.35)'},acText:{fontFamily:fonts.ui,fontSize:11,fontWeight:'700',color:'#ffc9b8'},
- roundBadge:{alignItems:'center',justifyContent:'center',minWidth:36,paddingLeft:8,borderLeftWidth:1,borderLeftColor:'rgba(255,180,160,.25)'},roundBadgeLabel:{fontFamily:fonts.display,fontSize:8.5,letterSpacing:1.4,color:'#e79a86',textTransform:'uppercase'},roundBadgeText:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:'#f5e6e0'},
- toast:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,paddingVertical:9,marginBottom:6,marginHorizontal:6,borderRadius:6,borderWidth:1,borderColor:'rgba(240,106,79,.5)',backgroundColor:'rgba(60,18,14,.92)'},toastText:{flex:1,fontFamily:fonts.ui,color:'#ffd2c2',fontSize:13,lineHeight:19},
+ stripName:{flex:1,fontFamily:fonts.display,color:tint('#f5e6e0'),fontSize:15,fontWeight:'700',letterSpacing:.4},stripStat:{fontFamily:fonts.display,color:tint('#f5e6e0'),fontSize:13,fontWeight:'800',fontVariant:['tabular-nums']},
+ acBadge:{flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:6,paddingVertical:1,borderRadius:9,borderWidth:1,borderColor:tint('rgba(255,180,160,.35)')},acText:{fontFamily:fonts.ui,fontSize:11,fontWeight:'700',color:tint('#ffc9b8')},
+ roundBadge:{alignItems:'center',justifyContent:'center',minWidth:36,paddingLeft:8,borderLeftWidth:1,borderLeftColor:tint('rgba(255,180,160,.25)')},roundBadgeLabel:{fontFamily:fonts.display,fontSize:8.5,letterSpacing:1.4,color:tint('#e79a86'),textTransform:'uppercase'},roundBadgeText:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:tint('#f5e6e0')},
+ toast:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,paddingVertical:9,marginBottom:6,marginHorizontal:6,borderRadius:6,borderWidth:1,borderColor:tint('rgba(240,106,79,.5)'),backgroundColor:tint('rgba(60,18,14,.92)')},toastText:{flex:1,fontFamily:fonts.ui,color:tint('#ffd2c2'),fontSize:13,lineHeight:19},
  tabBar:{position:'relative',flexDirection:'row',backgroundColor:tint('rgba(14,10,14,.96)'),paddingTop:2,paddingBottom:2},
  tab:{flex:1,alignItems:'center',justifyContent:'center',minHeight:54,gap:3,borderTopWidth:2,borderTopColor:'transparent'},tabOn:{borderTopColor:colors.gold},
- tabAlert:{position:'absolute',top:-2,right:-5,width:8,height:8,borderRadius:4,backgroundColor:colors.bloodBright,borderWidth:1,borderColor:'#1a0a08'},
+ tabAlert:{position:'absolute',top:-2,right:-5,width:8,height:8,borderRadius:4,backgroundColor:colors.bloodBright,borderWidth:1,borderColor:tint('#1a0a08')},
  tabLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:.7,color:colors.muted,textTransform:'uppercase'},tabOnText:{color:colors.goldBright},
  quest:{padding:20,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6},
  label:{...type.label},labelRow:{flexDirection:'row',alignItems:'center',gap:8},
  title:{fontFamily:fonts.display,color:colors.parchment,fontSize:21,lineHeight:28,fontWeight:'700',letterSpacing:.8,marginTop:8},
- objective:{fontFamily:fonts.story,fontSize:18,lineHeight:27,color:'#decdc5'},
+ objective:{fontFamily:fonts.story,fontSize:18,lineHeight:27,color:tint('#decdc5')},
  // A long tale: the chapter under way, the aim of the whole story, a level waiting to be taken, and the leads.
  chapter:{marginBottom:10},chapterTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},
  chapterOver:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},
  chapterPips:{flexDirection:'row',gap:5,alignItems:'center'},chapterPip:{width:16,height:4,borderRadius:2,backgroundColor:tint('rgba(178,34,58,.22)')},chapterPipDone:{backgroundColor:colors.goldMid},chapterPipNow:{backgroundColor:colors.goldBright},
  chapterTitle:{fontFamily:fonts.display,fontSize:16,fontWeight:'700',letterSpacing:.6,color:colors.goldBright,marginTop:6,marginBottom:6},
- aim:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#b9b3a3',paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.16)')},aimLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
+ aim:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:tint('#b9b3a3'),paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.16)')},aimLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},
  leadCount:{marginLeft:'auto',fontFamily:fonts.ui,fontSize:11.5,color:colors.muted,fontVariant:['tabular-nums']},
  leadRow:{flexDirection:'row',alignItems:'flex-start',gap:10},leadMark:{width:18,height:18,borderRadius:9,borderWidth:1.5,borderColor:tint('rgba(178,34,58,.55)'),alignItems:'center',justifyContent:'center',marginTop:2},leadMarkDone:{backgroundColor:colors.gold,borderColor:tint('#f06e80')},
  leadTitle:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.5,color:colors.parchment},leadTitleDone:{color:colors.muted,textDecorationLine:'line-through'},
- leadHook:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#cfc8b6',marginTop:2},leadNote:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
- scene:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16.5,lineHeight:25,color:'#c9c3b3',marginTop:10},
+ leadHook:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:tint('#cfc8b6'),marginTop:2},leadNote:{fontFamily:fonts.ui,fontSize:11.5,color:colors.faint},
+ scene:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16.5,lineHeight:25,color:tint('#c9c3b3'),marginTop:10},
  heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:20,fontWeight:'700',letterSpacing:.8,marginVertical:8},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:21,marginVertical:10},
  error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:22,marginTop:12},
  // Side-column combat card: round banner, the foe's painted portrait with its name, HP and stat chips.
- combat:{padding:16,paddingTop:0,marginTop:14,borderWidth:1,borderColor:'rgba(220,90,70,.6)',borderRadius:6,overflow:'hidden'},
- banner:{flexDirection:'row',justifyContent:'center',gap:10,marginHorizontal:-16,paddingVertical:8,marginBottom:12,alignItems:'center',backgroundColor:'rgba(120,24,16,.55)',borderBottomWidth:1,borderBottomColor:'rgba(240,106,79,.35)'},
- bannerText:{fontFamily:fonts.display,color:'#ffd9c9',fontSize:12,fontWeight:'800',letterSpacing:3,textTransform:'uppercase'},
- foeArt:{borderRadius:4,overflow:'hidden',backgroundColor:tint('#140c0c'),borderWidth:1,borderColor:'rgba(220,90,70,.5)',marginBottom:12,justifyContent:'flex-end'},
- foeCaption:{padding:12,paddingTop:30},foeOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:2,color:'#ffb39e',textTransform:'uppercase'},
- foeName:{fontFamily:fonts.display,color:'#fff0e6',fontSize:23,lineHeight:28,fontWeight:'800',letterSpacing:.8,marginTop:2},
+ combat:{padding:16,paddingTop:0,marginTop:14,borderWidth:1,borderColor:tint('rgba(220,90,70,.6)'),borderRadius:6,overflow:'hidden'},
+ banner:{flexDirection:'row',justifyContent:'center',gap:10,marginHorizontal:-16,paddingVertical:8,marginBottom:12,alignItems:'center',backgroundColor:tint('rgba(120,24,16,.55)'),borderBottomWidth:1,borderBottomColor:tint('rgba(240,106,79,.35)')},
+ bannerText:{fontFamily:fonts.display,color:tint('#ffd9c9'),fontSize:12,fontWeight:'800',letterSpacing:3,textTransform:'uppercase'},
+ foeArt:{borderRadius:4,overflow:'hidden',backgroundColor:tint('#140c0c'),borderWidth:1,borderColor:tint('rgba(220,90,70,.5)'),marginBottom:12,justifyContent:'flex-end'},
+ foeCaption:{padding:12,paddingTop:30},foeOver:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:2,color:tint('#ffb39e'),textTransform:'uppercase'},
+ foeName:{fontFamily:fonts.display,color:tint('#fff0e6'),fontSize:23,lineHeight:28,fontWeight:'800',letterSpacing:.8,marginTop:2},
  foeRow:{flexDirection:'row',alignItems:'center',gap:7,marginBottom:7},
- foeStat:{fontFamily:fonts.display,color:'#f5e6e0',fontSize:17,fontWeight:'800',fontVariant:['tabular-nums']},group:{fontFamily:fonts.display,color:'#ffb39e',fontSize:12,fontWeight:'700',letterSpacing:1.2,marginBottom:8},foeMax:{fontSize:13,color:'#c9a89c',fontWeight:'400'},
- statChips:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:12},statChip:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:8,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:'rgba(255,180,160,.28)',backgroundColor:'rgba(0,0,0,.25)'},
- statChipText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',color:'#f0d6cc'},
- yourAc:{flexDirection:'row',alignItems:'center',gap:6,marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(255,180,160,.15)'},yourAcText:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
+ foeStat:{fontFamily:fonts.display,color:tint('#f5e6e0'),fontSize:17,fontWeight:'800',fontVariant:['tabular-nums']},group:{fontFamily:fonts.display,color:tint('#ffb39e'),fontSize:12,fontWeight:'700',letterSpacing:1.2,marginBottom:8},foeMax:{fontSize:13,color:tint('#c9a89c'),fontWeight:'400'},
+ statChips:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:12},statChip:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:8,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(255,180,160,.28)'),backgroundColor:tint('rgba(0,0,0,.25)')},
+ statChipText:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',color:tint('#f0d6cc')},
+ yourAc:{flexDirection:'row',alignItems:'center',gap:6,marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(255,180,160,.15)')},yourAcText:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
  order:{fontFamily:fonts.display,color:colors.parchment,fontSize:16,fontWeight:'700',letterSpacing:.6,marginVertical:8},
  orderRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:6,marginVertical:8},orderChip:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(31,24,32,.8)')},
- orderText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'600',color:'#e6dfcd'},
+ orderText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'600',color:tint('#e6dfcd')},
  log:{borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.25)'),padding:16,marginTop:14},
  logToggle:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',minHeight:40},
  logToggleText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
- entry:{fontFamily:fonts.story,color:'#d9d3c3',fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.12)')},
+ entry:{fontFamily:fonts.story,color:tint('#d9d3c3'),fontSize:15.5,lineHeight:24,marginTop:10,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.12)')},
  packRow:{flexDirection:'row',flexWrap:'wrap',gap:16},packStat:{flexDirection:'row',alignItems:'baseline',gap:6},packValue:{fontFamily:fonts.display,fontSize:17,fontWeight:'800',color:colors.parchment},packUnit:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
- packItem:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:'#e6dfcd'},
+ packItem:{fontFamily:fonts.story,fontSize:15,lineHeight:22,color:tint('#e6dfcd')},
  people:{padding:16,marginTop:14,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,gap:12},personRow:{flexDirection:'row',alignItems:'flex-start',gap:12},personAvatar:{width:44,height:44,borderRadius:22},
  personName:{fontFamily:fonts.display,fontSize:15,fontWeight:'700',letterSpacing:.6,color:colors.parchment},standing:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},standingDot:{width:7,height:7,borderRadius:4},
- standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},stripAlly:{fontFamily:fonts.ui,fontSize:11.5,color:'#ffc9b8'},allyRow:{flexDirection:'row',alignItems:'center',gap:10,marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:'rgba(240,106,79,.25)'},allyTop:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:8},allyName:{fontFamily:fonts.display,fontWeight:'700',fontSize:15,color:'#f3e3d6',flexShrink:1},allyStat:{fontFamily:fonts.ui,fontSize:12,color:'#ffc9b8'},where:{fontFamily:fonts.ui,fontSize:12,color:colors.muted,flexShrink:1},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:'#d4cbb7',marginTop:4},
+ standingText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.3},stripAlly:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#ffc9b8')},allyRow:{flexDirection:'row',alignItems:'center',gap:10,marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:tint('rgba(240,106,79,.25)')},allyTop:{flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:8},allyName:{fontFamily:fonts.display,fontWeight:'700',fontSize:15,color:tint('#f3e3d6'),flexShrink:1},allyStat:{fontFamily:fonts.ui,fontSize:12,color:tint('#ffc9b8')},where:{fontFamily:fonts.ui,fontSize:12,color:colors.muted,flexShrink:1},memory:{fontFamily:fonts.story,fontStyle:'italic',fontSize:14.5,lineHeight:21,color:tint('#d4cbb7'),marginTop:4},
  // Dying: death-save pips. Dead: the epitaph.
- dying:{padding:16,marginTop:14,borderWidth:1,borderColor:'rgba(220,90,70,.6)',borderRadius:6,gap:10},dyingStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,paddingVertical:8,paddingHorizontal:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
- dyingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:24,color:'#e6cfc6'},
+ dying:{padding:16,marginTop:14,borderWidth:1,borderColor:tint('rgba(220,90,70,.6)'),borderRadius:6,gap:10},dyingStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,paddingVertical:8,paddingHorizontal:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+ dyingText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:24,color:tint('#e6cfc6')},
  pipRows:{flexDirection:'row',gap:18,alignItems:'center'},pipRow:{flexDirection:'row',alignItems:'center',gap:6},
- pip:{width:14,height:14,borderRadius:7,borderWidth:1.5,borderColor:'rgba(255,200,185,.45)'},pipGood:{backgroundColor:colors.heal,borderColor:colors.heal},pipBad:{backgroundColor:colors.bloodBright,borderColor:colors.bloodBright},
+ pip:{width:14,height:14,borderRadius:7,borderWidth:1.5,borderColor:tint('rgba(255,200,185,.45)')},pipGood:{backgroundColor:colors.heal,borderColor:colors.heal},pipBad:{backgroundColor:colors.bloodBright,borderColor:colors.bloodBright},
  epitaph:{alignItems:'center',gap:8,padding:20,marginTop:14,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),borderRadius:6},epitaphStrip:{marginTop:0,marginHorizontal:6,marginBottom:6,padding:12,flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:10},
  epitaphOver:{fontFamily:fonts.display,fontSize:10,letterSpacing:3,color:colors.faint,textTransform:'uppercase'},epitaphName:{fontFamily:fonts.display,fontSize:24,fontWeight:'700',letterSpacing:1,color:colors.parchment},
- epitaphLine:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.5},epitaphCause:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:22,color:'#cfc6b4',textAlign:'center',marginTop:2},
- epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:tint('#f06e80'),backgroundColor:tint('#9e1b32'),marginTop:4},epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:tint('#ffeef0'),textTransform:'uppercase'}});
+ epitaphLine:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.5},epitaphCause:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:22,color:tint('#cfc6b4'),textAlign:'center',marginTop:2},
+ epitaphButton:{flexDirection:'row',alignItems:'center',gap:8,minHeight:42,paddingHorizontal:18,borderRadius:21,borderWidth:1,borderColor:tint('#f06e80'),backgroundColor:tint('#9e1b32'),marginTop:4},epitaphNote:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,textAlign:'center',maxWidth:420},
+ epitaphQuiet:{alignItems:'center',justifyContent:'center',minHeight:38,paddingHorizontal:16,borderRadius:19,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),marginTop:2},epitaphQuietText:{fontFamily:fonts.display,fontSize:11.5,fontWeight:'700',letterSpacing:1.4,color:colors.gold,textTransform:'uppercase'},
+ epitaphButtonText:{fontFamily:fonts.display,fontSize:12,fontWeight:'800',letterSpacing:1.6,color:tint('#ffeef0'),textTransform:'uppercase'}});

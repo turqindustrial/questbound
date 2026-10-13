@@ -1,8 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // The wider region: the Dungeon Master reveals places beyond a story's first three, each linked to where it was
 // found; the hero travels the links, time passes by distance, saves stay valid, and written names stay intact.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','hostileEncounter.js','quickActions.js','worldArtRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const r=vm.runInNewContext(source+'\n({adventureStep,newAdventure,validAdventure,adventureSnapshot,equipmentFor,dmChoices,dmContext,commitDmTurn,hostileEncounterGame,quickActions,storyText,travelRoute,mapLocation,placeName,locationArtSubject,placeArtSubject,npcScene,maxWorldPlaces})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const hero={name:'Wanderer',class:'Fighter',species:'Human',level:1,scores:{Strength:16,Dexterity:14,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
@@ -43,9 +43,15 @@ assert.match(r.adventureStep({...g,stage:'combat'},hp,hero,{type:'discover',plac
 // Saves refuse impossible worlds.
 assert.ok(!valid({...trip.game,world:{...trip.game.world,at:'p9'}}));assert.ok(!valid({...trip.game,world:{...trip.game.world,places:[{...trip.game.world.places[0],from:'p7'}]}}));
 assert.ok(!valid({...found.game,world:{...found.game.world,places:[...found.game.world.places,{...found.game.world.places[0],id:'p2'}]}}),'Two places cannot share a name');
-// The map fills up at its limit.
+// The map fills up at its limit (150 places). Then a place only heard of (never visited, nothing found from it) gives
+// way to the new one, the oldest first; once every place on the map is one the hero has been to, the map is full.
 let full=g;for(let i=0;i<r.maxWorldPlaces;i++)full=discover(full,{...ridge,name:'Ridge '+i},false).game;
-assert.match(discover(full,{...ridge,name:'One too many'},false).error,/map is full/);assert.ok(valid(full));
+assert.equal(r.maxWorldPlaces,150);assert.ok(valid(full));
+{const more=discover(full,{...ridge,name:'One more'},false);assert.equal(more.error,undefined,more.error);assert.equal(more.game.world.places.length,150);
+ assert.ok(!more.game.world.places.some(p=>p.name==='Ridge 0')&&more.game.world.places.some(p=>p.name==='One more'),'the oldest rumour gives way');
+ assert.equal(more.events[0],'Your map is full, so the rumour of Ridge 0 fades from it: you never went there.');assert.ok(valid(more.game));
+ const seen={...full,map:{...full.map,visited:[...full.map.visited,...full.world.places.map(p=>p.id)]}};assert.ok(valid(seen));
+ assert.match(discover(seen,{...ridge,name:'One too many'},false).error,/map is full/,'every place visited: nothing gives way');}
 // Written names survive the story retelling (a place called "...Bridge" is not rewritten).
 const bridgeTown=discover(g,{name:'Hangman\'s Bridge',description:'A rope bridge over a gorge, with a gallows at its far end.',kind:'landmark',bearing:'SW',miles:3});
 assert.ok(bridgeTown.events[1].startsWith('You travel to Hangman\'s Bridge. 3 miles'));assert.equal(r.storyText(bridgeTown.game,bridgeTown.events[1]),bridgeTown.events[1]);

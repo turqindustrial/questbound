@@ -1,8 +1,9 @@
 import {mapLocation,placeName,worldPlaces,mapRegions,distanceText,placeCoordinates} from './mapRules';
-import {npcIdsOf,npcLore} from './npcRules';
+import {npcIdsOf,npcLore,metPerson} from './npcRules';
 import {dungeonRooms} from './dungeonRules';
 import {appendStoryLog} from './journalRules';
 import {packOf} from './inventoryRules';
+import {fightEnding,heroXp,levelForXp} from './experienceRules';
 // The story so far: one short line for every thing that mattered (a place reached, someone met, a fight and how it
 // ended, a death, a debt or a grudge, gold and finds, rests, levels, the end of the tale). Each line is worked out
 // by comparing the adventure before and after a turn, so nothing depends on how the Dungeon Master told it, and a
@@ -22,6 +23,7 @@ export function storyEvents(before,after,hero,{action=null}={}){
  // ---- New places and new lands ----
  const knownBefore=new Set(worldPlaces(before).map(p=>p.id)),found=worldPlaces(after).filter(p=>!knownBefore.has(p.id));
  const landsBefore=new Set(mapRegions(before).map(r=>r.id));
+ // A new land (lands travelled are never forgotten; only one heard of and never reached may give way: mapRules.js).
  for(const land of mapRegions(after))if(!landsBefore.has(land.id))add('place','Set out for a new land: '+land.name+'.');
  for(const p of found){
   if(p.id===here)continue;
@@ -30,9 +32,10 @@ export function storyEvents(before,after,hero,{action=null}={}){
  }
  // ---- Travel ----
  // How a fight that ended this turn went: the hero fell, won (the creature's place is cleared, the guardian's room
- // is open, the foe has no hit points left) or got away.
- const ended=before.stage==='combat'&&after.stage!=='combat',down=['dying','dead','defeat'].includes(after.stage);
- const won=ended&&!down&&(before.wildFight?!!worldPlaces(after).find(p=>p.id===before.wildFight.place)?.cleared:before.dungeon?.active?after.stage==='dungeon':after.stage==='victory'||after.enemyHP===0);
+ // is open, the foe has no hit points left) or got away. What a win is comes from experienceRules.js (fightEnding),
+ // so the story, experience and spoils agree; this hero's own fight is the one told here.
+ const ending=fightEnding(before,after),ended=before.stage==='combat'&&after.stage!=='combat',down=['dying','dead','defeat'].includes(after.stage);
+ const won=ended&&!down&&ending.won;
  const fled=ended&&!down&&!won;
  if(here!==was&&!['dying','dead','defeat','escaped'].includes(after.stage)&&!fled){
   if(after.dungeon?.active&&!before.dungeon?.active)add('travel','Went down into the Lantern Vaults.');
@@ -41,7 +44,8 @@ export function storyEvents(before,after,hero,{action=null}={}){
   else add('travel',(visitedBefore.has(here)?'Returned to ':'Reached ')+placeNow+(visitedBefore.has(here)?'':' for the first time')+'.');
  }
  // ---- People ----
- for(const id of Object.keys(after.people??{}))if(!before.people?.[id]){const p=after.people[id],role=clip(String(p.role??'').split(/[,;:(]| who | that | which | at the | in the | from the /)[0].replace(/[.\s]+$/,''),44);add('person','Met '+p.name+(role?', '+role[0].toLowerCase()+role.slice(1):'')+'.');}
+ // Someone new, or one of the tale's residents met for the first time (on reaching where they live).
+ for(const id of Object.keys(after.people??{}))if(before.people?.[id]?!metPerson(before,id)&&metPerson(after,id):metPerson(after,id)){const p=after.people[id],role=clip(String(p.role??'').split(/[,;:(]| who | that | which | at the | in the | from the /)[0].replace(/[.\s]+$/,''),44);add('person','Met '+p.name+(role?', '+role[0].toLowerCase()+role.slice(1):'')+'.');}
  for(const id of npcIdsOf(after)){
   const name=nameOf(after,id),f0=before.followers?.[id]?.status,f1=after.followers?.[id]?.status;
   if(f1==='following'&&f0!=='following')add('person',name+' joined you.');
@@ -52,7 +56,9 @@ export function storyEvents(before,after,hero,{action=null}={}){
   else if(fate1==='unconscious'&&fate0!=='unconscious')add('deed',struck?'You knocked '+name+' senseless.':name+' was struck down.');
   else if(fate0==='unconscious'&&!fate1)add('deed',name+' came round.');
   const m0=before.npcMemory?.[id],m1=after.npcMemory?.[id];
-  if(m1?.grudge&&!m0?.grudge)add('deed',name+' swore never to forgive you.');
+  // A grudge set down (amends made and time gone by, or a life saved) is a turn in the tale of its own.
+  if(m0?.grudge&&!m1?.grudge&&m1?.forgave&&fate1!=='dead')add('deed',name+' forgave you.');
+  else if(m1?.grudge&&!m0?.grudge)add('deed',name+' swore never to forgive you.');
   else if(m1?.bond&&!m0?.bond)add('deed',name+' owes you a debt for life.');
   else if(m1&&m1.attitude!==(m0?.attitude??'indifferent')&&fate1!=='dead'){
    if(m1.attitude==='hostile')add('deed',name+' turned against you.');
@@ -92,7 +98,7 @@ export function storyEvents(before,after,hero,{action=null}={}){
  // A long tale: a chapter finished (the next opens under its own heading) and leads seen through.
  if(after.story?.chapters&&(after.story.chapter??0)>(before.story?.chapter??0)){const c=after.story.chapters,n=before.story?.chapter??0;add('quest','Finished chapter '+(n+1)+': '+c[n].title+'.');add('story','Chapter '+(after.story.chapter+1)+': '+c[after.story.chapter].title);}
  for(const l of after.story?.leads??[])if(l.done&&!before.story?.leads?.find(x=>x.id===l.id)?.done)add('quest','Saw a lead through: '+l.title+'.');
- if((after.levelsOwed??0)>(before.levelsOwed??0))add('level','Earned a level on the road.');
+ if(hero&&(hero.level??1)<20){const now=levelForXp(heroXp(after,hero)),was=levelForXp(heroXp(before,hero));if(now>was&&now>(hero.level??1))add('level','Ready for level '+Math.min(now,(hero.level??1)+1)+'.');}
  if(after.story&&before.story?.status==='active'&&after.story.status==='complete')add('quest','Adventure complete: '+after.story.title+'.');
  // The crossroads adventure tells its own milestones in its journal.
  if(!after.story){const old=before.journal?.entries?.length??0;for(const e of (after.journal?.entries??[]).slice(old))if(['quest','outcome'].includes(e.kind)&&!/^Journey to /.test(e.title))add('quest',e.title+'.');}

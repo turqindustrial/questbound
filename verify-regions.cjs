@@ -1,10 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Every story has its own land: its three starting places lie differently each time (a line, a fork, a loop: not
 // one fixed triangle), a few more places are marked from the start, far journeys open new regions with maps of
 // their own, and each region is drawn to suit its terrain. Also: the Dungeon Master and the story writer are asked
 // for all of this, and what they send is tidied rather than refused.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','mapLayout.js','mapArt.js','storyLog.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['mapLayout.js','mapArt.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,validStory,freshStoryGame,makeGeography,validGeography,landmarkPlaces,terrains,mapRegions,regionOfPlace,regionPlaceIds,currentRegion,homeRegion,travelRoute,worldLinks,placeCoordinates,regionLayout,regionLabels,regionMapSvg,exitLabelBoxes,mapThemes,knownPlaceIds,mapLocation,durationText,maxRegions,storyEvents,storyFoeStats,encounterFoe})',{AsyncStorage:{}});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
@@ -39,7 +39,8 @@ assert.ok(valid(start,null),'A new story with its own land is a valid save');
 assert.equal(start.story.layout,undefined);assert.equal(start.story.landmarks,undefined,'The hints are used, not stored');
 assert.ok(r.validGeography(start.story.geography));assert.ok(start.story.geography.at.bridge.x<-6000,'West, as written');
 // The story's main foe is sturdier than a creature met by the road, sized to the hero when the story begins.
-same(r.storyFoeStats(1,'Piercing'),{maximum:18,ac:12,attackBonus:3,die:6,count:1,bonus:1,type:'Piercing',saves:{Strength:1,Dexterity:2,Constitution:1,Intelligence:0,Wisdom:0,Charisma:0}});
+// (Up to 2nd level its blows land a point softer: storyRules.js foeEase.)
+same(r.storyFoeStats(1,'Piercing'),{maximum:18,ac:12,attackBonus:3,die:6,count:1,bonus:0,type:'Piercing',saves:{Strength:1,Dexterity:2,Constitution:1,Intelligence:0,Wisdom:0,Charisma:0}});
 assert.equal(r.storyFoeStats(5).maximum,58);assert.equal(r.storyFoeStats(5,'Sonic').type,'Slashing');assert.ok(r.validStory({...start.story,foeStats:r.storyFoeStats(20)}));
 const told=r.freshStoryGame(kara,{...written,foeStats:undefined,foeDamageType:'Poison'},r.newAdventure(kara));assert.equal(told.story.foeStats.type,'Poison');assert.equal(told.enemyHP,18);assert.equal(r.encounterFoe(kara,{...told,stage:'combat'}).maximum,18);
 assert.equal(r.freshStoryGame(kara,{...written,foeStats:undefined,foeDamageType:'Sonic'},r.newAdventure(kara)).story.foeDamageType,undefined,'An unknown kind of harm is dropped');
@@ -60,7 +61,7 @@ assert.match(r.adventureStep(camp,hp,kara,{type:'discover',place:{...voyage,regi
 assert.match(r.adventureStep(camp,hp,kara,{type:'discover',place:{...voyage,region:{name:'X',terrain:'hills'}},travel:true},()=>0.5).error,/new land/);
 assert.match(r.adventureStep(camp,hp,kara,{type:'discover',place:{...voyage,region:{name:'Somewhere',terrain:'jungle'}},travel:true},()=>0.5).error,/new land/);
 const sailed=r.adventureStep(camp,hp,kara,{type:'discover',place:voyage,travel:true},()=>0.5);
-assert.equal(sailed.error,undefined);assert.equal(sailed.game.world.at,'p3');same(sailed.game.world.regions,[{id:'r1',name:'The Halloway Shore',terrain:'hills'}]);assert.equal(sailed.game.world.places[2].region,'r1');
+assert.equal(sailed.error,undefined);assert.equal(sailed.game.world.at,'p3');same(sailed.game.world.regions,[{id:'r1',name:'The Halloway Shore',terrain:'hills',last:sailed.game.map.minutes}],'a land remembers when it was last reached');assert.equal(sailed.game.world.places[2].region,'r1');
 assert.match(sailed.events[0],/in a land new to you: The Halloway Shore\.$/);assert.match(sailed.events[1],/140 miles; [\d.]+ days pass/);assert.ok(valid(sailed.game));
 assert.equal(r.currentRegion(sailed.game),'r1');same(r.mapRegions(sailed.game).map(x=>x.name),['The Brinefold','The Halloway Shore']);
 assert.ok(r.storyEvents(camp,sailed.game,kara,{}).some(([kind,text])=>text==='Set out for a new land: The Halloway Shore.'),'The log notes the new land');
@@ -73,7 +74,7 @@ assert.equal(again.world.regions.length,1);assert.equal(again.world.places.at(-1
 // The way back is a long road: walked eight hours a day.
 const back=r.travelRoute(inland,'p3','inn');assert.ok(Math.abs(back.feet-140*5280)<3);assert.equal(back.minutes,Math.round(140*5280/300)*3);assert.match(r.durationText(back.minutes),/days$/);
 // The Dungeon Master is told which land the hero is in and which they know.
-const world=r.dmContext(kara,inland,hp).world;same(world.region,{name:'The Halloway Shore',terrain:'hills'});same(world.regions,['The Brinefold','The Halloway Shore']);assert.equal(world.knownPlaces.find(p=>p.id==='p1').land,'The Brinefold');assert.equal(world.knownPlaces.find(p=>p.id==='bridge').kind,'road');
+const world=r.dmContext(kara,inland,hp).world;same(world.region,{name:'The Halloway Shore',terrain:'hills'});same(world.regions,['The Brinefold','The Halloway Shore']);assert.equal(world.knownPlaces.find(p=>p.id==='p1').land,'The Brinefold');{const b=world.knownPlaces.find(p=>p.id==='bridge');assert.ok(!b||(b.land==='The Brinefold'&&b.description===undefined),'a place in another land is told in brief');const home=world.farLands.find(l=>l.name==='The Brinefold');assert.ok(home&&/on the road to /.test(home.road),'with how far the road is');}
 // Saves refuse a place in a land that does not exist, and more lands than the atlas holds.
 assert.ok(!valid({...inland,world:{...inland.world,places:inland.world.places.map(p=>p.id==='p4'?{...p,region:'r5'}:p)}}));
 assert.ok(!valid({...inland,world:{...inland.world,regions:Array.from({length:r.maxRegions},(_,i)=>({id:'r'+(i+1),name:'Land '+i,terrain:'plains'}))}}));

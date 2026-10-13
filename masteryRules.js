@@ -1,5 +1,6 @@
 import {modifier,proficiencyBonus} from './characterRules';
-import {weapons,weaponAttacks} from './weaponRules';
+import {weapons,weaponAttacks,shieldInUse,twoHanderInHand} from './weaponRules';
+import {subclassPassive} from './subclassRules';
 // Weapon Mastery, two-weapon fighting, and grappling and shoving: the 2024 rules (SRD 5.2) in Questbound's own words.
 // Each weapon kind has one mastery property (weaponRules.js); a hero uses it only for kinds they have mastered, and only
 // Barbarians, Fighters, Paladins, Rangers and Rogues master weapons. What a mastery or a grapple leaves on a creature
@@ -30,25 +31,27 @@ export function masteryCount(hero){
 // first, then their best weapon for range, then the rest (a Barbarian masters melee weapons only).
 export function masteredWeapons(hero){
  const count=masteryCount(hero);if(!count)return [];
- const fit=weaponAttacks(hero).filter(w=>weapons[w.name]?.mastery&&w.proficient&&(hero.class!=='Barbarian'||!w.ranged));
+ const fit=weaponAttacks(hero).filter(w=>weapons[w.base??w.name]?.mastery&&w.proficient&&(hero.class!=='Barbarian'||!w.ranged));
  if(!fit.length)return [];
  const main=fit[0],range=fit.find(w=>w!==main&&w.ranged)??fit.find(w=>w!==main&&/^Thrown\b/.test(String(w.range??'')));
- return [...new Set([main,range,...fit].filter(Boolean).map(w=>w.name))].slice(0,count);
+ // Mastery is of a kind of weapon: a magic longsword is a longsword.
+ return [...new Set([main,range,...fit].filter(Boolean).map(w=>w.base??w.name))].slice(0,count);
 }
 // The mastery property this hero can use with this weapon, or null.
 export function masteryOf(hero,weapon){
  if(!weapon||weapon.unarmed)return null;
- const mastery=weapons[weapon.name]?.mastery;
- return mastery&&masteredWeapons(hero).includes(weapon.name)?mastery:null;
+ const kind=weapon.base??weapon.name,mastery=weapons[kind]?.mastery;
+ return mastery&&masteredWeapons(hero).includes(kind)?mastery:null;
 }
 
 // ---------- Two-weapon fighting (the Light property) ----------
-export const isLight=weapon=>!!weapons[weapon?.name]?.light;
+export const isLight=weapon=>!!weapons[weapon?.base??weapon?.name]?.light;
 // After attacking with a Light weapon (`used`), the other hand can make one extra attack with a different Light weapon
-// (a second of the same kind counts) as a bonus action. Both hands must be free of a shield.
+// (a second of the same kind counts) as a bonus action. Both hands must be free of a shield, and a two-handed weapon is
+// never one of them (no Light weapon needs two hands); no feature lets a hero fight with two weapons that are not Light.
 export function offhandWeapons(hero,used){
  const items=hero.equipment?.items??[];
- if(!used||items.some(i=>i.name==='Shield'&&i.quantity>0))return [];
+ if(!used||shieldInUse(hero)||twoHanderInHand(hero))return [];
  const held=name=>items.filter(i=>i.name===name).reduce((n,i)=>n+(i.quantity??0),0);
  return weaponAttacks(hero).filter(w=>!w.blocked&&!w.ranged&&isLight(w)&&(w.name!==used||held(used)>=2));
 }
@@ -74,7 +77,7 @@ export function creatureSize(game,key){
 }
 // A grapple or shove works only on a creature no more than one size larger than the hero.
 export const withinGrip=(hero,size)=>sizes.indexOf(size)<=sizes.indexOf(heroSize(hero))+1;
-export const unarmedDC=hero=>8+modifier(hero.scores?.Strength??10)+proficiencyBonus(hero.level??1);
+export const unarmedDC=hero=>8+modifier(hero.scores?.Strength??10)+proficiencyBonus(hero.level??1)+subclassPassive(hero).grappleDC;
 // The target resists with Strength or Dexterity, whichever is better for it.
 export function unarmedSave(saves,random){
  const str=saves?.Strength??0,dex=saves?.Dexterity??0,ability=dex>str?'Dexterity':'Strength',bonus=Math.max(str,dex),die=1+Math.floor(random()*20);
@@ -82,7 +85,7 @@ export function unarmedSave(saves,random){
 }
 
 // ---------- Marks on the creatures in a fight ----------
-export const heroIdOf=game=>game.party?.lead??'hero';
+export const heroIdOf=game=>game?.party?.lead??'hero';
 export const markOf=(game,key)=>game.marks?.[key]??{};
 export function withMark(game,key,patch){
  const now={...markOf(game,key),...patch};
@@ -110,8 +113,13 @@ export function heroEdge(game,key,weapon){
  const adv=[],dis=[];
  if(game.vex?.target===key)adv.push('Vex');
  if(markOf(game,key).prone)((weapon.ranged||weapon.thrown)?dis:adv).push('prone');
+ // What a spell left on it (spellRules.js): held, asleep, blinded, outlined, or lit by Guiding Bolt.
+ const conds=(markOf(game,key).spells??[]).map(m=>m.cond),open=conds.find(c=>openConds.includes(c));
+ if(open)adv.push(open);
+ if(conds.includes('guided'))adv.push('Guiding Bolt');
  return {adv,dis};
 }
+const openConds=['paralyzed','asleep','restrained','blinded','outlined','entranced'];
 export function edgeMode(base,{adv,dis}){
  const a=base==='advantage'||adv.length>0,d=base==='disadvantage'||dis.length>0;
  return a===d?'normal':a?'advantage':'disadvantage';
@@ -123,6 +131,7 @@ export function foeEdge(game,key,target,health){
  if(mark.prone)why.push('prone');
  if(mark.sapped)why.push('Sap');
  const by=grappledBy(game,key,health);if(by&&by!==target)why.push('grappled');
+ for(const c of new Set((mark.spells??[]).map(m=>m.cond)))if(['restrained','blinded','frightened','poisoned','scorched'].includes(c))why.push(c==='scorched'?'red-hot metal':c);
  return why;
 }
 // At the start of its turn a prone creature gets up, unless a grapple holds it (its speed is 0); a hold whose hero has
@@ -130,7 +139,8 @@ export function foeEdge(game,key,target,health){
 export function creatureTurnStarts(game,key,name,health){
  let next=game;const lines=[],mark=markOf(game,key);
  if(mark.grappled&&!grappledBy(game,key,health))next=withMark(next,key,{grappled:undefined});
- if(mark.prone){if(grappledBy(next,key,health))lines.push(name+' is held down and cannot get up.');else{next=withMark(next,key,{prone:undefined});lines.push(name+' gets back to its feet.');}}
+ // Helpless with laughter (Hideous Laughter, spellRules.js) it cannot get up either.
+ if(mark.prone){if(grappledBy(next,key,health))lines.push(name+' is held down and cannot get up.');else if(!(mark.spells??[]).some(m=>m.cond==='laughing')){next=withMark(next,key,{prone:undefined});lines.push(name+' gets back to its feet.');}}
  return {game:next,lines};
 }
 // A Sap is spent on the creature's first attack roll, and ends before the hero's next turn anyway.
@@ -138,19 +148,56 @@ export const sapSpent=(game,key)=>markOf(game,key).sapped?withMark(game,key,{sap
 export function sapsEnd(game){let next=game;for(const key of Object.keys(game.marks??{}))next=sapSpent(next,key);return next;}
 // The end of the hero's own turn: what lasts only for a turn goes, and Vex lasts one more turn of theirs.
 export function endHeroTurn(next){
- delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;
+ delete next.lightAttack;delete next.nickUsed;delete next.cleaveUsed;delete next.lastHit;delete next.surged;delete next.featTurn;
  if(next.vex){if(next.vex.fresh)next.vex={target:next.vex.target};else delete next.vex;}
  return next;
 }
 // Nothing of a fight outlasts it.
 export function fightOver(game){
- if(!['marks','vex','lightAttack','nickUsed','cleaveUsed'].some(k=>game[k]!==undefined))return game;
- const next={...game};for(const k of ['marks','vex','lightAttack','nickUsed','cleaveUsed'])delete next[k];return next;
+ const lasting=['marks','vex','lightAttack','nickUsed','cleaveUsed','lastHit','hurtBy','shieldUp','surged','featTurn'];
+ if(!lasting.some(k=>game[k]!==undefined))return game;
+ const next={...game};for(const k of lasting)delete next[k];return next;
 }
+// A spell's mark on a creature (spellRules.js withSpellMark).
+// acid: Acid Arrow's or Vitriolic Sphere's later burn; burning: Searing Smite; aflame: burning webs; scorched: held metal
+// glowing red-hot (Heat Metal). `level`: the slot the spell was cast with, for damage that comes later.
+const spellMarkConds=['asleep','drowsy','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned','acid','burning','aflame','scorched'];
+const validSpellMark=m=>!!m&&typeof m==='object'&&typeof m.id==='string'&&m.id.length>0&&m.id.length<=60&&spellMarkConds.includes(m.cond)&&typeof m.by==='string'&&m.by.length>0&&m.by.length<=80&&Number.isInteger(m.dc)&&m.dc>=1&&m.dc<=40&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(m.save)&&(m.rounds===undefined||(Number.isInteger(m.rounds)&&m.rounds>=1&&m.rounds<=100000))&&(m.level===undefined||(Number.isInteger(m.level)&&m.level>=0&&m.level<=9))&&Object.keys(m).every(k=>['id','cond','by','dc','save','rounds','level'].includes(k));
 export function validMarks(g){
- const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|1[0-2]))$/;
- return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)))))
+ const keys=/^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|[1-8]\d|9[0-6]))$/;
+ return (g.marks===undefined||(!!g.marks&&typeof g.marks==='object'&&!Array.isArray(g.marks)&&Object.entries(g.marks).every(([k,m])=>keys.test(k)&&m&&typeof m==='object'&&Object.entries(m).every(([f,v])=>(['prone','sapped'].includes(f)&&v===true)||(f==='grappled'&&typeof v==='string'&&v.length>0&&v.length<=80)||(f==='spells'&&Array.isArray(v)&&v.length>=1&&v.length<=4&&v.every(validSpellMark))))))
   &&(g.vex===undefined||(!!g.vex&&keys.test(String(g.vex.target))&&(g.vex.fresh===undefined||g.vex.fresh===true)))
   &&(g.lightAttack===undefined||(!!g.lightAttack&&typeof g.lightAttack.weapon==='string'&&g.lightAttack.weapon.length<=30&&keys.test(String(g.lightAttack.target))))
-  &&(g.nickUsed===undefined||g.nickUsed===true)&&(g.cleaveUsed===undefined||g.cleaveUsed===true);
+  &&(g.nickUsed===undefined||g.nickUsed===true)&&(g.cleaveUsed===undefined||g.cleaveUsed===true)
+  // A subclass's once-a-turn extra on a hit (subclassRules.js) has been used this turn.
+  &&(g.featTurn===undefined||g.featTurn===true)
+  // After a melee hit (Divine Smite), after being hurt (Hellish Rebuke), and Shield raised until the hero's next turn.
+  &&(g.lastHit===undefined||(!!g.lastHit&&keys.test(String(g.lastHit.target))&&(g.lastHit.critical===undefined||g.lastHit.critical===true)))
+  &&(g.hurtBy===undefined||keys.test(String(g.hurtBy)))&&(g.shieldUp===undefined||g.shieldUp===true);
+}
+
+// ---------- Spells on friends ----------
+// What a hero's spell leaves on another hero at the shared table (key 'h:<their id>'), on a companion (their person
+// id) or, for wards and Longstrider, on the caster: game.boons[key] = [{id, by: the caster's hero id, amount?, type?,
+// used?}], kept in the shared world so every device sees it. A concentration spell's boons end with the caster's
+// concentration (spellRules.js endBoons); a long rest ends them all.
+export const boonOn=(game,key,id)=>(game?.boons?.[key]??[]).find(b=>b.id===id)??null;
+export const ownBoonKey=game=>'h:'+heroIdOf(game);
+// The boon key for whoever a creature strikes: this device's hero (null), another hero ('party:<id>') or a companion.
+export const boonKeyOf=(game,target)=>target===null||target===undefined?ownBoonKey(game):String(target).startsWith('party:')?'h:'+String(target).slice(6):String(target);
+// Bless on a companion or another hero: 1d4 on their attack roll.
+export function blessRoll(game,key,random=Math.random){return boonOn(game,key,'bless')?1+Math.floor(random()*4):0;}
+// Resistance on a companion or another hero: 1d4 off damage of the chosen type.
+export function boonResisted(game,key,type,amount,random=Math.random){
+ const b=boonOn(game,key,'resistance');if(!b||b.type!==type||amount<=0)return {amount,line:null};
+ const d=1+Math.floor(random()*4),now=Math.max(0,amount-d);return {amount:now,line:'Resistance takes '+(amount-now)+' off the '+type.toLowerCase()+' damage.'};
+}
+const boonSpells=['bless','heroism','guidance','resistance','shield-of-faith','protection-from-evil-and-good','longstrider'];
+const boonTypes=['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'];
+const personKey=/^(?:keeper|mara|n(?:[1-9]|[1-8]\d|9[0-6]))$/;
+const validBoon=e=>!!e&&typeof e==='object'&&boonSpells.includes(e.id)&&typeof e.by==='string'&&e.by.length>0&&e.by.length<=80&&(e.amount===undefined||(Number.isInteger(e.amount)&&e.amount>=0&&e.amount<=40))&&(e.type===undefined||boonTypes.includes(e.type))&&(e.used===undefined||e.used===true)&&Object.keys(e).every(k=>['id','by','amount','type','used'].includes(k));
+// Boons, and Aid on companions (game.aided: how much it raised each one's hit point maximum).
+export function validBoons(g){
+ return (g.boons===undefined||(!!g.boons&&typeof g.boons==='object'&&!Array.isArray(g.boons)&&Object.entries(g.boons).every(([k,list])=>(/^h:.{1,80}$/.test(k)||personKey.test(k))&&Array.isArray(list)&&list.length>=1&&list.length<=8&&list.every(validBoon))))
+  &&(g.aided===undefined||(!!g.aided&&typeof g.aided==='object'&&!Array.isArray(g.aided)&&Object.entries(g.aided).every(([k,n])=>personKey.test(k)&&Number.isInteger(n)&&n>=5&&n<=40)));
 }

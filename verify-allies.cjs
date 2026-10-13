@@ -1,9 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Mixed fights: a creature can come with a different one at its side. The second creature has its own HP and AC,
 // attacks every round, can be attacked or targeted with a spell by name (or by its own chip), runs when the leader
 // falls, and comes back with a lair's owner if the hero flees.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,dmCommand,dmContext,dmChoices,quickActions,validAdventure,adventureSnapshot,recordedTurn,livingAllies,startWildFight})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const camp=hero=>{const g={...r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stage:'inn'};delete g.openingAttackAvailable;return g;};
@@ -65,6 +65,6 @@ const keys={apiKey:'test-only',model:'test-model'},body={input:'I kick the sleep
 (async()=>{
  const sprung=await generate(body,{...keys,fetchImpl:reply({narration:'Two shapes rise.',ambush:{template:'goblin',name:'Snag',appearance:'A one-eyed goblin in a wolfskin hood.',ally:{template:'wolf',name:'Worg',appearance:'A red-eyed worg with a saddle.'}}})});
  assert.equal(sprung.ambush.ally.name,'Worg');
- await assert.rejects(generate(body,{...keys,fetchImpl:reply({narration:'x',ambush:{template:'wolf',name:'Grey',appearance:'A grey wolf with a torn ear.',ally:{template:'wolf',name:'Other',appearance:'Another grey wolf here.'}}})}),/could not use/);
+ assert.equal((await generate(body,{...keys,fetchImpl:reply({narration:'x',ambush:{template:'wolf',name:'Grey',appearance:'A grey wolf with a torn ear.',ally:{template:'wolf',name:'Other',appearance:'Another grey wolf here.'}}})})).ambush,null,'a creature the game could not use is never sprung');
  console.log('Passed: a creature with a different one at its side (own HP, AC, attacks, chip, name and spell targeting, HP lines), the second one flees when the leader falls and returns with a lair owner after you flee; only a single creature of another kind can be an ally, and the DM can send one.');
 })().catch(e=>{console.error(e);process.exit(1);});

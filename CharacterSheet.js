@@ -6,11 +6,12 @@ import {packOf,gearedHero} from './inventoryRules';
 import {masteryCount,masteredWeapons,masteryText} from './masteryRules';
 import {weapons} from './weaponRules';
 import {spellDefense} from './spellRules';
+import {experienceView} from './experienceRules';
 import FeaturePanel from './FeaturePanel';
 import React, {useState} from 'react';
 import LoadoutSummary from './LoadoutSummary';
 import {View, Text as PlainText, Pressable, StyleSheet, useWindowDimensions} from 'react-native';
-import {abilities, modifier} from './characterRules';
+import {abilities, modifier, currentSubclass, heroSpecies, speciesProfile} from './characterRules';
 import {combatBasics, signed} from './combatRules';
 import HealthTracker from './HealthTracker';
 import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
@@ -22,7 +23,8 @@ import {fonts,colors,type,tint} from './theme';
 export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame}) {
   const [tab,setTab]=useState('Overview');
   const [showCalculations,setShowCalculations] = useState(false);
-  const stats = combatBasics(hero);
+  // Armor class with magic worn counted; hit points and scores are the hero's own.
+  const stats = combatBasics(game ? gearedHero(hero, game) : hero);
   const hp=health?.current??stats.hp;
   const {width}=useWindowDimensions(),narrow=width<520,longest=Math.max(6,...String(hero.name).split(/\s+/).map(w=>w.length));
   const nameSize=Math.max(18,Math.min(28,Math.floor((width-150)/(longest*.7))));
@@ -34,12 +36,12 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         <PlainText style={s.overline}>Character sheet</PlainText>
         {/* On a phone the name is set a size that lets its longest word fit the line. */}
         <PlainText numberOfLines={2} style={[s.name,narrow&&{fontSize:nameSize,lineHeight:Math.round(nameSize*1.2)}]}>{hero.name}</PlainText>
-        <Text style={s.subtitle}>Level {hero.level} · {hero.species ?? hero.race} · {hero.class}</Text>
+        <Text style={s.subtitle}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
         {!!hero.background && <View style={s.tags}><View style={s.tag}><Icon name="scroll" size={12} color={colors.gold}/><Text style={s.tagText}>{hero.background}</Text></View>{!!hero.originFeat&&<View style={s.tag}><Icon name="star" size={12} color={colors.gold}/><Text style={s.tagText}>{hero.originFeat}</Text></View>}</View>}
       </View>
     </View>
     {stats.available&&<View style={s.hpBlock}><Icon name="heart" size={16} color={hp/Math.max(1,stats.hp)<=.3?colors.bloodBright:colors.heal}/><View style={{flex:1}}><StatBar value={hp} maximum={stats.hp} height={10}/></View><PlainText style={s.hpText}>{hp}<PlainText style={s.hpMax}> / {stats.hp} HP</PlainText></PlainText></View>}
-    {!!hero.plannedSubclass && <Text style={s.caption}>{hero.level>=3?'Subclass':'Planned subclass'}: {hero.plannedSubclass}{hero.level<3?' · Unlocks at level 3':''}</Text>}
+    {!!hero.plannedSubclass && <Text style={s.caption}>{hero.level>=3?'Subclass':'Planned subclass'}: {currentSubclass(hero.plannedSubclass)}{hero.level<3?' · Unlocks at level 3':''}</Text>}
     <Segmented value={tab} onChange={setTab} options={[['Overview','Overview','sheet'],['Spells','Spells','spell'],['Skills & Abilities','Skills','star'],['Inventory','Inventory','bag']]}/>
     {tab==='Overview'&&<>
     {stats.available ? <>
@@ -49,7 +51,15 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         {tile('Initiative',signed(stats.initiative),'Add this to your initiative d20','bolt')}
         {tile('Proficiency',signed(stats.proficiency),'Bonus for trained abilities','star')}
       </View>
+      {/* Experience: how far this level has come, and what the next needs (experienceRules.js). */}
+      {(xp=>{const n=v=>Number(v).toLocaleString('en-US');return <View dataSet={{qb:'plate'}} style={s.xpPanel} accessible accessibilityLabel={xp.max?'Experience '+n(xp.xp)+', the highest level':'Experience '+n(xp.xp)+' of '+n(xp.next)}>
+        <View style={s.xpHead}><Icon name="star" size={14} color={colors.goldMid}/><PlainText style={s.label}>Experience</PlainText><PlainText style={s.xpValue}>{n(xp.xp)}{xp.max?'':<PlainText style={s.xpOf}> / {n(xp.next)}</PlainText>}</PlainText></View>
+        {!xp.max&&<StatBar value={Math.round(xp.progress*1000)} maximum={1000} kind="gold" height={6}/>}
+        <Text style={s.caption}>{xp.max?'Level 20: the highest a hero can reach.':xp.ready?'Level '+(xp.level+1)+' is yours to take: use Level up when you are out of a fight.':'Level '+(xp.level+1)+' at '+n(xp.next)+'. Fights won, chapters finished, leads seen through and new places all count.'}</Text>
+      </View>;})(experienceView(game,hero))}
       <View dataSet={{qb:'plate'}} style={s.panel}><Section icon="shield" title="Defense" style={{marginTop:0}}/><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>With your armor worn and any shield on your arm. A protective spell in effect is counted in the armor class above.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
+      {/* The hero's species (characterRules.js speciesTraits): speed, darkvision, size and traits. */}
+      {(kind=><View dataSet={{qb:'plate'}} style={s.panel}><Section icon="leaf" title={kind.species} style={{marginTop:0}}/><Text style={s.text}>Speed {stats.speed} ft{kind.darkvision?' · Darkvision '+kind.darkvision+' ft':''} · {kind.size}</Text>{kind.traits.map(t=><Text key={t.name} style={s.caption}>✦ {t.name}: {t.brief}</Text>)}</View>)(speciesProfile(hero))}
       {/* Weapon Mastery (masteryRules.js): the kinds this hero has mastered and what each one's property does. */}
       {masteryCount(hero)>0&&(mastered=>mastered.length>0&&<View dataSet={{qb:'plate'}} style={s.panel}><Section icon="swords" title="Weapon mastery" style={{marginTop:0}}/>{mastered.map(name=><Text key={name} style={s.text}>{name} · {masteryText[weapons[name].mastery]}</Text>)}<Text style={s.caption}>A {hero.class} masters {masteryCount(hero)} kinds of weapon at level {hero.level}, chosen from the weapons you carry: your main weapon first, then one for range.</Text></View>)(masteredWeapons(game?gearedHero(hero,game):hero))}
       <GameButton icon="info" label={showCalculations ? 'Hide calculations' : 'How are these calculated?'} onPress={() => setShowCalculations(!showCalculations)}/>
@@ -58,6 +68,7 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         <Text style={s.text}>Hit Point Die: {stats.hitDie}</Text>
         <Text style={s.text}>Armor class: {stats.ac === null ? 'Equipment not saved yet.' : `${stats.acFormula}${spellDefense(game,stats.ac).ac!==stats.ac?' + 2 Shield of Faith':''} = ${spellDefense(game,stats.ac).ac}`}</Text>
         <Text style={s.text}>Initiative: {stats.initiativeFormula} = {signed(stats.initiative)}</Text>
+        <Text style={s.text}>Speed: {stats.speedFormula} = {stats.speed} ft</Text>
         <Text style={s.text}>Proficiency: +{stats.proficiency} at level {hero.level}.</Text>
       </View>}
       <HealthTracker maximum={stats.hp} health={health} setHealth={setHealth} readOnly={true}/>
@@ -92,10 +103,11 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
 }
 const s = StyleSheet.create({overline:{...type.label},name:{fontFamily:fonts.display,color:colors.parchment,fontSize:32,lineHeight:38,fontWeight:'700',letterSpacing:1,marginTop:4},subtitle:{fontFamily:fonts.ui,color:colors.gold,fontSize:14.5,lineHeight:22,letterSpacing:.4},
  header:{flexDirection:'row',alignItems:'center',gap:20,marginBottom:14},
- tags:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tag:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:'rgba(0,0,0,.2)'},tagText:{fontFamily:fonts.ui,fontSize:12,color:'#d8cbc5'},
- hpBlock:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:'rgba(111,191,142,.3)',backgroundColor:'rgba(10,20,16,.45)',marginBottom:4},
+ tags:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tag:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:3,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(0,0,0,.2)')},tagText:{fontFamily:fonts.ui,fontSize:12,color:tint('#d8cbc5')},
+ hpBlock:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(111,191,142,.3)'),backgroundColor:tint('rgba(10,20,16,.45)'),marginBottom:4},
  hpText:{fontFamily:fonts.display,fontSize:18,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},hpMax:{fontSize:12,color:colors.muted,fontWeight:'400'},
  gold:{fontFamily:fonts.ui,color:tint('#d6a0aa'),fontSize:14,lineHeight:23,marginVertical:8},grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:12},
+ xpPanel:{marginTop:12,padding:14,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,gap:8},xpHead:{flexDirection:'row',alignItems:'center',gap:6},xpValue:{marginLeft:'auto',fontFamily:fonts.display,fontSize:15,fontWeight:'800',color:colors.parchment,fontVariant:['tabular-nums']},xpOf:{fontSize:12,fontWeight:'400',color:colors.muted},
  tile:{flexBasis:145,flexGrow:1,padding:16,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},tileHead:{flexDirection:'row',alignItems:'center',gap:6},
  label:{...type.label,fontSize:10,textAlign:'center'},value:{fontFamily:fonts.display,color:colors.goldBright,fontSize:36,fontWeight:'800',marginVertical:4},
  ability:{flexBasis:96,flexGrow:1,paddingVertical:12,paddingHorizontal:8,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,alignItems:'center'},
@@ -103,8 +115,8 @@ const s = StyleSheet.create({overline:{...type.label},name:{fontFamily:fonts.dis
  modPill:{paddingHorizontal:10,paddingVertical:2,borderRadius:10,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),backgroundColor:tint('rgba(48,26,78,.6)')},modText:{fontFamily:fonts.ui,fontSize:12.5,fontWeight:'700',color:colors.gold},
  caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:19,marginTop:6},center:{textAlign:'center'},
  panel:{padding:16,borderWidth:1,borderColor:tint('rgba(178,34,58,.22)'),borderRadius:6,marginVertical:10},
- text:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:17,lineHeight:27},
+ text:{fontFamily:fonts.story,color:tint('#e6dfcd'),fontSize:17,lineHeight:27},
  item:{flexDirection:'row',gap:10,alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.15)')},qty:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',color:colors.gold},
- purse:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},purseCell:{flexGrow:1,flexBasis:160,flexDirection:'row',alignItems:'center',gap:12,padding:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:'rgba(0,0,0,.2)'},
+ purse:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:16},purseCell:{flexGrow:1,flexBasis:160,flexDirection:'row',alignItems:'center',gap:12,padding:14,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(0,0,0,.2)')},
  purseValue:{fontFamily:fonts.display,fontSize:20,fontWeight:'800',color:colors.parchment,marginTop:2},
 });

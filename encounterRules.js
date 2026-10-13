@@ -1,9 +1,13 @@
 import {hostileFoes,foeStatsFor} from './hostileEncounter';
-import {npcProfile,npcLore,npcScene} from './npcRules';
+import {npcProfile,npcLore,npcScene,isAlly,npcWhereabouts} from './npcRules';
+import {withMark,boonOn,blessRoll,boonResisted} from './masteryRules';
 import {rollAttack,rollDamage} from './weaponRules';
-import {worldPlace,worldPlaces,placeName} from './mapRules';
+import {worldPlace,worldPlaces,placeName,mapLocation} from './mapRules';
+import {sparedBlow} from './deathRules';
 import {modifier} from './characterRules';
 import {appendJournal,journalForGame} from './journalRules';
+import {magicSaveBonus} from './lootRules';
+import {subclassWardRoll} from './subclassRules';
 // Fights away from the story's own foe: a creature met at a place found while exploring (a lair, or an ambush on
 // arrival), and what every kind of monster can do beyond a plain attack. Companions who travel with the hero fight
 // beside them, and can be knocked down in turn.
@@ -52,24 +56,28 @@ export const livingAllies=game=>(game.foeAllies??[]).map((a,index)=>({...a,index
 export function aimedAlly(game,aim){const m=String(aim??'').match(/^ally:([01])$/);if(!m)return null;const i=Number(m[1]);return game.foeAllies?.[i]?.hp>0?i:null;}
 export function hurtAlly(game,i,damage){const a=game.foeAllies[i],hp=Math.max(0,a.hp-damage);return {game:{...game,foeAllies:game.foeAllies.map((x,j)=>j===i?{...x,hp}:x)},hp,line:hp===0?(game.subdue?`The ${a.name} drops, beaten.`:`The ${a.name} is slain.`):null};}
 export function alliesScatter(game){const lines=livingAllies(game).map(a=>`With its leader down, the ${a.name} turns and flees.`),next={...game};delete next.foeAllies;return {game:next,lines};}
-export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return g.stage==='combat'&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum);}
+export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return (g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum);}
 // A creature lunges out at a found place. The story's own foe keeps its HP and fate for later.
 export function startWildFight(game,hero,foe,{place,from,hp=null}){
  const stats=wildFoeStats(foe.template,foe.name,hero.level??1),ally=foe.ally&&validAllySketch(foe.ally,foe.template)?makeAlly(foe.ally,hero.level??1):null;
  const next={...game,stage:'combat',enemyHP:hp??stats.maximum,round:1,openingAttackAvailable:true,
-  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
+  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(game.foeScale?{storyFoeScale:game.foeScale}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
   world:{...game.world,at:place}};
- delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;
+ delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;delete next.foeScale;
  if(ally)next.foeAllies=[ally];
  const many=stats.group?stats.group.size+' '+stats.group.plural:'A '+next.wildFight.name;
  return {game:next,entries:[`${many} ${stats.group?'burst':'bursts'} out at ${placeName(game,place)}${ally?', a '+ally.name+' at '+(stats.group?'their':'its')+' side':''}! ${stats.group||ally?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
 }
 // The fight is over: won (the creature is dead or beaten), fled (back the way you came) or fell (you lie dying).
 export function endWildFight(game,outcome){
- const w=game.wildFight,next={...game,enemyHP:w.storyFoeHP};
- delete next.wildFight;delete next.foeTricks;delete next.heroCondition;delete next.openingAttackAvailable;delete next.encounterInitiative;delete next.foeFate;delete next.foeAllies;
+ const w=game.wildFight,next={...game,enemyHP:w.storyFoeHP},f=foeScaleOf(game);
+ delete next.wildFight;delete next.foeTricks;delete next.heroCondition;delete next.openingAttackAvailable;delete next.encounterInitiative;delete next.foeFate;delete next.foeAllies;delete next.foeScale;
  if(w.storyFoeFate)next.foeFate=w.storyFoeFate;
- const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,game.enemyHP),...(w.ally?{ally:w.ally}:{})};return q;});
+ if(w.storyFoeScale)next.foeScale=w.storyFoeScale;
+ // A creature left behind keeps its wounds as a share of what it would have against one hero (it is scaled afresh
+ // to whoever comes back for it).
+ const leftHP=f>1?Math.max(1,Math.round(game.enemyHP*w.stats.maximum/scaledFoe(w.stats,f).maximum)):game.enemyHP;
+ const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,Math.min(w.stats.maximum,leftHP)),...(w.ally?{ally:w.ally}:{})};return q;});
  next.world={...game.world,places,at:outcome==='fled'?(worldPlace(game,w.from)?w.from:null):w.place};
  if(outcome==='won')next.stage='wild';
  if(outcome==='fled')next.stage=worldPlace(game,w.from)?'wild':w.from;
@@ -78,7 +86,7 @@ export function endWildFight(game,outcome){
 }
 export function validWildFight(g){
  const w=g.wildFight;if(w===undefined)return true;
- return !!w&&g.stage==='combat'&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=500&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
+ return !!w&&(g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=3000&&validFoeScale(w.storyFoeScale)&&(w.storyFoeScale===undefined||w.storyFoeScale.key==='story')&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
 }
 export function validCombatExtras(g){
  const t=g.foeTricks,c=g.heroCondition;
@@ -99,13 +107,13 @@ export function foeHitExtras(game,hero,foe,standing,random){
  if(kind==='orc'&&game.round===1){dice=roll(1,8);extra=dice[0];note=' + Savage Blow 1d8 ['+dice[0]+']';}
  const lines=[];
  if(kind==='bandit'&&!tricks.dirty&&game.round>=2){tricks.dirty=true;next={...next,heroCondition:'blinded'};lines.push(`Dirty Trick: the ${foe.name} flings grit in your eyes. Your next attack has disadvantage.`);}
- if(kind==='wolf'){const die=roll(1,20)[0],bonus=modifier(hero.scores?.Strength??10),total=die+bonus;if(total<13){next={...next,heroCondition:'prone'};lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Failure. You are knocked prone.`);}else lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Success. You keep your feet.`);}
+ if(kind==='wolf'){const die=roll(1,20)[0],bonus=modifier(hero.scores?.Strength??10)+magicSaveBonus(hero),total=die+bonus;if(total<13){next={...next,heroCondition:'prone'};lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Failure. You are knocked prone.`);}else lines.push(`Knockdown: Strength save d20 [${die}] + ${bonus} = ${total} vs DC 13. Success. You keep your feet.`);}
  return {game:{...next,foeTricks:tricks},extra,note,lines};
 }
 // Moves made instead of, or before, the creature's attacks this round.
 export function foeRoundMoves(game,hero,foe,random){
  const kind=foeKind(game);if(kind!=='spider'||game.foeTricks?.web||game.round<2)return {game,lines:[]};
- const die=1+Math.floor(random()*20),bonus=modifier(hero.scores?.Dexterity??10),total=die+bonus,caught=total<12;
+ const die=1+Math.floor(random()*20),bonus=modifier(hero.scores?.Dexterity??10)+magicSaveBonus(hero),total=die+bonus,caught=total<12;
  return {game:{...game,foeTricks:{...game.foeTricks,web:true},...(caught?{heroCondition:'restrained'}:{})},lines:[`Web: the ${foe.name} spits a sticky mass at you. Dexterity save d20 [${die}] + ${bonus} = ${total} vs DC 12. ${caught?'Failure. You are restrained.':'Success. You tear free.'}`]};
 }
 // Damage the creature takes from a weapon blow, after its shield (skeleton) catches the first one.
@@ -114,25 +122,84 @@ export function shieldBlow(game,damage,random){
  const block=1+Math.floor(random()*6),left=Math.max(0,damage-block);
  return {game:{...game,foeTricks:{...game.foeTricks,shield:true}},damage:left,line:`Shield Wall: the skeleton catches the blow on its cracked shield (1d6 [${block}]); ${left} damage gets through.`};
 }
-// A blow that would finish a zombie may not (once a fight).
-export function undeadFortitude(game,foe,random){
+// A blow that would finish a zombie may not (once a fight): a Constitution save against 5 + the damage of the blow
+// (SRD 5.2; 10 when the blow is not known), never against Radiant damage or a critical hit. `blow`: {damage, type,
+// critical} of the blow that dropped it.
+export function undeadFortitude(game,foe,random,blow=null){
  if(foeKind(game)!=='zombies'||game.foeTricks?.fortitude||game.enemyHP!==0)return {game,line:null};
- const die=1+Math.floor(random()*20),bonus=foe.saves?.Constitution??0,total=die+bonus,stands=total>=10;
- return {game:{...game,foeTricks:{...game.foeTricks,fortitude:true},...(stands?{enemyHP:1}:{})},line:`Undead Fortitude: Constitution save d20 [${die}] + ${bonus} = ${total} vs DC 10. ${stands?'Success. It lurches back up with 1 HP.':'Failure. It stays down.'}`};
+ if(blow&&(blow.critical||/^radiant$/i.test(String(blow.type??''))))return {game,line:`Undead Fortitude fails against ${blow.critical?'a critical hit':'radiant light'}: it stays down.`};
+ const dc=blow?.damage>0?5+blow.damage:10,die=1+Math.floor(random()*20),bonus=foe.saves?.Constitution??0,total=die+bonus,stands=total>=dc;
+ return {game:{...game,foeTricks:{...game.foeTricks,fortitude:true},...(stands?{enemyHP:1}:{})},line:`Undead Fortitude: Constitution save d20 [${die}] + ${bonus} = ${total} vs DC ${dc}. ${stands?'Success. It lurches back up with 1 HP.':'Failure. It stays down.'}`};
 }
 // ---------- Companions in a fight ----------
+// A companion fights as their class (game.npcClasses, npcRules.js), at their level: weapons for the martial classes,
+// a cantrip for the casters. Saves from before classes (and anyone without one) keep the old plain blow.
 const companionWeapon={keeper:{die:6,type:'bludgeoning'},mara:{die:4,type:'piercing'}};
-export function fightingCompanions(game){return npcScene(game).filter(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.hp>0&&n.fate!=='dead');}
+export function companionAttack(cls,level){
+ const l=Math.max(1,Math.min(20,Math.floor(level)||1)),prof=2+Math.floor((l-1)/4),mod=l>=8?5:l>=4?4:3,n=l>=17?4:l>=11?3:l>=5?2:1,extra=l>=5?2:1,hit=prof+mod;
+ const weapon=(label,count,die,bonus,type,attacks=1)=>({kind:'attack',label,attacks,weapon:{attackBonus:hit,count,die,bonus,type}});
+ switch(cls){
+  case 'Fighter':return weapon('Greatsword',2,6,mod,'slashing',l>=20?4:l>=11?3:extra);
+  case 'Barbarian':return weapon('Greataxe',1,12,mod+(l>=16?4:l>=9?3:2),'slashing',extra);
+  case 'Paladin':return weapon('Longsword',1,8,mod,'slashing',extra);
+  case 'Ranger':return weapon('Longbow',1,8,mod,'piercing',extra);
+  case 'Monk':return weapon('Unarmed strike',1,l>=17?12:l>=11?10:l>=5?8:6,mod,'bludgeoning',extra+1);
+  case 'Rogue':return {...weapon('Shortsword',1,6,mod,'piercing'),sneak:Math.ceil(l/2)};
+  case 'Artificer':return weapon('Light Crossbow',1,8,mod,'piercing');
+  case 'Wizard':case 'Sorcerer':return weapon('Fire Bolt',n,10,0,'fire');
+  case 'Druid':return weapon('Produce Flame',n,8,0,'fire');
+  case 'Warlock':return weapon('Eldritch Blast',1,10,l>=2?mod:0,'force',n);
+  case 'Cleric':return {kind:'save',label:'Sacred Flame',ability:'Dexterity',dc:8+prof+mod,weapon:{attackBonus:hit,count:n,die:8,bonus:0,type:'radiant'},verb:'calls down radiant flame on',melee:{attackBonus:hit,count:1,die:6,bonus:mod,type:'bludgeoning',label:'Mace'}};
+  case 'Bard':return {kind:'save',label:'Vicious Mockery',ability:'Wisdom',dc:8+prof+mod,weapon:{attackBonus:hit,count:n,die:6,bonus:0,type:'psychic'},verb:'hurls a cutting insult at',sap:true,melee:{attackBonus:hit,count:1,die:8,bonus:mod,type:'piercing',label:'Rapier'}};
+  default:return null;
+ }
+}
+// What a classed companion swings in a brawl with people: their weapon (a Cleric's mace, a Bard's rapier).
+export function companionBrawlWeapon(game,id){
+ const t=game?.npcClasses?.[id],a=t?companionAttack(t.class,t.level):null;
+ if(!a)return {attackBonus:2,count:1,die:4,bonus:0,type:'bludgeoning'};
+ return a.kind==='save'?a.melee:a.weapon;
+}
+// Everyone fighting beside the hero: companions who travel with them, and allies who live where the fight is.
+export function fightingCompanions(game){
+ const where=game.wildFight?.place??(game.stage==='combat'?(game.story?'bridge':null):null);
+ return npcScene(game).filter(n=>n.hp>0&&n.fate!=='dead'&&(game.followers?.[n.id]?.status==='following'&&n.present||where&&isAlly(game,n.id)&&npcWhereabouts(game,n.id)===where));
+}
 const npcLabel=(game,id)=>npcLore(game,id)?.name??id;
-// Each companion strikes the creature once after your turn.
-export function companionsAttack(game,foe,random){
+// Each companion acts once after your turn: a weapon's attacks, a cantrip's attack or its save.
+// `bonus`: what the hero adds to their companions' attack rolls (a Marshal's Captain's Call).
+// Spells friends cast on a companion or another hero (masteryRules.js boons), if that file is loaded with this one.
+const boonHere=(g,k,id)=>typeof boonOn==='function'?boonOn(g,k,id):null;
+const resistHere=(g,k,t,a,r)=>typeof boonResisted==='function'?boonResisted(g,k,t,a,r):{amount:a,line:null};
+export function companionsAttack(game,foe,random,bonus=0){
  let next=game;const lines=[];
  for(const n of fightingCompanions(game)){
   if(next.enemyHP<=0)break;
-  const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},attack=rollAttack({attackBonus:2},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
-  const damage=hit?rollDamage({count:1,die:w.die,bonus:0},attack.critical,random).total:0;
-  next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
-  lines.push(`${npcLabel(game,n.id)} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + 2 = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
+  const name=npcLabel(game,n.id),t=game.npcClasses?.[n.id],plan=t?companionAttack(t.class,t.level):null;
+  if(!plan){
+   const w=companionWeapon[n.id]??{die:4,type:'bludgeoning'},blessed=typeof blessRoll==='function'?blessRoll(next,n.id,random):0,attack=rollAttack({attackBonus:2+bonus+blessed},'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+   const damage=hit?rollDamage({count:1,die:w.die,bonus:0},attack.critical,random).total:0;
+   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
+   lines.push(`${name} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${2+bonus}${blessed?' + '+blessed+' Bless':''} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${w.type} damage.`);
+   continue;
+  }
+  if(plan.kind==='save'){
+   const bonus=foe.saves?.[plan.ability]??0,die=1+Math.floor(random()*20),total=die+bonus,saved=total>=plan.dc;
+   const damage=saved?0:rollDamage(plan.weapon,false,random).total;
+   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
+   if(!saved&&plan.sap&&next.enemyHP>0&&typeof withMark==='function')next=withMark(next,'foe',{sapped:true});
+   lines.push(`${name} ${plan.verb} the ${foe.name} (${plan.label}): ${plan.ability} save d20 [${die}] + ${bonus} = ${total} vs DC ${plan.dc}. ${saved?'Success; no damage.':`Failure; ${damage} ${plan.weapon.type} damage.`+(plan.sap&&next.enemyHP>0?' Its next attack has disadvantage.':'')}`);
+   continue;
+  }
+  let sneak=plan.sneak??0;
+  for(let i=0;i<plan.attacks&&next.enemyHP>0;i++){
+   const blessed=typeof blessRoll==='function'?blessRoll(next,n.id,random):0,aimed={...plan.weapon,attackBonus:plan.weapon.attackBonus+bonus+blessed},attack=rollAttack(aimed,'normal',random),hit=!attack.miss&&(attack.critical||attack.total>=foe.ac);
+   let damage=hit?rollDamage(plan.weapon,attack.critical,random).total:0,note='';
+   // A Rogue's first hit each turn finds a gap while the hero keeps the creature busy.
+   if(hit&&sneak){const extra=rollDamage({count:sneak*(attack.critical?2:1),die:6,bonus:0},false,random).total;damage+=extra;note=', Sneak Attack';sneak=0;}
+   next={...next,enemyHP:Math.max(0,next.enemyHP-damage)};
+   lines.push(`${name} attacks the ${foe.name}: d20 [${attack.dice.join(', ')}] (normal) + ${aimed.attackBonus} = ${attack.total} vs AC ${foe.ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}; ${damage} ${plan.weapon.type} damage (${plan.label}${note}).`);
+  }
  }
  return {game:next,lines};
 }
@@ -140,6 +207,51 @@ export function companionsAttack(game,foe,random){
 export function partyTargets(game){
  const party=game?.party;if(!party?.members||typeof party.lead!=='string')return [];
  return Object.entries(party.members).filter(([id,m])=>id!==party.lead&&m?.status==='up').map(([id])=>id);
+}
+// ---------- A foe against a bigger side ----------
+// Creatures, the tale's foe and the vault's guardians are written for one hero. When more fight on the hero's side
+// (other heroes standing at the shared table, companions who follow and fight, allies who live where the fight is),
+// the foe is scaled by the side's strength f: the hero is 1, each other standing hero 1.15 (heroes at one table help
+// each other), a companion with a class their class's share (`foeScaling.companion`, less when well below the party's
+// level), one without a class a quarter. Against f the foe has f times the hit points and about f^0.9 times the blows
+// (foeOffense: more attacks a turn, each a little harder or softer); a pack gains members instead. A hero fighting
+// alone meets exactly what they always did. The strength is kept for the fight (game.foeScale {f, key}): it grows when someone joins
+// mid-fight and never shrinks as the side falls. Tuned with balance-check.cjs (--companion, --party).
+// A companion's share of a hero by their class (sturdy fighters stand in front and soak blows; casters less so).
+export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},hero:1.15,untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6};
+export const sideWeightOf=cls=>foeScaling.companion[cls]??0.5;
+const sideHeroLevel=character=>{try{const h=JSON.parse(character);return Number.isInteger(h?.level)?h.level:1;}catch{return 1;}};
+function sideCompanionWeight(game,id,mean){
+ const t=game?.npcClasses?.[id];
+ return t?sideWeightOf(t.class)*Math.max(0.3,Math.min(1.2,t.level/mean)):foeScaling.untrained;
+}
+// `ids`: the people fighting beside the hero (fightingCompanions in a creature fight, the allies in a brawl).
+function sideOf(game,hero,ids){
+ const party=game?.party?.members&&typeof game.party.lead==='string'?game.party:null,others=party?partyTargets(game):[];
+ const levels=[hero?.level??1,...others.map(id=>sideHeroLevel(party.members[id]?.character))],mean=Math.max(1,levels.reduce((a,b)=>a+b,0)/levels.length);
+ let f=1+others.length*foeScaling.hero;
+ for(const id of ids)f+=sideCompanionWeight(game,id,mean);
+ return Math.min(foeScaling.most,Math.round(f*100)/100);
+}
+export const sideStrength=(game,hero)=>sideOf(game,hero,fightingCompanions(game).map(n=>n.id));
+// In a brawl with people: the hero's allies in the fight who still stand.
+export const brawlStrength=(game,hero)=>sideOf(game,hero,(game?.npcCombat?.order??[]).filter(n=>n.side==='ally'&&(game.npcHP?.[n.id]??npcProfile(game,n.id).maximumHP)>0).map(n=>n.id));
+// Which foe a kept scale belongs to: a creature in the wilds, a vault's room, or the tale's own foe (or the Skirmish).
+export const foeScaleKey=game=>game?.wildFight?'wild':game?.dungeon?.active?'vault:'+game.dungeon.room:'story';
+export const foeScaleOf=game=>game?.foeScale&&game.foeScale.key===foeScaleKey(game)?game.foeScale.f:1;
+export function validFoeScale(s){return s===undefined||(!!s&&typeof s==='object'&&typeof s.f==='number'&&s.f>1&&s.f<=foeScaling.most&&typeof s.key==='string'&&/^(wild|story|vault:\d{1,2})$/.test(s.key));}
+// How hard the foe presses a side of strength f: more blows a turn (Multiattack), each a little harder or softer.
+export function foeOffense(f){
+ if(!(f>1))return {swings:1,mult:1};
+ const o=Math.pow(f,foeScaling.offense),swings=Math.max(1,Math.min(foeScaling.maxSwings,Math.floor(o+0.25)));
+ return {swings,mult:o/swings};
+}
+// The foe's numbers against a side of strength f: a pack gains members; a lone foe more hit points, more blows.
+export function scaledFoe(foe,f){
+ if(!foe||!(f>1))return foe;
+ if(foe.group){const size=Math.min(foeScaling.maxGroup,Math.max(foe.group.size,Math.round(foe.group.size*Math.pow(f,foeScaling.hp))));return {...foe,maximum:foe.group.memberHP*size,group:{...foe.group,size},scaled:f};}
+ const {swings,mult}=foeOffense(f),avg=(foe.count??1)*((foe.die??4)+1)/2;
+ return {...foe,maximum:Math.round(foe.maximum*Math.pow(f,foeScaling.hp)),swings,bonus:Math.max(0,Math.round((avg+(foe.bonus??0))*mult-avg)),scaled:f};
 }
 // Who the creature goes for: usually you, sometimes a companion beside you. In a party every standing hero is as
 // likely as you (companions draw a quarter of the blows when there are any).
@@ -158,16 +270,24 @@ export function pickFoeTarget(game,random){
 // A blow aimed at another player's hero: their own armour and hit points; at 0 they fall and are dying (they roll
 // their death saves on their own turn), and damage past 0 of at least their maximum kills them outright.
 export function foeHitsPartyHero(game,foe,who,pid,mode,random){
- const member=game.party.members[pid],name=partyHeroName(member),ac=member.stats?.ac??10,most=member.stats?.hp??1;
+ const member=game.party.members[pid],name=partyHeroName(member),ac=(member.stats?.ac??10)+(boonHere(game,'h:'+pid,'shield-of-faith')?2:0),most=member.stats?.hp??1;
  const attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${name}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs ${name}’s AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),total=Math.max(1,damage.total),was=member.health?.current??most,now=Math.max(0,was-total);
- const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300);
- let next={...member,health:{current:now,temp:0}},fell='';
- if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,fight:true}}};fell=` The blow kills ${name} outright.`;}
- else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
- lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${total} ${foe.type} damage to ${name}.`+fell);
+ const was=member.health?.current??most,damage=sparedBlow(rollDamage(foe,attack.critical,random),{current:member.status==='up'?was:0},()=>rollDamage(foe,attack.critical,random),random),resisted=resistHere(game,'h:'+pid,foe.type,Math.max(1,damage.total),random);let total=resisted.amount;
+ // Their subclass's Reaction may blunt the blow (subclassRules.js), once a round while their reaction is free: the
+ // round it was spent is kept on them (`reacted`), and its use counts against their own uses.
+ const them=(()=>{try{return JSON.parse(member.character);}catch{return null;}})(),round=game.turnOrder?.round??game.round??0;
+ const ward=them&&member.reacted!==round?subclassWardRoll(them,{resources:member.hero?.resources??{}},total,random):null;
+ let warded=member;
+ if(ward){total=ward.total;warded={...member,reacted:round,hero:{...(member.hero??{}),resources:ward.game.resources}};lines.push(ward.line);}
+ if(total<=0){lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''} − ${ward.reduced} ${ward.name} = 0 ${foe.type} damage to ${name}. No damage gets through.`);return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:warded}}},lines};}
+ const now=Math.max(0,was-total);
+ const place=game.wildFight?'wild':game.dungeon?.active?'dungeon':['inn','bridge','tower','wild'].includes(game.stage)?game.stage:'bridge',where=String(placeName(game,place)??'').slice(0,100),cause=(foe.cause??'The '+foe.name).slice(0,300),spot=mapLocation(game),fellAt=typeof spot==='string'&&spot&&spot.length<=80?{where:spot}:{};
+ let next={...warded,health:{current:now,temp:0}},fell='';
+ if(now===0&&total-was>=most){next={...next,status:'dead',hero:{...omitDying(member.hero),death:{cause,place:where,at:place,massive:true,...fellAt,fight:true}}};fell=` The blow kills ${name} outright.`;}
+ else if(now===0){next={...next,status:'down',hero:{...omitDying(member.hero),dying:{successes:0,failures:0,place,cause,placeName:where,...fellAt,fight:true}}};fell=` ${name} falls unconscious and is dying.`;}
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''}${ward?' − '+ward.reduced+' '+ward.name:''} = ${total} ${foe.type} damage to ${name}.`+fell);
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }
 const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};
@@ -190,16 +310,20 @@ export function turnOrderView(game){
 export const partyHeroName=member=>{try{return JSON.parse(member.character).name||'your companion';}catch{return 'your companion';}};
 export function foeHitsCompanion(game,foe,who,id,mode,random){
  if(typeof id==='string'&&id.startsWith('party:'))return foeHitsPartyHero(game,foe,who,id.slice(6),mode,random);
- const npc=npcProfile(game,id),ac=npc.ac,attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
+ const npc=npcProfile(game,id),ac=npc.ac+(boonHere(game,id,'shield-of-faith')?2:0),attack=rollAttack(foe,mode,random),hit=!attack.miss&&(attack.critical||attack.total>=ac);
  const lines=[`${who} attacks ${npcLabel(game,id)}: d20 [${attack.dice.join(', ')}] (${attack.mode}) +${foe.attackBonus} = ${attack.total} vs AC ${ac}. ${attack.critical?'Critical hit':hit?'Hit':'Miss'}.`];
  if(!hit)return {game,lines};
- const damage=rollDamage(foe,attack.critical,random),was=game.npcHP?.[id]??npc.maximumHP,now=Math.max(0,was-Math.max(1,damage.total));
- lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus} = ${damage.total} ${foe.type} damage to ${npcLabel(game,id)}.`+(now===0?` ${npcLabel(game,id)} falls unconscious.`:''));
+ const damage=rollDamage(foe,attack.critical,random),resisted=resistHere(game,id,foe.type,Math.max(1,damage.total),random),was=game.npcHP?.[id]??npc.maximumHP,now=Math.max(0,was-resisted.amount);
+ lines.push(`${damage.dice.length}d${foe.die} [${damage.dice.join(', ')}] + ${foe.bonus}${resisted.line?' − '+(Math.max(1,damage.total)-resisted.amount)+' Resistance':''} = ${resisted.line?resisted.amount:damage.total} ${foe.type} damage to ${npcLabel(game,id)}.`+(now===0?` ${npcLabel(game,id)} falls unconscious.`:''));
  return {game:{...game,npcHP:{...game.npcHP,[id]:now}},lines};
 }
-// A companion beside a dying hero tries to stop the bleeding first (Medicine, DC 10).
+// A companion beside a dying hero tries to stop the bleeding first (Medicine, DC 10); a healer among them (a Cleric,
+// Druid, Bard or Paladin) speaks a word of healing instead, and never fails.
+const healerClasses=['Cleric','Druid','Bard','Paladin'];
 export function companionAid(game,random){
- const helper=fightingCompanions(game)[0];if(!helper)return null;
+ const helpers=fightingCompanions(game).filter(n=>game.followers?.[n.id]?.status==='following');
+ const healer=helpers.find(n=>healerClasses.includes(game.npcClasses?.[n.id]?.class)),helper=healer??helpers[0];if(!helper)return null;
+ if(healer)return {id:healer.id,success:true,line:`${npcLabel(game,healer.id)} kneels beside you and speaks a word of healing over you (${game.npcClasses[healer.id].class}). Success.`};
  const die=1+Math.floor(random()*20),total=die+2,success=total>=10;
  return {id:helper.id,success,line:`${npcLabel(game,helper.id)} kneels beside you and presses on your wounds: Medicine d20 [${die}] + 2 = ${total} vs DC 10. ${success?'Success.':'Failure.'}`};
 }

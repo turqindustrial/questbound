@@ -1,24 +1,26 @@
 # Questbound: Permissions agreement
 
-_Last updated 3 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 13 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Permissions agreement
 
 ### Your words go to an AI
 
-What you type, your hero and the state of your game are sent to the host's computer and from there to OpenAI, which writes the Dungeon Master's replies and paints the pictures. Type nothing you would not want processed that way: no personal, financial or health details, yours or anyone else's.
+What you type, your hero and the state of your game are sent to the host's computer and from there to OpenAI, which writes the Dungeon Master's replies and paints the pictures. OpenAI's moderation service checks what you type first, and the game holds back hateful, harassing or sexual messages. Type nothing you would not want processed that way: no personal, financial or health details, yours or anyone else's.
 
 ### Saves in this browser
 
-Your hero, adventure, settings and a few small flags are kept in this browser's storage until you clear its site data. On a phone or tester link one cookie marks this browser as paired; it holds a random token and nothing about you.
+Your characters, adventures, roster and settings are saved in this browser only: during the beta there are no accounts and no copies of your saves on the host's computer. Clearing site data removes them; Settings → Move your hero gives you your save as a code to keep or carry to another device. Local saves are not encrypted against someone with access to your device.
+
+The game gives this browser an anonymous guest identity (a random identifier in an HttpOnly cookie that game scripts cannot read; not a login) so the services can tell browsers apart. Remote game access also uses a pairing cookie. These are necessary service cookies, not advertising cookies.
 
 ### Copies on the host's computer
 
-When you use a recovery code, an account or the shared table, a copy of your adventure is kept on the host's computer under a hash of the code or of your email address. The host can delete it, and so can you (Settings → Recovery code, Settings → Your account).
+The host's computer keeps only your anonymous guest identity (for 90 days from its last use), any shared table you play at through Play Together (with up to 20 encrypted earlier versions), your feedback notes and session ratings, anonymous play counts (for 180 days) and service records. Read the privacy policy for retention, access and deletion details.
 
 ### Feedback and service records
 
-Notes you send from the game reach the host with your hero's name, where you are in the game and a short description of your device. The services count requests, wrong codes and wrong passwords by browser and network address for up to an hour, in memory only, and record how many words the AI used (never the words themselves).
+Feedback and session ratings reach the host (and the game's mailbox, once connected). A note carries your hero, where you are, your last two turns and errors (you can leave those out) and how the game ran. Anonymous play counts (how long you play, turns and failed turns, where you stop; never your words) are sent unless you turn them off in Settings. Security events and daily usage counts help prevent misuse.
 
 ### Sound and full screen
 
@@ -30,4 +32,4 @@ You confirm that you are 16 or older. The Dungeon Master is an AI and the game i
 
 ### Changing your mind
 
-You can withdraw at any time by clearing this browser's site data, deleting your account under Settings → Your account and asking the host to remove any copies. Your agreement is recorded in this browser only (the date and the version of these texts), and you will be asked again when they change.
+You can withdraw at any time by clearing this browser's site data, leaving any shared table and asking the host to remove any copies. Your agreement is recorded in this browser only (the date and the version of these texts), and you will be asked again when they change.

@@ -12,14 +12,23 @@ export const coreIds=['inn','bridge','tower'];
 export const placeKinds=['settlement','camp','road','forest','wilds','mountain','water','ruin','cave','shrine','landmark','lair'];
 export const placeIcons={settlement:'home',camp:'camp',road:'travel',forest:'leaf',wilds:'compass',mountain:'peak',water:'wave',ruin:'tower',cave:'door',shrine:'sun',landmark:'eye',lair:'skull'};
 export const bearings={N:[0,1],NE:[.7071,.7071],E:[1,0],SE:[.7071,-.7071],S:[0,-1],SW:[-.7071,-.7071],W:[-1,0],NW:[-.7071,.7071]};
-export const maxWorldPlaces=40;
+// Up to 150 places on the map (ids p1…p999, reused once free). Places the hero has been to are never let go: see
+// Room on the map below.
+export const maxWorldPlaces=150;
 export const placeDangers=['safe','risky','lair'];
 // Kinds of creature a lair can hold (the encounter templates); kept here so the map rules stand alone.
 export const lairTemplates=['bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'];
 const lairSketch=f=>!!f&&lairTemplates.includes(f.template)&&typeof f.name==='string'&&f.name.trim().length>0&&f.name.length<=60&&typeof f.appearance==='string'&&f.appearance.trim().length>0&&f.appearance.length<=400;
 const FEET_PER_MILE=5280;
 export const worldPlaces=game=>game.world?.places??[];
-export function worldPlace(game,id){return worldPlaces(game).find(p=>p.id===id)??null;}
+// Looked up by id through an index kept for as long as the list of places is the same (a map of many lands asks often).
+const placeIndexes=new WeakMap();
+export function worldPlace(game,id){
+ const places=worldPlaces(game);if(places.length<12)return places.find(p=>p.id===id)??null;
+ let index=placeIndexes.get(places);
+ if(!index||index.count!==places.length){index={count:places.length,byId:new Map(places.map(p=>[p.id,p]))};placeIndexes.set(places,index);}
+ return index.byId.get(id)??null;
+}
 // Every known place id: the three starting places (in a story), then discovered ones.
 export function knownPlaceIds(game){return [...(game.story?coreIds:[]),...worldPlaces(game).map(p=>p.id)];}
 
@@ -70,10 +79,13 @@ export function placeDescription(game,id){return worldPlace(game,id)?.descriptio
 export function worldLinks(game){return [...(game?.story?.geography?.links??corePairs).map(l=>[l[0],l[1]]),...worldPlaces(game).map(p=>[p.from,p.id])];}
 
 // ---------- Regions: one map sheet each ----------
-// The land a story starts in is its home region. A far journey (the Dungeon Master's discovery with a region) or an
-// earlier chapter's country is a region of its own, drawn on its own sheet; a place belongs to the region of the
-// place it was found from.
-export const maxRegions=8;
+// The land a story starts in is its home region. A far journey (the Dungeon Master's discovery with a region, or
+// going beyond the edge of the map: goBeyond below) or an earlier chapter's country is a region of its own, drawn on
+// its own sheet; a place belongs to the region of the place it was found from. A land the hero has travelled to is
+// never forgotten (the host, 2026-10-12: "previous lands travelled should not be forgotten. a player should be able
+// to return to those lands."): up to sixty lands are kept (the home land and 59 others, ids r1…r99, reused once free);
+// only a land heard of and never reached may give way to a new one (Room on the map, below).
+export const maxRegions=60;
 const gentleTerrains=['plains','forest','hills','coast','marsh'];
 export function homeRegion(game){const s=game?.story;return {id:'home',name:typeof s?.region==='string'&&s.region.trim()?s.region.trim():s?'Lands about '+s.locations.inn.name:'The Crossroads',terrain:terrains.includes(s?.terrain)?s.terrain:gentleTerrains[hashText('terrain:'+(s?.id??'crossroads'))%gentleTerrains.length]};}
 export function mapRegions(game){return [homeRegion(game),...(game?.world?.regions??[])];}
@@ -82,18 +94,32 @@ export function regionPlaceIds(game,region){return knownPlaceIds(game).filter(id
 export function currentRegion(game){return regionOfPlace(game,mapLocation(game));}
 // A long road is walked eight hours a day: beyond that, each hour on the road takes three.
 const roadMinutes=feet=>{const walk=Math.max(1,Math.round(feet/mapPace));return walk>480?walk*3:walk;};
-// Shortest walking route between two known places along the paths.
+// Shortest walking route between two known places along the paths. Distances from one place to all the others are
+// worked out once and kept for as long as the map is the same (a map of many lands asks for many routes at once).
+const routeMemo=new WeakMap();
+function distancesFrom(game,from){
+ const places=game.world?.places,geography=game.story?.geography??null,key=Array.isArray(places)?places:null;
+ let memo=key?routeMemo.get(key):null;
+ if(memo&&(memo.geography!==geography||memo.count!==places.length))memo=null;
+ if(key&&!memo){memo={geography,count:places.length,from:new Map()};routeMemo.set(key,memo);}
+ if(memo?.from.has(from))return memo.from.get(from);
+ const ids=knownPlaceIds(game),dist=Object.fromEntries(ids.map(id=>[id,Infinity])),done=new Set(),near=Object.fromEntries(ids.map(id=>[id,[]]));
+ for(const [a,b] of worldLinks(game)){const p=placeCoordinates(game,a),q=placeCoordinates(game,b);if(!p||!q||!near[a]||!near[b])continue;const feet=Math.round(Math.hypot(p.x-q.x,p.y-q.y));near[a].push([b,feet]);near[b].push([a,feet]);}
+ if(from in dist){
+  dist[from]=0;
+  for(;;){
+   let here=null;for(const id of ids)if(!done.has(id)&&dist[id]<Infinity&&(here===null||dist[id]<dist[here]))here=id;
+   if(here===null)break;done.add(here);
+   for(const [to,feet] of near[here])if(dist[here]+feet<dist[to])dist[to]=dist[here]+feet;
+  }
+ }
+ memo?.from.set(from,dist);
+ return dist;
+}
 export function travelRoute(game,from,to){
  if(!game.story?.geography&&(!game.world?.places?.length||(coreIds.includes(from)&&coreIds.includes(to))))return mapRoute(from,to);
- const ids=knownPlaceIds(game),dist=Object.fromEntries(ids.map(id=>[id,Infinity])),done=new Set();
- if(!(from in dist)||!(to in dist))return null;
- const edges=worldLinks(game).map(([a,b])=>{const p=placeCoordinates(game,a),q=placeCoordinates(game,b);return [a,b,Math.round(Math.hypot(p.x-q.x,p.y-q.y))];});
- dist[from]=0;
- while(done.size<ids.length){
-  const here=ids.filter(id=>!done.has(id)).sort((a,b)=>dist[a]-dist[b])[0];if(dist[here]===Infinity)break;done.add(here);
-  for(const [a,b,feet] of edges){if(a===here&&dist[here]+feet<dist[b])dist[b]=dist[here]+feet;if(b===here&&dist[here]+feet<dist[a])dist[a]=dist[here]+feet;}
- }
- if(dist[to]===Infinity)return null;
+ const dist=distancesFrom(game,from);
+ if(!(from in dist)||!(to in dist)||dist[to]===Infinity)return null;
  return {feet:dist[to],minutes:roadMinutes(dist[to])};
 }
 // How a distance reads: feet when close, miles beyond a quarter mile.
@@ -108,6 +134,9 @@ export function mapLocation(game) {
  if(game.dungeon?.active)return 'dungeon';
  if(game.wildFight)return game.wildFight.place;
  if(game.stage==='wild')return game.world?.at;
+ // A party hero who is down or dead is carried with the party (partyView keeps where the party stands in party.stage).
+ const carried=game.party?.stage;
+ if(carried&&['dying','dead'].includes(game.stage))return carried==='wild'?game.world?.at:carried==='combat'?'bridge':['inn','bridge','tower'].includes(carried)?carried:'inn';
  const fallen=game.stage==='dying'?game.dying?.place:game.stage==='dead'?game.death?.at:null;
  if(fallen)return fallen==='wild'?game.world?.at:fallen==='dungeon'?'bridge':fallen;
  return ['inn','bridge','tower','dungeon'].includes(game.stage)?game.stage:['defeat','escaped','dead'].includes(game.stage)?'inn':'bridge';
@@ -117,11 +146,11 @@ export function validWorld(game){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
  if(!w||!game.story||!Array.isArray(w.places)||w.places.length>maxWorldPlaces)return false;
  const seen=new Set(coreIds),names=new Set(Object.values(game.story.locations).map(l=>l.name.trim().toLowerCase()));
- // Regions beyond the home one: r1…r9, each named, each with a terrain.
- if(w.regions!==undefined&&!(Array.isArray(w.regions)&&w.regions.length<maxRegions&&new Set(w.regions.map(r=>r?.id)).size===w.regions.length&&w.regions.every(r=>r&&/^r[1-9]$/.test(r.id)&&text(r.name,60)&&terrains.includes(r.terrain))))return false;
+ // Regions beyond the home one: r1…r99, each named, each with a terrain, and (once visited) when the hero last arrived.
+ if(w.regions!==undefined&&!(Array.isArray(w.regions)&&w.regions.length<maxRegions&&new Set(w.regions.map(r=>r?.id)).size===w.regions.length&&w.regions.every(r=>r&&/^r[1-9]\d?$/.test(r.id)&&text(r.name,60)&&terrains.includes(r.terrain)&&(r.last===undefined||(Number.isSafeInteger(r.last)&&r.last>=0)))))return false;
  const regionIds=new Set((w.regions??[]).map(r=>r.id));
  for(const p of w.places){
-  if(!p||!/^p\d{1,2}$/.test(p.id)||seen.has(p.id)||!text(p.name,60)||!text(p.description,300)||!placeKinds.includes(p.kind)||!Number.isSafeInteger(p.x)||!Number.isSafeInteger(p.y)||Math.abs(p.x)>2e7||Math.abs(p.y)>2e7||!seen.has(p.from)||(p.region!==undefined&&!regionIds.has(p.region)))return false;
+  if(!p||!/^p\d{1,3}$/.test(p.id)||seen.has(p.id)||!text(p.name,60)||!text(p.description,300)||!placeKinds.includes(p.kind)||!Number.isSafeInteger(p.x)||!Number.isSafeInteger(p.y)||Math.abs(p.x)>1e9||Math.abs(p.y)>1e9||!seen.has(p.from)||(p.region!==undefined&&!regionIds.has(p.region)))return false;
   if((p.danger!==undefined&&!['risky','lair'].includes(p.danger))||(p.feature!==undefined&&!text(p.feature,200))||(p.cleared!==undefined&&p.cleared!==true)||(p.threat!==undefined&&!(lairSketch(p.threat)&&(p.threat.ally===undefined||lairSketch(p.threat.ally))&&(p.threat.hp===undefined||(Number.isInteger(p.threat.hp)&&p.threat.hp>=1&&p.threat.hp<=1000)))))return false;
   const key=p.name.trim().toLowerCase();if(names.has(key))return false;
   seen.add(p.id);names.add(key);
@@ -134,25 +163,42 @@ export function validMap(game) {
   const known=new Set([...Object.keys(mapPlaces),...worldPlaces(game).map(p=>p.id)]);
   return validWorld(game) && !!m && Array.isArray(m.visited) && m.visited.length>=1 && m.visited.length<=4+worldPlaces(game).length && new Set(m.visited).size===m.visited.length && m.visited.every(id=>known.has(id)) && m.visited.includes('inn') && m.visited.includes(mapLocation(game)) && ['accepted','clue','peaceful'].every(k=>typeof m[k]==='boolean') && Number.isSafeInteger(m.minutes) && m.minutes>=0 && (!m.clue || m.visited.includes('tower')) && (!m.peaceful || (m.clue && game.stage==='victory')) && (game.stage==='inn' || m.accepted || Object.keys(game.npcMemory??{}).length>0);
 }
+// A party does not walk off and leave a friend dying where they fell (partyRules.js): their view of the world would
+// lose its place. The name of the first other hero who is down, else null.
+export function downPartyMember(game){
+ const p=game?.party;if(!p?.members)return null;
+ for(const [id,m] of Object.entries(p.members))if(id!==p.lead&&m?.status==='down'){try{return JSON.parse(m.character).name||'A friend';}catch{return 'A friend';}}
+ return null;
+}
 export function travelError(game,destination) {
   if(destination==='dungeon')return 'Enter the vaults through the bridge approach.';
   if(!Object.hasOwn(mapPlaces,destination)&&!worldPlace(game,destination))return 'Choose a place on the map.';
   if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
   if(!['inn','bridge','tower','wild'].includes(game.stage))return 'Finish this encounter or begin another adventure before traveling.';
+  {const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
   // The keeper's errand gates the crossroads adventure only; a written story is under way from its first scene.
   if(!game.story&&!mapState(game).accepted&&!Object.keys(game.npcMemory??{}).length)return 'Speak with the keeper before leaving the inn.';
   if(destination===mapLocation(game))return 'You are already here.';
   if(!travelRoute(game,mapLocation(game),destination))return 'No known path leads there.';
   return '';
 }
+// Minutes go by (a journey, a short rest, a retreat): a held spell and temporary hit points from a spell count down
+// (ten rounds a minute) and end when their time is up.
+export function timePasses(game,health,minutes){
+  if(!(minutes>0))return {game,health};
+  const next={...game};let hp=health?{...health}:health;
+  if(next.concentration?.remaining!=null){next.concentration={...next.concentration,remaining:next.concentration.remaining-minutes*10};if(next.concentration.remaining<=0)delete next.concentration;}
+  if(next.temporarySpell?.remaining!=null){next.temporarySpell={...next.temporarySpell,remaining:next.temporarySpell.remaining-minutes*10};if(next.temporarySpell.remaining<=0){if(hp)hp.temp=0;delete next.temporarySpell;}}
+  return {game:next,health:hp};
+}
 export function travelTo(game,health,destination) {
   const route=travelRoute(game,mapLocation(game),destination),wild=!!worldPlace(game,destination);
-  const map=mapState(game),next={...game,stage:wild?'wild':destination,map:{...map,accepted:map.accepted||!!game.story,visited:[...new Set([...map.visited,destination])],minutes:map.minutes+route.minutes}};
-  if(game.world)next.world={...game.world,at:wild?destination:null};
-  let hp=health?{...health}:health;
+  const map=mapState(game),moved={...game,stage:wild?'wild':destination,map:{...map,accepted:map.accepted||!!game.story,visited:[...new Set([...map.visited,destination])],minutes:map.minutes+route.minutes}};
+  if(game.world)moved.world={...game.world,at:wild?destination:null};
+  // When the hero last arrived in a land.
+  {const land=wild?worldPlace(game,destination).region:null;if(land&&moved.world.regions)moved.world.regions=moved.world.regions.map(r=>r.id===land?{...r,last:moved.map.minutes}:r);}
   // Timed magic advances by the actual route duration.
-  if(next.concentration?.remaining!=null){next.concentration={...next.concentration,remaining:next.concentration.remaining-route.minutes*10};if(next.concentration.remaining<=0)delete next.concentration;}
-  if(next.temporarySpell?.remaining!=null){next.temporarySpell={...next.temporarySpell,remaining:next.temporarySpell.remaining-route.minutes*10};if(next.temporarySpell.remaining<=0){if(hp)hp.temp=0;delete next.temporarySpell;}}
+  const {game:next,health:hp}=timePasses(moved,health,route.minutes);
   // Starting places keep their legacy names in the line (a story retells them); found places are named as written.
   const name=wild?worldPlace(game,destination).name:mapPlaces[destination].name,legacy=!wild&&coreIds.includes(mapLocation(game))&&!game.story?.geography;
   next.log=[legacy?`You travel to ${name}. ${route.feet} ft; ${route.minutes} minutes pass.`:`You travel to ${name}. ${distanceText(route.feet)}; ${passingText(route.minutes)} pass.`,...game.log].slice(0,40);
@@ -198,6 +244,7 @@ export function discoveryError(game,discovery){
  if(!game.story)return 'New places can be found in a written story.';
  if(!['inn','bridge','tower','wild'].includes(game.stage))return 'Finish this encounter before exploring further.';
  if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
+ if(discovery?.travel){const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
  // A place in a new land (region: its name and terrain) may lie days away; anything else is within a day's walk.
  const far=d?.region!==undefined&&d?.region!==null;
  if(far&&!(text(d.region?.name,2,60)&&terrains.includes(d.region?.terrain)))return 'That new land was not described clearly enough to map.';
@@ -206,21 +253,21 @@ export function discoveryError(game,discovery){
  if((d.danger!==undefined&&!placeDangers.includes(d.danger))||(d.feature!==undefined&&d.feature!==null&&!text(d.feature,3,200))||(d.lair!==undefined&&d.lair!==null&&!(d.danger==='lair'&&lairSketch(d.lair))))return 'That new place was not described clearly enough to map.';
  const key=d.name.trim().toLowerCase();
  if(Object.values(game.story.locations).some(l=>l.name.trim().toLowerCase()===key))return '';
- if(!worldPlaces(game).some(p=>p.name.trim().toLowerCase()===key)&&worldPlaces(game).length>=maxWorldPlaces)return 'Your map is full. Travel to places you already know.';
+ if(!worldPlaces(game).some(p=>p.name.trim().toLowerCase()===key)&&!discoveryRoom(game,far&&!knownLand(game,d.region.name)))return 'Your map is full: every place on it is one you have been to, lies on the road back, or the tale still needs. Travel to places you already know.';
  return '';
 }
-export function discoverPlace(game,health,discovery){
+export function discoverPlace(game,health,discovery,also={places:[],regions:[]}){
  const d=discovery.place,key=d.name.trim().toLowerCase(),here=mapLocation(game);
  // A place that is already known is simply travelled to (or noted again).
  const existing=[...coreIds.map(id=>({id,name:game.story.locations[id].name})),...worldPlaces(game)].find(p=>p.name.trim().toLowerCase()===key);
  if(existing){if(!discovery.travel||existing.id===here)return {game,health,error:existing.id===here?'You are already here.':existing.name+' is already on your map.'};return travelTo(game,health,existing.id);}
  // The bearing is a rough direction: the place lies a little off the compass point (the same way every time).
  const from=placeCoordinates(game,here),turn=(seededRandom('place:'+game.story.id+':'+key)()-.5)*.6,[bx,by]=bearings[d.bearing],dx=bx*Math.cos(turn)-by*Math.sin(turn),dy=bx*Math.sin(turn)+by*Math.cos(turn),feet=Math.round(d.miles*FEET_PER_MILE);
- const n=Math.max(0,...worldPlaces(game).map(p=>Number(p.id.slice(1))))+1;
+ const n=Number(freePlaceId(game,also.places).slice(1));
  // A new land gets its own map (unless it is one already known by that name, or the atlas is full); otherwise the
  // place belongs to the region it was found from.
- const regions=game.world?.regions??[],named=d.region?regions.find(r=>r.name.trim().toLowerCase()===d.region.name.trim().toLowerCase()):null;
- const fresh=d.region&&!named&&regions.length<maxRegions-1?{id:'r'+(Math.max(0,...regions.map(r=>Number(r.id.slice(1))))+1),name:d.region.name.trim(),terrain:d.region.terrain}:null;
+ const regions=game.world?.regions??[],named=d.region?knownLand(game,d.region.name):null;
+ const fresh=d.region&&!named&&regions.length<maxRegions-1?{id:freeRegionId(game,also.regions),name:d.region.name.trim(),terrain:d.region.terrain}:null;
  const region=fresh?.id??named?.id??regionOfPlace(game,here);
  const place={id:'p'+n,name:d.name.trim(),description:d.description.trim(),kind:d.kind,x:Math.round(from.x+dx*feet),y:Math.round(from.y+dy*feet),from:here,...(region!=='home'?{region}:{}),
   ...(placeDangers.includes(d.danger)&&d.danger!=='safe'?{danger:d.danger}:{}),...(d.feature?{feature:d.feature.trim()}:{}),...(d.danger==='lair'&&d.lair?{threat:{template:d.lair.template,name:d.lair.name.trim(),appearance:d.lair.appearance.trim(),...(lairSketch(d.lair.ally)?{ally:{template:d.lair.ally.template,name:d.lair.ally.name.trim(),appearance:d.lair.ally.appearance.trim()}}:{})}}:{})};
@@ -230,4 +277,155 @@ export function discoverPlace(game,health,discovery){
  if(!discovery.travel)return {game:found,health,events:[line]};
  const trip=travelTo(found,health,place.id);
  return {...trip,events:[line,trip.game.log[0]]};
+}
+
+// ---------- Room on the map ----------
+// Ids for new places and lands: the first free number (p1…p999, r1…r99). `also` holds ids that must not be used again
+// in the same turn (those of a rumour let go to make room), so the story log never takes a new place for an old one.
+export function freePlaceId(game,also=[]){const used=new Set([...worldPlaces(game).map(p=>p.id),...also]);for(let n=1;n<=999;n++)if(!used.has('p'+n))return 'p'+n;return null;}
+export function freeRegionId(game,also=[]){const used=new Set([...(game?.world?.regions??[]).map(r=>r.id),...also]);for(let n=1;n<=99;n++)if(!used.has('r'+n))return 'r'+n;return null;}
+export function knownLand(game,name){const key=String(name??'').trim().toLowerCase();return key?(game?.world?.regions??[]).find(r=>r.name.trim().toLowerCase()===key)??null:null;}
+// What the tale still speaks of: the chapter under way and the next, the open leads and the errand.
+function taleSpeaksOf(game){
+ const s=game?.story;if(!s)return '';
+ return [s.chapters?.[s.chapter??0]?.goal,s.chapters?.[(s.chapter??0)+1]?.goal,...(s.leads??[]).filter(l=>!l.done).flatMap(l=>[l.title,l.hook]),s.errand?.task].filter(Boolean).join(' ').toLowerCase();
+}
+// Lands travelled are never forgotten (the host, 2026-10-12). When the map is full and something new is found, only
+// what the hero has merely heard of may give way:
+//  - a place heard of and never visited, with nothing found from it (so no road back runs through it), nobody living
+//    there, no companion waiting and no fallen lying there unsearched, not where the hero stands, not the errand's
+//    place and not one the tale still names, and never the last place of its land; places in other lands go before
+//    places in the land the hero is in, the oldest first;
+//  - a whole land heard of and never reached (none of its places visited or kept as above, not named by the tale, and
+//    no road to another land running through it), the oldest first.
+// Everything else stays: every place visited, every land it lies in, and the roads between them.
+// Returns {places,regions} to let go so that `lands` more lands and `places` more places fit (both empty when there is
+// room already), or null when nothing may give way to make that room.
+const roomMemo=new WeakMap(),roomInputs=['world','map','followers','people','spoils','story','wildFight','stage','dungeon','party'];
+export function roomToMake(game,{lands=0,places=0}={}){
+ // The same question about the same game (the eight ways beyond, asked together) is answered once.
+ if(!game||typeof game!=='object')return roomNeeded(game,lands,places);
+ let memo=roomMemo.get(game);if(!memo||roomInputs.some(k=>memo.inputs[k]!==game[k])){memo={inputs:Object.fromEntries(roomInputs.map(k=>[k,game[k]])),answers:new Map()};roomMemo.set(game,memo);}
+ const key=lands+':'+places;if(!memo.answers.has(key))memo.answers.set(key,roomNeeded(game,lands,places));
+ const plan=memo.answers.get(key);return plan&&{places:[...plan.places],regions:[...plan.regions]};
+}
+function roomNeeded(game,lands,places){
+ const regions=game?.world?.regions??[],all=worldPlaces(game);
+ let landsOver=regions.length+lands-(maxRegions-1),placesOver=all.length+places-maxWorldPlaces;
+ if(landsOver<=0&&placesOver<=0)return {places:[],regions:[]};
+ const visited=new Set(mapState(game).visited),here=mapLocation(game),told=taleSpeaksOf(game),landOf=p=>p.region??'home';
+ const named=name=>String(name??'').trim().length>=3&&told.includes(String(name).trim().toLowerCase());
+ const held=new Set([here,game.world?.at,game.wildFight?.place,game.story?.errand?.place,...Object.values(game.followers??{}).map(f=>f?.location),...Object.values(game.people??{}).map(p=>p?.home),...(game.spoils??[]).map(e=>e?.place)].filter(Boolean));
+ const keep=p=>visited.has(p.id)||held.has(p.id)||named(p.name);
+ const byId=Object.fromEntries(all.map(p=>[p.id,p])),regionOf=id=>byId[id]?landOf(byId[id]):'home';
+ const kept=new Set(['home',currentRegion(game)]);for(const p of all)if(keep(p))kept.add(landOf(p));
+ const goneLands=[],gone=new Set();
+ // A land heard of and never reached, with no road to another land running through it.
+ const landMayGo=r=>!kept.has(r.id)&&!goneLands.includes(r.id)&&!named(r.name)&&!all.some(p=>landOf(p)!==r.id&&!gone.has(p.id)&&regionOf(p.from)===r.id);
+ const dropLand=r=>{goneLands.push(r.id);landsOver--;for(const p of all)if(landOf(p)===r.id&&!gone.has(p.id)){gone.add(p.id);placesOver--;}};
+ for(const r of regions){if(landsOver<=0)break;if(landMayGo(r))dropLand(r);}
+ if(landsOver>0)return null;
+ // Then places heard of, one at a time (a place found from one let go may go next).
+ const current=currentRegion(game),order=all.map((p,i)=>({p,i})).filter(({p})=>!keep(p)).sort((a,b)=>(landOf(a.p)===current)-(landOf(b.p)===current)||a.i-b.i).map(({p})=>p);
+ const placeMayGo=p=>!gone.has(p.id)&&!all.some(q=>!gone.has(q.id)&&q.from===p.id)&&(landOf(p)==='home'||all.some(q=>q!==p&&!gone.has(q.id)&&landOf(q)===landOf(p)));
+ while(placesOver>0){
+  const p=order.find(placeMayGo);
+  if(p){gone.add(p.id);placesOver--;continue;}
+  const r=regions.find(landMayGo);if(!r)return null;
+  dropLand(r);
+ }
+ return {places:[...gone],regions:goneLands};
+}
+// Letting go of what roomToMake chose (letRumoursGo): the places leave the map (with anything remembered of them: a visit, an arrival
+// greeting) and so do the lands. A road that ran through a place let go runs straight on. Returns the game, the lines
+// for the log and the ids let go (never used again in the same turn).
+export function letRumoursGo(game,plan){
+ const out=new Set(plan?.places??[]),lands=new Set(plan?.regions??[]);
+ if(!out.size&&!lands.size)return {game,lines:[],places:[],regions:[]};
+ const all=worldPlaces(game),byId=Object.fromEntries(all.map(p=>[p.id,p]));
+ const kept=all.filter(p=>!out.has(p.id)).map(p=>{let from=p.from;while(out.has(from))from=byId[from].from;return from===p.from?p:{...p,from};});
+ const regions=(game.world.regions??[]).filter(r=>!lands.has(r.id)),world={...game.world,places:kept};
+ if(regions.length)world.regions=regions;else delete world.regions;
+ const next={...game,world,map:{...mapState(game),visited:mapState(game).visited.filter(id=>!out.has(id))}};
+ if(game.spoils){next.spoils=game.spoils.filter(e=>!out.has(e.place));if(!next.spoils.length)delete next.spoils;}
+ if(game.firedTriggers)next.firedTriggers=game.firedTriggers.filter(t=>!out.has(String(t).replace(/^arrive:/,'')));
+ const landNames=(game.world.regions??[]).filter(r=>lands.has(r.id)).map(r=>r.name),rumours=all.filter(p=>out.has(p.id)&&!lands.has(p.region)).map(p=>p.name);
+ const lines=[...landNames.map(n=>'Word of '+n+' fades from your map: you never went there.'),...(rumours.length?['Your map is full, so '+(rumours.length===1?'the rumour of '+rumours[0]+' fades':'rumours of '+rumours.slice(0,-1).join(', ')+' and '+rumours.at(-1)+' fade')+' from it: you never went there.']:[])];
+ next.log=[...lines,...(game.log??[])].slice(0,40);
+ return {game:next,lines,places:[...out],regions:[...lands]};
+}
+// The map can take one more place (now, or once a rumour gives way).
+export const mapHasRoom=game=>worldPlaces(game).length<maxWorldPlaces||!!roomToMake(game,{places:1});
+// Room for a place the Dungeon Master reveals: in a new land when there is room for one (else it joins the land the
+// hero is in), or null when the map is full. `far`: it lies in a land not yet on the map.
+export function discoveryRoom(game,far){return (far?roomToMake(game,{lands:1,places:1}):null)??roomToMake(game,{places:1});}
+
+// ---------- Beyond the edge of the map ----------
+// The player may walk off the edge of the land they are in, in any direction, at will: the game opens a new land out
+// there (a region of its own, joined by a road to the place on that side of this land's map) with a place to arrive
+// at and a landmark or two heard of on the way. Everything about it is drawn from a seed (the story, the land left
+// and the direction), so every device and the campaign server agree; the Dungeon Master describes it on arrival.
+export const beyondBearings=Object.keys(bearings);
+export const beyondWords={N:'north',NE:'north-east',E:'east',SE:'south-east',S:'south',SW:'south-west',W:'west',NW:'north-west'};
+const landRoots=['Ash','Bryn','Cal','Dun','Eld','Fal','Gar','Hal','Ister','Kel','Lor','Mar','Nor','Oss','Pell','Rav','Sel','Tor','Ul','Var','Wen','Yor','Ard','Bel','Cor','Dra','Esk','Fen','Gal','Hith','Ird','Kar'];
+const landEnds=['mere','holt','dale','wick','moor','reach','vale','mark','ford','fell','garth','ley','combe','wold','strand'];
+const landPatterns={plains:['The {R} Downs','The {W} Fields','{W}','The {R} Wold'],forest:['{R}wood','The {R} Weald','The {W} Forest'],hills:['The {R} Hills','The {W} Uplands','The {R} Fells'],mountains:['The {R} Peaks','The {W} Range','The {R} Heights'],coast:['The {R} Coast','The {W} Shore','The {R} Strand'],marsh:['The {R} Fens','The {W} Mire','The {R} Marshes'],desert:['The {R} Wastes','The {W} Sands','The {R} Barrens'],snow:['The {R} Icefields','The White {W}','The {R} Frostlands'],caverns:['The {R} Deeps','The Hollows of {W}','The {R} Underhalls']};
+const placePatterns={settlement:['{W}','{R} Market','{W} Crossing'],camp:['{R} Camp','The {R} Waystation'],road:['The {R} Waystone','{R} Toll House'],water:['{R} Landing','{W} Ferry'],mountain:['{R} Pass','{R} Gate'],cave:['{R} Hollow','The {R} Stair'],forest:['{R} Lodge','{W} Clearing'],shrine:['Shrine of {W}','{R} Chapel'],ruin:['The Ruins of {W}','{R} Keep'],landmark:['The {R} Stone','{R} Beacon'],wilds:['{W} Edge','The {R} Barrows']};
+const terrainLines={plains:'wide grassland under a big sky',forest:'old woods closing in on every side',hills:'green hills folded one behind another',mountains:'high peaks with snow on their shoulders',coast:'a grey sea breaking on the shore',marsh:'reed beds and black standing water',desert:'dunes and red rock baking in the sun',snow:'a white country under a low pale sun',caverns:'tunnels and halls deep under the earth'};
+const kindNouns={settlement:'a small town',camp:'a camp of travellers',road:'a waystation on the road',water:'a landing on the water',mountain:'a pass between the heights',cave:'a cave mouth with a trodden path',forest:'a woodcutters\' lodge',shrine:'a wayside shrine',ruin:'an old ruin',landmark:'a standing stone',wilds:'the edge of the wild'};
+const arrivalKinds={plains:'road',forest:'forest',hills:'shrine',mountains:'mountain',coast:'water',marsh:'water',desert:'camp',snow:'settlement',caverns:'cave'};
+// Lands that lie that way lean toward that country: snow and peaks to the north, sand and sea to the south.
+const leaning={N:['snow','mountains','hills','forest'],NE:['mountains','snow','forest'],E:['plains','hills','coast'],SE:['coast','marsh','plains'],S:['desert','coast','plains','marsh'],SW:['marsh','desert','coast'],W:['coast','forest','hills'],NW:['forest','hills','snow']};
+const pickOf=(random,list)=>list[Math.floor(random()*list.length)%list.length];
+// The place on this side of the map: the known place of this land that lies farthest in that direction.
+export function edgePlace(game,bearing){
+ const [bx,by]=bearings[bearing]??[0,1],land=currentRegion(game);
+ let best=null,score=-Infinity;
+ for(const id of regionPlaceIds(game,land)){const p=placeCoordinates(game,id);if(!p)continue;const v=p.x*bx+p.y*by;if(v>score+1e-6){score=v;best=id;}}
+ return best??mapLocation(game);
+}
+export function beyondError(game,bearing){
+ if(!game?.story)return 'Lands beyond the map are found in a written story.';
+ if(!Object.hasOwn(bearings,bearing))return 'Choose a direction: north, south, east or west.';
+ if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
+ if(!['inn','bridge','tower','wild'].includes(game.stage)||game.wildFight||game.npcCombat?.active||game.dungeon?.active)return 'Finish this encounter before setting out for another land.';
+ {const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
+ if(!roomToMake(game,{lands:1,places:1}))return 'The road goes no further: your map is full, and every land and place on it is one you have been to or still need. Travel back to a land you know.';
+ const edge=edgePlace(game,bearing);
+ if(edge!==mapLocation(game)&&!travelRoute(game,mapLocation(game),edge))return 'No known road leads to that side of the map.';
+ return '';
+}
+// The new land and its places, worked out from the seed (the game must already have room for them).
+// `also`: ids not to use again (a land forgotten this turn).
+export function beyondPlan(game,bearing,also={places:[],regions:[]}){
+ const here=currentRegion(game),from=edgePlace(game,bearing),origin=placeCoordinates(game,from)??{x:0,y:0},count=(game.world?.regions??[]).length+worldPlaces(game).length;
+ const random=seededRandom('beyond:'+(game.story?.id??'')+':'+here+':'+from+':'+bearing+':'+count);
+ const homeTerrain=mapRegions(game).find(r=>r.id===here)?.terrain;
+ const terrain=pickOf(random,[...leaning[bearing],...terrains].filter(t=>t!==homeTerrain));
+ const taken=new Set([...mapRegions(game).map(r=>r.name),...Object.values(game.story.locations).map(l=>l.name),...worldPlaces(game).map(p=>p.name)].map(n=>n.trim().toLowerCase()));
+ const word=()=>pickOf(random,landRoots)+pickOf(random,landEnds);
+ const named=patterns=>{for(let i=0;i<12;i++){const n=pickOf(random,patterns).replace('{R}',pickOf(random,landRoots)).replace('{W}',word());if(!taken.has(n.toLowerCase())){taken.add(n.toLowerCase());return n;}}return null;};
+ const region={id:freeRegionId(game,also.regions),name:named(landPatterns[terrain])??('The Land Beyond '+word()).slice(0,60),terrain};
+ const ids=[],nextId=()=>{const id=freePlaceId(game,[...also.places,...ids]);ids.push(id);return id;};
+ const [bx,by]=bearings[bearing],turn=(random()-.5)*.5,dx=bx*Math.cos(turn)-by*Math.sin(turn),dy=bx*Math.sin(turn)+by*Math.cos(turn),miles=Math.round(25+random()*45);
+ const kind=random()<.5?'settlement':random()<.4?'camp':arrivalKinds[terrain];
+ const at={x:Math.round(origin.x+dx*miles*FEET_PER_MILE),y:Math.round(origin.y+dy*miles*FEET_PER_MILE)};
+ const arrival={id:nextId(),name:named(placePatterns[kind])??(region.name.replace(/^The /,'')+' Road').slice(0,60),description:(kindNouns[kind][0].toUpperCase()+kindNouns[kind].slice(1)+' where the road from '+placeName(game,from)+' comes into '+region.name+': '+terrainLines[terrain]+'.').slice(0,300),kind,...at,from,region:region.id};
+ const places=[arrival],room=maxWorldPlaces-worldPlaces(game).length-1;
+ // One or two places heard of on the way in, a few miles on.
+ for(let i=0,n=Math.min(room,1+Math.floor(random()*2));i<n;i++){
+  const k=pickOf(random,['ruin','shrine','wilds','landmark','forest','water',arrivalKinds[terrain]]),angle=random()*Math.PI*2,far=1+random()*5,name=named(placePatterns[k]);
+  if(!name)continue;
+  places.push({id:nextId(),name,description:(kindNouns[k][0].toUpperCase()+kindNouns[k].slice(1)+' in '+region.name+', a few miles from '+arrival.name+'.').slice(0,300),kind:k,x:Math.round(at.x+Math.cos(angle)*far*FEET_PER_MILE),y:Math.round(at.y+Math.sin(angle)*far*FEET_PER_MILE),from:arrival.id,region:region.id,...(k==='ruin'||k==='wilds'?{danger:'risky'}:{})});
+ }
+ return {region,places,from,miles};
+}
+// Setting out: the new land is put on the map and the hero walks there (eight hours a day: travelRoute).
+export function goBeyond(game,health,bearing,also){
+ const plan=beyondPlan(game,bearing,also),left=mapRegions(game).find(r=>r.id===currentRegion(game))?.name??'this land';
+ const world={...(game.world??{at:null}),places:[...worldPlaces(game),...plan.places],regions:[...(game.world?.regions??[]),plan.region],at:game.world?.at??null};
+ const line='You leave '+left+' by the road '+beyondWords[bearing]+' from '+placeName(game,plan.from)+', beyond the edge of your map, for a land new to you: '+plan.region.name+'.';
+ const found={...game,world,log:[line,...game.log].slice(0,40)};
+ const trip=travelTo(found,health,plan.places[0].id);
+ return {...trip,events:[line,trip.game.log[0]],plan};
 }

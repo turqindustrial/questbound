@@ -1,9 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // Fights out in the wilds: a lair's creature waiting at a found place, a risky place's ambush on first arrival, the
 // DM springing a creature, fleeing and returning, falling there; every monster's signature move; companions who fight
 // beside the hero, can be knocked down, and drag a dying hero to safety.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','iconPaths.js','quickActions.js','pregens.js','worldArtRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,mapLocation,recordedTurn,storyText,creatureArtSubject,foeHitExtras,undeadFortitude,shieldBlow,foeRoundMoves,foeAttackMode,startWildFight,quickActions})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const kara=r.readyHero('fighter'),hp={current:12,temp:0},big={current:60,temp:0};
 const valid=(g,h=hp)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
@@ -41,6 +41,12 @@ assert.equal(r.dmContext(kara,out,big).world.canAmbush,true);assert.equal(r.dmCo
 // ---- Falling out there ----
 const doomed=r.adventureStep({...found.game,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',()=>0.9);
 assert.equal(doomed.game.stage,'dying');assert.equal(doomed.game.dying.place,'wild');assert.equal(r.mapLocation(doomed.game),'p1');assert.equal(doomed.game.wildFight,undefined);assert.ok(doomed.game.world.places[0].threat);assert.ok(valid(doomed.game,doomed.health));
+// Dead out there, then brought back by a companion who knows Revivify (deathRules.js): on their feet where they fell.
+{let st=doomed;for(let i=0;i<3&&st.game.stage==='dying';i++)st=r.adventureStep(st.game,st.health,kara,'death-save',()=>0);
+ assert.equal(st.game.stage,'dead');assert.equal(st.game.death.where,'p1');
+ const helped={...st.game,followers:{mara:{status:'following',location:'inn',reason:'Test.',terms:''}},npcClasses:{mara:{class:'Druid',level:5}},pack:{...(st.game.pack??{items:[],spent:{}}),gold:300}};
+ const back=r.adventureStep(helped,st.health,kara,{type:'revive',by:'mara'});assert.equal(back.error,undefined,back.error);
+ assert.equal(back.game.stage,'wild');assert.equal(r.mapLocation(back.game),'p1');assert.equal(back.game.pack.gold,0);assert.ok(valid(back.game,back.health));}
 // ---- Signature moves ----
 const kinds=key=>({...r.hostileEncounterGame(kara,r.newAdventure(kara),()=>[ 'bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'].indexOf(key)/9+0.01),openingAttackAvailable:false});
 const foe=g=>({name:g.story.foe,saves:g.story.foeStats.saves,ac:g.story.foeStats.ac});
@@ -53,6 +59,10 @@ const goblins=kinds('goblin');assert.ok(r.foeHitExtras(goblins,kara,foe(goblins)
 const wolves=kinds('wolves');assert.equal(r.foeAttackMode(wolves,{},2),'advantage');assert.equal(r.foeAttackMode(wolves,{},1),'normal');assert.equal(r.foeAttackMode(wolves,{},2,{dodge:true}),'normal','Advantage and Dodge cancel');
 const skeleton=kinds('skeleton');x=r.shieldBlow(skeleton,9,()=>0.5);assert.equal(x.damage,5);assert.equal(r.shieldBlow(x.game,9,()=>0.5).damage,9);
 const zombies={...kinds('zombies'),enemyHP:0};x=r.undeadFortitude(zombies,foe(zombies),()=>0.9);assert.equal(x.game.enemyHP,1);assert.equal(r.undeadFortitude({...x.game,enemyHP:0},foe(zombies),()=>0.9).game.enemyHP,0,'Once a fight');
+// SRD 5.2: the save is against 5 + the damage of the blow, and fails outright against Radiant damage or a critical hit.
+assert.match(r.undeadFortitude(zombies,foe(zombies),()=>0.9,{damage:20,type:'Slashing'}).line,/vs DC 25. Failure/);
+assert.equal(r.undeadFortitude(zombies,foe(zombies),()=>0.99,{damage:3,type:'Radiant'}).game.enemyHP,0,'no fortitude against radiant light');
+assert.equal(r.undeadFortitude(zombies,foe(zombies),()=>0.99,{damage:3,type:'Slashing',critical:true}).game.enemyHP,0,'or a critical hit');
 const spider={...kinds('spider'),round:2};x=r.foeRoundMoves(spider,kara,foe(spider),()=>0);assert.equal(x.game.heroCondition,'restrained');assert.equal(r.foeRoundMoves(x.game,kara,foe(spider),()=>0).lines.length,0);
 assert.ok(valid({...x.game,heroCondition:'restrained'}));assert.ok(!valid({...x.game,heroCondition:'stunned'}));
 // ---- Companions fight beside you ----
@@ -61,7 +71,8 @@ const together={...r.hostileEncounterGame(kara,r.newAdventure(kara),()=>0),follo
 const round=r.adventureStep(together,big,kara,'attack:Greatsword',seq([0.1,0.9,0.5,0.9,0.5,0.7,0.95,0.5]));
 assert.ok(round.events.some(t=>t.startsWith('Tobin Reed attacks the Bandit Cutthroat: d20')),'The companion strikes');
 assert.ok(round.events.some(t=>t.startsWith('Bandit Cutthroat attacks Tobin Reed:')),'The foe turns on the companion');
-let beaten=together,bh=big;for(let i=0;i<12&&(beaten.npcHP?.mara??9)>0&&beaten.stage==='combat';i++){const s=r.adventureStep(beaten,bh,kara,'dodge',seq([0,0.9,0.95,0.9]));beaten=s.game;bh=s.health;}
+// No draught to give (that would be a bonus action worth waiting for): every Dodge ends the turn.
+let beaten={...together,potions:0},bh=big;for(let i=0;i<12&&(beaten.npcHP?.mara??9)>0&&beaten.stage==='combat';i++){const s=r.adventureStep(beaten,bh,kara,'dodge',seq([0,0.9,0.95,0.9]));beaten=s.game;bh=s.health;}
 assert.equal(beaten.npcHP.mara,0,'A companion can be knocked down');assert.ok(valid(beaten));
 // A companion beside a dying hero stops the bleeding and carries them home.
 const dying=r.adventureStep({...together,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',seq([0,0.1,0.99,0.99,0.5,0.5]));

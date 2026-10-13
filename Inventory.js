@@ -5,45 +5,64 @@ import HeroPortrait from './HeroPortrait';
 import {weaponIcon} from './iconPaths';
 import {fonts,colors,type,tint} from './theme';
 import {combatBasics,signed} from './combatRules';
-import {attackOptions,readyLoadout,weapons} from './weaponRules';
-import {gearedHero,packOf,arrowsLeft} from './inventoryRules';
+import {attackOptions,readyLoadout,weapons,weaponAttacks,shieldInUse,shieldSlung,shieldStowed,canTakeInHand} from './weaponRules';
+import {gearedHero,packOf,arrowsLeft,setShield} from './inventoryRules';
+import {magicItems,rarityLabel} from './lootRules';
 import {itemDescription,goldDescription,draughtDescription,defenceText} from './descriptions';
 import {playSound} from './audio';
+import {heroSpecies} from './characterRules';
 // The Inventory tab: what the hero has equipped (weapon in hand, off hand, armour, bow, focus) around their
 // portrait, then everything they carry. Every slot and every item explains itself when tapped, and a carried
-// weapon can be taken in hand from here.
+// weapon can be taken in hand from here. A shield-bearer can put the shield on their back to hold a weapon in both
+// hands, and take it up again (onShield; free out of a fight, the hero's action in one, so then it is said instead).
 const damageOf=w=>w.flat?String(1+w.bonus):(w.count>1?w.count:1)+'d'+w.die+(w.bonus?(w.bonus>0?'+':'−')+Math.abs(w.bonus):'');
-const kindIcon={weapon:'sword',ammunition:'bow',treasure:'gem',gear:'bag',quest:'key',potion:'potion'};
+const kindIcon={weapon:'sword',armor:'armor',ammunition:'bow',treasure:'gem',gear:'bag',quest:'key',potion:'potion'};
 const kitIcon=name=>weapons[name]?weaponIcon(name):/Armor|Chain|Robe/.test(name)?'armor':name==='Shield'?'shield':/Focus|Holy Symbol/.test(name)?'spell':/book/i.test(name)?'book':/Lute|Flute|Drum/.test(name)?'lute':/Tools|Kit/.test(name)?'cog':name==='Arrow'||name==='Quiver'?'bow':'bag';
-export default function Inventory({hero,game,onWield}){
+export default function Inventory({hero,game,onWield,onAttune,onShield}){
  const [open,setOpen]=useState(null);
- const geared=gearedHero(hero,game),basics=combatBasics(hero),loadout=readyLoadout(geared),attacks=attackOptions(geared);
+ // Armor class and to-hit as the rules see the hero now: found weapons and magic items counted.
+ const geared=gearedHero(hero,game),basics=combatBasics(geared),loadout=readyLoadout(geared),attacks=attackOptions(geared);
  const main=attacks.find(w=>!w.unarmed)??attacks[0],ranged=attacks.find(w=>w.ranged&&w.name!==main?.name)??null;
  const pack=packOf(game,hero),arrows=arrowsLeft(game,hero),draughts=game.potions??0;
- const twoHanded=!!main?.twoHands,offhand=loadout.shield?'Shield':null;
+ // A carried magic item (its pack entry: rarity, attunement, charges) by name; a weapon's base kind for its icon.
+ const packItem=name=>pack.items.find(i=>i.name===name&&i.magic)??null,baseOf=name=>geared.equipment?.items?.find(i=>i.name===name)?.base??name;
+ const fighting=game.stage==='combat'||!!game.npcCombat?.active;
+ // Hands (weaponRules.js): a shield on the arm, or both hands on a two-handed weapon (the shield slung on the back), or
+ // both hands on a versatile weapon for its larger die.
+ const twoHanded=!!main?.twoHands,bothOnVersatile=!!main?.versatile&&main.grip==='two',slung=shieldSlung(geared),offhand=shieldInUse(geared)?'Shield':null,stowed=shieldStowed(geared);
+ const offName=offhand??(twoHanded||bothOnVersatile?'Both hands on the '+main.name:'Free');
+ const offStat=offhand?'+2 armor class':slung?'Shield on your back':bothOnVersatile?'1d'+main.die+' two-handed':'';
+ const offText=offhand?itemDescription('Shield'):stowed?'You put your shield on your back to keep both hands free'+(bothOnVersatile?': your '+main.name+' strikes for 1d'+main.die+' in place of 1d'+main.oneHandDie:'')+'. It adds nothing to your armor class until you take it up again.':twoHanded?'This weapon takes both hands.'+(slung?' Your shield is slung on your back and adds nothing to your armor class; take a one-handed weapon in hand to raise it again.':''):bothOnVersatile?'You hold it in both hands, so it strikes harder: 1d'+main.die+' in place of 1d'+main.oneHandDie+'. A shield on your arm would take that hand.':'Your other hand is free: for a torch, a door, a spell’s gestures.';
+ // The shield by choice: on the back for both hands, or taken up again, with what it changes (inventoryRules.js setShield).
+ const shieldMove=(()=>{if(!geared.equipment?.items?.some(i=>i.name==='Shield'&&i.quantity>0))return null;const away=!slung,done=setShield(game,hero,away);if(done.error)return null;
+  const after=gearedHero(hero,done.game),acAfter=combatBasics(after).ac,held=weaponAttacks(after).find(w=>w.name===(away?done.game.wield:main?.name)&&!w.ranged);
+  const label=away?(held?.versatile?'Hold the '+held.name+' in both hands':'Put your shield on your back'):'Take up your shield';
+  const change=(away&&held?.versatile?'1d'+held.die+' in place of 1d'+held.oneHandDie+', ':'')+'armor class '+basics.ac+' → '+acAfter+(!away&&held?.versatile?', your '+held.name+' in one hand (1d'+held.die+')':'');
+  return {away,label,note:(away?'Your shield goes on your back: ':'Back on your arm: ')+change+'.'};})();
  // Equipment slots: [id, label, icon, name, stat, description].
  const slots=[
-  ['main',main?.ranged?'In hand (ranged)':'Main hand',main?(main.unarmed?'fist':weaponIcon(main.name)):'hand',main?main.name:'Empty',main?damageOf(main)+' '+main.type.toLowerCase()+' · '+signed(main.attackBonus)+' to hit':'',main?(main.unarmed?'Your fists, feet and elbows. Everyone can fight unarmed.':itemDescription(main.name,'weapon')):'Nothing in hand.'],
-  ['off','Off hand',offhand?'shield':'hand',offhand??(twoHanded?'Both hands on the '+main.name:'Free'),offhand?'+2 armor class':'',offhand?itemDescription('Shield'):twoHanded?'This weapon takes both hands.':'Your other hand is free: for a torch, a door, a spell’s gestures.'],
+  ['main',main?.ranged?'In hand (ranged)':'Main hand',main?(main.unarmed?'fist':weaponIcon(main.base??main.name)):'hand',main?main.name:'Empty',main?damageOf(main)+(main.magic?'+'+main.magic:'')+' '+main.type.toLowerCase()+' · '+signed(main.attackBonus)+' to hit':'',main?(main.unarmed?'Your fists, feet and elbows. Everyone can fight unarmed.':itemDescription(main.name,'weapon',null,packItem(main.name))):'Nothing in hand.'],
+  ['off','Off hand',offhand?'shield':'hand',offName,offStat,offText],
   ['armor','Armor','armor',loadout.armor??'No armor',basics.ac!==null?'Armor class '+basics.ac:'',(loadout.armor?itemDescription(loadout.armor)+' ':'You wear no armor. ')+(defenceText(hero)?'Your armor class: '+defenceText(hero)+'.':'')+(basics.armorNote?' '+basics.armorNote:'')],
-  ...(ranged?[['ranged','Ranged',weaponIcon(ranged.name),ranged.name,damageOf(ranged)+' '+ranged.type.toLowerCase()+' · '+arrows+' arrows',itemDescription(ranged.name,'weapon')]]:[]),
+  ...(ranged?[['ranged','Ranged',weaponIcon(ranged.base??ranged.name),ranged.name,damageOf(ranged)+(ranged.magic?'+'+ranged.magic:'')+' '+ranged.type.toLowerCase()+' · '+arrows+' arrows',itemDescription(ranged.name,'weapon',null,packItem(ranged.name))]]:[]),
   ...(loadout.focus?[['focus','Focus',/Lute|Flute|Drum/.test(loadout.focus)?'lute':'spell',loadout.focus.replace(/^(Arcane|Druidic) Focus \((.*)\)$/,'$2 focus'),'For your spells',itemDescription(loadout.focus)]]:[]),
  ];
  const shown=slots.find(sl=>sl[0]===open);
  // Everything carried: the starting kit with found weapons folded in, then what was found, bought or given.
  const equipped=new Set([main?.name,offhand,loadout.armor,ranged?.name,loadout.focus].filter(Boolean));
- const kit=(geared.equipment?.items??[]).filter(i=>i.quantity>0&&i.name!=='Arrow').map(i=>({key:'kit:'+i.name,name:i.name,qty:i.quantity,kind:weapons[i.name.includes('(Quarterstaff)')?'Quarterstaff':i.name]?'weapon':'gear',icon:kitIcon(i.name),weapon:weapons[i.name]?i.name:i.name.includes('(Quarterstaff)')?'Quarterstaff':null}));
- const found=pack.items.filter(i=>i.name!=='Arrow'&&!(i.kind==='weapon'&&weapons[i.name])).map(i=>({key:'pack:'+i.name,name:i.name,qty:i.qty,kind:i.kind,icon:kindIcon[i.kind]??'bag',note:i.note,value:i.value}));
- const row=item=>{const on=open===item.key,worn=equipped.has(item.name)||(item.weapon&&equipped.has(item.weapon)),usable=item.weapon&&attacks.some(w=>w.name===item.weapon),inHand=item.weapon&&main?.name===item.weapon;
+ const kit=(geared.equipment?.items??[]).filter(i=>i.quantity>0&&i.name!=='Arrow').map(i=>{const kind=i.base??i.name;return {key:'kit:'+i.name,name:i.name,qty:i.quantity,kind:weapons[kind.includes('(Quarterstaff)')?'Quarterstaff':kind]?'weapon':'gear',icon:kitIcon(kind),weapon:weapons[kind]?i.name:i.name.includes('(Quarterstaff)')?'Quarterstaff':null,magic:packItem(i.name)};});
+ const found=pack.items.filter(i=>i.name!=='Arrow'&&!(i.kind==='weapon'&&weapons[i.base??i.name])).map(i=>({key:'pack:'+i.name,name:i.name,qty:i.qty,kind:i.kind,icon:i.base&&i.kind==='armor'?kitIcon(i.base):i.magic?.charges!==undefined?'staff':kindIcon[i.kind]??'bag',note:i.note,value:i.value,magic:i.magic?i:null}));
+ const row=item=>{const on=open===item.key,worn=equipped.has(item.name)||(item.weapon&&equipped.has(item.weapon)),usable=item.weapon&&canTakeInHand(geared,item.weapon),inHand=item.weapon&&main?.name===item.weapon;
   return <View key={item.key} style={[s.item,on&&s.itemOn]}>
    <Pressable accessibilityRole="button" accessibilityState={{expanded:on}} accessibilityLabel={item.name+(item.qty>1?', '+item.qty:'')+'. Show what it is'} onPress={()=>setOpen(on?null:item.key)} style={s.itemHead}>
     <View style={[s.itemIcon,worn&&{borderColor:colors.gold}]}><Icon name={item.icon} size={17} color={worn?colors.goldBright:colors.gold}/></View>
     <View style={{flex:1,minWidth:0}}><Text numberOfLines={on?3:1} style={s.itemName}>{item.name}{item.qty>1?<Text style={s.qty}>  ×{item.qty}</Text>:null}</Text>
-     <Text numberOfLines={1} style={s.itemTag}>{worn?'Equipped':item.kind==='treasure'&&item.value?'Worth '+item.value+' gold':item.kind==='quest'?'Important':item.kind==='weapon'?'Weapon':item.kind==='ammunition'?'Ammunition':'Carried'}</Text></View>
+     <Text numberOfLines={1} style={[s.itemTag,item.magic&&s.magicTag]}>{item.magic?[rarityLabel(item.magic),worn?'equipped':null,item.magic.magic.charges!==undefined?item.magic.magic.charges+' charges':null].filter(Boolean).join(' · '):worn?'Equipped':item.kind==='treasure'&&item.value?'Worth '+item.value+' gold':item.kind==='quest'?'Important':item.kind==='weapon'?'Weapon':item.kind==='ammunition'?'Ammunition':item.kind==='armor'?'Armor':'Carried'}</Text></View>
     <Icon name={on?'close':'info'} size={15} color={colors.muted}/>
    </Pressable>
-   {on&&<View style={s.itemBody}><Text style={s.description}>{itemDescription(item.name,item.kind,item.note)}</Text>
-    {usable&&!inHand&&!!onWield&&<Pressable accessibilityRole="button" accessibilityLabel={'Fight with the '+item.weapon} onPress={()=>{playSound('select');onWield(item.weapon);setOpen(null);}} dataSet={{qb:'chip'}} style={s.wield}><Icon name={weaponIcon(item.weapon)} size={14} color={colors.gold}/><Text style={s.wieldText}>Take in hand</Text></Pressable>}
+   {on&&<View style={s.itemBody}><Text style={s.description}>{itemDescription(item.name,item.kind,item.note,item.magic)}</Text>
+    {item.magic&&magicItems[item.magic.magic.id]?.attune&&!item.magic.attuned&&!fighting&&!!onAttune&&<Pressable accessibilityRole="button" accessibilityLabel={'Attune to the '+item.name} onPress={()=>{playSound('select');onAttune(item.name);setOpen(null);}} dataSet={{qb:'chip'}} style={s.wield}><Icon name="spell" size={14} color={colors.gold}/><Text style={s.wieldText}>{pack.items.filter(i=>i.attuned).length>=3?'Attune (the oldest gives way)':'Attune'}</Text></Pressable>}
+    {usable&&!inHand&&!!onWield&&<Pressable accessibilityRole="button" accessibilityLabel={'Fight with the '+item.weapon} onPress={()=>{playSound('select');onWield(item.weapon);setOpen(null);}} dataSet={{qb:'chip'}} style={s.wield}><Icon name={weaponIcon(baseOf(item.weapon))} size={14} color={colors.gold}/><Text style={s.wieldText}>Take in hand</Text></Pressable>}
     {inHand&&<Text style={s.inHand}>In your hand: your attacks use it first.</Text>}</View>}
   </View>;};
  return <View>
@@ -53,7 +72,7 @@ export default function Inventory({hero,game,onWield}){
     <HeroPortrait hero={hero} size={84} level={hero.level}/>
     <View style={{flex:1,minWidth:0}}>
      <Text numberOfLines={1} style={s.heroName}>{hero.name}</Text>
-     <Text numberOfLines={1} style={s.heroLine}>{hero.species??hero.race} {hero.class}</Text>
+     <Text numberOfLines={1} style={s.heroLine}>{heroSpecies(hero)} {hero.class}</Text>
      <View style={s.stats}>
       <View style={s.stat}><Icon name="shield" size={13} color={colors.gold}/><Text style={s.statText}>AC {basics.ac??'–'}</Text></View>
       {!!main&&<View style={s.stat}><Icon name="swords" size={13} color={colors.gold}/><Text style={s.statText}>{signed(main.attackBonus)} to hit</Text></View>}
@@ -65,6 +84,10 @@ export default function Inventory({hero,game,onWield}){
      <View style={{flex:1,minWidth:0}}><Text style={s.slotLabel}>{label}</Text><Text numberOfLines={2} style={[s.slotName,empty&&{color:colors.muted}]}>{name}</Text>{!!stat&&<Text numberOfLines={1} style={s.slotStat}>{stat}</Text>}</View>
     </Pressable>;})}</View>
    {!!shown&&<View style={s.slotBody} accessibilityLiveRegion="polite"><Text style={s.description}>{shown[5]}</Text></View>}
+   {!!shieldMove&&!!onShield&&<View style={s.grip}>
+    {!fighting&&<Pressable accessibilityRole="button" accessibilityLabel={shieldMove.label} onPress={()=>{playSound('select');onShield(shieldMove.away);}} dataSet={{qb:'chip'}} style={s.wield}><Icon name="shield" size={14} color={colors.gold}/><Text style={[s.wieldText,{flexShrink:1}]}>{shieldMove.label}</Text></Pressable>}
+    <Text style={s.gripNote}>{fighting?'In a fight, say it ("'+(shieldMove.away?'I put my shield on my back':'I take up my shield')+'"): it takes your action. ':''}{shieldMove.note}</Text>
+   </View>}
   </View>
   <View dataSet={{qb:'plate'}} style={s.panel}>
    <View style={s.labelRow}><Icon name="bag" size={14} color={colors.goldMid}/><Text style={s.label}>Pack</Text></View>
@@ -84,23 +107,24 @@ const s=StyleSheet.create({
  labelRow:{flexDirection:'row',alignItems:'center',gap:8},label:{...type.label},
  doll:{flexDirection:'row',alignItems:'center',gap:16,paddingVertical:4},
  heroName:{fontFamily:fonts.display,fontSize:19,fontWeight:'700',letterSpacing:.8,color:colors.parchment},heroLine:{fontFamily:fonts.ui,fontSize:12.5,color:colors.gold,marginTop:2},
- stats:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8},stat:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:'rgba(0,0,0,.25)'},statText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'700',color:'#dfcdc5'},
+ stats:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8},stat:{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:9,paddingVertical:4,borderRadius:12,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(0,0,0,.25)')},statText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'700',color:tint('#dfcdc5')},
  slots:{flexDirection:'row',flexWrap:'wrap',gap:8},
- slot:{flexGrow:1,flexBasis:260,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:10,minHeight:60,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},slotOn:{borderColor:colors.goldBright},
- slotIcon:{width:40,height:40,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.35)'},
+ slot:{flexGrow:1,flexShrink:1,flexBasis:260,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:9,paddingHorizontal:10,minHeight:60,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(25,17,26,.72)')},slotOn:{borderColor:colors.goldBright},
+ slotIcon:{width:40,height:40,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.5)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(0,0,0,.35)')},
  slotLabel:{fontFamily:fonts.display,fontSize:9.5,fontWeight:'700',letterSpacing:1.6,color:colors.goldMid,textTransform:'uppercase'},
  slotName:{fontFamily:fonts.display,fontSize:14,fontWeight:'700',letterSpacing:.4,color:colors.parchment,marginTop:1},slotStat:{fontFamily:fonts.ui,fontSize:11.5,color:tint('#b8aeb5'),marginTop:1},
  slotBody:{paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderLeftWidth:2,borderColor:colors.gold,backgroundColor:tint('rgba(25,17,26,.6)')},
- description:{fontFamily:fonts.story,fontSize:15.5,lineHeight:23,color:'#ded2cd'},
- purse:{flexDirection:'row',flexWrap:'wrap',gap:8},purseStat:{flexDirection:'row',alignItems:'baseline',gap:6,paddingHorizontal:10,paddingVertical:6,minHeight:36,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:'rgba(0,0,0,.25)'},purseOn:{borderColor:colors.goldBright},
+ description:{fontFamily:fonts.story,fontSize:15.5,lineHeight:23,color:tint('#ded2cd')},
+ purse:{flexDirection:'row',flexWrap:'wrap',gap:8},purseStat:{flexDirection:'row',alignItems:'baseline',gap:6,paddingHorizontal:10,paddingVertical:6,minHeight:36,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.28)'),backgroundColor:tint('rgba(0,0,0,.25)')},purseOn:{borderColor:colors.goldBright},
  purseValue:{fontFamily:fonts.display,fontSize:16,fontWeight:'800',color:colors.parchment},purseUnit:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
  item:{borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.16)'),backgroundColor:tint('rgba(25,17,26,.5)')},itemOn:{borderColor:tint('rgba(224,74,92,.6)')},
  itemHead:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:8,paddingHorizontal:10,minHeight:48},
- itemIcon:{width:32,height:32,borderRadius:16,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,.3)'},
- itemName:{fontFamily:fonts.story,fontSize:16,lineHeight:21,color:'#efe7d4'},qty:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,fontWeight:'700'},itemTag:{fontFamily:fonts.ui,fontSize:11,color:colors.muted,letterSpacing:.3},
+ itemIcon:{width:32,height:32,borderRadius:16,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(0,0,0,.3)')},
+ itemName:{fontFamily:fonts.story,fontSize:16,lineHeight:21,color:tint('#efe7d4')},qty:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,fontWeight:'700'},itemTag:{fontFamily:fonts.ui,fontSize:11,color:colors.muted,letterSpacing:.3},magicTag:{color:colors.goldBright},
  itemBody:{paddingHorizontal:12,paddingBottom:12,gap:8},
  wield:{alignSelf:'flex-start',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.5)'),backgroundColor:tint('rgba(31,24,32,.92)')},wieldText:{fontFamily:fonts.display,fontSize:11,fontWeight:'700',letterSpacing:1.3,color:colors.gold,textTransform:'uppercase'},
  inHand:{fontFamily:fonts.ui,fontSize:12,color:colors.goldBright},
+ grip:{gap:6},gripNote:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:tint('#b8aeb5')},
  foundHead:{flexDirection:'row',alignItems:'center',gap:10,marginTop:4},foundLabel:{fontFamily:fonts.display,fontSize:10,fontWeight:'700',letterSpacing:1.8,color:colors.goldMid,textTransform:'uppercase'},foundRule:{flex:1,height:1},
  empty:{fontFamily:fonts.story,fontStyle:'italic',fontSize:15,color:colors.muted},
 });

@@ -1,5 +1,6 @@
 const fs = require('fs'), vm = require('vm'), assert = require('node:assert/strict');
-const equipment = fs.readFileSync('equipmentRules.js','utf8').replace(/export /g,'');
+// The save format number (saveVersion.js) is the one other file makeCharacter reads.
+const equipment = require('./rules-files.cjs').moduleSource('saveVersion.js') + '\n' + fs.readFileSync('equipmentRules.js','utf8').replace(/export /g,'');
 const rulesSource = fs.readFileSync('characterRules.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'');
 const r = vm.runInNewContext(equipment + '\n' + rulesSource + '\n({equipmentFor,validEquipment,makeCharacter,blankBuild,classes})');
 const form = {...r.blankBuild(),name:'Gear test',species:'Goblin',class:'Artificer',background:'Artisan',bonusMode:'three'};

@@ -3,6 +3,7 @@ import {View,Text,Pressable,Modal,StyleSheet,ActivityIndicator,Image,ScrollView,
 import {ensureArt,artIdentity} from './artClient';
 import Icon from './Icon';
 import {fonts,colors,tint} from './theme';
+import {setCovered} from './perfWatch';
 const Context=createContext(null),decoded=new Set();
 export const useSceneTransition=()=>useContext(Context);
 // A scene waits briefly for its illustrations so it usually arrives fully painted, but never holds play hostage:
@@ -15,6 +16,7 @@ export default function SceneTransitionProvider({children}){
  const [state,setState]=useState(null),active=useRef(null),alive=useRef(true),last=useRef(null);
  if(state)last.current=state;const display=state??last.current;
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;active.current?.finish();active.current=null;};},[]);
+ useEffect(()=>{setCovered('scene',!!state);return()=>setCovered('scene',false);},[!!state]);
  function prepare(subjects){
   const unique=[...new Map(subjects.filter(Boolean).map(s=>[artIdentity(s),s])).values()].filter(s=>!decoded.has(artIdentity(s)));
   if(!unique.length)return Promise.resolve();
@@ -49,11 +51,11 @@ const s=StyleSheet.create({shade:{flex:1,justifyContent:'center',alignItems:'cen
  panel:{width:'100%',maxWidth:440},content:{alignItems:'center',paddingVertical:8},
  ring:{width:64,height:64,borderRadius:32,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),alignItems:'center',justifyContent:'center',marginBottom:16,backgroundColor:tint('rgba(20,10,12,.6)')},
  overline:{fontFamily:fonts.display,color:tint('#b2223a'),fontSize:10.5,fontWeight:'700',letterSpacing:4,textTransform:'uppercase',textAlign:'center'},
- title:{color:'#ecdfd9',fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.2,fontSize:26,lineHeight:33,textAlign:'center',marginTop:8},
+ title:{color:tint('#ecdfd9'),fontFamily:fonts.display,fontWeight:'700',letterSpacing:1.2,fontSize:26,lineHeight:33,textAlign:'center',marginTop:8},
  rule:{flexDirection:'row',alignItems:'center',gap:8,width:'70%',marginVertical:16},ruleLine:{flex:1,height:1},lozenge:{width:7,height:7,backgroundColor:colors.gold,transform:[{rotate:'45deg'}]},
  items:{alignSelf:'stretch',gap:8,marginBottom:18},item:{flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,paddingVertical:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.18)'),backgroundColor:tint('rgba(23,17,24,.7)')},
  itemName:{flex:1,fontFamily:fonts.story,fontSize:16,color:tint('#aba1a8')},
- track:{alignSelf:'stretch',height:3,borderRadius:2,backgroundColor:'rgba(255,255,255,.08)',overflow:'hidden'},fill:{height:'100%',backgroundColor:tint('#e04a5c')},
+ track:{alignSelf:'stretch',height:3,borderRadius:2,backgroundColor:tint('rgba(255,255,255,.08)'),overflow:'hidden'},fill:{height:'100%',backgroundColor:tint('#e04a5c')},
  note:{fontFamily:fonts.ui,color:tint('#a2979f'),fontSize:12,lineHeight:19,textAlign:'center',marginTop:12},
  button:{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,minHeight:44,marginTop:8,justifyContent:'center'},
  label:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:2,fontSize:12,textTransform:'uppercase',color:colors.gold,textAlign:'center'}});

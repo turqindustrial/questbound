@@ -1,9 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {rulesSource}=require('./rules-files.cjs');
 // People anywhere: the Dungeon Master brings named characters into the story wherever the player goes. They live
 // where they were met, speak with their own name and portrait, remember the player, can be tied to someone already
 // known, recruited, healed and fought (and their deaths matter to those tied to them), and are kept in saves.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','hostileEncounter.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','followerRules.js','adventureStorage.js','deedRules.js','characterStorage.js','dmCommands.js','dmContext.js','playbackRules.js','worldArtRules.js','iconPaths.js','quickActions.js','pregens.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['worldArtRules.js']});
 const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmCommand,dmContext,dmChoices,validAdventure,adventureSnapshot,npcScene,introducePerson,canMeetPeople,recruitmentTargets,resolveRecruitment,conversationPeople,conversationTarget,recordedTurn,npcArtSubject,quickActions})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
@@ -66,11 +66,13 @@ assert.equal(crowded.game.followers.n5,undefined);assert.ok(crowded.events.some(
 const hurt={...g,npcHP:{...g.npcHP,n4:5}};
 assert.ok(r.dmChoices(kara,hurt).some(c=>c.id==='give-potion:n4'));
 const dosed=r.adventureStep(hurt,hp,kara,{type:'give-potion',target:'n4'},()=>0.5);assert.equal(dosed.error,undefined);assert.ok(dosed.game.npcHP.n4>5);
-// ---- Limits: three living people per place, twelve in a region ----
+// ---- Limits: four living people per place, twenty-four in a region ----
 let crowd=r.adventureStep(g,hp,kara,{type:'travel',destination:'p1'},()=>0.5).game;
 crowd=r.introducePerson(crowd,{...hob,name:'Rook',role:'A fisher boy.',appearance:'A barefoot boy with a willow rod.'}).game;
 crowd=r.introducePerson(crowd,{...hob,name:'Ansel Brigg',role:'A drover.',appearance:'A ruddy man leading two oxen.'}).game;
-assert.ok(!r.canMeetPeople(crowd),'Edda, Rook and Ansel live here (Hob is dead)');
+assert.ok(r.canMeetPeople(crowd),'A fourth may still be met here');
+crowd=r.introducePerson(crowd,{...hob,name:'Wenna Cole',role:'A reed cutter.',appearance:'A lean woman with a sickle at her belt.'}).game;
+assert.ok(!r.canMeetPeople(crowd),'Edda, Rook, Ansel and Wenna live here (Hob is dead)');
 assert.match(r.introducePerson(crowd,{...hob,name:'Someone Else',role:'A traveller.',appearance:'A cloaked figure with a staff.'}).error,/as many named people/);
 // ---- The foe's name, a broken description, and tampered saves are refused ----
 assert.match(r.introducePerson(g,{...hob,name:g.story.foe}).error,/foe/);

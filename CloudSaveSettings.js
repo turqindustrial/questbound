@@ -17,7 +17,7 @@ export function CloudSaveSettings({onRestore,busy}){
  if(!s)return null;
  return <View dataSet={{qb:'plate'}} style={st.panel}>
   <Section icon="cloud" title="Recovery code" style={{marginTop:0}}/>
-  <Text style={st.body}>Without an account, your hero and adventure are still kept on the host's PC under this recovery code. Write it down: entering it on another phone or browser that can reach the game carries you on there.</Text>
+  <Text style={st.body}>An additional copy of your adventure is kept on the host's PC under this recovery code. Write it down: entering it on another phone or browser that can reach the game carries you on there.</Text>
   <View dataSet={{qb:'plate'}} style={st.codeBox}><Text selectable style={st.code}>{showCode(s.code)}</Text><Text style={st.saved}>{!s.enabled?'Off':s.savedAt?'Saved '+new Date(s.savedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Not saved yet'}</Text></View>
   <Toggle value={s.enabled} onChange={async v=>setS(await setCloudSettings({enabled:v}))} label="Save to the host PC" description="Keep a copy a few seconds after you play."/>
   <Text style={[st.body,{marginTop:12}]}>Restore from another device's code (your current hero is set aside under Heroes first):</Text>
@@ -32,6 +32,6 @@ const st=StyleSheet.create({
  code:{fontFamily:fonts.display,fontWeight:'700',fontSize:22,letterSpacing:3,color:colors.goldBright},
  saved:{fontFamily:fonts.ui,fontSize:12,color:colors.muted},
  row:{flexDirection:'row',flexWrap:'wrap',gap:8,alignItems:'center'},
- input:{flexGrow:1,minWidth:180,fontFamily:fonts.display,fontSize:17,letterSpacing:2,color:'#f5efe1',backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:3,paddingHorizontal:14,paddingVertical:11},
- message:{fontFamily:fonts.ui,color:'#ffd49a',fontSize:13,marginTop:8},
+ input:{flexGrow:1,minWidth:180,fontFamily:fonts.display,fontSize:17,letterSpacing:2,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:3,paddingHorizontal:14,paddingVertical:11},
+ message:{fontFamily:fonts.ui,color:tint('#ffd49a'),fontSize:13,marginTop:8},
 });

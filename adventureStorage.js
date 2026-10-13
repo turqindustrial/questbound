@@ -1,5 +1,5 @@
 import {validStory} from './storyRules';
-import {validFollowers} from './followerRules';
+import {validFollowers,validJoinOffers} from './followerRules';
 import {validSkillTraining} from './skillRules';
 import {validNpcState,npcIdsOf,npcMaxHP} from './npcRules';
 import {validPeople} from './relationshipRules';
@@ -7,20 +7,25 @@ import {validDungeon} from './dungeonRules';
 import {validCampaign} from './campaignRules';
 import {validMap} from './mapRules';
 import {validJournal,validStoryLog} from './journalRules';
+import {validMemory} from './memoryRules';
 import {validDeathState} from './deathRules';
-import {validWildFight,validCombatExtras} from './encounterRules';
-import {validPack} from './inventoryRules';
+import {validWildFight,validCombatExtras,validFoeScale} from './encounterRules';
+import {validPack,gearedHero} from './inventoryRules';
 import {validEarnedDeeds} from './deedRules';
-import {validMarks} from './masteryRules';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {validMarks,validBoons} from './masteryRules';
+import {validSpoils} from './lootRules';
+import {validExperience} from './experienceRules';
+import AsyncStorage from './playerStorage';
 import {combatBasics} from './combatRules';
+import {currentSaveVersion} from './saveVersion';
+import {upgradeAdventure,sameHeroText} from './saveMigrations';
 
 const ADVENTURE_KEY = 'questbound.adventure.v1';
 const integerBetween = (n,min,max) => Number.isInteger(n) && n>=min && n<=max;
-// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n12).
-const someone = id => /^(?:keeper|mara|n(?:[1-9]|1[0-2]))$/.test(String(id));
+// Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n48).
+const someone = id => /^(?:keeper|mara|n(?:[1-9]|[1-8]\d|9[0-6]))$/.test(String(id));
 export function adventureSnapshot(hero,game,health,chosen) {
-  return {version:1,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
+  return {version:1,saveVersion:currentSaveVersion,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
 }
 // A party at the shared table (partyRules.js): up to four heroes, each with their own name, sheet, hit points and
 // state; the one in the lead is this device's own (the snapshot's character).
@@ -33,7 +38,7 @@ export function validParty(g){
   if(p.stage!==undefined&&!['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild'].includes(p.stage))return false;
   return ids.every(id=>{const m=p.members[id];return id.length<=80&&m&&typeof m==='object'&&typeof m.name==='string'&&m.name.length<=40&&typeof m.character==='string'&&m.character.length<200000&&partyStatuses.includes(m.status)
     &&(m.health===null||m.health===undefined||(integerBetween(m.health?.current,0,9999)&&integerBetween(m.health?.temp,0,9999)))
-    &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&validPack(m.hero.pack)))
+    &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&(m.hero.xp===undefined||integerBetween(m.hero.xp,0,355000))&&(m.hero.shieldAway===undefined||m.hero.shieldAway===true)&&validPack(m.hero.pack)))
     &&(m.stats===undefined||(integerBetween(m.stats?.ac,0,40)&&integerBetween(m.stats?.hp,1,999)));});
 }
 // A party's fight in turns (adventureRules.js): each hero, the foe or each person fighting, in initiative order.
@@ -45,29 +50,36 @@ export function validTurnOrder(g){
     &&integerBetween(t.at,-1,t.order.length-1)&&integerBetween(t.round,1,100000)&&(t.dodging===undefined||(Array.isArray(t.dodging)&&t.dodging.length<=4&&t.dodging.every(id=>typeof id==='string'&&id.length<=80)));
 }
 export function validAdventure(value,hero) {
-  const g=value?.game, h=value?.health, maximum=combatBasics(hero).hp;
+  const g=value?.game, h=value?.health, maximum=combatBasics(g?gearedHero(hero,g):hero).hp;
   return value?.version===1 && typeof value.character==='string' && typeof value.chosen==='boolean'
+    // The save format (saveVersion.js, SAVES.md): none before formats were numbered; a later build's is accepted too.
+    && (value.saveVersion===undefined || integerBetween(value.saveVersion,1,99))
     && !!g && ['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild','dying','dead'].includes(g.stage)
     && validDeathState(g) && (!['dying','dead'].includes(g.stage) || h?.current===0)
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
     && (g.npcFate===undefined || (g.npcFate&&typeof g.npcFate==='object'&&!Array.isArray(g.npcFate)&&Object.entries(g.npcFate).every(([id,fate])=>npcIdsOf(g).includes(id)&&['dead','unconscious'].includes(fate)&&g.npcHP?.[id]===0)))
     && (g.encounterLevel===undefined || (integerBetween(g.encounterLevel,1,20) && (g.encounterLevel===hero.level || !!g.party)))
-    && validParty(g) && validTurnOrder(g) && validMarks(g) && integerBetween(g.enemyHP,0,Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0))
+    && validParty(g) && validTurnOrder(g) && validMarks(g) && validBoons(g) && validSpoils(g) && validFoeScale(g.foeScale) && integerBetween(g.enemyHP,0,Math.ceil(Math.max(10+8*((g.encounterLevel??1)-1),g.dungeon?14+4*(hero.level-1):0,g.story?.foeStats?.maximum??0,g.wildFight?.stats?.maximum??0)*(g.foeScale?g.foeScale.f*1.25:1)))
     && validWildFight(g) && validCombatExtras(g) && integerBetween(g.potions,0,20) && validPack(g.pack) && integerBetween(g.round,1,Number.MAX_SAFE_INTEGER)
     && Array.isArray(g.log) && g.log.length<=40 && g.log.every(line=>typeof line==='string' && line.length<=1000)
     && (g.playback===undefined || (Array.isArray(g.playback)&&g.playback.length<=12&&g.playback.every((turn,i)=>turn&&Number.isSafeInteger(turn.id)&&turn.id>0&&(i===0||turn.id>g.playback[i-1].id)&&(turn.npcId===null||someone(turn.npcId))&&(turn.participants===undefined||(Array.isArray(turn.participants)&&turn.participants.length<=10&&new Set(turn.participants).size===turn.participants.length&&turn.participants.every(someone)))&&Array.isArray(turn.events)&&turn.events.length>0&&turn.events.length<=100&&turn.events.every(e=>e&&['player','initiative','roll','action','effect','story','dialogue','narration'].includes(e.kind)&&typeof e.text==='string'&&e.text.length>0&&e.text.length<=2200&&(e.speakerId===undefined||someone(e.speakerId))&&(e.speakerName===undefined||(typeof e.speakerName==='string'&&e.speakerName.length>0&&e.speakerName.length<=100))))))
     && (h===null || (!!h && integerBetween(h.current,0,maximum) && integerBetween(h.temp,0,9999)))
     && (g.bonusUsed===undefined || typeof g.bonusUsed==='boolean')
     && (g.actionUsed===undefined || (g.actionUsed===true && g.stage==='combat'))
-    && (g.dodging===undefined || (g.dodging===true && g.actionUsed===true))
+    && (g.surged===undefined || (g.surged===true && g.stage==='combat'))
+    && (g.dodging===undefined || (g.dodging===true && (g.actionUsed===true || g.surged===true)))
     && (g.shortRests===undefined || integerBetween(g.shortRests,0,3))
     && (g.levelsOwed===undefined || integerBetween(g.levelsOwed,0,5))
+    && validExperience(g)
     && validStoryLog(g.storyLog)
+    && validMemory(g.memory)
     && validEarnedDeeds(g.deeds)
-    && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z ]{2,29}$/.test(g.wield)))
+    // A shield put on the back by choice (inventoryRules.js setShield): only true is ever kept.
+    && (g.shieldAway===undefined || g.shieldAway===true)
+    && (g.wield===undefined || (typeof g.wield==='string' && /^[A-Za-z][A-Za-z '’-]{2,58}(?: \+[1-3])?$/.test(g.wield)))
     && (g.openingAttackAvailable===undefined || typeof g.openingAttackAvailable==='boolean')
     && (g.encounterInitiative===undefined || (g.encounterInitiative&&integerBetween(g.encounterInitiative.player,-10,50)&&integerBetween(g.encounterInitiative.foe,-10,50)))
-    && (g.resources===undefined || (g.resources!==null && typeof g.resources==='object' && !Array.isArray(g.resources) && Object.entries(g.resources).every(([key,n])=>['slots','wind','hands'].includes(key) && integerBetween(n,0,key==='hands'?5*hero.level:key==='wind'?4:4))))
+    && (g.resources===undefined || (g.resources!==null && typeof g.resources==='object' && !Array.isArray(g.resources) && Object.entries(g.resources).every(([key,n])=>['slots','wind','hands','surge','feat'].includes(key) && integerBetween(n,0,key==='hands'?5*hero.level:key==='surge'?2:key==='feat'?20:4))))
     && (g.journal===undefined || validJournal(g.journal))
     && (g.dmChecks===undefined || (Array.isArray(g.dmChecks)&&g.dmChecks.length<=2&&new Set(g.dmChecks).size===g.dmChecks.length&&g.dmChecks.every(id=>['persuade-keeper','investigate-signal'].includes(id))))
     && (g.worldFacts===undefined||(Array.isArray(g.worldFacts)&&g.worldFacts.length<=60&&g.worldFacts.every(t=>typeof t==='string'&&t.length>0&&t.length<=800)))
@@ -77,6 +89,7 @@ export function validAdventure(value,hero) {
     && validPeople(g)
     && validNpcState(g)
     && validFollowers(g.followers,g)
+    && validJoinOffers(g.joinOffers,g)
     && validDungeon(g.dungeon)
     && (g.stage!=='dungeon'||g.dungeon?.active===true)
     && (!g.dungeon?.active||['dungeon','combat'].includes(g.stage))
@@ -92,18 +105,31 @@ export async function loadAdventure(hero) {
   const raw=await AsyncStorage.getItem(ADVENTURE_KEY);
   if(raw===null) return null;
   const value=JSON.parse(raw);
-  // A changed character starts a fresh quest; never attach an old hero's HP.
-  if(value?.character!==JSON.stringify(hero)) return null;
+  // A changed character starts a fresh quest; never attach an old hero's HP. The hero may already have been brought
+  // to the current format (loadCharacter) while the adventure still holds it as it was: that is the same hero.
+  if(!sameHeroText(value?.character,JSON.stringify(hero))) return null;
   if(!validAdventure(value,hero)) throw new Error('Invalid adventure save');
-  return value;
+  // An older save is upgraded once, here (saveMigrations.js), and kept that way. A copy the checks would refuse is
+  // never used: the adventure then plays as saved (every old shape still loads and plays).
+  const upgraded=upgradeAdventure(value);
+  if(upgraded===value || upgraded.character!==JSON.stringify(hero) || !validAdventure(upgraded,hero)) return value;
+  try{await saveAdventure(upgraded,hero);}catch{}
+  return upgraded;
 }
 let adventureWrites=Promise.resolve();
 export function saveAdventure(value,hero) {
   if(!validAdventure(value,hero) || value.character!==JSON.stringify(hero)) return Promise.reject(new Error('Invalid adventure save'));
-  const raw=JSON.stringify(value);
-  const write=adventureWrites.catch(()=>{}).then(()=>AsyncStorage.setItem(ADVENTURE_KEY,raw));
+  const raw=JSON.stringify(value),store=AsyncStorage.scope?.()??AsyncStorage;
+  const write=adventureWrites.catch(()=>{}).then(()=>store.setItem(ADVENTURE_KEY,raw));
   adventureWrites=write;
   return write;
+}
+// The adventure of a hero laid to rest goes too, after any save still on its way.
+export function forgetAdventure() {
+  const store=AsyncStorage.scope?.()??AsyncStorage;
+  const done=adventureWrites.catch(()=>{}).then(()=>store.removeItem(ADVENTURE_KEY));
+  adventureWrites=done;
+  return done;
 }
 
 function validSpellState(g) {
@@ -114,8 +140,23 @@ function validSpellState(g) {
     && (g.slotSpentThisTurn===undefined || typeof g.slotSpentThisTurn==='boolean')
     && (g.reactionUsed===undefined || typeof g.reactionUsed==='boolean')
     && (g.arcanumUsed===undefined || (Array.isArray(g.arcanumUsed) && new Set(g.arcanumUsed).size===g.arcanumUsed.length && g.arcanumUsed.every(n=>integerBetween(n,6,9))))
-    && (g.concentration===undefined || (spellTime(g.concentration) && text(g.concentration.duration,150) && (g.concentration.automaticProtection===undefined || (g.concentration.automaticProtection===true && ['blur','shield-of-faith'].includes(g.concentration.id) && integerBetween(g.concentration.remaining,1,g.concentration.id==='blur'?10:100)))))
+    && (g.concentration===undefined || (spellTime(g.concentration) && text(g.concentration.duration,150) && (g.concentration.automaticProtection===undefined || (g.concentration.automaticProtection===true && ['blur','shield-of-faith'].includes(g.concentration.id) && integerBetween(g.concentration.remaining,1,g.concentration.id==='blur'?10:100)))
+      // Hex or Hunter's Mark on a creature or person; Resistance's damage type and its once-a-turn use (spellRules.js).
+      && (g.concentration.target===undefined || /^(?:foe|ally:[01]|keeper|mara|n(?:[1-9]|[1-8]\d|9[0-6]))$/.test(String(g.concentration.target)))
+      && (g.concentration.damageType===undefined || ['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'].includes(g.concentration.damageType))
+      && (g.concentration.used===undefined || g.concentration.used===true)
+      // A spell held only for others (self:false); a lasting spell's slot level, save DC and whether it was cast this
+      // turn; Hex or Hunter's Mark whose creature dropped (lost) or whose fight ended (gone); Heat Metal on worn armour (worn)
+      // (spellRules.js).
+      && (g.concentration.self===undefined || g.concentration.self===false)
+      && (g.concentration.level===undefined || integerBetween(g.concentration.level,0,9))
+      && (g.concentration.dc===undefined || integerBetween(g.concentration.dc,1,40))
+      && ['fresh','lost','gone','worn'].every(k=>g.concentration[k]===undefined || g.concentration[k]===true)))
+    // Spells that last on the hero without concentration (Mage Armor, Barkskin, Divine Favor, Shillelagh), and the free
+    // castings their species gives (once a long rest each).
+    && (g.buffs===undefined || (!!g.buffs && typeof g.buffs==='object' && !Array.isArray(g.buffs) && Object.entries(g.buffs).every(([id,b])=>['mage-armor','barkskin','divine-favor','shillelagh','aid'].includes(id) && b && typeof b==='object' && integerBetween(b.remaining,1,4800) && (b.ac===undefined||integerBetween(b.ac,10,20)) && (b.amount===undefined||(id==='aid'&&integerBetween(b.amount,5,40))) && (b.ability===undefined||['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(b.ability)))))
+    && (g.speciesUsed===undefined || (!!g.speciesUsed && typeof g.speciesUsed==='object' && !Array.isArray(g.speciesUsed) && Object.entries(g.speciesUsed).every(([id,n])=>text(id,100) && integerBetween(n,1,6))))
     && (g.temporarySpell===undefined || spellTime(g.temporarySpell))
     && (g.enemyEffects===undefined || (g.enemyEffects && typeof g.enemyEffects==='object' && !Array.isArray(g.enemyEffects) && Object.entries(g.enemyEffects).every(([name,n])=>['No opportunity attacks','Cannot regain HP','Speed reduced by 10 feet'].includes(name) && integerBetween(n,1,2))))
-    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget))&&(pending.aim===undefined||/^ally:[01]$/.test(pending.aim)) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum'].includes(pending.slot))));
+    && (pending===undefined || (pending && text(pending.id,100) && text(pending.intent,500) && pending.intent.trim().length>=3 && pending.componentsConfirmed===true && (pending.npcTarget===undefined||npcIdsOf(g).includes(pending.npcTarget))&&(pending.aim===undefined||/^ally:[01]$/.test(pending.aim)) && (pending.allies===undefined||(Array.isArray(pending.allies)&&pending.allies.length<=8&&pending.allies.every(a=>typeof a==='string'&&a.length<=90))) && (integerBetween(pending.slot,0,9) || ['ritual','arcanum','species'].includes(pending.slot))));
 }

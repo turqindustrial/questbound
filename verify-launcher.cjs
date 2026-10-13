@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {createDesktopServer}=require('./desktop-server.cjs');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-desktop-'));fs.mkdirSync(path.join(root,'_expo'));
-fs.writeFileSync(path.join(root,'index.html'),'<h1>game</h1>');fs.writeFileSync(path.join(root,'_expo','app.js'),'app');
+fs.writeFileSync(path.join(root,'index.html'),'<h1>game</h1>');fs.writeFileSync(path.join(root,'_expo','app.js'),'app');fs.writeFileSync(path.join(root,'_expo','index-0123456789abcdef0123.js'),'hashed');
 const get=(port,route,host)=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port,path:route,headers:{Host:host??'localhost:'+port}},res=>{let t='';res.on('data',c=>t+=c);res.on('end',()=>resolve({status:res.statusCode,text:t,headers:res.headers}));});req.on('error',reject);req.end();});
 (async()=>{
  const server=createDesktopServer({root,port:0});await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;
@@ -9,7 +9,8 @@ const get=(port,route,host)=>new Promise((resolve,reject)=>{const req=http.reque
  server.close();const real=createDesktopServer({root,port});await new Promise(r=>real.listen(port,'127.0.0.1',r));
  try{
   let r=await get(port,'/');assert.equal(r.status,200);assert.equal(r.text,'<h1>game</h1>');assert.equal(r.headers['cache-control'],'no-store');
-  r=await get(port,'/_expo/app.js');assert.equal(r.text,'app');assert.match(r.headers['cache-control'],/immutable/);
+  r=await get(port,'/_expo/app.js');assert.equal(r.text,'app');assert.equal(r.headers['cache-control'],'no-cache','a file without a content hash in its name is checked again');
+  r=await get(port,'/_expo/index-0123456789abcdef0123.js');assert.equal(r.text,'hashed');assert.match(r.headers['cache-control'],/immutable/,'hashed files are kept for good');
   assert.equal((await get(port,'/some/route')).text,'<h1>game</h1>','Unknown routes open the game');
   assert.equal((await get(port,'/missing.js')).status,404);
   for(const route of ['/../launch.ps1','/%2e%2e/launch.ps1','/%2e%2e%5claunch.ps1'])assert.ok([400,403,404].includes((await get(port,route)).status),route);

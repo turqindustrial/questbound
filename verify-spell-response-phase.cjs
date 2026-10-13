@@ -10,11 +10,15 @@ const context=r.dmContext(hero,preview.game,preview.health);
 const empty={narration:'The keeper watches you.',actionId:null,castCommand:null,ruling:null,check:null,worldEvent:null};
 async function run(reply,ctx=context){let request;const result=await generate({input,context:ctx},{apiKey:'test-only',model:'test-model',fetchImpl:async(url,options)=>{request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(reply)}]}]})};}});return {result,request};}
 (async()=>{
- await assert.rejects(run(empty),/must return.*ruling/);
+ // No ruling for the spell awaiting one: asked again, then a clarify that spends and applies nothing.
+ {const {result}=await run(empty);assert.equal(result.ruling.decision,'clarify');assert.ok(['damage','selfDamage','healing','temporaryHP'].every(k=>result.ruling[k]===0));}
  for(const decision of ['cast','deny','clarify']){
   const ruling={decision,note:decision==='clarify'?'Which creature are you targeting?':'Resolve the stated spell using engine dice.',damage:0,selfDamage:0,healing:0,temporaryHP:0};
   const {request,result}=await run({...empty,ruling});
   const fields=request.text.format.schema.properties;
+  // The standing guidance says what a casting issue is and how to tell a described spell; the ruling is held to the dice.
+  for(const text of ['CASTING ISSUES','SPELLS TO DESCRIBE','pendingSpell.damageMost'])assert.ok(request.instructions.includes(text),text);
+  assert.equal(context.pendingSpell.damageMost,6,'Acid Splash at level 1 deals at most 1d6');
   assert.equal(fields.ruling.type,'object');
   for(const field of ['actionId','castCommand','check'])assert.equal(fields[field].type,'null');
   const committed=r.commitDmTurn(hero,game,null,{type:'ai-spell',request:command.action.request,ruling:result.ruling},{question:input,narration:result.narration},()=>0);

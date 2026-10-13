@@ -1,5 +1,28 @@
 [
   {
+    "id": "idea",
+    "title": "Your own tale",
+    "setting": "Tell the story writer what you would like to play, in a few words or a few lines, and it writes a long tale around your idea: its own country, people and secrets.",
+    "arrival": "Your idea, your country, your people.",
+    "tone": "Yours to choose",
+    "scale": "saga",
+    "idea": true,
+    "openingDialogue": true
+  },
+  {
+    "id": "easy",
+    "title": "Easy to get into",
+    "setting": "You already have your orders. Someone who rules here (a jarl, a baron, an abbess, a guild master) has sent you to deal with one plain trouble close at hand: a bandit camp to raid, a crypt to clear, raiders to drive off.",
+    "conflict": "The errand is simple and the reward is real. What you find at the end of it is the first thread of a much larger tale.",
+    "journey": "A short road to the errand first, then wherever the tale grows from there.",
+    "stakes": "Your word to the one who sent you, a fair reward, and what the errand uncovers.",
+    "arrival": "Your orders are already in hand",
+    "tone": "Quest · Orders in hand",
+    "scale": "saga",
+    "openingDialogue": true,
+    "errand": true
+  },
+  {
     "id": "surprise",
     "title": "Let fate decide",
     "setting": "A country you have never seen, in a tale no one else will ever play.",
@@ -8,16 +31,8 @@
     "stakes": "Unknown until you are in it.",
     "arrival": "A stranger at the right moment",
     "tone": "Any tale",
-    "scale": "saga"
-  },
-  {
-    "id": "idea",
-    "title": "Your own tale",
-    "setting": "Tell the story writer what you would like to play, in a few words or a few lines, and it writes a long tale around your idea: its own country, people and secrets.",
-    "arrival": "Your idea, your country, your people.",
-    "tone": "Yours to choose",
     "scale": "saga",
-    "idea": true
+    "openingDialogue": true
   },
   {
     "id": "crown",

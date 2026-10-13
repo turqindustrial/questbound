@@ -33,6 +33,9 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await tick();
  const done=await ask({mode:'art',storyJob:'verify-job-000000000001'},'Is the story ready?');assert.equal(done.status,'ready');assert.equal(done.result.story.title,'T');assert.equal(done.result.story.status,'active');
  assert.deepEqual(request.reasoning,{effort:'high'},'In the background the writer thinks as hard as the host chose');assert.equal(request.max_output_tokens,40000);assert.equal(calls,1);
+ // Asked for as a stream (Node's own fetch would give up on a tale whose answer took more than 300 s to begin), and a
+ // job that fails is noted in the diagnostics with its kind (dm-server.cjs recordWriteFailure; checked in verify-dm-stream.cjs).
+ assert.equal(request.stream,true,'a tale is streamed');assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("loadStoryJobs().start(body.context.job,()=>write(effort,420000).catch(e=>{recordWriteFailure('story-job',e,live,guest);throw e;}))"),'a failed story job is noted');
  assert.equal((await ask({mode:'art',storyJob:'verify-job-never-started'})).status,'unknown');
  assert.equal((await ask({mode:'adventure',introId:'crown',job:'no'})).status,'failed','A malformed job id is refused');
  // A browser on an earlier build waits on one request: light thinking, so the tale arrives in time.
@@ -51,7 +54,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const hello=await greet({narration:'',dialogue:[{speakerId:'mara',text:'You have the look of someone who reads marks. Good.'}]});
  assert.equal(hello.narration,'Yarro Keth looks up.');assert.equal(hello.dialogue[0].text,'You have the look of someone who reads marks. Good.');
  assert.match(turnRequest.instructions,/never empty, never the spoken words/);
- await assert.rejects(()=>greet({narration:'',dialogue:[]}),/invalid response/,'Nothing said and nothing told is still refused');
+ await assert.rejects(()=>greet({narration:'',dialogue:[]}),/could not be used this time/,'Nothing said and nothing told is still refused');
  // ---- The game's side: ask once, then ask after it ----
  const sent=[];let gate=null;
  const service=(over={})=>async(url,options)=>{const body=JSON.parse(options.body);sent.push(body);const reply=over.reply?await over.reply(body):await generate(body,{...keys,fetchImpl:async(u,o)=>{if(gate)await gate;return storyFetch(u,o);}});return {ok:true,status:200,headers:{get:()=>'application/json'},json:async()=>reply};};

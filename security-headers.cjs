@@ -3,7 +3,7 @@
 // from the file being served), talk only to the services it needs, and never be shown inside another site. Styles
 // may be inline because React Native Web writes them that way; images may be data: or blob: URLs because the paintings
 // arrive as data and the tale card is drawn on a canvas.
-const crypto=require('node:crypto'),fs=require('node:fs');
+const crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
 const inlineScriptHashes=html=>[...String(html).matchAll(/<script(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1],'utf8').digest('base64')+"'");
 function pagePolicy(html,{connect=["'self'"]}={}){
  return ["default-src 'self'",["script-src","'self'",...inlineScriptHashes(html)].join(' '),"style-src 'self' 'unsafe-inline'","img-src 'self' data: blob:","font-src 'self' data:",["connect-src",...connect].join(' '),"media-src 'self' data: blob:","worker-src 'none'","object-src 'none'","base-uri 'none'","form-action 'self'","frame-ancestors 'none'","manifest-src 'self'"].join('; ');
@@ -24,4 +24,12 @@ function filePolicies({connect}={}){
 // Loopback services answer only to their own loopback names, so a web page whose address is made to point at this PC
 // (DNS rebinding) is turned away even before its origin is checked.
 const loopbackHost=req=>{const port=req.socket.localPort;return ['127.0.0.1:'+port,'localhost:'+port,'[::1]:'+port].includes(String(req.headers.host??'').toLowerCase());};
-module.exports={pagePolicy,inlineScriptHashes,baseHeaders,setBaseHeaders,filePolicies,loopbackHost};
+const inside=(root,file)=>{const rel=path.relative(root,file);return !!rel&&!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel);};
+// Never serve hidden files, source maps, Windows alternate streams, or symlinks
+// that lead outside the exported game, even if one is accidentally copied there.
+async function publicFile(root,file){
+ if(!inside(root,file)||path.relative(root,file).split(/[\\/]/).some(part=>part.startsWith('.')||part.includes(':')))return false;
+ if(!new Set(['.html','.js','.css','.json','.png','.jpg','.jpeg','.gif','.webp','.ico','.woff','.woff2','.ttf','.txt','.mp3','.wav','.ogg']).has(path.extname(file).toLowerCase()))return false;
+ try{return inside(await fs.promises.realpath(root),await fs.promises.realpath(file));}catch{return false;}
+}
+module.exports={pagePolicy,inlineScriptHashes,baseHeaders,setBaseHeaders,filePolicies,loopbackHost,publicFile};

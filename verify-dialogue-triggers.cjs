@@ -48,7 +48,7 @@ const bolt=r.dmCommand(caster,hostile,'I cast Fire Bolt at the Bandit Cutthroat'
 const bolted=r.adventureStep(hostile,null,caster,bolt.action,()=>0.9);assert.equal(bolted.waiting,undefined);assert.ok(bolted.events.some(t=>t.startsWith('Fire Bolt:')));
 // Opening dialogue plays as the first turn of a generated story.
 const story={...hostile.story,id:'story-1',introId:'caravan',openingDialogue:[{speakerId:'keeper',text:'Nobody touches the wagons.'},{speakerId:'mara',text:'Captain, they only want water.'}]};delete story.foeDamageType;
-const opened=p.freshStoryGame(hero,story,r.newAdventure(hero));assert.equal(opened.playback[0].events.filter(e=>e.kind==='dialogue').length,2);assert.equal(opened.playback[0].events[2].speakerName,'Tobin Reed');assert.ok(valid(opened,null));
+const opened=p.freshStoryGame(hero,story,r.newAdventure(hero));assert.equal(opened.playback[0].events.filter(e=>e.kind==='dialogue').length,2);assert.equal(opened.playback[0].events[0].kind,'effect','the introduction card first');assert.equal(opened.playback[0].events[3].speakerName,'Tobin Reed');assert.ok(valid(opened,null));
 assert.equal(p.validStory({...story,openingDialogue:[{speakerId:'stranger',text:'Hi.'}]}),false);
 (async()=>{
  const {generate}=require('./dm-server.cjs');let sent;
@@ -63,6 +63,6 @@ assert.equal(p.validStory({...story,openingDialogue:[{speakerId:'stranger',text:
  const lines=[{speakerId:'keeper',text:'Nobody touches the wagons.'},{speakerId:'mara',text:'They only want water.'}];
  const generated=await generateAdventure({context:{introId:'crown'}},{apiKey:'test',model:'test',fetchImpl:reply({...story,npcs:{keeper:story.npcs.keeper,mara:story.npcs.mara},openingDialogue:lines})});
  assert.ok(sent.text.format.schema.required.includes('openingDialogue'));assert.deepEqual(generated.story.openingDialogue,lines);
- await generateAdventure({context:{introId:'drowned'}},{apiKey:'test',model:'test',fetchImpl:reply(story)});assert.ok(!sent.text.format.schema.required.includes('openingDialogue'));
+ await generateAdventure({context:{introId:'drowned'}},{apiKey:'test',model:'test',fetchImpl:reply(story)});assert.ok(sent.text.format.schema.required.includes('openingDialogue'),'every opening has its people speak as the player arrives (a clear introduction)');
  console.log('Passed: return/arrival/rest triggers fire once, companions speak on arrival, trigger turns save without player lines, instant hostile encounter with opening attack and foe damage type, opening dialogue playback, and server trigger/generator schemas.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

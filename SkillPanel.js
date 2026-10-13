@@ -3,6 +3,7 @@ import {View,Text,Pressable,StyleSheet} from 'react-native';
 import {fonts,colors,tint} from './theme';
 import {Section} from './ui';
 import {skillAbilities,backgroundSkills,classSkills,classSkillCount,expertiseCount,expertiseEligible,trainedSkills,skillCheckBonus} from './skillRules';
+import {speciesSkills,heroSpecies} from './characterRules';
 export default function SkillPanel({hero,game,setGame,locked}){
  const training=game.skillTraining??{skills:[],expertise:[]},limit=classSkillCount(hero),expertLimit=expertiseCount(hero),trained=trainedSkills(hero,game);
  const toggle=(key,skill)=>{
@@ -10,13 +11,14 @@ export default function SkillPanel({hero,game,setGame,locked}){
   const prior=training[key],next=prior.includes(skill)?prior.filter(s=>s!==skill):[...prior,skill];
   if(next.length>(key==='skills'?limit:expertLimit))return;
   const updated={...training,[key]:next};
-  if(key==='skills')updated.expertise=updated.expertise.filter(s=>[...next,...(backgroundSkills[hero.background]??[])].includes(s));
+  if(key==='skills')updated.expertise=updated.expertise.filter(s=>[...next,...(backgroundSkills[hero.background]??[]),...speciesSkills(hero)].includes(s));
   setGame({...game,skillTraining:updated});
  };
  return <View style={s.panel}>
   <Section icon="star" title="Skill training"/>
   <Text style={s.text}>Class choices: {training.skills.length}/{limit}. Expertise choices: {training.expertise.length}/{expertLimit}. These choices are saved with this adventure and used by the Dungeon Master.</Text>
   <Text style={s.note}>{backgroundSkills[hero.background]?'Background training: '+backgroundSkills[hero.background].join(', '):'This background’s skills have not been verified in our free-rules catalog yet; no background proficiency is assumed.'}</Text>
+  {speciesSkills(hero).length>0&&<Text style={s.note}>Keen Senses ({heroSpecies(hero)}): {speciesSkills(hero).join(', ')}</Text>}
   {!classSkills[hero.class]&&<Text style={s.note}>This class’s skill-choice list is still awaiting its published reference.</Text>}
   {Object.entries(skillAbilities).map(([skill,ability])=>{
    const info=skillCheckBonus(hero,game,ability,skill),fixed=backgroundSkills[hero.background]?.includes(skill),selectable=classSkills[hero.class]?.includes(skill)&&!fixed;

@@ -7,6 +7,14 @@ export function conversationPeople(game){
  if(game.npcCombat?.active||game.stage==='combat')return [];
  return npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({...n,name:game.story?.npcs[n.id]?.name??n.name,role:npcLore(game,n.id)?.role??''}));
 }
+// Who may speak in this turn's telling: the same people, and in a brawl also those fighting (they may shout, taunt,
+// plead or yield; their deeds still come only from the game). Nobody chats through a fight with a creature. The Speak
+// chips keep to conversationPeople, so a fight has no conversation screen.
+export function speakingPeople(game){
+ if(game.stage==='combat')return [];
+ if(!game.npcCombat?.active)return conversationPeople(game);
+ return npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({...n,name:game.story?.npcs?.[n.id]?.name??npcLore(game,n.id)?.name??n.name,role:npcLore(game,n.id)?.role??''}));
+}
 export function conversationTarget(game,input,current=null){
  const people=conversationPeople(game),q=input.toLowerCase();
  if(/^(?:I\s+)?(?:attack|stab|strike|slash|cast|go|move|travel|leave|goodbye|farewell|flee|surrender)\b/i.test(input.trim()))return null;
@@ -23,8 +31,10 @@ export function activeEffectLines(game,health){
  for(const [key,label] of [['silenced','Silenced'],['handsBound','Hands bound'],['incapacitated','Incapacitated']])if(game.castingConditions?.[key])lines.push(label);
  return lines;
 }
+// At a shared table a player's line carries their table name and their seat (speakerSeat, opaque), so a device can
+// hide the lines of someone its player muted (tableMutes.js) and a report can quote what that member typed.
 export function recordedTurn(hero,before,beforeHP,result,conversation,npcId=null){
- const after=result.game,events=[{kind:conversation.trigger?'action':'player',text:conversation.question,...(conversation.actorName&&!conversation.trigger?{speakerName:String(conversation.actorName).slice(0,100)}:{})}];
+ const after=result.game,events=[{kind:conversation.trigger?'action':'player',text:conversation.question,...(conversation.actorName&&!conversation.trigger?{speakerName:String(conversation.actorName).slice(0,100)}:{}),...(!conversation.trigger&&typeof conversation.actorSeat==='string'&&/^seat-[a-f0-9]{16}$/.test(conversation.actorSeat)?{speakerSeat:conversation.actorSeat}:{})}];
  const kind=text=>/initiative|turn order/i.test(text)?'initiative':/d20|\bd\d+\b|save |damage|\bHP\b/i.test(text)?'roll':'action';
  for(const text of result.events??[])if(text)events.push({kind:kind(text),text:storyText(after,text)});
  const hp=h=>h?.current??combatBasics(hero).hp;

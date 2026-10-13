@@ -11,3 +11,10 @@ PROGRESS-NOTE.md
 playtest-feedback.md
 .git
 .claude
+
+verify-*
+qa-*
+*.test.*
+test-fixtures.cjs
+save-fixtures
+make-save-fixtures.cjs

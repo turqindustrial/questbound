@@ -1,10 +1,11 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,StyleSheet} from 'react-native';
-import {Section,Segmented} from './ui';
+import {Section,Segmented,Toggle} from './ui';
 import {brutalityLevels,narrators,narratorOf,storyPreferences,subscribeStoryPreferences,setStoryPreferences} from './storyPreferences';
 import {sampleNarrator} from './narrator';
 import {fonts,colors} from './theme';
-// Settings → Story: who tells the tale, and how graphic the Dungeon Master is when people are hurt and killed.
+// Settings → Story: who tells the tale, how graphic the Dungeon Master is when people are hurt and killed, and the
+// rules this device chooses (whether Shield is cast for the hero when it would save them).
 export function StorySettings(){
  const [prefs,setPrefs]=useState(storyPreferences);
  useEffect(()=>{setPrefs(storyPreferences());return subscribeStoryPreferences(setPrefs);},[]);
@@ -15,7 +16,9 @@ export function StorySettings(){
   <Text style={s.label}>Brutality</Text>
   <Segmented options={brutalityLevels.map(l=>[l.id,l.label,l.icon])} value={level.id} onChange={id=>setStoryPreferences({brutality:id})}/>
   <Text accessibilityLiveRegion="polite" style={s.caption}>{level.description}</Text>
-  <Text style={s.note}>Fights are deadly either way: heroes and the people they meet can be killed, and a hero who dies stays dead.</Text>
+  <Text style={s.note}>Fights are deadly either way: heroes and the people they meet can be killed, and a hero who dies is gone for good, unless someone at their side can bring them back at once.</Text>
+  <Text style={s.label}>Rules</Text>
+  <Toggle value={prefs.autoShield!==false} onChange={on=>setStoryPreferences({autoShield:on})} label="Use Shield when it saves you" description="If your hero knows Shield, the game casts it as your reaction when it turns a hit into a miss, spending a spell slot. Turn this off to keep your slots."/>
  </View>;
 }
 // The narrator: chosen here and on the New Adventure screen (each follows the other). Choosing one reads its sample

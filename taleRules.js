@@ -1,6 +1,7 @@
 import {packOf} from './inventoryRules';
 import {questState} from './storyRules';
 import {deedById} from './deedRules';
+import {heroSpecies} from './characterRules';
 // The tale card: what a player shares about their hero, worked out from the save alone (hero, story log, deeds, pack,
 // places and people). taleSummary gives the pieces; taleText the plain words that go with the picture or to the
 // clipboard; wrapWords breaks a line to a width for the painted card (taleCard.js draws it).
@@ -14,7 +15,7 @@ export function taleSummary(game,hero,{lines=6}={}){
  const places=new Set(game?.map?.visited??[]).size;
  const gold=game&&hero?packOf(game,hero).gold:0;
  const chapter=quest?.current&&story?.status!=='complete'?'Chapter '+quest.number+' of '+quest.chapters:story?.status==='complete'?'The tale is told':null;
- const name=hero?.name??'A hero',heroLine=hero?['Level '+(hero.level??1),hero.species??hero.race,hero.class].filter(Boolean).join(' · '):'';
+ const name=hero?.name??'A hero',heroLine=hero?['Level '+(hero.level??1),heroSpecies(hero),hero.class].filter(Boolean).join(' · '):'';
  const title=story?.title??'The Lantern at the Crossroads',dead=game?.stage==='dead';
  return {name,heroLine,title,chapter,dead,cause:dead?shorten(game.death?.cause??'',100):null,lines:recent,deeds,stats:{places,people,fights,won,gold}};
 }

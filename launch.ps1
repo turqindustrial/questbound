@@ -11,8 +11,10 @@
 #   -SetupTunnel     remember a permanent link for -Share from your own free Cloudflare account (a named tunnel's token,
 #                    stored encrypted to your Windows account, and its public hostname)
 #   -ForgetTunnel    forget the permanent link; -Share goes back to a temporary link
-#   -TrustNetwork    mark the Wi-Fi this PC is on as your home network, so phone access runs on it (it runs only at home)
-param([switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork)
+#   -TrustNetwork    retained for compatibility; remote HTTP play is disabled
+#   -PauseGuests     refuse every guest's AI at once (turns, new tales, new pictures) until -ResumeGuests; no restart
+#   -ResumeGuests    let guests play again
+param([switch]$PauseGuests,[switch]$ResumeGuests,[switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork,[switch]$SetupDiscord,[switch]$ForgetDiscord,[switch]$AnnounceLink)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -25,6 +27,9 @@ $sessionFile = Join-Path $root '.questbound-phone-session.json'
 $shareFile = Join-Path $root '.questbound-share-session.json'
 $tunnelTokenFile = Join-Path $root '.questbound-tunnel.dpapi'
 $tunnelHostFile = Join-Path $root '.questbound-tunnel-host'
+$discordFile = Join-Path $root '.questbound-discord.dpapi'
+$discordLastFile = Join-Path $root '.questbound-discord-last'
+$pauseFile = Join-Path $root '.questbound-guests-paused'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
@@ -71,6 +76,9 @@ if ($Stop) {
   Say 'Questbound services started by this launcher are stopped.' 'Green'
   return
 }
+# The host's switch for guests: the share gateway and the Dungeon Master refuse all guest AI while the file exists.
+if ($PauseGuests) { Set-Content $pauseFile ("Paused by the host at " + (Get-Date).ToString('s')) -Encoding ASCII; Say '  Guests are paused: every guest request to the Dungeon Master is refused. Your own play on this PC goes on.' 'Yellow'; Say '  Let them play again with: Questbound.cmd -ResumeGuests' 'DarkGray'; return }
+if ($ResumeGuests) { Remove-Item $pauseFile -ErrorAction SilentlyContinue; Say '  Guests may play again.' 'Green'; return }
 if ($ForgetKey) { Remove-Item $keyFile, $modelFile, $storyModelFile -ErrorAction SilentlyContinue; Say 'The remembered API key was deleted from this PC.' 'Green'; return }
 if ($Models) {
   $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-6-luna' }
@@ -81,7 +89,50 @@ if ($Models) {
   Say "  Saved: $summary. A running Dungeon Master uses them from its next reply; no restart is needed." 'Green'
   return
 }
-if ($TrustNetwork) { & node (Join-Path $root 'phone-server.cjs') --trust-network; return }
+# Discord: the playtest link and invite code are posted to a channel of the host's own Discord server through a
+# webhook (Server Settings > Integrations > Webhooks). The webhook address is a secret: it is kept DPAPI-encrypted
+# like the API key, never printed, and never passed on a command line. A link is posted once, when it changes.
+function Get-DiscordHook {
+  if (-not (Test-Path $discordFile)) { return $null }
+  try { $sec = (Get-Content $discordFile -Raw).Trim() | ConvertTo-SecureString } catch { Say '  The saved Discord webhook could not be unlocked on this Windows account. Run Connect-Discord.cmd again.' 'Red'; return $null }
+  $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
+}
+function Send-Discord($hook, $text) {
+  $body = @{ content = $text; allowed_mentions = @{ parse = @() } } | ConvertTo-Json -Depth 4
+  Invoke-RestMethod -Method Post -Uri $hook -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 15 | Out-Null
+}
+function Announce-Share($share, [switch]$Force) {
+  if (-not $share -or -not (Test-Path $discordFile)) { return }
+  $stamp = "$($share.link) $($share.inviteCode)"
+  if (-not $Force -and (Test-Path $discordLastFile) -and (Get-Content $discordLastFile -Raw).Trim() -eq $stamp) { return }
+  $hook = Get-DiscordHook; if (-not $hook) { return }
+  $until = ([datetime]$share.expiresAt).ToLocalTime().ToString('dddd MMMM d')
+  $text = "**Questbound** playtest link:`n$($share.link)`nInvite code: **$($share.inviteCode)** (good until $until)`nOpen it on your phone or computer. No sign-in needed."
+  try { Send-Discord $hook $text; Set-Content $discordLastFile $stamp -Encoding ASCII; Say '  Posted the link to your Discord channel.' 'DarkGray' }
+  catch { Say '  Could not post the link to Discord (the webhook may have been deleted). Run Connect-Discord.cmd again.' 'Yellow' }
+}
+if ($ForgetDiscord) { Remove-Item $discordFile, $discordLastFile -ErrorAction SilentlyContinue; Say '  Discord posting is off and the webhook was forgotten.' 'Green'; return }
+if ($SetupDiscord) {
+  Say '  Post playtest links to Discord. In your Discord server: Server Settings > Integrations > Webhooks >' 'Cyan'
+  Say '  New Webhook, choose the channel for links, then Copy Webhook URL and paste it here.' 'Cyan'
+  $hookSecure = Read-Host '  Webhook URL (typing is hidden)' -AsSecureString
+  $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($hookSecure)
+  try { $hook = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
+  if ($hook -notmatch '^https://(ptb\.|canary\.)?(discord|discordapp)\.com/api/webhooks/\d+/[A-Za-z0-9_-]+$') { Say '  That is not a Discord webhook URL. Nothing was saved.' 'Red'; return }
+  try { Send-Discord $hook 'Questbound will post new playtest links in this channel.' } catch { Say '  Discord did not accept that webhook. Nothing was saved.' 'Red'; return }
+  $hookSecure | ConvertFrom-SecureString | Set-Content $discordFile -Encoding ASCII
+  Remove-Item $discordLastFile -ErrorAction SilentlyContinue
+  Say '  Saved. New playtest links will be posted to that channel automatically.' 'Green'
+  if (Test-Path $shareFile) { try { Announce-Share (Get-Content $shareFile -Raw | ConvertFrom-Json) -Force } catch {} }
+  return
+}
+if ($AnnounceLink) {
+  if (-not (Test-Path $discordFile)) { Say '  Discord is not set up yet. Run Connect-Discord.cmd first.' 'Yellow'; return }
+  if (-not (Test-Path $shareFile)) { Say '  Sharing is not running, so there is no link to post.' 'Yellow'; return }
+  Announce-Share (Get-Content $shareFile -Raw | ConvertFrom-Json) -Force; return
+}
+if ($TrustNetwork) { Say 'Use Questbound-Share.cmd for encrypted phone play.' 'Yellow'; return }
 if ($ForgetTunnel) { Remove-Item $tunnelTokenFile, $tunnelHostFile -ErrorAction SilentlyContinue; Say 'The permanent link was forgotten. -Share uses a temporary link again.' 'Green'; return }
 # A permanent link: in the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, give it a public
 # hostname that points to http://127.0.0.1:8087, and paste its token here. The token never touches disk in plain text.
@@ -186,28 +237,15 @@ else {
   if (Wait-Up 'http://localhost:8081/' $wait) { Say '  Desktop game      started' 'Green' } else { Say '  The desktop game did not start. See .questbound-logs\desktop.err.log' 'Red' }
 }
 
-# 5. Phone access on this Wi-Fi. A fresh pairing code is issued when the old one is close to expiring.
+# 5. Remote play now requires the encrypted link, including on home Wi-Fi.
 $session = $null
-if (Test-Path $sessionFile) { try { $session = Get-Content $sessionFile -Raw | ConvertFrom-Json } catch {} }
-$gatewayAlive = $session -and (Get-Process -Id $session.pid -ErrorAction SilentlyContinue)
-$fresh = $gatewayAlive -and ([datetime]$session.expiresAt).ToUniversalTime() -gt (Get-Date).ToUniversalTime().AddHours(2)
-if ($gatewayAlive -and $fresh) { Say '  Phone access      already running' 'DarkGray' }
-else {
-  if ($gatewayAlive) { & taskkill.exe /PID $session.pid /T /F | Out-Null }
-  $before = if (Test-Path $sessionFile) { (Get-Item $sessionFile).LastWriteTime } else { [datetime]::MinValue }
-  Start-Hidden 'phone' 'node' 'phone-server.cjs' | Out-Null
-  for ($i = 0; $i -lt 20 -and -not ((Test-Path $sessionFile) -and (Get-Item $sessionFile).LastWriteTime -gt $before); $i++) { Start-Sleep -Milliseconds 500 }
-  if ((Test-Path $sessionFile) -and (Get-Item $sessionFile).LastWriteTime -gt $before) { $session = Get-Content $sessionFile -Raw | ConvertFrom-Json; Say '  Phone access      started' 'Green' }
-  else {
-    $session = $null; $why = Get-Content (Join-Path $logs 'phone.err.log') -Tail 1 -ErrorAction SilentlyContinue
-    if ($why) { Say "  $why" 'Yellow' } else { Say '  Phone access did not start (is the PC on Wi-Fi?). See .questbound-logs\phone.err.log' 'Yellow' }
-  }
-}
+Say '  Phone access      uses the HTTPS playtest link (Questbound-Share.cmd)' 'DarkGray'
 
 # 6. Sharing with playtesters over the internet (only with -Share): a Cloudflare tunnel to a loopback-only gateway
 #    that asks for an invite code. A quick tunnel's link lasts as long as the tunnel; a permanent link (-SetupTunnel)
 #    never changes, and its invite code survives restarts. The invite code lasts a week.
 $shared = $null
+if (-not $Share -and (Test-Path $shareFile)) { try { $candidateShare = Get-Content $shareFile -Raw | ConvertFrom-Json; if (Get-Process -Id $candidateShare.pid -ErrorAction SilentlyContinue) { $shared = $candidateShare } } catch {} }
 $named = (Test-Path $tunnelTokenFile) -and (Test-Path $tunnelHostFile)
 if ($Share) {
   if (Test-Path $shareFile) { try { $shared = Get-Content $shareFile -Raw | ConvertFrom-Json } catch {} }
@@ -240,7 +278,7 @@ if ($Share) {
         Start-Hidden 'tunnel' "`"$cf`"" 'tunnel --no-autoupdate --url http://127.0.0.1:8087' | Out-Null
         for ($i = 0; $i -lt 80 -and -not $url; $i++) {
           Start-Sleep -Milliseconds 500
-          if (Test-Path $tunnelLog) { $m = [regex]::Match([string](Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $url = $m.Value } }
+          if (Test-Path $tunnelLog) { $m = [regex]::Match("$(Get-Content $tunnelLog -Raw -ErrorAction SilentlyContinue)", 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $url = $m.Value } }
         }
       }
       if (-not $url) { Say '  The secure link did not start. See .questbound-logs\tunnel.err.log' 'Red' }
@@ -263,13 +301,29 @@ if ($session) {
 }
 if ($shared) {
   Say ''
-  Say "  Playtest link:  $($shared.link)" 'Yellow'
+  Say "  Phone / playtest link:  $($shared.link)" 'Yellow'
   Say "  Invite code:    $($shared.inviteCode)   (valid until $(([datetime]$shared.expiresAt).ToLocalTime().ToString('ddd MMM d, h:mm tt')))" 'Yellow'
   Say '  Send both to your testers. Their play uses your OpenAI key; keep this PC awake while they play.' 'DarkGray'
   if ($named) { Say '  This link stays the same, and so does the invite code until it expires.' 'DarkGray' }
   else { Say '  The link changes if sharing restarts (for example after a reboot). For a permanent link see Questbound.cmd -SetupTunnel' 'DarkGray' }
+  Announce-Share $shared
   try { Set-Clipboard -Value ("Questbound playtest: $($shared.link)  Invite code: $($shared.inviteCode)"); Say '  (Link and code copied to your clipboard.)' 'DarkGray' } catch {}
 }
+# Playtest notes not yet read (feedback-report.cjs keeps the marker; only its --mark moves it).
+try {
+  $unread = [int]((& node (Join-Path $root 'feedback-report.cjs') --count 2>$null | Select-Object -Last 1))
+  if ($unread -gt 0) { Say ''; Say "  $unread new playtest note(s): node feedback-report.cjs" 'Yellow' }
+} catch {}
+# What the AI has cost today and this month against the ceilings (dm-report.cjs, spending.cjs).
+try {
+  $spent = (& node (Join-Path $root 'dm-report.cjs') --status 2>$null | Select-Object -Last 1)
+  if ($spent) { $tone = if ($spent -match 'PAUSED') { 'Yellow' } else { 'DarkGray' }; Say "  $spent" $tone }
+} catch {}
+# Anonymous play counts and session ratings, the last 7 days (play-report.cjs; all of it: node play-report.cjs).
+try {
+  $play = (& node (Join-Path $root 'play-report.cjs') --brief --days 7 2>$null | Select-Object -Last 1)
+  if ($play) { Say "  $play" 'DarkGray' }
+} catch {}
 Say ''
 Say '  Everything keeps running in the background after you close this window.' 'DarkGray'
 Say '  Stop it all with: Questbound.cmd -Stop' 'DarkGray'

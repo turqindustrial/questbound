@@ -13,4 +13,7 @@ assert.equal(shortcutsBlocked(make({dialogs:[{el:dialog,onTop:false}]})),false,'
 const empty={getBoundingClientRect:()=>({left:0,top:0,width:0,height:0}),contains:()=>true};
 assert.equal(shortcutsBlocked(make({dialogs:[{el:empty,onTop:true,hit:button}]})),false,'A collapsed dialog');
 assert.equal(shortcutsBlocked(undefined),true,'No document (native): shortcuts off');
-console.log('Passed: shortcuts pause while typing and while a dialog is on screen, and resume once a dialog has faded away.');
+// The play screen's 1-9 press only the chips in view: the battle row (or its Say lines), else the open Suggestions
+// sub-tab, and nothing while Suggestions is closed (DungeonMaster.js).
+{const dm=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(dm.includes('shortcutsBlocked())return;')&&dm.includes('const {actions,disabled,run}=keysRef.current,a=actions[Number(e.key)-1]')&&dm.includes('keysRef.current={actions:visible,')&&dm.includes("!panel.open?[]:shownTab==='say'?"),'number keys follow what is in view');}
+console.log('Passed: shortcuts pause while typing and while a dialog is on screen, and resume once a dialog has faded away; the play screen’s number keys press only the chips in view.');

@@ -1,34 +1,109 @@
-import {storyText,questState} from './storyRules';
-import {recruitmentTargets,resolveRecruitment} from './followerRules';
+import {storyText,questState,storyIntroduction} from './storyRules';
+import {recruitmentTargets,resolveRecruitment,standingOffers,followerPlace,maxFollowing} from './followerRules';
 import {skillAbilities,skillCheckBonus,trainedSkills} from './skillRules';
-import {npcScene,npcServiceError,npcLore,npcIdsOf,npcProfile,npcMaxHP} from './npcRules';
-import {modifier,proficiencyBonus} from './characterRules';
+import {npcScene,npcServiceError,npcLore,npcIdsOf,npcProfile,npcMaxHP,metPerson} from './npcRules';
+import {modifier,proficiencyBonus,currentSubclass,heroSpecies,speciesProfile} from './characterRules';
 import {concentrationAfterDamage} from './spellRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,spellAbility} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,spellAbility,guidanceBonus,spellDamageMax,sustainOptions} from './spellRules';
 import {dmCommand} from './dmCommands';
 import {adventureStep,encounterFoe} from './adventureRules';
 import {appendJournal,journalForGame} from './journalRules';
-import {classActions,windLimit,shortRestLimit} from './classActions';
-import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,mapRegions,regionOfPlace,placeCoordinates} from './mapRules';
+import {memoryBlock,rememberFacts} from './memoryRules';
+import {classActions,windLimit,shortRestLimit,surgeReady,surgeLimit,turnLeft,potionGifts,subclassTempFloor} from './classActions';
+import {subclassAction,subclassUses,subclassShortRecharge,subclassBriefs} from './subclassRules';
+import {mapState,mapLocation,travelError,travelRoute,knownPlaceIds,placeName,placeDescription,worldPlace,worldPlaces,maxWorldPlaces,distanceText,durationText,mapRegions,regionOfPlace,currentRegion,placeCoordinates,beyondBearings,beyondError,beyondWords,mapHasRoom} from './mapRules';
 import {campaignState,earnedGold,interactionOptions} from './campaignRules';
-import {attackOptions,readyLoadout,canThrow} from './weaponRules';
+import {attackOptions,readyLoadout,canThrow,attacksPerAction,shieldSlung,shieldInUse,shieldStowed} from './weaponRules';
 import {offhandWeapons,masteryOf,masteredWeapons,masteryText,creatureSize,withinGrip,unarmedDC,grappledBy,markOf} from './masteryRules';
-import {fallAtZero,fallPlace} from './deathRules';
+import {fallAtZero,fallPlace,revivalOptions,partyRevivalError,revivalSpell} from './deathRules';
 import {withAttackIntent} from './dmCommands';
 import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway} from './relationshipRules';
 import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules';
+import {spoilsHere,lootError,magicItems,magicSummary,magicCheckMode,packMagic,carriedDraughts} from './lootRules';
 import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats,turnOrderView} from './encounterRules';
 import {loadoutFor} from './equipmentRules';
+import {foeTemplate} from './encounterRules';
+const spoilSpecies=key=>foeTemplate(key)?.species??null;
 import {combatBasics} from './combatRules';
+import {heroXp,xpForLevel} from './experienceRules';
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
 const attackChoices=hero=>{const all=attackOptions(hero);return [...all.filter(w=>!w.unarmed).slice(0,3),...all.filter(w=>w.unarmed)];};
 // Weapons the hero can throw right now (a dagger, handaxe, javelin or spear still in hand).
 const throwChoices=hero=>attackOptions(hero).filter(canThrow);
-// Known places the hero can set out for, nearest first.
+// Known places the hero can set out for, nearest first; and the nearest place of every other land on the map, so
+// any land the hero has known can be travelled back to.
+// Long text sent to the Dungeon Master is shortened with an ellipsis (the request stays well inside its size limit).
+const briefText=(t,n)=>{t=String(t??'');return t.length>n?t.slice(0,n-1).trimEnd()+'…':t;};
+// One line per skill ("Arcana: Intelligence +5 (trained)"), as the Dungeon Master reads it, so a request has room for
+// the story so far (memoryRules.js). Outside fights and rulings only the defenses of the people here are sent, and the
+// latest eight world facts (the lasting facts of a whole life are kept in memory).
+const skillLine=s=>(s.skill??s.ability)+': '+s.ability+' '+(s.total>=0?'+':'')+s.total+(s.expert?' (expert)':s.trained?' (trained)':'')+(s.reliable?' (reliable)':'');
 export function travelChoices(game,limit=8){
   const here=mapLocation(game),scene={...game,stage:game.stage==='victory'?'bridge':game.stage};
-  return knownPlaceIds(game).filter(id=>id!==here&&!travelError(scene,id)).map(id=>({id,route:travelRoute(scene,mapLocation(scene),id)})).sort((a,b)=>a.route.minutes-b.route.minutes).slice(0,limit).map(t=>t.id);
+  const all=knownPlaceIds(game).filter(id=>id!==here&&!travelError(scene,id)).map(id=>({id,route:travelRoute(scene,mapLocation(scene),id)})).sort((a,b)=>a.route.minutes-b.route.minutes),near=all.slice(0,limit);
+  for(const t of all.slice(limit))if(!near.some(n=>regionOfPlace(game,n.id)===regionOfPlace(game,t.id)))near.push(t);
+  return near.map(t=>t.id);
+}
+// Every move the map can send (AdventureMap.js): a journey to any known place a road reaches, and a road beyond the
+// edge of the map. The campaign server accepts these too (server-turn.cjs), so every land on the map can be travelled
+// back to from its sheet, however far it lies.
+export function mapMoves(game){
+  if(!game?.story||['combat','dying','dead','defeat','escaped'].includes(game.stage)||game.npcCombat?.active)return [];
+  return [...travelChoices(game,Infinity).map(id=>({id:'travel-'+id,label:'Travel to '+placeName(game,id),action:{type:'travel',destination:id}})),...beyondChoices(game).map(b=>({id:'beyond-'+b,label:'Go beyond the map to the '+beyondWords[b]+' (days on the road to a land not yet on any map)',action:{type:'beyond',bearing:b}}))];
+}
+// The directions in which the hero may go beyond the edge of the map now (mapRules.js beyondError).
+export function beyondChoices(game){
+  const scene={...game,stage:game.stage==='victory'?'bridge':game.stage};
+  return beyondBearings.filter(b=>!beyondError(scene,b));
+}
+// Known places and lands the player's own words name (a whole name; "the" may be left off): the place, or for a land
+// the nearest place in it. Lands travelled are never forgotten, so a journey back to any of them is offered to the
+// Dungeon Master when the player names it, however many lands the choices have no room for.
+const escapedText=t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const plainWords=t=>String(t??'').toLowerCase().replace(/[’`]/g,"'").replace(/\s+/g,' ').trim();
+export function placesNamed(game,input){
+  const text=plainWords(input);
+  if(!game?.story||text.length<3)return [];
+  const said=name=>{const n=plainWords(name).replace(/^the /,'');return n.length>=3&&new RegExp('(?:^|[^a-z0-9])'+escapedText(n)+'(?:$|[^a-z0-9])').test(text);};
+  const here=mapLocation(game),ids=knownPlaceIds(game).filter(id=>id!==here),found=ids.filter(id=>said(placeName(game,id)));
+  const minutes=id=>travelRoute(game,here,id)?.minutes??Infinity,land=currentRegion(game);
+  for(const r of mapRegions(game))if(r.id!==land&&said(r.name)){const near=ids.filter(id=>regionOfPlace(game,id)===r.id).sort((a,b)=>minutes(a)-minutes(b))[0];if(near&&!found.includes(near))found.push(near);}
+  return found;
+}
+// The journeys the player's words name, added to the choices offered (the farthest journeys or ways beyond give way
+// past thirty). The game itself accepts any journey on the map (mapMoves), so the chosen one can be taken.
+export function withNamedJourneys(choices,game,input){
+  if(!input)return choices;
+  const moves=mapMoves(game),named=placesNamed(game,input).map(id=>moves.find(m=>m.action.type==='travel'&&m.action.destination===id)).filter(Boolean).slice(0,4);
+  let list=[...choices];
+  for(const m of named){
+    if(list.some(c=>c.id===m.id))continue;
+    if(list.length>=30){const i=list.map(c=>/^(?:beyond|travel)-/.test(c.id)&&!named.some(n=>n.id===c.id)).lastIndexOf(true);if(i<0)break;list.splice(i,1);}
+    list.push({id:m.id,label:m.label});
+  }
+  return list;
+}
+// How much of a large world the Dungeon Master is told, so that one request stays well inside its size limit however
+// many lands the hero has travelled (they are never forgotten): places of this land in full, then by name; far lands
+// with their places by name; people not here in brief, then by name.
+export const placesInFull=10,placesByName=24,landsInFull=10,peopleInBrief=6,peopleByName=20;
+// People not here: companions first, then anyone who keeps out of sight, holds a grudge or a debt, then the people
+// met. The first few of this land are told in brief; the rest of this land who have been met, by name only
+// (peopleElsewhere); people of other lands not at all (they are far away), except a companion waiting there.
+function peopleAway(game,state){
+  const rank=n=>game.followers?.[n.id]?0:n.hidden?1:(n.grudge||n.bond)?2:n.metHero!==false?3:4;
+  const near=state.filter(n=>n.present===false&&(!landAwayOf(game,n.id)||game.followers?.[n.id])).map((n,i)=>({n,i})).sort((a,b)=>rank(a.n)-rank(b.n)||a.i-b.i).map(({n})=>n);
+  const named=near.slice(peopleInBrief).filter(n=>n.metHero!==false);
+  return {brief:new Set(near.slice(0,peopleInBrief).map(n=>n.id)),named:named.slice(0,peopleByName).map(n=>n.name+(n.role?', '+briefText(n.role,32):'')+(n.livesAt?', at '+n.livesAt:'')+(n.fate==='dead'?' (dead)':n.attitude&&n.attitude!=='indifferent'?' ('+n.attitude+')':''))};
+}
+// The land someone lives (or waits) in, when it is not the land the hero is in: they are told to the Dungeon Master in
+// brief. null for someone in this land or travelling with the hero.
+function landAwayOf(game,id){
+  const f=game.followers?.[id];if(f?.status==='following')return null;
+  const at=f?.status==='waiting'?f.location:game.people?.[id]?.home??(['keeper','mara'].includes(id)?'inn':null);if(!at)return null;
+  const land=regionOfPlace(game,at);if(land===currentRegion(game))return null;
+  return mapRegions(game).find(r=>r.id===land)?.name??null;
 }
 // Class features used as a bonus action in a fight, while they have uses left (healing ones only when hurt, if the
 // caller knows the hero's HP).
@@ -39,12 +114,55 @@ function bonusChoices(hero,game,health){
   const offhand=[];
   if(game.lightAttack&&!game.nickUsed)for(const w of offhandWeapons(hero,game.lightAttack.weapon)){const nick=masteryOf(hero,w)==='Nick'&&!game.nickUsed;if(nick||!game.bonusUsed)offhand.push(['offhand:'+w.name,'Strike with the '+w.name+' in your other hand ('+(nick?'Nick: part of your Attack action':'bonus action')+')']);}
   if(game.bonusUsed)return offhand;
-  const maximum=combatBasics(hero).hp,hurt=!health||health.current<maximum,used=game.resources??{},list=[...offhand];
+  // Health not known is full health, as the rules read it (classActions.js bonusOptions).
+  const maximum=combatBasics(hero).hp,hurt=(health?.current??maximum)<maximum,used=game.resources??{},list=[...offhand];
   if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
   if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
   if(hero.class==='Monk')list.push(['class:strike','Martial Arts strike (bonus action)']);
+  // The subclass's own bonus action, while it has uses (subclassRules.js).
+  const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(used.feat??0):0;
+  if(sub?.bonus&&left>0&&(!sub.effect.heal||hurt)&&(!sub.effect.temp||(health?.temp??0)<subclassTempFloor(hero,sub)))list.push(['class:'+sub.id,sub.name+' (bonus action, '+left+' left)']);
   if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
+  // Stronger draughts from the pack (Greater, Superior, Supreme healing).
+  if(hurt)for(const d of carriedDraughts(game))list.push(['drink:'+d.magic.id,'Drink a '+d.name+' (bonus action)']);
+  // Giving a draught to someone hurt or fallen beside you is a bonus action too (2024 rules).
+  for(const g of potionGifts(game))list.push([g.id,g.name+' (bonus action)',g.action]);
+  // A lasting spell's bonus action (Spiritual Weapon, Heat Metal, the Flaming Sphere), or moving Hex or Hunter's Mark.
+  for(const [id,label,action,kind] of sustainOptions(game))if(kind==='bonus')list.push([id,label,action]);
+  // Action Surge, once the action is spent: one more action this turn (not a spell).
+  if(game.actionUsed&&surgeReady(hero,game))list.push(['class:surge','Action Surge (free): take one more action this turn, though not to cast a spell']);
   return list;
+}
+// Bonus actions in a brawl, taken before the action (which ends the turn there): a healing draught, Second Wind, Lay on
+// Hands, or a draught for someone hurt beside you.
+function brawlBonusChoices(hero,game,health){
+  if(!game.npcCombat?.active||game.bonusUsed||game.pendingSpell)return [];
+  const maximum=combatBasics(hero).hp,hurt=(health?.current??maximum)<maximum,used=game.resources??{},list=[];
+  if(hero.class==='Fighter'&&hurt&&(used.wind??0)<windLimit(hero))list.push(['class:wind','Second Wind (bonus action): regain 1d10 + your level HP']);
+  if(hero.class==='Paladin'&&hurt&&(used.hands??0)<5*hero.level)list.push(['class:hands','Lay on Hands on yourself (bonus action)']);
+  if((game.potions??0)>0&&hurt)list.push(['potion','Drink a healing draught (bonus action)']);
+  if(hurt)for(const d of carriedDraughts(game))list.push(['drink:'+d.magic.id,'Drink a '+d.name+' (bonus action)']);
+  // The subclass's own bonus action that heals or shields the hero (subclassRules.js).
+  const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(used.feat??0):0;
+  if(sub?.bonus&&left>0&&((sub.effect.heal&&hurt)||(sub.effect.temp&&(health?.temp??0)<subclassTempFloor(hero,sub))))list.push(['class:'+sub.id,sub.name+' (bonus action, '+left+' left)']);
+  for(const g of potionGifts(game))list.push([g.id,g.name+' (bonus action)',g.action]);
+  for(const [id,label,action,kind] of sustainOptions(game))if(kind==='bonus')list.push([id,label,action]);
+  return list;
+}
+// The subclass's own action turned on someone fighting in a brawl (a Tangle-Bolt, a Rattling Jest, a Feint), while
+// it has uses: one choice for each person still standing against the hero.
+function brawlFeatChoices(hero,game){
+  if(!game.npcCombat?.active||game.pendingSpell)return [];
+  const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(game.resources?.feat??0):0;
+  if(!sub||left<=0||!(sub.effect.mark||sub.effect.vex||sub.effect.strike)||(sub.bonus&&game.bonusUsed))return [];
+  return game.npcCombat.order.filter(n=>n.side==='enemy'&&(game.npcHP?.[n.id]??npcMaxHP(n.id,game))>0).map(n=>{const name=npcLore(game,n.id)?.name??n.id;return ['npc-feat:'+n.id,sub.name+' at '+name+' ('+(sub.bonus?'bonus action, ':'')+left+' left)',{type:'npc-attack',target:n.id,feat:true}];});
+}
+// A lasting spell used again as the action (Moonbeam moved, Call Lightning, Vampiric Touch).
+const sustainActions=game=>sustainOptions(game).filter(c=>c[3]==='action');
+// The subclass's own action that takes the action (a Tangle-Bolt, a Field Engine), while it has uses.
+function featChoices(hero,game){
+  const sub=subclassAction(hero),left=sub?subclassUses(hero,sub.uses)-(game.resources?.feat??0):0;
+  return sub&&!sub.bonus&&left>0?[['class:'+sub.id,sub.name+' ('+left+' left)']]:[];
 }
 // Short rests: where one can be taken, and how many are left before the next long rest.
 export function shortRestsLeft(hero,game){return Math.max(0,shortRestLimit(hero)-(game.shortRests??0));}
@@ -53,22 +171,40 @@ export function shortRestsLeft(hero,game){return Math.max(0,shortRestLimit(hero)
 function restWouldHelp(hero,game,health){
   if(health&&Number.isFinite(health.current)&&health.current<combatBasics(hero).hp)return true;
   if(hero.class==='Fighter'&&(game.resources?.wind??0)>0)return true;
+  if(hero.class==='Fighter'&&(game.resources?.surge??0)>0)return true;
   if(hero.class==='Warlock'&&((game.spellSlotsUsed??[]).some(n=>n>0)||(game.resources?.slots??0)>0))return true;
-  return npcScene(game).some(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.fate!=='dead'&&n.hp>0&&n.hp<npcMaxHP(n.id,game));
+  if(subclassShortRecharge(hero,game))return true;
+  // A companion knocked down (0 HP, not dead) comes round with a rest, so a rest is worth it for them too.
+  return npcScene(game).some(n=>game.followers?.[n.id]?.status==='following'&&n.present&&n.fate!=='dead'&&n.hp<npcMaxHP(n.id,game));
 }
 const canShortRest=(hero,game,health=null)=>['inn','bridge','tower','wild','victory'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&shortRestsLeft(hero,game)>0&&restWouldHelp(hero,game,health);
+// Companions out of a fight: taking up someone's offer to come along (a chip), and orders the Dungeon Master may
+// carry out when the player gives them in their own words (wait here, come along again, send word to one elsewhere).
+function companionChoices(game){
+  const list=[],scene=npcScene(game),name=id=>npcLore(game,id)?.name??scene.find(n=>n.id===id)?.name??id,travelling=Object.values(game.followers??{}).filter(f=>f?.status==='following').length;
+  for(const id of standingOffers(game))if(travelling<maxFollowing)list.push({id:'join:'+id,label:'Take '+name(id)+' along: they offered to come with you',action:{type:'accept-offer',id}});
+  for(const [id,f] of Object.entries(game.followers??{})){
+    const n=scene.find(x=>x.id===id);if(!n||n.fate==='dead')continue;
+    if(f.status==='following'&&n.present&&n.hp>0)list.push({id:'follower-wait:'+id,label:name(id)+' waits here: ONLY when the player has told them to stay',action:{type:'follower',id,order:'wait'}});
+    if(f.status==='waiting'&&n.hp>0&&n.attitude!=='hostile'&&travelling<maxFollowing)list.push(n.present?{id:'follower-resume:'+id,label:name(id)+' comes along again: ONLY when the player has asked them to',action:{type:'follower',id,order:'resume'}}:{id:'follower-call:'+id,label:'Send word to '+name(id)+' at '+followerPlace(game,f.location)+' to catch up: ONLY when the player has asked for them',action:{type:'follower',id,order:'call'}});
+  }
+  return list;
+}
 export function dmChoices(hero,game,health=null) {
   hero=gearedHero(hero,game);
   // In a party's fight, nothing can be done on someone else's turn (adventureRules.js keeps the order).
   // (Only passing the turn of a hero whose player has gone, which the screen offers after a wait.)
   {const holder=game.turnOrder?.order?.[game.turnOrder.at]?.id;if(game.party&&holder&&holder!==game.party.lead)return game.party.members[holder]?[{id:'party-pass',label:'Pass the turn of a hero whose player is away',action:{type:'party-pass'}}]:[];}
-  if(game.stage==='dead')return [];
+  // The dead can only be brought back, by a companion at their side who knows how (deathRules.js).
+  if(game.stage==='dead')return revivalOptions(game,hero).filter(o=>o.ready&&o.kind==='companion').map(o=>({id:'revive:'+o.id,label:'Ask '+o.name+' to bring you back with '+revivalSpell.name+' (a '+o.cost+' gp diamond)',action:{type:'revive',by:o.id}}));
   if(game.stage==='dying')return [{id:'death-save',label:'Roll a death saving throw',action:'death-save'}];
   if(game.pendingSpell)return [{id:'cancel-spell',label:'Cancel the pending spell',action:{type:'cancel-spell'}}];
-  const choices=dungeonChoices(game).map(c=>({...c,action:c.id})),add=(id,label,action=id)=>choices.push({id,label,action});
+  const choices=(game.story?[]:dungeonChoices(game)).map(c=>({...c,action:c.id})),add=(id,label,action=id)=>choices.push({id,label,action});
+  // A friend at the table who has just died, while the party is still where they fell.
+  for(const m of partyOthers(game))if(m.status==='dead'&&!partyRevivalError(game,hero,m.id,health))add('revive:party:'+m.id,'Cast '+revivalSpell.name+' on '+m.name+' (a 3rd-level slot and a '+revivalSpell.diamond+' gp diamond)',{type:'revive',target:'party:'+m.id});
   const c=campaignState(game),map=mapState(game);
   // The action is spent this turn: a bonus action, or the end of the turn, is all that remains.
-  if(game.stage==='combat'&&game.actionUsed){add('end-turn','End your turn');for(const [id,label] of bonusChoices(hero,game,health))add(id,label);return choices;}
+  if(game.stage==='combat'&&game.actionUsed){add('end-turn','End your turn');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);return choices;}
   if(game.stage==='bridge'&&game.enemyHP>0){for(const w of attackChoices(hero))add('encounter-attack:'+w.name,'Attack '+(game.story?.foe??'Lantern Wisp')+' with '+w.name,{type:'encounter-attack',weapon:w.name});for(const w of throwChoices(hero))add('encounter-throw:'+w.name,'Throw '+w.name+' at '+(game.story?.foe??'Lantern Wisp'),{type:'encounter-attack',weapon:w.name,thrown:true});}
   // Anyone present and not dead can be attacked; someone lying unconscious can be finished off.
   const victims=npcScene(game).filter(n=>n.present&&n.fate!=='dead');
@@ -83,15 +219,21 @@ export function dmChoices(hero,game,health=null) {
     }
   };
   const addPersonUnarmed=npc=>{if(npc.hp<=0)return;const dc=unarmedDC(hero),name=npcLore(game,npc.id)?.name??npc.name;if(!grappledBy(game,npc.id,health))add('npc-grapple:'+npc.id,'Grapple '+name+' (an Unarmed Strike: they save against DC '+dc+' or are held)',{type:'npc-attack',target:npc.id,weapon:'Unarmed Strike',unarmed:'grapple'});if(!markOf(game,npc.id).prone)add('npc-shove:'+npc.id,'Shove '+name+' to the ground (an Unarmed Strike: they save against DC '+dc+' or fall prone)',{type:'npc-attack',target:npc.id,weapon:'Unarmed Strike',unarmed:'shove'});};
+  // A Wand of Magic Missiles with charges left: an action, at the foe or the creature beside it.
+  const addMagicItems=()=>{if(!packMagic(game,'wand-of-magic-missiles')||game.surged)return;add('item:wand-of-magic-missiles','Use the Wand of Magic Missiles on '+(game.wildFight?.name??game.story?.foe??'the foe')+' (an action: three darts of force that never miss)');for(const a of livingAllies(game))add('ally-item:'+a.index+':wand-of-magic-missiles','Use the Wand of Magic Missiles on the '+a.name,{type:'use-item',id:'wand-of-magic-missiles',target:'ally:'+a.index});};
   // A healing draught can be given to anyone here who is hurt (and brings round someone lying senseless).
   const addPotionGifts=()=>{if((game.potions??0)>0){for(const n of victims)if((game.npcHP?.[n.id]??npcMaxHP(n.id,game))<npcMaxHP(n.id,game))add('give-potion:'+n.id,'Give '+(npcLore(game,n.id)?.name??n.name)+' a healing draught',{type:'give-potion',target:n.id});
    // Another player's hero who is hurt or has fallen (a party at the shared table).
    for(const m of partyOthers(game))if(m.status!=='dead'&&(m.status==='down'||m.hp<m.maxHp))add('give-potion:party:'+m.id,'Give '+m.name+' a healing draught',{type:'give-potion',target:'party:'+m.id});}};
   if(game.story){
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
-    if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);return choices;}
-    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();for(const id of ['dodge','flee'])add(id,id);for(const [id,label] of bonusChoices(hero,game,health))add(id,label);addPotionGifts();add('end-turn','End your turn without acting');}
-    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn')add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0)add('potion','Drink a healing draught');addPotionGifts();
+    if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);for(const [id,label,action] of sustainActions(game))add(id,label,action);return choices;}
+    if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const [id,label,action] of sustainActions(game))add(id,label,action);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
+    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});for(const b of beyondChoices(game))add('beyond-'+b,'Go beyond the map to the '+beyondWords[b]+' (days on the road to a land not yet on any map)',{type:'beyond',bearing:b});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn'&&!npcServiceError(game,'long-rest'))add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0&&!!health&&health.current<combatBasics(hero).hp)add('potion','Drink a healing draught');addPotionGifts();
+      // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
+      if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
+      for(const c of companionChoices(game))add(c.id,c.label,c.action);
+      if(!health||health.current<combatBasics(hero).hp)for(const d of carriedDraughts(game))add('drink:'+d.magic.id,'Drink a '+d.name);
       // The tale: the chapter under way gives place to the next (or, in the last one, the story ends), and each open lead can be closed.
       if(game.story.status==='active'){const q=questState(game);
         if(q.current&&!q.last)add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is finished: move on ONLY when its goal has actually been achieved in play');
@@ -102,6 +244,9 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='inn')for(const npc of victims)for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+npc.name+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});
   if(game.npcCombat?.active){
     for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id[0].toUpperCase()+id.slice(1));
+    for(const [id,label,action] of sustainActions(game))add(id,label,action);
+    for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);
+    for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);
     return choices;
   }
   if(game.concentration)add('end-concentration','End concentration',{type:'end-concentration'});
@@ -109,6 +254,7 @@ export function dmChoices(hero,game,health=null) {
   if(game.stage==='inn'&&!map.accepted)add('study','Study the lantern, accept the quest, and depart for the bridge');
   for(const [id,stage,label] of [['persuade-keeper','inn','Persuade the keeper for a watchtower lead: Charisma DC 10'],['investigate-signal','tower','Decipher the tower signal: Intelligence DC 10']])if(game.stage===stage&&!(game.dmChecks??[]).includes(id)&&!(id==='investigate-signal'&&map.clue))add('check:'+id,label);
   for(const option of interactionOptions(game))add(option.id,option.label);
+  if(game.stage!=='combat'&&!game.dungeon?.active)for(const c of companionChoices(game))add(c.id,c.label,c.action);
   if(['inn','bridge','tower'].includes(game.stage)&&(map.accepted||Object.keys(game.npcMemory??{}).length>0))for(const id of ['inn','bridge','tower'])if(id!==game.stage)add('travel-'+id,'Travel to '+id,{type:'travel',destination:id});
   if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');
   if(game.stage==='inn'){add('long-rest','Take a long rest');if(!map.accepted)add('listen','Accept the keeper’s quest');}
@@ -118,7 +264,9 @@ export function dmChoices(hero,game,health=null) {
     for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);
     for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);
     addUnarmed();
-    add('dodge','Dodge');add('flee','Retreat');for(const [id,label] of bonusChoices(hero,game,health))add(id,label);
+    for(const [id,label] of featChoices(hero,game))add(id,label);
+    for(const [id,label,action] of sustainActions(game))add(id,label,action);
+    add('dodge','Dodge');add('flee','Retreat');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);
     add('end-turn','End your turn without acting');
   }
   if(['victory','bridge'].includes(game.stage)&&game.enemyHP===0&&!c.bridgeReward)add('claim-reward','Claim 20 GP reward');
@@ -133,34 +281,68 @@ export function offeredChoices(list,limit=30){
   if(list.length<=limit)return list;
   const armed=new Set();
   let kept=list.filter(c=>{if(c.id.startsWith('npc-throw:'))return false;if(!c.id.startsWith('npc-attack:'))return true;const who=c.id.split(':')[1];if(armed.has(who))return false;armed.add(who);return true;});
-  for(const drop of ['npc-shove:','npc-grapple:','ally-shove:','ally-grapple:','ally-throw:','encounter-throw:','travel-','give-potion:','npc-attack:'])while(kept.length>limit){const i=kept.map(c=>c.id.startsWith(drop)).lastIndexOf(true);if(i<0)break;kept=kept.filter((c,n)=>n!==i);}
+  for(const drop of ['npc-shove:','npc-grapple:','ally-shove:','ally-grapple:','ally-throw:','encounter-throw:','beyond-','travel-','give-potion:','npc-attack:'])while(kept.length>limit){const i=kept.map(c=>c.id.startsWith(drop)).lastIndexOf(true);if(i<0)break;kept=kept.filter((c,n)=>n!==i);}
   return kept.slice(0,limit);
 }
 // The other players' heroes in a party at the shared table (partyRules.js): who they are and how they stand, never
 // what they will do (their own players decide that).
 function partyOthers(game){
   const p=game?.party;if(!p?.members||typeof p.lead!=='string')return [];
-  return Object.entries(p.members).filter(([id])=>id!==p.lead).map(([id,m])=>{let h={};try{h=JSON.parse(m.character)??{};}catch{}const maxHp=m.stats?.hp??1,hp=m.status==='up'?(m.health?.current??maxHp):0;return {id,name:h.name??'A hero',species:h.species??h.race??null,heroClass:h.class??null,level:h.level??1,description:typeof h.description==='string'?h.description.slice(0,240):null,status:m.status,hp,maxHp};});
+  return Object.entries(p.members).filter(([id])=>id!==p.lead).map(([id,m])=>{let h={};try{h=JSON.parse(m.character)??{};}catch{}const maxHp=m.stats?.hp??1,hp=m.status==='up'?(m.health?.current??maxHp):0;return {id,name:h.name??'A hero',species:h.species||h.race?heroSpecies(h):null,heroClass:h.class??null,level:h.level??1,description:typeof h.description==='string'?h.description.slice(0,240):null,status:m.status,hp,maxHp};});
 }
-export function dmContext(hero,game,health) {
+// input: the player's words, when known (a journey they name is offered: withNamedJourneys).
+export function dmContext(hero,game,health,input='') {
   hero=gearedHero(hero,game);
-  const context={npcCombat:game.npcCombat??null,skillChecks:Object.entries(skillAbilities).map(([skill,ability])=>skillCheckBonus(hero,game,ability,skill)),npcSocialState:npcScene(game),resolvedActionEvents:(game.actionEvents??[]).slice(-8),actionContract:{actions: 'Use choices for supported attacks, abilities and travel; castCommand for spells; check for uncertain noncombat attempts; all other mechanical actions require clarification. Never invent an action ID.',movement:game.story?'Known places are reached with their travel choices (travelRoutes). Going anywhere new (a direction, a landmark, a rumoured place) is fully supported: reveal it with discovery and travel true, as described under OPEN WORLD. Precise tactical positioning and opportunity attacks are not implemented.':'Only supplied travelRoutes and dungeon choices are implemented. Precise tactical positioning and opportunity attacks are not implemented.',witnesses:'Only NPCs present and conscious witness attacks. Recorded npcCombat contains actual initiative and sides. NPC attacks and defender help resolve in the engine after player turns; narrate those results without inventing additional damage. Distant acquaintances learn nothing until informed. Recorded NPC memories override contradictory story notes.'},encounter:game.stage==='combat'?{...encounterFoe(hero,game),currentHP:game.enemyHP,distance:game.castingConditions?.targetDistance??5,clearPath:game.castingConditions?.clearPath!==false}:null,turnResources:{actionUsed:!!game.actionUsed,bonusActionUsed:!!game.bonusUsed,reactionUsed:!!game.reactionUsed,spellSlotSpentThisTurn:!!game.slotSpentThisTurn},shortRests:{left:shortRestsLeft(hero,game),of:shortRestLimit(hero)},spellSaveDC:8+proficiencyBonus(hero.level)+modifier(hero.scores[spellAbility[hero.class]]??10),spellAttackBonus:proficiencyBonus(hero.level)+modifier(hero.scores[spellAbility[hero.class]]??10),npcDefenses:Object.fromEntries(npcIdsOf(game).map(id=>[id,{ac:npcProfile(game,id).ac,saveModifiers:0}])),castingConditions:game.castingConditions??{},equipment:hero.equipment,loadout:readyLoadout(hero),loadoutGuidance:'Use the class loadout mainWeapon for an unspecified close-range attack. Explicitly named weapons take priority. Only owned gear is available. The focus is available for eligible material components; it does not waive costly or consumed components or hand requirements. Ranged attacks are bow shots (each spends an arrow) and throws of a dagger, handaxe, javelin or spear (throw: choices; the weapon is gathered up after the fight); both have disadvantage once the foe is within 5 feet. Use only supplied choices.',worldFacts:(game.worldFacts??[]).slice(-12),npcHP:{...Object.fromEntries(npcIdsOf(game).map(id=>[id,npcMaxHP(id,game)])),...game.npcHP},dungeon:game.dungeon?.active?{room:dungeonRooms[game.dungeon.room].name,description:dungeonRooms[game.dungeon.room].text,complete:game.dungeon.complete}:null,travelRoutes:(game.story?knownPlaceIds(game):['inn','bridge','tower']).filter(id=>id!==mapLocation(game)).map(id=>({destination:id,name:placeName(game,id),...travelRoute(game,mapLocation(game),id)})).filter(r=>Number.isFinite(r.feet)),castingHelp:'Cast through Send to DM: I cast [spell] on [target]. The game automatically checks casting requirements. Add level N slot for upcasting. You may adjudicate pending spells using the provided spell description and recorded scene. Do not direct players to casting buttons.',spellReference:knownSpells(hero).map(spell=>({name:spell.name,components:spell.components,material:spell.material,level:spell.level,castingTime:spell.castingTime,range:spell.range,availableCosts:spellCostOptions(hero,game,spell)})),nearbyNPCs:game.dungeon?.active?(game.stage==='combat'?[{name:dungeonRooms[game.dungeon.room].foe,voice:'An ancient guardian; speak in terse solemn warnings.'}]:[]):game.stage==='inn'?[{name:'The keeper',voice:'Practical, warm, worried about travelers; never promises unearned rewards.'},{name:'Mara',voice:'A thoughtful traveling medicine courier; knows the road, not undiscovered tower secrets.'}]:['bridge','combat'].includes(game.stage)?[{name:'Lantern Wisp',voice:'Flickers and wordless musical tones; only call it Ember if the logbook was read.'}]:[],conversationHistory:(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').slice(-8).map(e=>({...e,text:e.text.slice(0,1800)})),player:{age:hero.age,backstory:hero.backstory,connections:hero.connections,description:hero.description,name:hero.name,species:hero.species,subclass:hero.plannedSubclass,background:hero.background,class:hero.class,level:hero.level,scores:hero.scores,spells:hero.spells??[],health:health??{current:combatBasics(hero).hp,temp:0}},stage:game.stage,map:mapState(game),campaign:campaignState(game),earnedGold:earnedGold(game),enemyHP:game.enemyHP,spellSlotsUsed:game.spellSlotsUsed??[],pendingSpell:game.pendingSpell?{...game.pendingSpell,engineDamage:!!game.pendingSpell.npcTarget&&!!automaticEffects[game.pendingSpell.id],spell:knownSpells(hero).find(s=>s.id===game.pendingSpell.id)}:null,concentration:game.concentration??null,recentEvents:game.log.slice(0,8),journal:(game.journal?.entries??[]).slice(-8).map(e=>({...e,text:e.text.slice(0,1200)})),choices:offeredChoices(dmChoices(hero,game,health)).map(({id,label})=>({id,label}))};
+  const context={npcCombat:game.npcCombat??null,skillChecks:Object.entries(skillAbilities).map(([skill,ability])=>skillLine(skillCheckBonus(hero,game,ability,skill))),npcSocialState:npcScene(game),resolvedActionEvents:(game.actionEvents??[]).slice(-8),actionContract:{actions: 'Use choices for supported attacks, abilities and travel; castCommand for spells; check for uncertain noncombat attempts; all other mechanical actions require clarification. Never invent an action ID.',movement:game.story?'Known places are reached with their travel choices (travelRoutes). Going anywhere new (a direction, a landmark, a rumoured place) is fully supported: reveal it with discovery and travel true, as described under OPEN WORLD. Precise tactical positioning and opportunity attacks are not implemented.':'Only supplied travelRoutes and dungeon choices are implemented. Precise tactical positioning and opportunity attacks are not implemented.',witnesses:'Only NPCs present and conscious witness attacks. Recorded npcCombat contains actual initiative and sides. NPC attacks and defender help resolve in the engine after player turns; narrate those results without inventing additional damage. Distant acquaintances learn nothing until informed. Recorded NPC memories override contradictory story notes.'},encounter:game.stage==='combat'?{...encounterFoe(hero,game),currentHP:game.enemyHP,distance:game.castingConditions?.targetDistance??5,clearPath:game.castingConditions?.clearPath!==false}:null,turnResources:{actionUsed:!!game.actionUsed,bonusActionUsed:!!game.bonusUsed,reactionUsed:!!game.reactionUsed,spellSlotSpentThisTurn:!!game.slotSpentThisTurn,left:turnLeft(hero,game),attacksPerAction:attacksPerAction(hero),actionSurge:surgeLimit(hero)>0?{left:surgeLimit(hero)-(game.resources?.surge??0),usedThisTurn:!!game.surged}:null},shortRests:{left:shortRestsLeft(hero,game),of:shortRestLimit(hero)},spellSaveDC:8+proficiencyBonus(hero.level)+modifier(hero.scores[spellAbility[hero.class]]??10),spellAttackBonus:proficiencyBonus(hero.level)+modifier(hero.scores[spellAbility[hero.class]]??10),npcDefenses:Object.fromEntries((game.stage==='combat'||game.npcCombat?.active||game.pendingSpell?npcIdsOf(game):npcScene(game).filter(n=>n.present).map(n=>n.id)).map(id=>[id,{ac:npcProfile(game,id).ac,saveModifiers:0}])),castingConditions:game.castingConditions??{},equipment:hero.equipment,loadout:readyLoadout(hero),loadoutGuidance:'Use the class loadout mainWeapon for an unspecified close-range attack. Explicitly named weapons take priority. Only owned gear is available. The focus is available for eligible material components; it does not waive costly or consumed components or hand requirements. Ranged attacks are bow shots (each spends an arrow) and throws of a dagger, handaxe, javelin or spear (throw: choices; the weapon is gathered up after the fight); both have disadvantage once the foe is within 5 feet. Use only supplied choices.',worldFacts:(game.worldFacts??[]).slice(-8).map(t=>briefText(t,300)),npcHP:{...Object.fromEntries(npcIdsOf(game).map(id=>[id,npcMaxHP(id,game)])),...game.npcHP},dungeon:game.dungeon?.active?{room:dungeonRooms[game.dungeon.room].name,description:dungeonRooms[game.dungeon.room].text,complete:game.dungeon.complete}:null,travelRoutes:(game.story?knownPlaceIds(game):['inn','bridge','tower']).filter(id=>id!==mapLocation(game)).map(id=>({destination:id,name:placeName(game,id),...travelRoute(game,mapLocation(game),id)})).filter(r=>Number.isFinite(r.feet)),castingHelp:'Cast through Send to DM: I cast [spell] on [target]. The game automatically checks casting requirements. Add level N slot for upcasting. You may adjudicate pending spells using the provided spell description and recorded scene. Do not direct players to casting buttons.',spellReference:knownSpells(hero).map(spell=>({name:spell.name,components:spell.components,material:spell.material,level:spell.level,castingTime:spell.castingTime,range:spell.range,availableCosts:spellCostOptions(hero,game,spell)})),nearbyNPCs:game.dungeon?.active?(game.stage==='combat'?[{name:dungeonRooms[game.dungeon.room].foe,voice:'An ancient guardian; speak in terse solemn warnings.'}]:[]):game.stage==='inn'?[{name:'The keeper',voice:'Practical, warm, worried about travelers; never promises unearned rewards.'},{name:'Mara',voice:'A thoughtful traveling medicine courier; knows the road, not undiscovered tower secrets.'}]:['bridge','combat'].includes(game.stage)?[{name:'Lantern Wisp',voice:'Flickers and wordless musical tones; only call it Ember if the logbook was read.'}]:[],conversationHistory:(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').slice(-6).map(e=>({...e,text:briefText(e.text,1000)})),player:{age:hero.age,backstory:hero.backstory,connections:hero.connections,description:hero.description,name:hero.name,species:heroSpecies(hero),speciesTraits:(p=>({size:p.size,speed:combatBasics(hero).speed??p.speed,darkvision:p.darkvision,traits:p.traits.map(t=>t.name+': '+t.brief+(t.played==='game'?' (applied by the game)':''))}))(speciesProfile(hero)),subclass:currentSubclass(hero.plannedSubclass),subclassFeatures:subclassBriefs(hero),background:hero.background,class:hero.class,level:hero.level,scores:hero.scores,spells:hero.spells??[],health:health??{current:combatBasics(hero).hp,temp:0}},stage:game.stage,map:mapState(game),campaign:campaignState(game),earnedGold:earnedGold(game),enemyHP:game.enemyHP,spellSlotsUsed:game.spellSlotsUsed??[],pendingSpell:game.pendingSpell?{...game.pendingSpell,engineDamage:!!game.pendingSpell.npcTarget&&!!['attack','save','missile','inflict','trueStrike'].some(k=>automaticEffects[game.pendingSpell.id]?.[k]),damageMost:spellDamageMax(hero,knownSpells(hero).find(s=>s.id===game.pendingSpell.id),game.pendingSpell.slot),spell:knownSpells(hero).find(s=>s.id===game.pendingSpell.id)}:null,concentration:game.concentration??null,recentEvents:game.log.slice(0,8),journal:(game.journal?.entries??[]).filter(e=>e.title!=='AI DM conversation').slice(-6).map(e=>({...e,text:briefText(e.text,500)})),choices:offeredChoices(dmChoices(hero,game,health)).map(({id,label})=>({id,label}))};
+  context.choices=withNamedJourneys(context.choices,game,input);
+  // A level earned and not yet taken: the player takes it with the Level up button. No experience numbers are sent.
+  if((hero.level??1)<20&&heroXp(game,hero)>=xpForLevel((hero.level??1)+1))context.levelReady=true;
   if(game.story){
     // The tale is given without its later chapters: `quest` says which chapter is under way, what achieving it
     // reveals (secret until then), what follows, and which leads are open.
-    const {chapters,leads,chapter,...told}=game.story,q=questState(game);context.story=told;
-    if(q.current||q.leads.length)context.quest={...(q.current?{chapter:q.number,of:q.chapters,title:q.current.title,goal:q.current.goal,revealedWhenAchieved:q.current.turn,finalChapter:q.last,next:q.next?{title:q.next.title,goal:q.next.goal}:null}:{}),openLeads:q.openLeads.map(l=>({id:l.id,title:l.title,hook:l.hook})),leadsSeenThrough:q.leads.filter(l=>l.done).map(l=>l.title),levelEarned:(game.levelsOwed??0)>0};context.nearbyNPCs=game.stage==='inn'?Object.entries(game.story.npcs).map(([id,n])=>({id,name:n.name,voice:n.role+' '+n.motive+' '+(n.personality??''),appearance:n.appearance??null})):game.stage==='combat'?[{name:foeLabel(game),voice:'The current threat.'}]:[];context.npcSocialState=context.npcSocialState.map(n=>({...n,name:npcLore(game,n.id)?.name??n.name,role:npcLore(game,n.id)?.role??null,livesAt:game.people?.[n.id]?placeName(game,game.people[n.id].home):null,ties:npcTies(game,n.id),regardsYourKind:(r=>r.stance==='indifferent'?null:r.stance)(speciesRegard(game,n.id,hero))}));context.campaign=null;context.journal=context.journal.map(e=>({...e,text:storyText(game,e.text)}));context.recentEvents=context.recentEvents.map(t=>storyText(game,t));if(context.encounter)context.encounter.name=foeLabel(game);
+    const {chapters,leads,chapter,hoard,...told}=game.story,q=questState(game);context.story=told;
+    if(q.current||q.leads.length)context.quest={...(q.current?{chapter:q.number,of:q.chapters,title:q.current.title,goal:q.current.goal,revealedWhenAchieved:q.current.turn,finalChapter:q.last,next:q.next?{title:q.next.title,goal:q.next.goal}:null}:{}),openLeads:q.openLeads.map(l=>({id:l.id,title:l.title,hook:l.hook})),leadsSeenThrough:q.leads.filter(l=>l.done).map(l=>l.title)};context.nearbyNPCs=game.stage==='inn'?Object.entries(game.story.npcs).map(([id,n])=>({id,name:n.name,voice:n.role+' '+n.motive+' '+(n.personality??''),appearance:n.appearance??null})):game.stage==='combat'?[{name:foeLabel(game),voice:'The current threat.'}]:[];context.npcSocialState=context.npcSocialState.map(n=>({...n,name:npcLore(game,n.id)?.name??n.name,role:npcLore(game,n.id)?.role??null,livesAt:game.people?.[n.id]?placeName(game,game.people[n.id].home):null,metHero:metPerson(game,n.id),ties:npcTies(game,n.id),regardsYourKind:(r=>r.stance==='indifferent'?null:r.stance)(speciesRegard(game,n.id,hero))}));
+    // People not here are told in brief (peopleAway), so a world of many people still fits in one request (the Dungeon
+    // Master's server reads the same brief): who and where they are, how they feel, and their last two memories.
+    // Someone who keeps out of sight where they live is `unnoticed` until the player finds them.
+    {const {brief,named}=peopleAway(game,context.npcSocialState);if(named.length)context.peopleElsewhere=named;
+     context.npcSocialState=context.npcSocialState.filter(n=>n.present!==false||brief.has(n.id)).map(n=>n.present!==false?n:landAwayOf(game,n.id)?{id:n.id,name:n.name,role:briefText(n.role,60),livesAt:n.livesAt,land:landAwayOf(game,n.id),present:false,metHero:n.metHero,...(n.hidden?{unnoticed:true}:{}),attitude:n.attitude,...(n.grudge?{grudge:briefText(n.grudge,80)}:{}),...(n.bond?{bond:briefText(n.bond,80)}:{}),...(n.fate?{fate:n.fate}:{}),...(n.standing?{standing:n.standing}:{}),...(n.trainedAs?{trainedAs:n.trainedAs}:{})}:{id:n.id,name:n.name,role:briefText(n.role,100),livesAt:n.livesAt,present:false,metHero:n.metHero,...(n.hidden?{unnoticed:true}:{}),attitude:n.attitude,...(n.grudge?{grudge:briefText(n.grudge,120)}:{}),...(n.grudge&&n.forgiveness?{forgiveness:n.forgiveness}:{}),...(n.forgave?{forgave:n.forgave}:{}),...(n.bond?{bond:briefText(n.bond,120)}:{}),...(n.fate?{fate:n.fate}:{}),...(n.ties?.all?.length||(n.ties?.toFoe&&n.ties.toFoe!=='neutral')?{ties:n.ties}:{}),...(n.standing?{standing:n.standing}:{}),...(n.trainedAs?{trainedAs:n.trainedAs}:{}),...(n.metHero!==false?{memories:(n.memories??[]).slice(-2).map(m=>briefText(m,140))}:{})});}context.campaign=null;context.journal=context.journal.map(e=>({...e,text:storyText(game,e.text)}));context.recentEvents=context.recentEvents.map(t=>storyText(game,t));if(context.encounter)context.encounter.name=foeLabel(game);
     // The wider region: where the hero is, what they know of, and whether a new place can be revealed now.
     const here=mapLocation(game),visited=mapState(game).visited;
     // Lands: the one the hero is in, and every one they know (each has its own map).
     const lands=mapRegions(game),landOf=id=>lands.find(r=>r.id===regionOfPlace(game,id))??lands[0];
     // Which way each known place lies from here (within the same land), so "north" and "along the shore south" can be told from places already known.
     const from=placeCoordinates(game,here),wayTo=id=>{const to=placeCoordinates(game,id);if(!from||!to||id===here||regionOfPlace(game,id)!==regionOfPlace(game,here)||(to.x===from.x&&to.y===from.y))return null;return ['N','NE','E','SE','S','SW','W','NW'][Math.round(Math.atan2(to.x-from.x,to.y-from.y)/(Math.PI/4)+8)%8];};
+    // So that a map of many lands and places stays inside one request (lands travelled are never forgotten): the
+    // nearest places of this land are told in full (with the errand's place and any the player named), the journeys on
+    // offer to other lands in brief, the rest of this land by name and distance (morePlaces), and every other land in
+    // brief (farLands: how far the road is, and for the nearest lands the places known there by name).
+    const landHere=regionOfPlace(game,here),routeHere=id=>id===here?{feet:0,minutes:0}:travelRoute(game,here,id),minutesTo=id=>routeHere(id)?.minutes??Infinity;
+    const thisLand=knownPlaceIds(game).filter(id=>regionOfPlace(game,id)===landHere).sort((a,b)=>minutesTo(a)-minutesTo(b));
+    const inFull=new Set([here,game.story.errand?.place,...thisLand.slice(0,placesInFull),...placesNamed(game,input)].filter(Boolean));
+    const inBrief=new Set(context.choices.filter(c=>c.id.startsWith('travel-')).map(c=>c.id.slice(7)).filter(id=>!inFull.has(id)));
+    const toldOf=id=>inFull.has(id)||inBrief.has(id);
+    const placeLine=id=>{const r=routeHere(id),way=wayTo(id);return placeName(game,id)+' ('+(r?distanceText(r.feet):'no known road')+(way?' '+way:'')+(visited.includes(id)?', visited':'')+')';};
+    const others=thisLand.filter(id=>!toldOf(id));
+    const farLands=lands.filter(l=>l.id!==landHere).map(l=>{const ids=knownPlaceIds(game).filter(id=>regionOfPlace(game,id)===l.id),near=ids.map(id=>({id,r:routeHere(id)})).filter(x=>x.r).sort((a,b)=>a.r.minutes-b.r.minutes)[0];
+     return {name:l.name,minutes:near?.r.minutes??Infinity,...(near?{road:distanceText(near.r.feet)+', '+durationText(near.r.minutes)+' on the road to '+placeName(game,near.id)}:{}),ids:ids.filter(id=>!toldOf(id)),any:ids.length>0};}).filter(l=>l.any)
+     .sort((a,b)=>a.minutes-b.minutes).map(({name,road,ids},i)=>({name,...(road?{road}:{}),...(i<landsInFull&&ids.length?{places:ids.map(id=>placeName(game,id)+(visited.includes(id)?'':' (heard of)'))}:{})}));
     context.world={current:{id:here,name:placeName(game,here),description:placeDescription(game,here),kind:worldPlace(game,here)?.kind??game.story.locations?.[here]?.kind??null},
      region:{name:landOf(here).name,terrain:landOf(here).terrain},regions:lands.map(r=>r.name),
-     knownPlaces:knownPlaceIds(game).map(id=>{const r=id===here?{feet:0,minutes:0}:travelRoute(game,here,id);return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:placeDescription(game,id).slice(0,300),distance:r?distanceText(r.feet):'unknown',bearing:wayTo(id),minutes:r?.minutes??null,visited:visited.includes(id),...(lands.length>1?{land:landOf(id).name}:{})};}),
-     canDiscover:['inn','bridge','tower','wild'].includes(game.stage)&&!game.pendingSpell&&!game.npcCombat?.active&&(health?.current??1)>0&&worldPlaces(game).length<maxWorldPlaces,placesLeft:maxWorldPlaces-worldPlaces(game).length,
-     canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length};
+     knownPlaces:knownPlaceIds(game).filter(toldOf).map(id=>{const r=routeHere(id),away=regionOfPlace(game,id)!==landHere?{land:landOf(id).name}:{};
+      if(!inFull.has(id))return {id,name:placeName(game,id),distance:r?distanceText(r.feet):'unknown',minutes:r?.minutes??null,visited:visited.includes(id),...away};
+      return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:briefText(placeDescription(game,id),id===here?300:120),distance:r?distanceText(r.feet):'unknown',bearing:wayTo(id),minutes:r?.minutes??null,visited:visited.includes(id),...(worldPlace(game,id)?.cleared?{cleared:true}:{}),...away};}),
+     ...(others.length?{morePlaces:others.slice(0,placesByName).map(placeLine),...(others.length>placesByName?{morePlacesNotListed:others.length-placesByName}:{})}:{}),
+     canDiscover:['inn','bridge','tower','wild'].includes(game.stage)&&!game.pendingSpell&&!game.npcCombat?.active&&(health?.current??1)>0&&mapHasRoom(game),placesLeft:maxWorldPlaces-worldPlaces(game).length,
+     // Other lands, in brief: how far the road is (to the nearest place there) and the places known there by name.
+     ...(farLands.length?{farLands}:{}),
+     // Lands on the map (every land travelled is kept).
+     landsRemembered:lands.length,
+     canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length,peopleHere:npcScene(game).filter(n=>n.present&&n.hp>0&&n.fate!=='dead'&&game.followers?.[n.id]?.status!=='following').length};
+    // Distances are in world.knownPlaces.
+    delete context.travelRoutes;
+    // The tale's first move: the introduction the player has just read (storyRules.js), so the first answer keeps to it.
+    if(!(game.playback??[]).some(t=>t.events.some(e=>e.kind==='player'))&&(game.playback?.at(-1)?.id??1)<=2){context.openingTurn=true;context.introduction=storyIntroduction(game);}
     if(game.stage==='wild')context.nearbyNPCs=[];}
   // Fates: who has died, how the main foe ended, and whether the hero is dying or dead.
   if(context.encounter){const kind=foeKind(game);context.encounter={...context.encounter,signatureMove:kind?signatureMoves[kind]:null,yourCondition:game.heroCondition?heroConditions[game.heroCondition]:null,companionsFighting:fightingCompanions(game).map(n=>npcLore(game,n.id)?.name??n.name),wildCreature:!!game.wildFight,appearance:game.wildFight?.appearance??game.story?.foeAppearance??null,
@@ -168,24 +350,36 @@ export function dmContext(hero,game,health) {
   {const others=partyOthers(game);if(others.length)context.party=others.map(m=>({name:m.name,species:m.species,class:m.heroClass,level:m.level,appearance:m.description,condition:m.status==='dead'?'dead':m.status==='down'?'down and dying':m.hp>=m.maxHp?'unhurt':m.hp>m.maxHp/2?'wounded':'badly wounded'}));}
   // A party's fight goes in turns: who acts in what order, and whose turn it is.
   {const turns=turnOrderView(game);if(turns)context.turnOrder={round:turns.round,order:turns.entries.map(e=>e.name+(e.kind==='hero'&&e.status!=='up'?' ('+e.status+')':'')),current:turns.current?.name??null,yourTurn:turns.mine};}
-  if(context.world){context.world.canAmbush=game.stage==='wild'&&!game.wildFight&&!game.pendingSpell&&(health?.current??1)>0;context.world.creatureTemplates=allFoeTemplates().map(f=>({template:f.key,example:f.group?f.group.count+' '+f.group.plural:f.foe,kind:f.species,pack:!!f.group,signatureMove:signatureMoves[f.key].name}));context.world.knownPlaces=context.world.knownPlaces.map(p=>{const w=worldPlace(game,p.id);return w?{...p,danger:w.danger??'safe',feature:w.feature??null,threat:w.threat?{name:w.threat.name,template:w.threat.template}:null,cleared:!!w.cleared}:p;});}
+  if(context.world){context.world.canAmbush=game.stage==='wild'&&!game.wildFight&&!game.pendingSpell&&(health?.current??1)>0;context.world.creatureTemplates=allFoeTemplates().map(f=>({template:f.key,example:f.group?f.group.count+' '+f.group.plural:f.foe,kind:f.species,pack:!!f.group,signatureMove:signatureMoves[f.key].name}));context.world.knownPlaces=context.world.knownPlaces.map(p=>{const w=worldPlace(game,p.id);return w&&p.description!==undefined?{...p,danger:w.danger??'safe',...(w.feature?{feature:w.feature}:{}),...(w.threat?{threat:{name:w.threat.name,template:w.threat.template}}:{}),...(w.cleared?{cleared:true}:{})}:p;});}
   // What the hero carries: gold, draughts, arrows and found things, with prices for trades.
-  {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items,priceList};}
+  // Magic items carry what they are and do (the catalogue's words), so the telling never invents powers.
+  {const pack=packOf(game,hero);context.inventory={gold:pack.gold,healingDraughts:game.potions??0,arrows:arrowsLeft(game,hero),found:pack.items.map(i=>i.magic&&magicItems[i.magic.id]?{...i,magic:{name:magicItems[i.magic.id].name,rarity:magicItems[i.magic.id].rarity,effect:magicSummary(i),...(magicItems[i.magic.id].attune?{attuned:!!i.attuned}:{})}}:i),priceList};}
+  // The fallen (and lairs) here not yet searched: the game decides what they hold (the loot choice).
+  {const here=spoilsHere(game);if(here.length)context.spoils=here.map(s=>({name:s.name,kind:s.kind,what:s.kind==='person'?npcLore(game,s.person)?.role??null:s.template?spoilSpecies(s.template):null,lair:!!s.lair,feature:s.feature??null}));}
   context.foeFate=game.foeFate??null;context.npcFates=game.npcFate??{};context.dying=game.dying??null;context.death=game.death??null;
   const weapons=attackOptions(hero);
-  context.attackOptions={mainWeapon:weapons.find(w=>!w.unarmed)?.name??'Unarmed Strike',carried:weapons.filter(w=>!w.unarmed).map(w=>w.name+(w.ranged?' (ranged)':'')),unarmed:'Unarmed Strike',
+  context.attackOptions={mainWeapon:weapons.find(w=>!w.unarmed)?.name??'Unarmed Strike',carried:weapons.filter(w=>!w.unarmed).map(w=>w.name+(w.ranged?' (ranged)':w.twoHands?' (two-handed)':w.versatile?(w.grip==='two'?' (versatile, in both hands: 1d'+w.die+')':' (versatile, one-handed beside the shield)'):'')),unarmed:'Unarmed Strike',
     // Weapon Mastery (2024 rules): the engine applies these on its own; narrate them as the engine's lines say.
-    masteries:masteredWeapons(hero).map(name=>{const w=weapons.find(o=>o.name===name);return name+': '+(w?masteryText[masteryOf(hero,w)]:'');}),
+    masteries:masteredWeapons(hero).map(name=>{const w=weapons.find(o=>(o.base??o.name)===name);return name+': '+(w?masteryText[masteryOf(hero,w)]:'');}),
     grappleAndShove:'An Unarmed Strike can grapple or shove a creature prone instead of striking (the grapple and shove choices); it saves against DC '+unarmedDC(hero)+'.',
-    twoWeapons:'After an attack with a light weapon, a second light weapon in the other hand can strike as a bonus action (the offhand: choices).'};
+    twoWeapons:'After an attack with a light weapon, a second light weapon in the other hand can strike as a bonus action (the offhand: choices).',
+    hands:shieldStowed(hero)?'The player has put the shield on the hero’s back to keep both hands free (a versatile weapon in both hands for its larger die): it adds nothing to armor class until they take it up again (the game does that when they say so; in a fight it takes their action).':shieldSlung(hero)?'The shield is slung on the hero’s back while both hands hold a two-handed weapon: it adds nothing to armor class.':shieldInUse(hero)?'A shield on one arm: two-handed weapons stay on the back until the player takes one in hand; the player may put the shield on their back to hold a versatile weapon in both hands (the game does that when they say so; in a fight it takes their action).':'No shield: a versatile weapon is held in both hands for its larger die.'};
   // How the creatures in this fight stand: prone, grappled, or sapped (disadvantage on their next attack).
-  if(game.marks)context.fightConditions=Object.entries(game.marks).map(([k,m])=>({who:k==='foe'?foeLabel(game):k.startsWith('ally:')?(game.foeAllies?.[Number(k.slice(5))]?.name??k):(npcLore(game,k)?.name??k),conditions:[m.prone?'prone':null,m.grappled?'grappled':null,m.sapped?'sapped':null].filter(Boolean)}));
+  if(game.marks)context.fightConditions=Object.entries(game.marks).map(([k,m])=>({who:k==='foe'?foeLabel(game):k.startsWith('ally:')?(game.foeAllies?.[Number(k.slice(5))]?.name??k):(npcLore(game,k)?.name??k),conditions:[m.prone?'prone':null,m.grappled?'grappled':null,m.sapped?'sapped':null,...(m.spells??[]).map(s=>s.cond+' ('+s.id.replace(/-/g,' ')+')')].filter(Boolean)}));
+  // Spells that last on the hero without concentration (Mage Armor, Barkskin, Divine Favor, Shillelagh).
+  if(game.buffs)context.heroSpellEffects=Object.keys(game.buffs).map(id=>id.replace(/-/g,' '));
   context.actionContract.openingAttack='Questbound house rule: an initiating hostile attack resolves once before initiative. Initiative then determines the first normal turn among surviving participants. Do not narrate a defender acting before that opening strike or roll initiative yourself; use engineResolved in its supplied order.';
   context.encounterInitiative=game.encounterInitiative??null;
   // How each person nearby takes to the hero's kind (kin, warm, curious, wary, scornful), with their reason.
   const kindView=id=>{const r=speciesRegard(game,id,hero);return r.stance==='indifferent'?null:{stance:r.stance,reason:r.reason};};
-  context.nearbyNPCs=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({id:n.id,...(lore=>({name:lore?.name??n.name,role:lore?.role??null,voice:lore?.personality??n.response,motive:lore?.motive??null,appearance:lore?.appearance??null,species:lore?.species??null}))(npcLore(game,n.id)),attitude:n.attitude,grudge:n.grudge,bond:n.bond,memories:n.memories.slice(-6),follower:game.followers?.[n.id]??null,regardsYourKind:kindView(n.id)}));
+  context.nearbyNPCs=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({id:n.id,...(lore=>({name:lore?.name??n.name,role:lore?.role??null,voice:lore?.personality??n.response,motive:lore?.motive??null,appearance:lore?.appearance?briefText(lore.appearance,200):null,species:lore?.species??null}))(npcLore(game,n.id)),attitude:n.attitude,grudge:n.grudge,bond:n.bond,follower:game.followers?.[n.id]??null,trainedAs:n.trainedAs?n.trainedAs.class+' '+n.trainedAs.level:null,standing:n.standing,regardsYourKind:kindView(n.id)}));
+  // Offers to come along that still stand (the player has not yet answered).
+  {const offers=standingOffers(game);if(offers.length)context.joinOffers=Object.fromEntries(offers.map(id=>[id,game.joinOffers[id]]));}
   context.followers=game.followers??{};
+  // The story so far (memoryRules.js): the chronicle of every tale and chapter, and the facts the Dungeon Master asked
+  // the game to remember, fitted to a fixed budget with what bears on this moment first. (The memories of the people
+  // here are in npcSocialState.)
+  {const block=memoryBlock(game,{input,present:npcScene(game).filter(n=>n.present).map(n=>n.id)});if(block)context.memory=block;}
   return context;
 }
 
@@ -205,6 +399,8 @@ export function commitDmTurn(hero,game,health,action,conversation,random=Math.ra
     conversation={...conversation,dialogue:(conversation.dialogue??[]).map(l=>l.speakerId==='new'?{...l,speakerId:met.id}:l)};
     result={...result,game:{...met.game,log:[...met.lines,...met.game.log].slice(0,40)},events:[...(result.events??[]),...met.lines],conversation,introduced:met.id};
   }
+  // Facts the Dungeon Master asked the game to keep (a promise, a secret, a name, a plan), or one it settled.
+  if(Array.isArray(conversation.remember)&&conversation.remember.length)result={...result,game:rememberFacts(result.game,conversation.remember,{newId:result.introduced??null}).game};
   const present=npcScene(result.game).filter(n=>n.present&&n.hp>0).map(n=>n.id);
   if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId)))return {game,health,error:'The reply included a character who cannot join this conversation.'};
   return result;
@@ -225,8 +421,8 @@ function resolveDmTurn(hero,game,health,action,conversation,random){
   if(action?.type==='ai-check')return commitWorldCheck(hero,game,health,action.check,conversation,random);
   const command=dmCommand(hero,game,conversation.normalizedCommand??conversation.question,health);
   const commandMatches=command?.action&&JSON.stringify(command.action)===JSON.stringify(action);
-  // A newly revealed place is checked by the map rules themselves.
-  if(action!==null&&!['ai-spell','ai-ruling','discover','ambush'].includes(action?.type)&&!commandMatches&&!dmChoices(hero,game).some(c=>JSON.stringify(c.action)===JSON.stringify(action)))return {game,health,error:'That DM action is no longer available.'};
+  // A newly revealed place is checked by the map rules themselves; the map's own journeys (mapMoves) are always open.
+  if(action!==null&&!['ai-spell','ai-ruling','discover','ambush'].includes(action?.type)&&!commandMatches&&!dmChoices(hero,game).some(c=>JSON.stringify(c.action)===JSON.stringify(action))&&!mapMoves(game).some(c=>JSON.stringify(c.action)===JSON.stringify(action)))return {game,health,error:'That DM action is no longer available.'};
   if(action?.type==='ai-spell'){
     if(!command?.action||command.action.type!=='spell'||JSON.stringify(command.action.request)!==JSON.stringify(action.request))return {game,health,error:'Invalid spell interpretation.'};
     const prepared=adventureStep(game,health,hero,command.action,random);if(prepared.error)return prepared;
@@ -254,8 +450,12 @@ function commitAiRuling(hero,game,health,ruling,conversation,random,original,ori
 
 function commitWorldCheck(hero,game,health,c,conversation,random){
  const fail=error=>({game,health,error});
+ // The hero as the rules see them: magic worn counts (a Stone of Good Luck, Boots of Elvenkind).
+ const plain=hero;hero=gearedHero(hero,game);
  if(game.pendingSpell)return fail('Resolve the pending spell first.');
  if(game.npcCombat?.active)return fail('Finish the combat turn with an attack, spell, dodge, flee, wait, or surrender.');
+ // In a fight an attempt like this is the turn's action (2024 rules): once the action is spent it must wait.
+ if(game.stage==='combat'&&game.actionUsed)return fail('Your action is already spent this turn: take a bonus action or end your turn.');
  if(c?.skill!=null&&!Object.hasOwn(skillAbilities,c.skill))return fail('Unknown skill; no action was applied.');
  if(/^(?:I )?(?:attack|stab|strike|slash|cast)\b/i.test(conversation.question.trim()))return fail('An attack or spell must use its own rules, not a general skill check.');
  if((health?.current??1)<=0||game.castingConditions?.incapacitated)return fail('You cannot take this action while incapacitated.');
@@ -264,14 +464,24 @@ function commitWorldCheck(hero,game,health,c,conversation,random){
  const modifiers=skillCheckBonus(hero,game,c.ability,c.skill??null);
  // Winning someone over with words is easier with those who like the hero's kind and harder with those who do not.
  const sway=['Persuasion','Deception','Performance'].includes(c.skill)?regardSway(game,conversation.npcId??null,hero):{bonus:0,note:''};
- const dice=Array.from({length:c.mode==='normal'?1:2},()=>1+Math.floor(random()*20)),die=c.mode==='advantage'?Math.max(...dice):Math.min(...dice),bonus=modifiers.total+sway.bonus,total=(modifiers.reliable?Math.max(10,die):die)+bonus,success=total>=c.dc;
+ const mode=magicCheckMode(hero,c.skill??null,c.mode);c={...c,mode};
+ const dice=Array.from({length:c.mode==='normal'?1:2},()=>1+Math.floor(random()*20)),die=c.mode==='advantage'?Math.max(...dice):Math.min(...dice);
+ // Guidance adds 1d4 to the check, and is spent.
+ const guide=guidanceBonus(game,random),bonus=modifiers.total+sway.bonus+(guide?.die??0),total=(modifiers.reliable?Math.max(10,die):die)+bonus,success=total>=c.dc;
  const damageDice=(c.damageOn==='always'||(c.damageOn==='failure'&&!success))?Array.from({length:c.damageCount},()=>1+Math.floor(random()*c.damageDie)):[],damage=damageDice.reduce((a,b)=>a+b,0);
  const hp={current:health?.current??combatBasics(hero).hp,temp:health?.temp??0},absorbed=Math.min(hp.temp,damage),overflow=Math.max(0,damage-absorbed-hp.current);hp.temp-=absorbed;hp.current=Math.max(0,hp.current-damage+absorbed);
- let next={...game};const maintained=concentrationAfterDamage(hero,next,damage,random);next=maintained.game;
+ let next={...(guide?.game??game)};const maintained=concentrationAfterDamage(hero,next,damage,random);next=maintained.game;
  // A hazard can drop the hero too: they lie dying where it happened.
- const fell=hp.current===0?fallAtZero(next,{overflow,maximum:combatBasics(hero).hp,cause:'Killed by a hazard: '+c.reason,placeName:placeName(next,fallPlace(next))}):null;if(fell)next=fell.game;
+ const fell=hp.current===0?fallAtZero(next,{overflow,maximum:combatBasics(hero).hp,cause:'Killed by a hazard: '+c.reason,placeName:placeName(next,fallPlace(next)),where:mapLocation(next)}):null;if(fell)next=fell.game;
  const outcome=success?c.success:c.failure;
- const text=c.reason+': '+c.ability+(c.skill?' ('+c.skill+')':'')+' d20 ['+dice.join(', ')+']'+(modifiers.reliable&&die<10?' → 10 Reliable Talent':'')+' + '+modifiers.abilityBonus+' ability + '+modifiers.trainingBonus+(modifiers.expert?' Expertise':' training')+(sway.bonus?(sway.bonus>0?' + ':' - ')+Math.abs(sway.bonus)+' '+sway.note:'')+' = '+total+' vs DC '+c.dc+'. '+(success?'Success. ':'Failure. ')+outcome+(damageDice.length?' Damage ['+damageDice.join(', ')+'] = '+damage+'.':'');
+ const text=c.reason+': '+c.ability+(c.skill?' ('+c.skill+')':'')+' d20 ['+dice.join(', ')+']'+(modifiers.reliable&&die<10?' → 10 Reliable Talent':'')+' + '+modifiers.abilityBonus+' ability + '+modifiers.trainingBonus+(modifiers.expert?' Expertise':' training')+(modifiers.magicBonus?' + '+modifiers.magicBonus+' magic':'')+(sway.bonus?(sway.bonus>0?' + ':' - ')+Math.abs(sway.bonus)+' '+sway.note:'')+(guide?' + '+guide.die+' Guidance':'')+' = '+total+' vs DC '+c.dc+'. '+(success?'Success. ':'Failure. ')+outcome+(damageDice.length?' Damage ['+damageDice.join(', ')+'] = '+damage+'.':'');
  next.log=[text,...maintained.logs,...(fell?.entries??[]),...game.log].slice(0,40);next.worldFacts=[...(game.worldFacts??[]),outcome].slice(-60);next.journal=appendJournal(appendJournal(journalForGame(next),'ruling','Action check',text),'note','AI DM conversation','Player: '+conversation.question+'\nDungeon Master: '+conversation.narration+'\nResult: '+outcome);
+ // In a fight the attempt spends the action: the turn waits for a bonus action, or the foe answers (in a party, the
+ // turn passes on), exactly as after an attack.
+ if(game.stage==='combat'&&next.stage==='combat'&&!fell){
+  const turn=adventureStep(next,hp,plain,{type:'improvised'},random);
+  if(turn.error)return fail(turn.error);
+  return {...turn,events:[text,...maintained.logs,...(turn.events??[])]};
+ }
  return {game:next,health:hp,events:[text,...maintained.logs,...(fell?.entries??[])]};
 }

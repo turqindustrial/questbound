@@ -1,10 +1,10 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {rulesSource}=require('./rules-files.cjs');
 // The Attack… button (attackActions in quickActions.js): every way to attack right now, the target first when there is
 // a choice (never a default for people), the hero's weapons under Melee and Ranged with to-hit, damage and what is
 // left to shoot or throw. Throwing is real: Dagger, Handaxe, Javelin and Spear are thrown as ranged attacks, each throw
 // uses one, and they are gathered up when the fight is over. Every chip resolves through the engine and the DM commit.
-const files=['subclassOptions.js','campaignRules.js','mapRules.js','journalRules.js','spellOptions.js','equipmentRules.js','characterRules.js','combatRules.js','weaponRules.js','masteryRules.js','healthRules.js','spellRules.js','classActions.js','dungeonRules.js','deathRules.js','npcRules.js','relationshipRules.js','encounterRules.js','inventoryRules.js','adventureRules.js','partyRules.js','skillRules.js','storyRules.js','followerRules.js','adventureStorage.js','deedRules.js','dmCommands.js','dmContext.js','playbackRules.js','hostileEncounter.js','iconPaths.js','quickActions.js','pregens.js','storyLog.js','descriptions.js','chronicleRules.js'];
-const source='const catalog='+fs.readFileSync('spellCatalog.json','utf8')+';const progression='+fs.readFileSync('spellProgression.json','utf8')+';\n'+files.map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
+const source=rulesSource({extra:['descriptions.js','chronicleRules.js']});
 const r=vm.runInNewContext(source+'\n({quickActions,attackActions,attackTargets,dmChoices,dmCommand,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,commitDmTurn,equipmentFor,gearedHero,validAdventure,adventureSnapshot,actionDescription,describeEvent,readyHero,validPack,freshStoryGame})',{AsyncStorage:{}});
 const make=(cls,scores,extra={})=>{const hero={name:'Pick tester',class:cls,species:'Human',level:1,background:'Soldier',scores,spells:[],...extra};hero.equipment=r.equipmentFor(hero);return hero;};
 const fighter=make('Fighter',{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10});
@@ -63,5 +63,5 @@ const calm=r.attackActions(kara,inn,null);
  assert.ok(section(aimed,'Ranged').some(a=>/^npc-throw:/.test(a.key)),'a javelin can be thrown at them');
  const q=r.quickActions(kara,inn,null);assert.ok(q.some(a=>a.key==='attack-menu'&&!a.primary),'Attack… is there, not highlighted, away from a fight');}
 // The screen: headings are labels, skipped by the number keys and the guide; a weapon chip closes the picker.
-const dm=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(dm.includes("if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}}")&&dm.includes('keysRef.current={actions:actions.filter(a=>!a.heading)')&&dm.includes('actions={pressable}')&&dm.includes("if(a.key==='attack-menu'){setSpellsOpen(false);setAttackOpen(true);return;}"));
+const dm=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(dm.includes("if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}}")&&dm.includes('keysRef.current={actions:visible,')&&dm.includes("shownTab==='speak'?speakList:actions.filter(a=>!a.heading)")&&dm.includes("const visible=battle?(showIdeas?ideaLines.map(text=>({key:'idea:'+text,text})):actions.filter(a=>!a.heading))")&&dm.includes('actions={pressable}')&&dm.includes("if(a.key==='attack-menu'){setSpellsOpen(false);setAttackOpen(true);return;}"));
 console.log('Attack…: Back, the target (chosen first when there is a choice, never a default for people), every weapon under Melee and Ranged with to-hit, damage and what is left, all resolving through the engine; thrown daggers, handaxes, javelins and spears (one a throw, disadvantage once the foe is beside you, gathered up after the fight), typed throws, and bows with their arrows.');

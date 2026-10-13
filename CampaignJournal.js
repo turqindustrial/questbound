@@ -32,9 +32,9 @@ export default function CampaignJournal({game,onAddNote,onBack,blocked}) {
   </View>;
 }
 const s=StyleSheet.create({overline:{...type.label},
- text:{fontFamily:fonts.story,color:'#e6dfcd',fontSize:16.5,lineHeight:26},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:20,marginVertical:12},
- objective:{borderWidth:1,borderColor:colors.goldLine,padding:18,borderRadius:6,gap:8},objectiveHead:{flexDirection:'row',alignItems:'center',gap:8},objectiveText:{fontFamily:fonts.story,fontSize:18,lineHeight:28,color:'#e6d7d1'},
+ text:{fontFamily:fonts.story,color:tint('#e6dfcd'),fontSize:16.5,lineHeight:26},caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:20,marginVertical:12},
+ objective:{borderWidth:1,borderColor:colors.goldLine,padding:18,borderRadius:6,gap:8},objectiveHead:{flexDirection:'row',alignItems:'center',gap:8},objectiveText:{fontFamily:fonts.story,fontSize:18,lineHeight:28,color:tint('#e6d7d1')},
  entry:{padding:16,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.18)'),borderLeftWidth:3,marginBottom:10},
  entryHead:{flexDirection:'row',alignItems:'center',gap:7},entryMeta:{...type.label,fontSize:9,color:colors.muted},entryTitle:{fontFamily:fonts.display,color:colors.parchment,fontSize:17,fontWeight:'700',letterSpacing:.6,marginTop:6,marginBottom:6},
  empty:{alignItems:'center',gap:8,paddingVertical:24},emptyText:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,color:colors.muted},
- input:{fontFamily:fonts.story,color:'#f5efe1',fontSize:17,lineHeight:25,padding:16,minHeight:110,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(8,5,9,.75)'),borderRadius:6,marginTop:4,textAlignVertical:'top'}});
+ input:{fontFamily:fonts.story,color:tint('#f5efe1'),fontSize:17,lineHeight:25,padding:16,minHeight:110,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(8,5,9,.75)'),borderRadius:6,marginTop:4,textAlignVertical:'top'}});
