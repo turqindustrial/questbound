@@ -53,7 +53,7 @@ export function partyView(snapshot,me){
  if(mine.status!=='up'){game.party.stage=settled.world.stage;game.stage=mine.status==='dead'?'dead':'dying';}
  if(mine.status==='up'){delete game.dying;delete game.death;if(mine.turn&&turnHolder(settled.world)===me)Object.assign(game,mine.turn);}
  game.potions=game.potions??0;
- return {version:1,chosen:settled.chosen,character:mine.character,health:mine.status==='up'?mine.health:{current:0,temp:0},game};
+ return {version:1,...(snapshot.saveVersion!==undefined?{saveVersion:snapshot.saveVersion}:{}),chosen:settled.chosen,character:mine.character,health:mine.status==='up'?mine.health:{current:0,temp:0},game};
 }
 // The same text from every point of view (keys sorted), for deciding whether anything really changed.
 const stable=value=>Array.isArray(value)?'['+value.map(stable).join(',')+']':value&&typeof value==='object'?'{'+Object.keys(value).filter(k=>value[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(value[k])).join(',')+'}':JSON.stringify(value);

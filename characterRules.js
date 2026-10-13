@@ -1,4 +1,5 @@
 import { equipmentFor, equipmentError } from './equipmentRules';
+import { currentSaveVersion } from './saveVersion';
 export const abilities = ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'];
 export const standardArray = [15, 14, 13, 12, 10, 8];
 // What a hero may be: the classes and species of the System Reference Document 5.2 and the Half-Elf of the SRD 5.1
@@ -129,7 +130,7 @@ export function finalScores(form) {
 export function makeCharacter(form) {
   const error = buildError(form);
   if (error) throw new Error(error);
-  return {...form, spellSelectionVersion: 2, equipment: equipmentFor(form), baseSpecies: baseSpeciesOf(form.species), lineage: fixedLineage[form.species] ?? (speciesLineages[form.species]?.includes(form.lineage) ? form.lineage : null), name: form.name.trim(), race: form.species, level: validLevel(form.level) ? form.level : 1, rulesVersion: '2024', schemaVersion: 2, scores: finalScores(form), originFeat: backgrounds[form.background].feat};
+  return {...form, spellSelectionVersion: 2, equipment: equipmentFor(form), baseSpecies: baseSpeciesOf(form.species), lineage: fixedLineage[form.species] ?? (speciesLineages[form.species]?.includes(form.lineage) ? form.lineage : null), name: form.name.trim(), race: form.species, level: validLevel(form.level) ? form.level : 1, rulesVersion: '2024', schemaVersion: 2, scores: finalScores(form), originFeat: backgrounds[form.background].feat, saveVersion: currentSaveVersion};
 }
 
 

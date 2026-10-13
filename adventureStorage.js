@@ -17,13 +17,15 @@ import {validSpoils} from './lootRules';
 import {validExperience} from './experienceRules';
 import AsyncStorage from './playerStorage';
 import {combatBasics} from './combatRules';
+import {currentSaveVersion} from './saveVersion';
+import {upgradeAdventure,sameHeroText} from './saveMigrations';
 
 const ADVENTURE_KEY = 'questbound.adventure.v1';
 const integerBetween = (n,min,max) => Number.isInteger(n) && n>=min && n<=max;
 // Anyone who can speak in a recorded turn: the two residents or someone met later (n1…n48).
 const someone = id => /^(?:keeper|mara|n(?:[1-9]|[1-8]\d|9[0-6]))$/.test(String(id));
 export function adventureSnapshot(hero,game,health,chosen) {
-  return {version:1,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
+  return {version:1,saveVersion:currentSaveVersion,character:JSON.stringify(hero),game,health:health ? {current:health.current,temp:health.temp} : null,chosen};
 }
 // A party at the shared table (partyRules.js): up to four heroes, each with their own name, sheet, hit points and
 // state; the one in the lead is this device's own (the snapshot's character).
@@ -50,6 +52,8 @@ export function validTurnOrder(g){
 export function validAdventure(value,hero) {
   const g=value?.game, h=value?.health, maximum=combatBasics(g?gearedHero(hero,g):hero).hp;
   return value?.version===1 && typeof value.character==='string' && typeof value.chosen==='boolean'
+    // The save format (saveVersion.js, SAVES.md): none before formats were numbered; a later build's is accepted too.
+    && (value.saveVersion===undefined || integerBetween(value.saveVersion,1,99))
     && !!g && ['inn','bridge','tower','dungeon','combat','victory','defeat','escaped','wild','dying','dead'].includes(g.stage)
     && validDeathState(g) && (!['dying','dead'].includes(g.stage) || h?.current===0)
     && (g.foeFate===undefined || ['slain','subdued'].includes(g.foeFate))
@@ -101,10 +105,16 @@ export async function loadAdventure(hero) {
   const raw=await AsyncStorage.getItem(ADVENTURE_KEY);
   if(raw===null) return null;
   const value=JSON.parse(raw);
-  // A changed character starts a fresh quest; never attach an old hero's HP.
-  if(value?.character!==JSON.stringify(hero)) return null;
+  // A changed character starts a fresh quest; never attach an old hero's HP. The hero may already have been brought
+  // to the current format (loadCharacter) while the adventure still holds it as it was: that is the same hero.
+  if(!sameHeroText(value?.character,JSON.stringify(hero))) return null;
   if(!validAdventure(value,hero)) throw new Error('Invalid adventure save');
-  return value;
+  // An older save is upgraded once, here (saveMigrations.js), and kept that way. A copy the checks would refuse is
+  // never used: the adventure then plays as saved (every old shape still loads and plays).
+  const upgraded=upgradeAdventure(value);
+  if(upgraded===value || upgraded.character!==JSON.stringify(hero) || !validAdventure(upgraded,hero)) return value;
+  try{await saveAdventure(upgraded,hero);}catch{}
+  return upgraded;
 }
 let adventureWrites=Promise.resolve();
 export function saveAdventure(value,hero) {

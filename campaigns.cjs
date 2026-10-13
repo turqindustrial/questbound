@@ -45,7 +45,10 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
  const ids=()=>{try{return fs.readdirSync(dir).filter(n=>/^[a-f0-9]{32}\.json$/.test(n)).map(n=>n.slice(0,32));}catch{return [];}};
  const file=id=>{if(!/^[a-f0-9]{32}$/.test(id??''))throw fail(404,'Campaign not found.');return path.join(dir,id+'.json');};
  const persist=c=>{operations?.backup.put('campaign-'+c.id,c);atomic(file(c.id),c);};
- const read=id=>{let c;try{c=JSON.parse(fs.readFileSync(file(id),'utf8'));}catch{throw fail(404,'Campaign not found.');}if(seated(c))persist(c);return c;};
+ // A table saved by an older build is brought to the current save format the first time it is read (saveMigrations.js,
+ // SAVES.md), and so is a hero brought to a table; an upgraded copy the checks would refuse is never used.
+ const upgraded=s=>{const u=r.upgradeAdventure(s);return u!==s&&validSnapshot(u)?u:s;};
+ const read=id=>{let c;try{c=JSON.parse(fs.readFileSync(file(id),'utf8'));}catch{throw fail(404,'Campaign not found.');}const was=c.snapshot;c.snapshot=upgraded(c.snapshot);if(seated(c)|c.snapshot!==was)persist(c);return c;};
  const seat=(c,user)=>c.members[user.id].seat;
  const present=(c,place)=>now()-(presence.get(c.id+':'+place)??0)<15000;
  // When the current turn in a party fight began, kept on the server only: after 90 s anyone may pass it.
@@ -85,10 +88,10 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
  }
  return {
   // The name a player gives is vetted first when a content check is configured (then the answer is a promise).
-  create(user,b){return moderate?nameCheck(clean(b.name),user).then(()=>createNow(user,b)):createNow(user,b);},
+  create(user,b){if(b&&typeof b==='object')b={...b,snapshot:upgraded(b.snapshot)};return moderate?nameCheck(clean(b.name),user).then(()=>createNow(user,b)):createNow(user,b);},
   join(user,b){
    if(typeof b.invite!=='string'||!/^[a-zA-Z0-9_-]{16}$/.test(b.invite))throw fail(400,'Enter the campaign invite supplied by its host.');
-   const found=invited(b.invite);if(isBanned(found,user)){operations?.audit('campaign-ban-refused',{campaign:found.id});throw removedError();}
+   b={...b,snapshot:upgraded(b.snapshot)};const found=invited(b.invite);if(isBanned(found,user)){operations?.audit('campaign-ban-refused',{campaign:found.id});throw removedError();}
    return moderate&&!found.members[user.id]?nameCheck(clean(b.name),user).then(()=>joinNow(user,b)):joinNow(user,b);
   },
   poll(user,b){const c=requireMember(b.campaignId,user);touch(c,user);return state(c,user,b.knownVersion);},

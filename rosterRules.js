@@ -2,6 +2,7 @@ import AsyncStorage from './playerStorage';
 import {isValidCharacter} from './characterStorage';
 import {validAdventure,adventureSnapshot} from './adventureStorage';
 import {placeName,mapLocation} from './mapRules';
+import {upgradeCharacter,upgradeAdventure,sameHeroText} from './saveMigrations';
 // Your company of heroes on this device. Starting another hero no longer throws the current one away: a living hero
 // is set aside in the roster with their adventure exactly as it was (switch back any time), and a hero who died is
 // remembered in the graveyard with how and where they fell. A grave is a memorial line only (name, species, class,
@@ -25,7 +26,7 @@ const memorial=g=>{const {character,...line}=g;return line;};
 // the save (App.js).
 export function layToRest(roster,graves,hero,game,now=Date.now()){
  const character=JSON.stringify(hero),grave=graveEntry(hero,game,now);
- return {roster:roster.filter(e=>e.character!==character),graves:graves.some(g=>sameGrave(g,grave))?graves:[grave,...graves].slice(0,maxGraves)};
+ return {roster:roster.filter(e=>!sameHeroText(e.character,character)),graves:graves.some(g=>sameGrave(g,grave))?graves:[grave,...graves].slice(0,maxGraves)};
 }
 export function validRosterEntry(e){
  try{const hero=JSON.parse(e.character);return rosterText(e.id,40)&&rosterText(e.savedAt,40)&&isValidCharacter(hero)&&e.adventure?.character===e.character&&validAdventure(e.adventure,hero)&&e.adventure.game.stage!=='dead'&&!!e.summary&&rosterText(e.summary.name,60);}catch{return false;}
@@ -45,7 +46,7 @@ export function setAside(roster,graves,hero,game,health,chosen,now=Date.now()){
  if(!hero)return {roster,graves};
  const character=JSON.stringify(hero);
  if(game?.stage==='dead')return layToRest(roster,graves,hero,game,now);
- const others=roster.filter(e=>e.character!==character);
+ const others=roster.filter(e=>!sameHeroText(e.character,character));
  if(others.length>=maxRoster)return {error:'Your company already has '+maxRoster+' heroes waiting. Retire one under Heroes first.'};
  return {roster:[rosterEntry(hero,game,health,chosen,now),...others],graves};
 }
@@ -53,8 +54,12 @@ export async function saveLists({roster,graves}){
  await AsyncStorage.setItem(ROSTER_KEY,JSON.stringify(roster));
  await AsyncStorage.setItem(GRAVES_KEY,JSON.stringify(graves));
 }
-// The hero, adventure and health to restore from a roster entry.
+// The hero, adventure and health to restore from a roster entry, upgraded to the current save format when the
+// upgraded copy passes the save checks (saveMigrations.js), else as they were set aside. `adventure` is the snapshot
+// to save for them.
 export function restoreEntry(entry){
  if(!validRosterEntry(entry))throw Error('That hero\'s save could not be read. They stay in your roster.');
- return {hero:JSON.parse(entry.character),game:entry.adventure.game,health:entry.adventure.health,chosen:entry.adventure.chosen};
+ const hero=JSON.parse(entry.character),newer=upgradeCharacter(hero),adventure=upgradeAdventure(entry.adventure);
+ const use=adventure!==entry.adventure&&isValidCharacter(newer)&&adventure.character===JSON.stringify(newer)&&validAdventure(adventure,newer)?{hero:newer,adventure}:{hero,adventure:entry.adventure};
+ return {hero:use.hero,adventure:use.adventure,game:use.adventure.game,health:use.adventure.health,chosen:use.adventure.chosen};
 }

@@ -252,7 +252,7 @@ function QuestboundApp() {
       if(aside.error)throw Error(aside.error);
       // The current hero is set aside first and the chosen one leaves the roster last, so nobody is lost midway.
       await saveLists({roster:[...aside.roster,entry],graves:aside.graves});
-      await saveCharacter(restored.hero);await saveAdventure({version:1,character:entry.character,game:restored.game,health:restored.health,chosen:restored.chosen},restored.hero);
+      await saveCharacter(restored.hero);await saveAdventure(restored.adventure,restored.hero);
       await saveLists(aside);setRoster(aside.roster);setGraves(aside.graves);
       setHero(restored.hero);setForm({...blankBuild(),...restored.hero,species:restored.hero.species??restored.hero.race});setGame(restored.game);setHealth(restored.health);setCharacterChosen(restored.chosen);setNewStoryRequested(!restored.chosen);setAdventureBlocked(false);
       setScreenState('Home');

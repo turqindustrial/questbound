@@ -42,7 +42,8 @@ assert.deepEqual(twice,[],'top-level names are unique across the rules and helpe
 // checks deliberately load a handful of modules on their own, to test them in isolation; they are named here.
 const subsets={'verify-casting-enforcement.cjs':'casting rules alone','verify-combat.cjs':'combat numbers alone','verify-weapons.cjs':'weapon numbers alone','verify-companions.cjs':'people and scene art alone','verify-dialogue-triggers.cjs':'scene triggers alone','verify-foes.cjs':'scene triggers alone','verify-playback.cjs':'playback alone','verify-legal.cjs':'the classes and species on offer','verify-map-layout.cjs':'map drawing alone','verify-new-story.cjs':'the story writer\'s output alone','verify-world-art.cjs':'art subjects alone','verify-theme.cjs':'files that write colours','verify-rules-engine.cjs':'this check'};
 const copies=[];
-for(const file of fs.readdirSync('.').filter(f=>f.endsWith('.cjs')&&f!=='rules-files.cjs')){
+// make-save-fixtures.cjs reads old builds' own lists out of git, as those builds loaded their rules.
+for(const file of fs.readdirSync('.').filter(f=>f.endsWith('.cjs')&&!['rules-files.cjs','make-save-fixtures.cjs'].includes(f))){
  const text=readText(file);
  for(const m of text.matchAll(/\[('[A-Za-z]+\.js'(?:\s*,\s*'[A-Za-z]+\.(?:js|json)')*)\]/g)){
   const list=m[1].match(/'[^']+'/g).map(s=>s.slice(1,-1)),rules=list.filter(f=>files.includes(f));
