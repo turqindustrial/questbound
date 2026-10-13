@@ -71,7 +71,7 @@ export function foldedText(f){
 const statusWords={active:'under way',complete:'completed',left:'left unfinished'};
 // A closed tale's own summary (kept when its chapters are folded away): how it ended, its chapters and what mattered most.
 function memTaleSummary(tale){
- const beats=tale.chapters.flatMap(c=>c.beats).filter(b=>beatRank(b)>=7);
+ const beats=tale.chapters.flatMap(c=>c.beats).filter(b=>beatRank(b)>=7&&!/^Adventure complete: /.test(b));
  const folded=foldedText(tale.chapters.reduce((all,c)=>{for(const b of c.folded.met)if(all.met.length<6&&!all.met.includes(b))all.met.push(b);else all.metN++;all.metN+=c.folded.metN;for(const b of c.folded.places)if(all.places.length<6&&!all.places.includes(b))all.places.push(b);else all.placesN++;all.placesN+=c.folded.placesN;for(const k of ['fights','won','fled','gold','finds','rests','more'])all[k]+=c.folded[k];return all;},freshFolded()));
  const titles=tale.chapters.map(c=>c.title).filter(Boolean);
  return memText(statusWords[tale.status]+(tale.began?', begun at '+tale.began:'')+'.'+(titles.length?' Chapters: '+titles.join('; ')+'.':'')+(beats.length?' '+beats.join(' '):'')+(folded?' Also: '+folded+'.':''),400);

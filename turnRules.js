@@ -21,6 +21,7 @@ export function settleTurn({hero,ruled=hero,game,health,action=null,conversation
  result={...result,game:{...result.game}};delete result.game.sceneCue;
  if(sceneTrigger&&!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(game,result.game,action);
  result.game=withStoryLog(game,result.game,hero,{action});
- const marked=withDeeds(result.game,hero);result.game=withMemory(marked.game);
+ const marked=withDeeds(result.game,hero);result.game=marked.game;
+ result.game=withMemory(result.game);
  return {result,xp,fresh:marked.fresh??[]};
 }
