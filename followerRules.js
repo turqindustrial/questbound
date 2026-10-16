@@ -20,7 +20,7 @@ const following=game=>Object.values(game.followers??{}).filter(f=>f?.status==='f
 export function validFollowers(value,game){
  if(value===undefined)return true;
  const known=npcIdsOf(game);
- return value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).length<=known.length&&Object.values(value).filter(f=>f?.status==='following').length<=maxFollowing&&Object.entries(value).every(([id,f])=>known.includes(id)&&f&&['following','waiting','dismissed'].includes(f.status)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,2})$/.test(f.location)&&['reason','terms'].every(k=>typeof f[k]==='string'&&f[k].length<=(k==='reason'?400:300)));
+ return value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).length<=known.length&&Object.values(value).filter(f=>f?.status==='following').length<=maxFollowing&&Object.entries(value).every(([id,f])=>known.includes(id)&&f&&['following','waiting','dismissed'].includes(f.status)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,3})$/.test(f.location)&&['reason','terms'].every(k=>typeof f[k]==='string'&&f[k].length<=(k==='reason'?400:300)));
 }
 // Someone who offered, unasked, to come along: the player takes them or not (game.joinOffers[id] = {reason, terms}).
 export function validJoinOffers(value,game){

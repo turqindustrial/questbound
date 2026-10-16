@@ -18,7 +18,7 @@ import {attackOptions,readyLoadout,canThrow,attacksPerAction,shieldSlung,shieldI
 import {offhandWeapons,masteryOf,masteredWeapons,masteryText,creatureSize,withinGrip,unarmedDC,grappledBy,markOf} from './masteryRules';
 import {fallAtZero,fallPlace,revivalOptions,partyRevivalError,revivalSpell} from './deathRules';
 import {withAttackIntent} from './dmCommands';
-import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway} from './relationshipRules';
+import {npcTies,validDeeds,applyDeeds,canMeetPeople,introducePerson,speciesRegard,regardSway,libraryPeopleMet} from './relationshipRules';
 import {gearedHero,packOf,arrowsLeft,applyLoot,priceList} from './inventoryRules';
 import {spoilsHere,lootError,magicItems,magicSummary,magicCheckMode,packMagic,carriedDraughts} from './lootRules';
 import {foeLabel,foeKind,signatureMoves,heroConditions,fightingCompanions,allFoeTemplates,livingAllies,allyStats,turnOrderView} from './encounterRules';
@@ -339,6 +339,9 @@ export function dmContext(hero,game,health,input='') {
      // Lands on the map (every land travelled is kept).
      landsRemembered:lands.length,
      canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length,peopleHere:npcScene(game).filter(n=>n.present&&n.hp>0&&n.fate!=='dead'&&game.followers?.[n.id]?.status!=='following').length};
+    // The ready-made people (the host's library) already met in this game, by number (np0042 is 42), so the Dungeon
+    // Master's server offers others.
+    {const met=libraryPeopleMet(game);if(met.length)context.world.poolTaken=met.map(id=>Number(id.slice(2)));}
     // Distances are in world.knownPlaces.
     delete context.travelRoutes;
     // The tale's first move: the introduction the player has just read (storyRules.js), so the first answer keeps to it.
@@ -372,7 +375,7 @@ export function dmContext(hero,game,health,input='') {
   context.encounterInitiative=game.encounterInitiative??null;
   // How each person nearby takes to the hero's kind (kin, warm, curious, wary, scornful), with their reason.
   const kindView=id=>{const r=speciesRegard(game,id,hero);return r.stance==='indifferent'?null:{stance:r.stance,reason:r.reason};};
-  context.nearbyNPCs=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({id:n.id,...(lore=>({name:lore?.name??n.name,role:lore?.role??null,voice:lore?.personality??n.response,motive:lore?.motive??null,appearance:lore?.appearance?briefText(lore.appearance,200):null,species:lore?.species??null}))(npcLore(game,n.id)),attitude:n.attitude,grudge:n.grudge,bond:n.bond,follower:game.followers?.[n.id]??null,trainedAs:n.trainedAs?n.trainedAs.class+' '+n.trainedAs.level:null,standing:n.standing,regardsYourKind:kindView(n.id)}));
+  context.nearbyNPCs=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>({id:n.id,...(lore=>({name:lore?.name??n.name,role:lore?.role??null,voice:lore?.personality??n.response,motive:lore?.motive??null,appearance:lore?.appearance?briefText(lore.appearance,200):null,species:lore?.species??null,...(lore?.hook?{hook:briefText(lore.hook,120)}:{})}))(npcLore(game,n.id)),attitude:n.attitude,grudge:n.grudge,bond:n.bond,follower:game.followers?.[n.id]??null,trainedAs:n.trainedAs?n.trainedAs.class+' '+n.trainedAs.level:null,standing:n.standing,regardsYourKind:kindView(n.id)}));
   // Offers to come along that still stand (the player has not yet answered).
   {const offers=standingOffers(game);if(offers.length)context.joinOffers=Object.fromEntries(offers.map(id=>[id,game.joinOffers[id]]));}
   context.followers=game.followers??{};

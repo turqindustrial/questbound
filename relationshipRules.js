@@ -228,6 +228,10 @@ export function validTies(t){
 // were met, remember the player like anyone else, can be talked to, recruited, healed or fought, and may be tied to
 // someone already known. Meeting someone already known (by name) brings them here instead of creating a double.
 const personText=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
+// Someone drawn from the host's library of ready-made people (people-library.cjs on the Dungeon Master's PC) carries
+// its id (pool, np0001…): their portrait is ready-painted, and nobody from the library is met twice in one game.
+export const libraryPersonId=id=>typeof id==='string'&&/^np\d{4}$/.test(id);
+export const libraryPeopleMet=game=>Object.values(game?.people??{}).map(p=>p?.pool).filter(libraryPersonId);
 export const meetingAttitudes=['hostile','unfriendly','indifferent','friendly'];
 // Whether someone can be met here now: there is room for a new person (48 in the land, four living at a place), or
 // someone who keeps out of sight lives here and can be found (roomForSomeoneNew is the first alone).
@@ -260,7 +264,8 @@ export function introducePerson(game,sketch,hero=null){
  const id=freePersonId(game.people);
  // Whether they are a woman or a man (for their portrait), and how they take to the hero's kind, when given.
  const regard=s.regard&&validRegard(s.regard)&&s.regard.stance!=='indifferent'?{stance:s.regard.stance,reason:s.regard.reason.trim().slice(0,200)}:null;
- const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{}),...(genders.includes(s.gender)?{gender:s.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(s.class)?{class:s.class}:{})};
+ const pool=libraryPersonId(s.pool)&&!libraryPeopleMet(game).includes(s.pool)?s.pool:null,motive=pool&&personText(s.motive,3,300)?s.motive.trim():null,hook=pool&&personText(s.hook,3,240)?s.hook.trim():null;
+ const person={name,species:String(s.species??'').trim().slice(0,60),role:s.role.trim(),appearance:s.appearance.trim(),personality:String(s.personality??'').trim().slice(0,200),...(motive?{motive}:{}),...(hook?{hook}:{}),...(pool?{pool}:{}),toughness:s.toughness,home:here,foe:s.foe,...(s.tie?{tie:{to:s.tie.to,kind:s.tie.kind}}:{}),...(genders.includes(s.gender)?{gender:s.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(s.class)?{class:s.class}:{})};
  let next={...game,people:{...game.people,[id]:person}};
  // Someone truly trained (a veteran sellsword, a temple priest) fights as their class, a step behind the hero.
  if(person.class)next.npcClasses={...next.npcClasses,[id]:{class:person.class,level:companionLevelFor(hero)}};
@@ -279,9 +284,9 @@ export function validPeople(game){
  const p=game.people;if(p===undefined)return true;
  if(!p||typeof p!=='object'||Array.isArray(p)||!game.story)return false;
  const ids=Object.keys(p),known=npcIdsOf(game);
- return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,2})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)))&&(x.gender===undefined||genders.includes(x.gender))&&validRegard(x.regard);})
+ return ids.length<=maxPeople&&ids.every(id=>{const x=p[id];return isPersonId(id)&&!!x&&personText(x.name,2,60)&&personText(x.species,0,60)&&personText(x.role,3,200)&&personText(x.appearance,10,400)&&personText(x.personality,0,200)&&Object.hasOwn(personToughness,x.toughness)&&/^(?:inn|bridge|tower|p\d{1,3})$/.test(x.home)&&foeTieKinds.includes(x.foe)&&(x.tie===undefined||(!!x.tie&&known.includes(x.tie.to)&&x.tie.to!==id&&tieKinds.includes(x.tie.kind)))&&(x.gender===undefined||genders.includes(x.gender))&&validRegard(x.regard);})
   // A tale's residents carry `resident` (met once the hero reaches their home) and may carry what they want.
-  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].hidden===undefined||p[id].hidden===true)&&(p[id].class===undefined||npcClassList.includes(p[id].class))&&(p[id].motive===undefined||personText(p[id].motive,0,400)))
+  &&ids.every(id=>(p[id].resident===undefined||p[id].resident===true)&&(p[id].hidden===undefined||p[id].hidden===true)&&(p[id].class===undefined||npcClassList.includes(p[id].class))&&(p[id].motive===undefined||personText(p[id].motive,0,400))&&(p[id].pool===undefined||libraryPersonId(p[id].pool))&&(p[id].hook===undefined||personText(p[id].hook,0,240)))
   &&new Set(ids.map(id=>p[id].name.toLowerCase())).size===ids.length;
 }
 // ---------- The people who live in a tale's country ----------

@@ -92,7 +92,7 @@ export function npcLore(game,id){
  const s=game?.story?.npcs?.[id];
  if(s)return {name:s.name,role:s.role,motive:s.motive,personality:s.personality??null,appearance:s.appearance??null,species:s.species??null,gender:s.gender??null};
  const p=game?.people?.[id];
- if(p&&isPersonId(id))return {name:p.name,role:p.role,motive:p.motive??null,personality:p.personality||null,appearance:p.appearance,species:p.species||null,gender:p.gender??null};
+ if(p&&isPersonId(id))return {name:p.name,role:p.role,motive:p.motive??null,personality:p.personality||null,appearance:p.appearance,species:p.species||null,gender:p.gender??null,...(p.hook?{hook:p.hook}:{})};
  return npcProfiles[id]?{name:npcProfiles[id].name,...crossroadsLore[id],gender:id==='mara'?'woman':'man'}:null;
 }
 // Players address people by full name, first name or surname ("Tobin", "Brask"); titles alone do not count.
@@ -196,7 +196,7 @@ export function validNpcState(game){
  const text=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max,known=npcIdsOf(game);
  const ids=v=>Array.isArray(v)&&v.length<=10&&new Set(v).size===v.length&&v.every(id=>known.includes(id));
  return validNpcCombat(game)&&validNpcClasses(game.npcClasses,game)&&(game.npcMemory===undefined||(game.npcMemory&&typeof game.npcMemory==='object'&&!Array.isArray(game.npcMemory)&&Object.entries(game.npcMemory).every(([id,m])=>known.includes(id)&&m&&['hostile','unfriendly','indifferent','friendly','devoted'].includes(m.attitude)&&(m.allegiance===undefined||m.allegiance==='player')&&text(m.response,300)&&Array.isArray(m.memories)&&m.memories.length<=12&&m.memories.every(t=>text(t,300))&&(m.grudge===undefined||text(m.grudge,200))&&(m.bond===undefined||text(m.bond,200))&&(!m.grudge||m.attitude==='hostile')&&(m.grudgeWeight===undefined||['grave','blood'].includes(m.grudgeWeight))&&(m.grudgeSince===undefined||(Number.isSafeInteger(m.grudgeSince)&&m.grudgeSince>=0))&&(m.amends===undefined||(Number.isInteger(m.amends)&&m.amends>=0&&m.amends<=6))&&(m.forgave===undefined||(!!m.forgave&&typeof m.forgave==='object'&&text(m.forgave.grudge,200)&&['grave','blood'].includes(m.forgave.weight)&&text(m.forgave.memory,300)))&&(!m.bond||m.grudge||['friendly','devoted'].includes(m.attitude)))))
- &&(game.actionEvents===undefined||(Array.isArray(game.actionEvents)&&game.actionEvents.length<=30&&game.actionEvents.every(e=>e&&['weapon-attack','harmful-spell'].includes(e.kind)&&e.actor==='player'&&known.includes(e.target)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,2})$/.test(e.location)&&ids(e.witnesses)&&Number.isInteger(e.damage)&&e.damage>=0&&e.damage<=40)));
+ &&(game.actionEvents===undefined||(Array.isArray(game.actionEvents)&&game.actionEvents.length<=30&&game.actionEvents.every(e=>e&&['weapon-attack','harmful-spell'].includes(e.kind)&&e.actor==='player'&&known.includes(e.target)&&/^(?:inn|bridge|tower|dungeon:[0-7]|p\d{1,3})$/.test(e.location)&&ids(e.witnesses)&&Number.isInteger(e.damage)&&e.damage>=0&&e.damage<=40)));
 }
 
 export function npcServiceError(game,action){
