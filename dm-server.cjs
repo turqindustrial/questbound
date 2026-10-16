@@ -324,10 +324,11 @@ function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spen
  if(!library||!apiKey||!storyModel)return false;
  const ceilings=spend??(live?loadSpending():null);
  if(!backgroundAllowed(ceilings))return false;
- const write=brief=>{
-  if(!backgroundAllowed(ceilings))return Promise.reject(Object.assign(Error('Spending ceiling reached.'),{kind:'ceiling'}));
+ const write=async brief=>{
+  if(!backgroundAllowed(ceilings))throw Object.assign(Error('Spending ceiling reached.'),{kind:'ceiling'});
   delete require.cache[require.resolve('./adventure-generator.cjs')];
-  return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'easy',ahead:true,libraryBrief:brief,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:null,onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,null)});
+  const cast=live?await castFor(loadPeople()):null;
+  return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'easy',ahead:true,libraryBrief:brief,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:null,cast,onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,null)});
  };
  return library.topUp(write,{accept:journeyCheck,onFailure:e=>recordWriteFailure('library',e,live)});
 }
@@ -370,6 +371,9 @@ function pooledIntroduce(p,offered,lib){
  const entry=list.get(pool)??[...list.values()].find(e=>e.name.toLowerCase()===String(p.name??'').trim().toLowerCase());
  return entry&&lib?.filledIntroduce?lib.filledIntroduce(rest,entry):rest;
 }
+// A dozen ready-made people the story writer may cast as residents (adventure-generator.cjs castResidents), by chance,
+// at most three trained; none when the library is empty or cannot be read.
+async function castFor(lib){try{return lib?.people?await lib.people.suited({seed:Date.now()+':'+Math.random(),count:12}):null;}catch{return null;}}
 function loadModeration(){if(require('./moderation.cjs').revision!==1)delete require.cache[require.resolve('./moderation.cjs')];return require('./moderation.cjs').moderation;}
 // What the player typed in this request, if anything: a turn's words (never a scene cue the game wrote), the idea for
 // a tale of their own, or the description for a hero drafted by the AI.
@@ -455,7 +459,9 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(body.context.mode==='adventure'){
     delete require.cache[require.resolve('./adventure-generator.cjs')];
     const effort=fetchImpl===fetch?storyEffort(storyReasoning):storyReasoning;
-    const write=(reasoning,timeout)=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});
+    // A tale that is not the next in a region may cast residents from the host's ready-made people.
+    const castLib=people??(live?loadPeople():null);
+    const write=async(reasoning,timeout)=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,cast:body.context.continuing?null:await castFor(castLib),onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});
     // A ready journey the player chose starts at once: their own copy of it (it is not used up). A journey that has just
     // left the library is refused, and the game shows the journeys on offer again.
     if(shelf&&body.context.journey!==undefined&&!body.context.continuing){const copy=shelf.start(String(body.context.journey));try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend});}catch{}if(!copy)throw Object.assign(Error('That journey has just left the library. Choose another; your adventure is unchanged.'),{httpStatus:409});return {story:copy,ahead:true,journey:true};}
@@ -870,4 +876,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={peopleToMeetFor,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={castFor,peopleToMeetFor,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

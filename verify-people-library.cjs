@@ -90,7 +90,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    const sent=calls[0],offered=JSON.parse(sent.input).context.world?.peopleToMeet;
    assert.ok(Array.isArray(offered)&&offered.length===4,'four people offered where the hero is');assert.ok(!offered.some(p=>p.pool==='np0001'),'never one already met');
    assert.ok(!sent.input.includes('poolTaken'),'the ids already met are the server\'s business, not the model\'s');
-   const schema=sent.text.format.schema.properties.introduce;same(schema.properties.pool.enum,[null,...offered.map(p=>p.pool)],'the reply may name only someone offered');assert.ok(schema.required.includes('pool'));
+   const schema=sent.text.format.schema.properties.introduce;same(schema.properties.pool.enum,[null,...offered.map(p=>p.pool)],'the reply may name only someone offered');assert.ok(schema.required.includes('pool'));same([...schema.required].sort(),Object.keys(schema.properties).sort(),'strict: every property required');same(schema.properties.pool.type,['string','null']);
    assert.match(sent.instructions,/PEOPLE TO MEET: context\.world\.peopleToMeet/);
    assert.equal(out.introduce.pool,'np0002');assert.equal(out.introduce.name,'Oswin Reedly','their own name');assert.match(out.introduce.appearance,/tarred coat/);assert.equal(out.introduce.gender,'man');assert.equal(out.introduce.toughness,'frail');
    assert.match(out.introduce.personality,/Calls everyone "cousin"\./,'their voice goes with them');assert.ok(out.introduce.hook&&out.introduce.motive);assert.equal(out.introduce.attitude,'friendly','how they meet the hero is the Dungeon Master\'s');assert.equal(out.introduce.regard.stance,'curious');
@@ -158,6 +158,27 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    const before=paid;const host=await store.request(lib.portraitSubject(person('np0010',{name:'Ida Quell'})),{apiKey:'test-only',model:'test-model',host:true});for(let i=0;i<100&&paid===before;i++)await new Promise(res=>setTimeout(res,10));assert.equal(paid,before+1,'the host paints it');assert.ok(['pending','ready'].includes(host.status)||host.status==='failed');
    assert.match(readText('dm-server.cjs'),/safety,mayPaint,host:!guest,/,'the Dungeon Master says whether the host asked');
    console.log('Portraits: a library person is shown with their ready portrait at no cost (no painting, no usage), painted as before only when it is missing; a painting made earlier is kept; only the host paints the library itself.');}
+  // ---------- The story writer may cast residents from the library ----------
+  {const {generateAdventure,castResidents}=require('./adventure-generator.cjs'),{journeyStory}=require('./journey-fixtures.cjs');
+   const cast=[stock[0],stock[1]],calls=[];
+   const tale=journeyStory(0);tale.residents[0]={...tale.residents[0],name:'Oswin Reedly',pool:'np0002',appearance:'A tall stranger.'};tale.residents[1]={...tale.residents[1],pool:'np0001'};tale.residents.push({...tale.residents[0],name:'Oswin Reedly',at:'tower'});
+   const fetchImpl=async(url,options)=>{calls.push(JSON.parse(options.body));return done(JSON.parse(JSON.stringify(tale)));};
+   const got=await generateAdventure({input:'x',context:{mode:'adventure',introId:'easy',easyStart:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl,cast});
+   const sent=calls[0],items=sent.text.format.schema.properties.residents.items;same(items.properties.pool.enum,[null,'np0001','np0002']);assert.ok(items.required.includes('pool'),'strict: pool required');
+   assert.match(sent.instructions,/READY-MADE PEOPLE: context\.castable/);same(JSON.parse(sent.input).context.castable.map(c=>c.pool),['np0001','np0002']);
+   const [oswin,second,third]=[got.story.residents[0],got.story.residents[1],got.story.residents.at(-1)];
+   assert.equal(oswin.pool,'np0002');assert.equal(oswin.gender,'man');assert.match(oswin.appearance,/tarred coat/,'the library\'s look, so the ready portrait fits');assert.equal(oswin.role,tale.residents[0].role,'the tale\'s own role');
+   assert.equal(second.pool,undefined,'a pool id under another name is dropped');assert.equal(third.pool,undefined,'never cast twice');
+   const hero=r.readyHero('fighter'),game=r.freshStoryGame(hero,JSON.parse(JSON.stringify(got.story)),r.newAdventure(hero));
+   const seated=Object.entries(game.people).find(([,p])=>p.pool==='np0002');assert.ok(seated&&seated[1].resident,'seated with its pool id');assert.ok(r.validAdventure(r.adventureSnapshot(hero,game,null,true),hero));
+   assert.equal(r.npcArtSubject(game,seated[0]).pool,'np0002','its portrait comes from the library');
+   // No cast, the next tale in a region, or a dm-server write without a library: as before.
+   calls.length=0;const plain=await generateAdventure({input:'x',context:{mode:'adventure',introId:'easy',easyStart:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl});assert.equal(calls[0].text.format.schema.properties.residents.items.properties.pool,undefined);assert.ok(plain.story.residents.every(x=>x.pool===undefined));
+   calls.length=0;await generateAdventure({input:'x',context:{mode:'adventure',introId:'easy',easyStart:true,choices:[],continuing:{previousTitle:'Old',newStartBearing:'north'}}},{apiKey:'k',model:'m',fetchImpl,cast}).catch(()=>{});assert.ok(!calls[0].input.includes('castable'),'the next tale in a region casts nobody from the library');
+   calls.length=0;await server.generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'caravan',choices:[]}},{apiKey:'k',model:'m',fetchImpl,people:roster}).catch(()=>{});assert.ok(JSON.parse(calls[0].input).context.castable.length>=4,'the Dungeon Master offers the writer people from the library');
+   calls.length=0;await server.generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'caravan',choices:[]}},{apiKey:'k',model:'m',fetchImpl}).catch(()=>{});assert.ok(!calls[0].input.includes('castable'));
+   same(castResidents({residents:[{name:'X',pool:'np0009'}]},[]).residents[0].pool,undefined);
+   console.log('Story writer: offered a dozen ready-made people for a fresh tale (never the next tale in a region), a resident cast from them keeps the library\'s name, kind, gender, class and look (and so its ready portrait), the tale\'s own role; seated with its pool id.');}
   // ---------- make-people-library.cjs against a stand-in Dungeon Master ----------
   {const data=path.join(tmp,'data');fs.mkdirSync(data,{recursive:true});let batches=0,paintings=0,quota=false;
    const fake=http.createServer((req,res)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{const body=JSON.parse(raw),c=body.context,send=(s,d)=>{res.writeHead(s,{'Content-Type':'application/json'});res.end(JSON.stringify(d));};

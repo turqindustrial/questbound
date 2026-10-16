@@ -55,7 +55,22 @@ THE PITCH: pitch is what the choosing screen shows beside the other journeys, wr
 
 // Tales of the writer's own choosing start from one of these.
 const directions=['a mountain kingdom whose heir has vanished and a pretender marching on the capital','a pilgrim road across a tidal marsh, a stolen reliquary and a spreading fever','a caravan city at the edge of a sand sea and a buried forge-city waking under the dunes','a northern march in a winter that will not end and a voice on the glacier calling the wolves','a kingdom under the mountains whose light-wells are going dark and a regent with something to hide','a great river port where people wake without their names and a guild that buys what they forget','a war-torn border, a prisoner who could end the war and two armies who want her dead','an island chain after a great storm, a drowned lighthouse and a fleet that never came home','a high steppe of horse clans, a broken truce and a stolen ancestor-banner','a jungle river of overgrown temples, a vanished expedition and a rival crew a day ahead','a city of canals in carnival week, a masked killer and a prince travelling in disguise','a frontier valley of new farms on old graves and something that has started to answer the church bell'];
-async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=null,fetchImpl=fetch,onUsage=null,safety=null}){
+// Ready-made people (people-library.cjs) the writer may cast as residents: the Dungeon Master offers a dozen from the
+// host's library for a tale that is not the next in a region (whose earlier people would clash). A resident cast from
+// them keeps the library's name, kind, gender, class and look (their portrait is ready-painted, so they cost nothing to
+// show) and the tale's own role, motive, personality and home.
+const castInstructions=' READY-MADE PEOPLE: context.castable lists people of this world who are already drawn and painted (pool, name, species, gender, age, role, class when trained, look). When one of them would suit a resident of this tale, cast them: give that resident pool set to their pool id and their exact name, species, gender and class as listed, describe them as their look says, and make role, motive, personality and where they live (at) this tale\'s own. Cast as many as fit naturally (often three to six), never one twice; give every other resident pool null. keeper and mara are always your own.';
+function castResidents(story,cast){
+ const byId=new Map(cast.map(e=>[e.id,e])),used=new Set();
+ for(const r of Array.isArray(story.residents)?story.residents:[]){
+  if(!r||typeof r!=='object')continue;
+  const e=byId.get(r.pool);
+  if(!e||used.has(e.id)||String(r.name??'').trim().toLowerCase()!==e.name.toLowerCase()){delete r.pool;continue;}
+  used.add(e.id);Object.assign(r,{name:e.name,species:e.species,gender:e.gender,appearance:e.appearance.slice(0,400),class:e.class??null,pool:e.id});
+ }
+ return story;
+}
+async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=null,fetchImpl=fetch,onUsage=null,safety=null,cast=null}){
  // Read per request: the running DM server hot-reloads this module but would keep a cached JSON require.
  const intros=JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname,'adventureIntros.json'),'utf8'));
  // An opening this list no longer has (asked for by a browser still running an earlier build) becomes a tale of the writer's own choosing.
@@ -71,6 +86,7 @@ async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=nul
  const selectedOpening=chosen.id==='surprise'||chosen.idea?null:chosen;
  // The next chapter of a hero's journey: the same region, its places and people remembered.
  const continuing=body.context?.continuing&&typeof body.context.continuing==='object'?body.context.continuing:null;
+ const castable=!continuing&&Array.isArray(cast)?cast.filter(e=>e&&typeof e==='object'&&/^np\d{4}$/.test(String(e.id))&&typeof e.name==='string'&&typeof e.appearance==='string').slice(0,12):[];
  // The life this hero has lived so far (memoryRules.js storySoFarForWriter), sent with a tale written for them; never
  // for a tale written ahead, whose hero is unknown. Kept to plain lines of bounded length.
  const storySoFar=ahead?null:tidyStorySoFar(body.context?.storySoFar);
@@ -83,6 +99,7 @@ async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=nul
  let requestSchema={...schema,properties:{...schema.properties,openingDialogue:dialogueSchema},required:[...schema.required,'openingDialogue']};
  if(easy)requestSchema={...requestSchema,properties:{...requestSchema.properties,errand:errandSchema},required:[...requestSchema.required,'errand']};
  if(brief)requestSchema={...requestSchema,properties:{...requestSchema.properties,pitch:pitchSchema},required:[...requestSchema.required,'pitch']};
+ if(castable.length){const items=schema.properties.residents.items;requestSchema={...requestSchema,properties:{...requestSchema.properties,residents:{...schema.properties.residents,items:{...items,properties:{...items.properties,pool:{type:['string','null'],enum:[null,...castable.map(e=>e.id)]}},required:[...items.required,'pool']}}}};}
  const dialogueInstructions=' openingDialogue: two to four short lines the people at the starting place say aloud as the player arrives, reacting to the opening incident in their distinct voices and personalities (for example disagreeing, pleading or greeting); use at least two different voices, and give each speaker something of their own to say (their own worry, news, demand or question): never two lines that say the same thing or greet the same way. speakerId keeper, mara, or residentN for the Nth resident in residents (only one who lives at the starting place, at: inn). Spoken words only: no name prefixes, stage directions or decisions for the player. Keep every line consistent with opening and reveal no secret.';
  // A ready journey starts from the library's seed (and, being an easy start, from orders in hand).
  const direction=brief?String(brief.seed).slice(0,400)+' Begin with the hero already on a plain errand that belongs to this setting, given by someone with authority in it.':continuing?'The next chapter in the same region as context.continuing. '+String(continuing.newStartBearing??'').slice(0,200)+(idea?' The player wishes: '+idea:'')+(easy?' Begin with the hero already on a plain errand in this region, given by someone with authority here.':''):chosen.idea?'The player\'s own idea: '+idea+(easy?' Begin with the hero already on a plain errand that fits this idea, given by someone with authority in it.':''):selectedOpening?[selectedOpening.setting,selectedOpening.conflict,selectedOpening.journey,selectedOpening.stakes].filter(Boolean).join(' ')+(chosen.errand?' '+errandDirections[require('node:crypto').randomInt(errandDirections.length)]:easy?' Begin with the hero already on a plain errand that belongs to this setting, given by someone with authority in it.':''):directions[require('node:crypto').randomInt(directions.length)]+(easy?' '+errandDirections[require('node:crypto').randomInt(errandDirections.length)]:'');
@@ -98,12 +115,14 @@ async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=nul
  const room=['high','xhigh'].includes(String(reasoning).toLowerCase())?40000:outputBudget(6000,reasoning);
  // Streamed, so a tale that takes minutes to write is never cut off by Node's own fetch limits (longResponse in
  // ai-request.cjs); its cost is counted even when it is cut short.
- const data=await longResponse({...modelOptions(model,reasoning),...(safety??{}),store:false,max_output_tokens:room,instructions:storyInstructions+dialogueInstructions+(easy?errandInstructions:'')+continuingInstructions+storySoFarInstructions+ideaInstructions+aheadInstructions+(brief?journeyInstructions(brief):'')+' Return only the story.',input:JSON.stringify({...body,context:body.context&&typeof body.context==='object'?{...body.context,storySoFar:storySoFar??undefined}:body.context,guest:undefined,selectedOpening,creativeDirection:direction,...(openingScene?{openingScene}:{})}),text:{format:{type:'json_schema',name:'new_adventure',strict:true,schema:requestSchema}}},{apiKey,timeout:timeout??providerTimeout(reasoning),fetchImpl,onUsage,incomplete:'The adventure generation was incomplete. Your existing save is unchanged.'});
+ const data=await longResponse({...modelOptions(model,reasoning),...(safety??{}),store:false,max_output_tokens:room,instructions:storyInstructions+dialogueInstructions+(easy?errandInstructions:'')+continuingInstructions+storySoFarInstructions+ideaInstructions+aheadInstructions+(brief?journeyInstructions(brief):'')+(castable.length?castInstructions:'')+' Return only the story.',input:JSON.stringify({...body,context:body.context&&typeof body.context==='object'?{...body.context,storySoFar:storySoFar??undefined,...(castable.length?{castable:castable.map(e=>({pool:e.id,name:e.name,species:e.species,gender:e.gender,age:e.age,role:e.role,...(e.class?{class:e.class}:{}),look:e.appearance}))}:{})}:body.context,guest:undefined,selectedOpening,creativeDirection:direction,...(openingScene?{openingScene}:{})}),text:{format:{type:'json_schema',name:'new_adventure',strict:true,schema:requestSchema}}},{apiKey,timeout:timeout??providerTimeout(reasoning),fetchImpl,onUsage,incomplete:'The adventure generation was incomplete. Your existing save is unchanged.'});
  // A tale sent twice or wrapped in fences is read once (readJson in ai-request.cjs); a refusal is told as such.
  const story=readJson(data);
  if(!story.npcs||!['keeper','mara'].every(id=>['appearance','personality'].every(field=>typeof story.npcs[id]?.[field]==='string'&&story.npcs[id][field].trim().length>=10))||typeof story.foeAppearance!=='string'||story.foeAppearance.trim().length<10||story.npcs.keeper.name.trim().toLowerCase()===story.npcs.mara.name.trim().toLowerCase()||story.npcs.keeper.appearance.trim().toLowerCase()===story.npcs.mara.appearance.trim().toLowerCase())throw Object.assign(Error('The new characters need distinct identities and appearances. Your current adventure is unchanged; try again.'),{kind:'invalid-story'});
  const lines=Array.isArray(story.openingDialogue)?story.openingDialogue.filter(l=>/^(?:keeper|mara|resident(?:[1-9]|1[0-2]))$/.test(String(l?.speakerId))&&typeof l.text==='string'&&l.text.trim()).slice(0,4).map(l=>({speakerId:l.speakerId,text:l.text.trim().slice(0,300)})):[];
  if(lines.length)story.openingDialogue=lines;else delete story.openingDialogue;
+ // Residents cast from the ready-made people keep the library's identity; anyone else carries no pool id.
+ castResidents(story,castable);
  // Written ahead, the people's view of the hero's kind is left to the game, which knows the hero (relationshipRules.js).
  if(ahead){for(const id of ['keeper','mara'])if(story.npcs[id])delete story.npcs[id].regard;for(const r of Array.isArray(story.residents)?story.residents:[])if(r&&typeof r==='object')delete r.regard;}
  // A ready journey's pitch travels beside the story, not in it.
@@ -117,4 +136,4 @@ function tidyStorySoFar(s){
  const tales=lines(s.tales,16,600),openFacts=lines(s.openFacts,40,300);
  return tales.length||openFacts.length?{tales,...(openFacts.length?{openFacts}:{})}:null;
 }
-module.exports={generateAdventure,storyInstructions,tidyStorySoFar};
+module.exports={generateAdventure,storyInstructions,tidyStorySoFar,castResidents,castInstructions};

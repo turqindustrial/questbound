@@ -308,7 +308,7 @@ export function seatResidents(game,residents,places=[]){
  for(const p of Array.isArray(places)?places:[])if(p&&/^p\d{1,3}$/.test(p.id)&&typeof p.name==='string'){where[p.id]=p.id;where[key(p.name)]=p.id;}
  for(const id of coreNpcIds){core[id]=id;const n=key(story.npcs?.[id]?.name);if(n)core[n]=id;}
  const people={...game.people},memory={...game.npcMemory},count={},written={};
- const taken=new Set([...Object.keys(core).filter(k=>!coreNpcIds.includes(k)),key(story.foe),...Object.values(people).map(p=>key(p.name))].filter(Boolean));
+ const taken=new Set([...Object.keys(core).filter(k=>!coreNpcIds.includes(k)),key(story.foe),...Object.values(people).map(p=>key(p.name))].filter(Boolean)),pools=new Set(libraryPeopleMet({people}));
  for(const p of Object.values(people))count[p.home]=(count[p.home]??0)+1;
  residents.forEach((r,i)=>{
   if(Object.keys(ids).length>=maxResidents||Object.keys(people).length>=maxPeople||!r||typeof r!=='object')return;
@@ -319,7 +319,8 @@ export function seatResidents(game,residents,places=[]){
   if((count[home]??0)>=(home==='inn'?residentsAtStart:residentsPerPlace))return;
   const id=freePersonId(people);
   const regard=r.regard&&validRegard(r.regard)&&r.regard.stance!=='indifferent'?{stance:r.regard.stance,reason:r.regard.reason.trim().slice(0,200)}:null,motive=clean(r.motive,300),personality=clean(r.personality,200);
-  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(r.class)?{class:r.class}:{}),resident:true,...(r.noticed===false&&home!=='inn'?{hidden:true}:{})};
+  people[id]={name,species:clean(r.species,60),role,appearance,personality,...(motive?{motive}:{}),toughness:Object.hasOwn(personToughness,r.toughness)?r.toughness:'common',home,foe:foeTieKinds.includes(r.foe)?r.foe:'neutral',...(genders.includes(r.gender)?{gender:r.gender}:{}),...(regard?{regard}:{}),...(npcClassList.includes(r.class)?{class:r.class}:{}),...(libraryPersonId(r.pool)&&!pools.has(r.pool)?{pool:r.pool}:{}),resident:true,...(r.noticed===false&&home!=='inn'?{hidden:true}:{})};
+  if(people[id].pool)pools.add(people[id].pool);
   // How they take to a stranger, when the writer says so; otherwise their view of the hero's kind decides it.
   if(['unfriendly','friendly'].includes(r.attitude))memory[id]={attitude:r.attitude,response:responses[r.attitude],memories:[]};
   taken.add(name.toLowerCase());count[home]=(count[home]??0)+1;ids['resident'+(i+1)]=id;written[id]=r.tie;
