@@ -461,7 +461,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     const effort=fetchImpl===fetch?storyEffort(storyReasoning):storyReasoning;
     // A tale that is not the next in a region may cast residents from the host's ready-made people.
     const castLib=people??(live?loadPeople():null);
-    const write=async(reasoning,timeout)=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,cast:body.context.continuing?null:await castFor(castLib),onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});
+    const write=(reasoning,timeout)=>{const go=cast=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,cast,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});return castLib&&!body.context.continuing?castFor(castLib).then(go):go(null);};
     // A ready journey the player chose starts at once: their own copy of it (it is not used up). A journey that has just
     // left the library is refused, and the game shows the journeys on offer again.
     if(shelf&&body.context.journey!==undefined&&!body.context.continuing){const copy=shelf.start(String(body.context.journey));try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend});}catch{}if(!copy)throw Object.assign(Error('That journey has just left the library. Choose another; your adventure is unchanged.'),{httpStatus:409});return {story:copy,ahead:true,journey:true};}
