@@ -229,8 +229,8 @@ export function validTies(t){
 // someone already known. Meeting someone already known (by name) brings them here instead of creating a double.
 const personText=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
 // Someone drawn from the host's library of ready-made people (people-library.cjs on the Dungeon Master's PC) carries
-// its id (pool, np0001…): their portrait is ready-painted, and nobody from the library is met twice in one game.
-export const libraryPersonId=id=>typeof id==='string'&&/^np\d{4}$/.test(id);
+// its id (pool, np001…): their portrait is ready-painted, and nobody from the library is met twice in one game.
+export const libraryPersonId=id=>typeof id==='string'&&/^np\d{3}$/.test(id);
 export const libraryPeopleMet=game=>Object.values(game?.people??{}).map(p=>p?.pool).filter(libraryPersonId);
 export const meetingAttitudes=['hostile','unfriendly','indifferent','friendly'];
 // Whether someone can be met here now: there is room for a new person (48 in the land, four living at a place), or

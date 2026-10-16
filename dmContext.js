@@ -339,7 +339,7 @@ export function dmContext(hero,game,health,input='') {
      // Lands on the map (every land travelled is kept).
      landsRemembered:lands.length,
      canIntroduce:canMeetPeople(game)&&(health?.current??1)>0,peopleMet:Object.keys(game.people??{}).length,peopleHere:npcScene(game).filter(n=>n.present&&n.hp>0&&n.fate!=='dead'&&game.followers?.[n.id]?.status!=='following').length};
-    // The ready-made people (the host's library) already met in this game, by number (np0042 is 42), so the Dungeon
+    // The ready-made people (the host's library) already met in this game, by number (np042 is 42), so the Dungeon
     // Master's server offers others.
     {const met=libraryPeopleMet(game);if(met.length)context.world.poolTaken=met.map(id=>Number(id.slice(2)));}
     // Distances are in world.knownPlaces.

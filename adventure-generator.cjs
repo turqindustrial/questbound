@@ -86,7 +86,7 @@ async function generateAdventure(body,{apiKey,model,reasoning='none',timeout=nul
  const selectedOpening=chosen.id==='surprise'||chosen.idea?null:chosen;
  // The next chapter of a hero's journey: the same region, its places and people remembered.
  const continuing=body.context?.continuing&&typeof body.context.continuing==='object'?body.context.continuing:null;
- const castable=!continuing&&Array.isArray(cast)?cast.filter(e=>e&&typeof e==='object'&&/^np\d{4}$/.test(String(e.id))&&typeof e.name==='string'&&typeof e.appearance==='string').slice(0,12):[];
+ const castable=!continuing&&Array.isArray(cast)?cast.filter(e=>e&&typeof e==='object'&&/^np\d{3}$/.test(String(e.id))&&typeof e.name==='string'&&typeof e.appearance==='string').slice(0,12):[];
  // The life this hero has lived so far (memoryRules.js storySoFarForWriter), sent with a tale written for them; never
  // for a tale written ahead, whose hero is unknown. Kept to plain lines of bounded length.
  const storySoFar=ahead?null:tidyStorySoFar(body.context?.storySoFar);

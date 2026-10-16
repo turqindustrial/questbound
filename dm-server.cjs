@@ -296,11 +296,15 @@ function storyEffort(fallback,read=chosenModel){const chosen=read('.questbound-s
 function turnEffort(fallback,read=chosenModel){const chosen=read('.questbound-dm-effort');return ['none','minimal','low','medium','high'].includes(chosen)?chosen:fallback;}
 // Stories in the making are kept in a module of their own, which stays loaded while this file is reloaded.
 // The day's spending and the host's ceilings on it (spending.cjs) also stay loaded between requests.
-function loadSpending(){if(require('./spending.cjs').revision!==3)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
+function loadSpending(){if(require('./spending.cjs').revision!==4)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
 // A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
 const modes=new Set(['art','adventure','character','diagnostics','moderate','people-batch']);
+// The host's own library jobs (make-people-library.cjs, the place-art painter): their usage lines are tagged so the
+// spending ceilings leave them out (spending.cjs: the host funds them). Every painting line carries job (null when
+// it is not one), so a line from before the tag can be told apart.
+const hostJobOf=(subject,guest)=>guest||typeof subject?.campaignId!=='string'?null:subject.campaignId.startsWith('questbound-people-library')?'people-library':subject.campaignId.startsWith('questbound-place-library')?'place-library':null;
 const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
 // Ready journeys (tale-library.cjs) also stay loaded between requests: a shared library of finished tales that players
 // compare and choose between, each written once at the effort the host chose and played by many (each player their own
@@ -353,11 +357,11 @@ function startLibrary({apiKey,model,storyModel=model,storyReasoning='medium',lib
 function loadPeople(){if(require('./people-library.cjs').revision!==1)delete require.cache[require.resolve('./people-library.cjs')];return require('./people-library.cjs');}
 // The people to offer the Dungeon Master where the hero is (context.world.peopleToMeet): a few suited to the kind of
 // place and its land, never one already met in this game (context.world.poolTaken), the same few at a place until one
-// of them is met (poolTaken holds their numbers: 42 for np0042). Returns the offered library entries by id; none when the library is empty or cannot be read.
+// of them is met (poolTaken holds their numbers: 42 for np042). Returns the offered library entries by id; none when the library is empty or cannot be read.
 async function peopleToMeetFor(context,lib){
  if(!lib?.people||!context?.world||typeof context.world!=='object')return new Map();
  try{
-  const w=context.world,taken=new Set((Array.isArray(w.poolTaken)?w.poolTaken:[]).filter(n=>Number.isInteger(n)&&n>=1&&n<=9999).map(n=>'np'+String(n).padStart(4,'0')));
+  const w=context.world,taken=new Set((Array.isArray(w.poolTaken)?w.poolTaken:[]).filter(n=>Number.isInteger(n)&&n>=1&&n<=999).map(n=>'np'+String(n).padStart(3,'0')));
   const kind=lib.placeKinds.includes(w.current?.kind)?w.current.kind:null,terrain=lib.terrains.includes(w.region?.terrain)?w.region.terrain:null;
   const found=await lib.people.suited({kind,terrain,taken,seed:String(context.story?.id??'')+':'+String(w.current?.id??''),count:4});
   return new Map(found.map(e=>[e.id,e]));
@@ -435,12 +439,12 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(body.context.libraryBrief!==undefined)delete body.context.libraryBrief;
   const shelf=library??(live?loadLibrary():null);
   if(body.context.mode==='art'&&body.context.journeys==='list'){if(!shelf)return {journeys:[]};try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend});}catch{}return {journeys:shelf.list({cover:journeyCovers()})};}
-  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==8)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel})});}
+  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==8)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel,job:hostJobOf(body.context.subject,guest)})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
   // The host's library of ready-made people is written in batches (make-people-library.cjs, people-writer.cjs): only the
   // host, on this PC, may ask. Recorded as 'people' in the usage log (the host's own spending).
-  if(body.context.mode==='people-batch'){if(guest)throw Object.assign(Error('Only the host can write the people library, on the PC itself.'),{httpStatus:403});delete require.cache[require.resolve('./people-writer.cjs')];return require('./people-writer.cjs').writePeople(body,{apiKey,model:storyModel,fetchImpl,onUsage:u=>recordUsage('people',storyModel,u,live,null)});}
+  if(body.context.mode==='people-batch'){if(guest)throw Object.assign(Error('Only the host can write the people library, on the PC itself.'),{httpStatus:403});delete require.cache[require.resolve('./people-writer.cjs')];return require('./people-writer.cjs').writePeople(body,{apiKey,model:storyModel,fetchImpl,onUsage:u=>recordUsage('people',storyModel,u,live,null,{job:'people-library'})});}
   // The content check (moderation.cjs): a table name asked about by the account service (mode 'moderate') is answered
   // at once; a player paused after several held-back messages waits; what a player typed is checked before the story
   // model sees it, and held back with a calm line (or a caring one) when it crosses the limits. It fails open.
@@ -876,4 +880,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={castFor,peopleToMeetFor,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={hostJobOf,castFor,peopleToMeetFor,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

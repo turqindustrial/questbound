@@ -1,8 +1,9 @@
 // The host's library of ready-made people (2026-10-16, the host's words: "use the api to generate 1000 completely
 // unique npcs for the players to run into so that it doesn't eat up all of my credit as they progress" and "make sure
-// to keep in mind every class, race, and gender"). A thousand people, written once through the Dungeon Master
+// to keep in mind every class, race, and gender"; then: "let's cut that npc amount to 300 for now and make sure they are all
+// entirely unique"). Three hundred people, written once through the Dungeon Master
 // (make-people-library.cjs, the 'people-batch' mode) and each painted once, live in .questbound-people/
-// (library.json: [{id, name, gender, species, age, role, class, appearance, personality, motive, voice, hook,
+// (library.json: [{id np001…np300, name, gender, species, age, role, class, appearance, personality, motive, voice, hook,
 // placeKinds, terrains, toughness, attitude}] plus <id>.jpg; under QUESTBOUND_DATA when hosted). When the Dungeon
 // Master brings someone new into a scene it is offered a few of them that suit where the hero is
 // (context.world.peopleToMeet); a person it introduces from the list is stored whole with `pool:<id>`, and their
@@ -21,7 +22,7 @@ const terrains=['plains','forest','hills','mountains','coast','marsh','desert','
 const ages=['young','adult','middle-aged','old'],toughnessList=['frail','common','tough'],attitudes=['unfriendly','indifferent','friendly'];
 // The library's own portraits are painted through the Dungeon Master under this campaign (only the host may).
 const peopleCampaign='questbound-people-library-v1';
-const poolIdPattern=/^np\d{4}$/;
+const poolIdPattern=/^np\d{3}$/;
 const limits={name:40,role:80,appearance:400,personality:120,motive:200,voice:80,hook:200};
 const text=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
 const list=(v,of,most)=>Array.isArray(v)&&v.length>=1&&v.length<=most&&v.every(x=>of.includes(x))&&new Set(v).size===v.length;

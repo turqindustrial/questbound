@@ -19,7 +19,7 @@ function standing(s){
 }
 if(process.argv.includes('--status')){
  const s=createSpending({dir,alerts:{raise:()=>false}}).summary(),w=standing(s);
- console.log('AI spending today '+w.total+', guests '+w.guests+'; this month (guests and background) '+w.month+'.'+(s.paused?' GUESTS ARE PAUSED (Questbound.cmd -ResumeGuests).':''));
+ console.log('AI spending today '+w.total+', guests '+w.guests+'; this month (guests and background) '+w.month+'.'+(s.hostJobs?' Host jobs (you fund these) '+usd(s.hostJobs)+'.':'')+(s.paused?' GUESTS ARE PAUSED (Questbound.cmd -ResumeGuests).':''));
  process.exit(0);
 }
 const days=Math.max(1,Number(process.argv[process.argv.indexOf('--days')+1])||1);
@@ -53,6 +53,7 @@ else{
  console.log('  All guests together: '+w.guests+' (.questbound-guest-budget); '+(s.share===null?'no limit for each player':'each player up to '+usd(s.share)+' (.questbound-player-budget), the most any one used today '+usd(s.topGuest))+'.');
  console.log('  Background writing (tales written ahead) today: '+usd(s.background)+'.');
  console.log('  This month, guests and background writing: '+w.month+' (.questbound-month-budget).');
+ console.log('  Host jobs (you fund these) today: '+usd(s.hostJobs??0)+': the people and place libraries you build by hand; never counted against any ceiling.');
  console.log(s.paused?'  GUESTS ARE PAUSED: every guest request is refused. Resume with Questbound.cmd -ResumeGuests.':'  Guests are not paused (pause them at once with Questbound.cmd -PauseGuests).');}
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
 const byError={};for(const r of rejections)byError[r.error]=(byError[r.error]??0)+1;

@@ -16,9 +16,16 @@
 // Each day's totals are also kept in .questbound-spending.json (sums only, never who), so a month survives the usage
 // log being rotated. Alerts (alerts.cjs) tell the host when guests pass half and nine tenths of their day, and when a
 // ceiling is reached. `node dm-report.cjs` shows where today and the month stand.
+// Host jobs never count (2026-10-16, the host's words: "don't include the functions that I ask you to do in the
+// limitation of the api usage for the month I'll personally fund all of that outside of the testing"): what the host
+// runs by hand to build the game's libraries (the people library's text and portraits, the place-art library's
+// paintings) is tagged in the usage log (job 'people-library' or 'place-library', never with a guest label) and left
+// out of every ceiling, allowance and alert; dm-report.cjs shows it on a line of its own. Paintings logged before the
+// tag existed are recognised by the library painting that made them (.questbound-art/<key>.json names the library's
+// campaign and when it was made; the usage line follows within seconds), so they drop out of the sums too.
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs);
 // bump `revision` when it changes (and the literal in dm-server.cjs loadSpending) and the server loads it afresh.
-const revision=3;
+const revision=4;
 const fs=require('node:fs'),path=require('node:path');
 delete require.cache[require.resolve('./alerts.cjs')];
 const {createAlerts}=require('./alerts.cjs'),{createLimiter}=require('./rate-limit.cjs');
@@ -41,6 +48,9 @@ const words={
  painting:'Enough new pictures for now. Play on; more are painted later.',
 };
 const count=v=>Number.isFinite(v)&&v>0?v:0;
+// The host's own jobs (by the campaign an art subject was painted under) and whether a usage line is one.
+const hostJobs=['people-library','place-library'];
+const jobOfCampaign=campaignId=>typeof campaignId!=='string'?null:campaignId.startsWith('questbound-people-library')?'people-library':campaignId.startsWith('questbound-place-library')?'place-library':null;
 function costOf(entry){
  if(!entry||typeof entry!=='object')return 0;
  const p=prices[entry.model]??unknownPrice,input=count(entry.input),cached=Math.min(count(entry.cached),input);
@@ -63,23 +73,44 @@ function createSpending({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.now
  // Each player's limit: the host's own figure, else 40% of the guests' total (at least 50 cents); null for none.
  const eachLimit=limit=>{const own=readBudget(at('.questbound-player-budget'),'unset');return own!=='unset'?own:limit===null?null:Math.max(0.5,limit*guestShare);};
  let offset=0,rest='',identity=null,days=new Map(),saved={},savedAt=-Infinity,dirty=false;
- try{const s=JSON.parse(fs.readFileSync(ledgerFile,'utf8'));if(s&&s.days&&typeof s.days==='object')saved=s.days;}catch{}
- const blank=()=>({all:0,guests:0,background:0,byGuest:new Map()});
+ // Day sums noted before host jobs were left out (no v:4) may hold them in 'all': only their guest and background sums
+ // are kept, and 'all' is worked out from the log again.
+ try{const s=JSON.parse(fs.readFileSync(ledgerFile,'utf8'));if(s&&s.days&&typeof s.days==='object')saved=s.v===4?s.days:Object.fromEntries(Object.entries(s.days).map(([k,v])=>[k,{guests:count(v?.guests),background:count(v?.background)}]));}catch{}
+ // Library paintings made before usage lines were tagged: when each was made, from the art folder (the last 62 days).
+ let legacy=null;
+ const legacyTimes=()=>{
+  if(legacy)return legacy;legacy=[];
+  try{const art=path.join(dir,'.questbound-art'),cutoff=now()-62*86400000;
+   for(const f of fs.readdirSync(art).filter(f=>f.endsWith('.json')).slice(0,50000)){
+    try{const p=path.join(art,f);if(fs.statSync(p).mtimeMs<cutoff)continue;const j=JSON.parse(fs.readFileSync(p,'utf8')),t=Date.parse(j?.createdAt);if(jobOfCampaign(j?.subject?.campaignId)&&Number.isFinite(t))legacy.push(t);}catch{}
+   }}catch{}
+  return legacy;
+ };
+ const hostJob=entry=>{
+  if(entry.guest)return false;
+  if(hostJobs.includes(entry.job))return true;
+  // A painting line from before the tag (no job field at all) that follows a library painting within seconds.
+  if(Object.hasOwn(entry,'job')||entry.mode!=='art'||!count(entry.images))return false;
+  const t=Date.parse(entry.at);return legacyTimes().some(x=>t>=x-2000&&t<=x+10000);
+ };
+ const blank=()=>({all:0,guests:0,background:0,jobs:0,byGuest:new Map()});
  const add=entry=>{
   const t=Date.parse(entry?.at);if(!Number.isFinite(t))return;
   const day=dayOf(t);let d=days.get(day);if(!d){d=blank();days.set(day,d);}
-  const cost=costOf(entry);d.all+=cost;dirty=true;
+  const cost=costOf(entry);dirty=true;
+  if(hostJob(entry)){d.jobs+=cost;return;}
+  d.all+=cost;
   if(typeof entry.guest==='string'&&entry.guest){d.guests+=cost;d.byGuest.set(entry.guest,(d.byGuest.get(entry.guest)??0)+cost);}
   else if(entry.mode==='adventure-ahead')d.background+=cost;
  };
  const take=text=>{for(const line of text.split('\n'))if(line.trim())try{add(JSON.parse(line));}catch{}};
  // A day's sums: what the log shows, or what was noted before the log was rotated, whichever is more.
- const totals=day=>{const d=days.get(day),s=saved[day]??{};return {all:Math.max(d?.all??0,count(s.all)),guests:Math.max(d?.guests??0,count(s.guests)),background:Math.max(d?.background??0,count(s.background))};};
+ const totals=day=>{const d=days.get(day),s=saved[day]??{};return {all:Math.max(d?.all??0,count(s.all)),guests:Math.max(d?.guests??0,count(s.guests)),background:Math.max(d?.background??0,count(s.background)),jobs:Math.max(d?.jobs??0,count(s.jobs))};};
  function persist(){
   if(!dirty||now()-savedAt<15000)return;
   for(const day of days.keys())saved[day]=totals(day);
   saved=Object.fromEntries(Object.keys(saved).sort().slice(-62).map(k=>[k,saved[k]]));
-  try{fs.writeFileSync(ledgerFile+'.tmp',JSON.stringify({days:saved}));fs.renameSync(ledgerFile+'.tmp',ledgerFile);savedAt=now();dirty=false;}catch{}
+  try{fs.writeFileSync(ledgerFile+'.tmp',JSON.stringify({v:4,days:saved}));fs.renameSync(ledgerFile+'.tmp',ledgerFile);savedAt=now();dirty=false;}catch{}
  }
  // Reads only what was appended since the last look; a log that was rotated (dm-server renames it to .old past 5 MB)
  // or replaced is read afresh, the .old part included, so nothing spent today is forgotten.
@@ -137,8 +168,8 @@ function createSpending({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.now
  const mayPaint=guest=>!guest||(check(guest).ok&&allow(guest,'painting').ok);
  // May background work (tales written ahead for the stock) go on? Not while guests are paused or past a ceiling.
  function background(){if(paused())return {ok:false,reason:'paused'};const over=ceiling();return over?{ok:false,reason:over}:{ok:true};}
- function summary(){const {day,d,t,monthly}=look(),limit=guestLimit();return {day,month:monthOf(now()),all:t.all,guests:t.guests,background:t.background,guestCount:d.byGuest.size,topGuest:Math.max(0,...d.byGuest.values()),budget:limit,share:eachLimit(limit),total:totalLimit(),monthly,monthBudget:monthLimit(),paused:paused()};}
+ function summary(){const {day,d,t,monthly}=look(),limit=guestLimit();return {day,month:monthOf(now()),all:t.all,guests:t.guests,background:t.background,hostJobs:t.jobs,guestCount:d.byGuest.size,topGuest:Math.max(0,...d.byGuest.values()),budget:limit,share:eachLimit(limit),total:totalLimit(),monthly,monthBudget:monthLimit(),paused:paused()};}
  return {check,allow,mayPaint,background,summary,paused};
 }
 const spending=createSpending();
-module.exports={revision,prices,paintingPrice,defaultBudget,defaultTotal,defaultMonth,guestShare,guestCounts,words,pausedFile,costOf,dayOf,monthOf,readBudget,createSpending,spending};
+module.exports={revision,hostJobs,jobOfCampaign,prices,paintingPrice,defaultBudget,defaultTotal,defaultMonth,guestShare,guestCounts,words,pausedFile,costOf,dayOf,monthOf,readBudget,createSpending,spending};
