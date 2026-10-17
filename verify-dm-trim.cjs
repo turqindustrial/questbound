@@ -83,9 +83,9 @@ const largestWorld=[],memorySent=[];
 // The fallen not yet searched reach the model as they are (lootRules.js).
 {const spoils=[{name:'Grey Widow',kind:'creature',what:'Giant spider',lair:true,feature:'A satchel under the webs.'}];assert.deepEqual(sceneFor({...body,context:{...full,spoils}},{}).context.spoils,spoils,'context.spoils survives the trim');}
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
-const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.deepEqual(narrated.choices,[]);assert.equal(narrated.spellReference,undefined);assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
+const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.equal(narrated.choices,undefined,'no choices while telling (an empty list is left out)');assert.equal(narrated.spellReference,undefined);assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
 const legacy=sceneFor({input:'x',context:{...r.dmContext(hero,r.newAdventure(hero),hp)}},{}).context;assert.ok(Array.isArray(legacy.travelRoutes),'Without a written story the routes stay');
-assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{input:'x',context:{now:['No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.'],choices:[]}},'A bare context passes through, with what is true now put first');
+assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{context:{now:['No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.']},input:'x'},'A bare context passes through, with what is true now and the player words last (and nothing empty)');
 // ---- Repairs instead of refusals ----
 const long=n=>'x'.repeat(n);
 const fixed=repairedDiscovery({name:' Drowned Chapel ',description:'A '+long(400),kind:'ruin',bearing:'N',miles:30,travel:true,danger:'risky',feature:long(250),lair:{template:'wolf',name:long(80),appearance:'Grey '+long(500),ally:null}});
@@ -153,11 +153,11 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  // is asked again rather than shown to the player.
  {const check={skill:'Persuasion',ability:'Charisma',dc:13,mode:'normal',reason:'Talk them down',success:'They lower blades',failure:'They sneer',damageCount:0,damageDie:6,damageOn:'none'};
   for(const scene of [{npcCombat:{active:true},stage:'inn'},{stage:'combat',turnResources:{actionUsed:true}}]){
-   const reply=await generate({input:'I shout at them to stop and try to talk them down.',context:{choices:[{id:'end-turn',label:'End turn'}],...scene}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'You raise your hands and plead.'})});
-   assert.equal(request.text.format.schema.properties.check.type,'null','no check on offer');assert.equal(reply.check,null);}
-  await generate({input:'I try to talk the guard round.',context:{choices:[],stage:'inn'}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He listens.'})});assert.deepEqual(request.text.format.schema.properties.check.type,['object','null'],'a check stays on offer out of a fight');
+   const reply=await generate({input:'I shout at them to stop and try to talk them down.',context:{choices:[{id:'end-turn',label:'End turn'}],...scene}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'You raise your hands and plead.',check})});
+   assert.equal(reply.check,null,'no check is applied');assert.equal(reply.narration,'You raise your hands and plead.','the telling stands');}
+  await generate({input:'I try to talk the guard round.',context:{choices:[],stage:'inn'}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He listens.'})});assert.deepEqual(request.text.format.schema.properties.check.type,['object','null'],'a check is on offer (the schema is the same for every ordinary turn)');
   let asked=0;const stubborn=async(url,options)=>{asked++;request=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...blank,narration:'You plead.',...(asked===1?{check}:{})})}]}]})};};
-  const again=await generate({input:'I talk them down.',context:{choices:[],stage:'inn',npcCombat:{active:true}}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:stubborn});assert.equal(asked,2,'a refused check is asked again');assert.equal(again.check,null);}
+  const again=await generate({input:'I talk them down.',context:{choices:[],stage:'inn',npcCombat:{active:true}}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:stubborn});assert.equal(asked,1,'a check written in a brawl is left out at once, never asked again for');assert.equal(again.check,null);assert.equal(again.narration,'You plead.');}
  // The errand reward (an Easy to get into tale): the telling of 'Chapter 1 complete' is asked to pay it, and pays the
  // gold the reward names when the reply leaves it out (bug: the instruction said to pay it beside story-advance,
  // where loot is always dropped, so the purse was never paid).

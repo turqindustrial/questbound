@@ -18,8 +18,9 @@ now=situation({...base,stage:'combat',encounter:{name:'Bandit Cutthroat'}});
 assert.ok(now.includes('A fight is in progress against Bandit Cutthroat.')&&!now.some(l=>l.includes('set out')||l.includes('not attacking')));
 assert.ok(situation({...base,stage:'dying',dying:{failures:1}}).some(l=>l.includes('down and dying')));
 assert.deepEqual(situation({choices:[]}),['No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.']);
-// The model reads them first.
-assert.deepEqual(Object.keys(sceneFor({input:'x',context:base},{}).context)[0],'now');
+// The model reads them last in the scene, right before the player's words (the cache order: what changes every turn
+// comes after what lasts).
+{const sent=sceneFor({input:'x',context:base},{});assert.deepEqual(Object.keys(sent.context).at(-1),'now');assert.deepEqual(Object.keys(sent).at(-1),'input');}
 // Which place the words name: the whole name, or a word no other known place shares.
 const named=text=>namedJourneys(text,base).map(j=>j.actionId+(j.strong?'!':''));
 assert.deepEqual(named('i head for the lookout'),['travel-tower!']);assert.deepEqual(named('i walk to lookout rock'),['travel-tower!']);

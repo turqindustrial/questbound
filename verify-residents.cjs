@@ -131,8 +131,9 @@ assert.ok(r.validAdventure(viewB,ilyra),'the party save is valid with residents'
 const server=require('./dm-server.cjs');
 const told=server.sceneFor({input:'I look around.',context:JSON.parse(JSON.stringify(ctx))},{}).context;
 const away=told.npcSocialState.find(n=>n.id==='n3'),near=told.npcSocialState.find(n=>n.id==='n1');
-same(Object.keys(away).sort(),['attitude','bond','fate','grudge','id','livesAt','memories','metHero','name','role','ties'].sort(),'someone elsewhere is told in brief');
-assert.ok(near.present&&near.regardsYourKind!==undefined,'someone here is told in full');
+// (Empty parts are left out of what the model reads, so a brief entry may have fewer keys.)
+assert.ok(Object.keys(away).every(k=>['attitude','bond','fate','grudge','id','livesAt','memories','metHero','name','role','ties'].includes(k))&&['id','name','livesAt','attitude','metHero'].every(k=>k in away),'someone elsewhere is told in brief: '+Object.keys(away));
+assert.ok(near.present&&Object.keys(near).length>Object.keys(away).length,'someone here is told in full');
 const brief=server.sceneFor({input:'x',context:{npcSocialState:[{id:'n5',name:'Cass',present:false,memories:['a','b','c','d'],appearance:'long'}]}},{}).context.npcSocialState[0];same(brief.memories,['c','d']);assert.equal(brief.appearance,undefined);
 (async()=>{
  let sent=null;const fake=reply=>async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'Brom nods.',dialogue:[{speakerId:'n20',text:'Welcome back.'}],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,check:null,discovery:null,ambush:null,...reply})}]}]})};};

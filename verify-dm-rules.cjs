@@ -29,6 +29,7 @@ assert.throws(()=>validateGroundedReply({pendingSpell:{engineDamage:true}}, {...
  assert.ok(captured.instructions.includes('Cantrips are level 0'));
  assert.ok(captured.instructions.includes('one spell slot'));
  assert.ok(captured.instructions.includes('natural 20 is not automatic success'));
- assert.ok(captured.instructions.includes(rules.spells[0].description.slice(0,35)));
+ // The spells this turn names are read with the scene (context.rulesReference), after the cached standing rules.
+assert.ok(JSON.parse(captured.input).context.rulesReference.spells[0].description.startsWith(rules.spells[0].description.slice(0,35)));assert.ok(!captured.instructions.includes(rules.spells[0].description.slice(0,35)),'not in the cached instructions');
  console.log(`Passed: ${spells.length} exact spell references, availability and level gating, class-feature retrieval, duplicate-action protection, denied-effect protection, engine damage ownership, and API rules injection. Mocked provider; no paid calls.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});
