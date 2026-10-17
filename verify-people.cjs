@@ -90,19 +90,22 @@ const body=(world,extra={})=>({input:'I hail the ferryman.',context:{choices:[{i
 (async()=>{
  const met=await generate(body({canIntroduce:true}),{...keys,fetchImpl:reply({narration:'An old man waves.',introduce:hob,dialogue:[{speakerId:'new',text:'A copper to cross.'}]})});
  assert.equal(met.introduce.name,'Hob Tallow');same(met.dialogue.map(l=>l.speakerId),['new']);
- same(lastRequest.text.format.schema.properties.introduce.properties.tie.properties.to.enum,['keeper','mara','n1']);
- assert.ok(lastRequest.text.format.schema.properties.dialogue.items.properties.speakerId.enum.includes('new'));
+ // The reply schema names nobody (it is the same for every turn, so the provider caches it): who is known, who may
+ // speak and who is new are held to this turn when the reply is read.
+ assert.ok(!/"(?:keeper|mara|n1)"/.test(JSON.stringify(lastRequest.text.format.schema)),'the schema names no one');
  assert.ok(lastRequest.instructions.includes('PEOPLE ANYWHERE'));
  // Not allowed here: no schema, and a stray introduction (with its lines) is dropped.
  const shut=await generate(body({canIntroduce:false}),{...keys,fetchImpl:reply({narration:'A man waves.',introduce:hob,dialogue:[{speakerId:'new',text:'Hi.'}]})});
- assert.equal(shut.introduce,null);same(shut.dialogue,[]);assert.equal(lastRequest.text.format.schema.properties.introduce.type,'null');
+ assert.equal(shut.introduce,null);same(shut.dialogue,[]);
  // Never alongside another game action; never tied to someone unknown; relationships can name anyone known.
  assert.equal((await generate(body({canIntroduce:true}),{...keys,fetchImpl:reply({narration:'You go.',actionId:'travel-inn',introduce:hob})})).introduce,null);
  const untied=(await generate(body({canIntroduce:true}),{...keys,fetchImpl:reply({narration:'x',introduce:{...hob,tie:{to:'n9',kind:'family'}}})})).introduce;assert.equal(untied.name,'Hob Tallow');assert.equal(untied.tie,null,'A tie to nobody known is dropped, the person kept');
  const noted=await generate(body({canIntroduce:false}),{...keys,fetchImpl:reply({narration:'He nods.',relationships:[{npcId:'n1',change:'pleased',memory:'The player paid the toll without haggling.'}]})});
- assert.equal(noted.relationships[0].npcId,'n1');same(lastRequest.text.format.schema.properties.relationships.items.properties.npcId.enum,['keeper','mara','n1']);
+ assert.equal(noted.relationships[0].npcId,'n1');
+ assert.equal((await generate(body({canIntroduce:false}),{...keys,fetchImpl:reply({narration:'He nods.',relationships:[{npcId:'n9',change:'pleased',memory:'The player paid the toll without haggling.'}]})})).relationships.length,0,'a note about someone unknown is dropped');
  // Present people speak by their ids.
- await generate(body({canIntroduce:false},{conversationParticipants:[{id:'n1',name:'Hob Tallow'}]}),{...keys,fetchImpl:reply({narration:'x',dialogue:[{speakerId:'n1',text:'Aye.'}]})});
- assert.ok(lastRequest.text.format.schema.properties.dialogue.items.properties.speakerId.enum.includes('n1'));
+ same((await generate(body({canIntroduce:false},{conversationParticipants:[{id:'n1',name:'Hob Tallow'}]}),{...keys,fetchImpl:reply({narration:'x',dialogue:[{speakerId:'n1',text:'Aye.'}]})})).dialogue.map(l=>l.speakerId),['n1']);
+ // Named instead of given by id, a speaker here is still heard; someone who is not here is not.
+ same((await generate(body({canIntroduce:false},{conversationParticipants:[{id:'n1',name:'Hob Tallow'}]}),{...keys,fetchImpl:reply({narration:'x',dialogue:[{speakerId:'Hob Tallow',text:'Aye.'},{speakerId:'mara',text:'And me.'}]})})).dialogue,[{speakerId:'n1',text:'Aye.'}]);
  console.log('Passed: people met anywhere (with their own voice, portrait, home and ties), named in commands, fought where they live (killings remembered by kin, even kin met later), recruited, healed, capped per place and region, kept in saves, and offered to the Dungeon Master only when they can be met.');
 })().catch(e=>{console.error(e);process.exit(1);});

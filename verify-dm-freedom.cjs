@@ -26,7 +26,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal(found.discovery.name,'Thornback Ridge');assert.equal(found.discovery.miles,12);
  assert.equal(lastRequest.text.format.schema.properties.discovery.type[0],'object');assert.ok(lastRequest.text.format.schema.required.includes('discovery'));
  assert.equal((await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})})).discovery,null,'a place the map could not use is never added (asked again, then left out)');
- await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','No new places while the player is not free to travel');
+ {await generate(free,{...keys,fetchImpl:success({narration:'You go.'})});const freeSchema=JSON.stringify(lastRequest.text.format.schema);await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(JSON.stringify(lastRequest.text.format.schema),freeSchema,'the schema is the same whether or not the player may set out (it is cached); the map refuses the place instead (above)');}
  await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','Narrating a resolved turn reveals nothing');
  // One game action per reply: when two arrive together the first is kept and the other dropped, not the whole reply.
  const look={skill:null,ability:'Wisdom',dc:10,mode:'normal',reason:'Look',success:'Yes',failure:'No',damageCount:0,damageDie:6,damageOn:'none'};
@@ -51,7 +51,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal((await generate(shop,{...keys,fetchImpl:success({narration:'She hands it over.',loot:potionBuy})})).loot.gold,-50);
  await assert.rejects(generate(shop,{...keys,fetchImpl:success({narration:'x',loot:{...potionBuy,gold:-80}})}),/enough gold/);
  assert.equal((await generate({...shop,context:{...shop.context,choices:[{id:'travel-inn',label:'Travel'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',loot:potionBuy})})).loot,null,'Loot waits for the narration of an action');
- await generate(body('I loot it.',{stage:'combat',inventory:{gold:60}}),{...keys,fetchImpl:success({narration:'Not now.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','No loot mid-fight');
+ assert.equal((await generate(body('I loot it.',{stage:'combat',inventory:{gold:60}}),{...keys,fetchImpl:success({narration:'Not now.',loot:potionBuy})})).loot,null,'No loot mid-fight');
  assert.ok(lastRequest.instructions.includes('LOOT AND TRADE'));
 {// Spoils and magic (lootRules.js): the schema knows armor and magic ids; the engine's own search is never doubled;
  // gold over the level's most is cut to it (not dropped); magic only rewards a chapter or a lead, within the level.
@@ -65,7 +65,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const searched=body('I search the bandit.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['You search the Bandit Cutthroat.','Found: 9 gold, Scimitar.']});
  assert.equal((await generate(searched,{...keys,fetchImpl:success({narration:'You find 9 gold and a scimitar.',loot:{gold:9,items:[],reason:'Searched.'}})})).loot,null,'the engine\'s search is never doubled');
  const wonFight=body('I finish it.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['The Bandit Cutthroat is slain.']});
- await generate(wonFight,{...keys,fetchImpl:success({narration:'It falls.'})});assert.equal(lastRequest.text.format.schema.properties.loot.type,'null','no loot of its own on the turn a fight is won');
+ assert.equal((await generate(wonFight,{...keys,fetchImpl:success({narration:'It falls.',loot:{gold:9,items:[],reason:'Searched.'}})})).loot,null,'no loot of its own on the turn a fight is won');
  const cloak={gold:0,items:[{name:'Grey Mantle',kind:'gear',qty:1,value:0,note:'A grey cloak.',magic:'cloak-of-protection'}],reason:'The reward.'};
  assert.equal((await generate(chest,{...keys,fetchImpl:success({narration:'A cloak lies inside.',loot:cloak})})).loot.items[0].magic,null,'no magic outside a chapter or lead reward');
  const reward=body('I take the reward.',{stage:'inn',inventory:{gold:10},player:{level:1},engineResolved:['Lead seen through: The Copyist\'s Debt.']});
@@ -80,7 +80,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const narrated=await generate(body('x',{engineResolved:['Cure Wounds on Tobin Reed: restored 8 HP.']}),{...keys,fetchImpl:success({narration:'He stirs.',relationships:[{...note,change:'bond'}]})});assert.equal(narrated.relationships[0].change,'bond');
  const acting=await generate(body('I travel on.',{choices:[{id:'travel-inn',label:'Travel'}]}),{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',relationships:[note]})});assert.equal(acting.relationships.length,0);
  const ghost=await generate(body('I mourn him.',{npcFates:{mara:'dead'}}),{...keys,fetchImpl:success({narration:'Silence.',relationships:[note]})});assert.equal(ghost.relationships.length,0);
- await generate(body('x',{sceneTrigger:{id:'wake',cue:'They wake.'},conversationParticipants:[{id:'mara',name:'Tobin Reed'}]}),{...keys,fetchImpl:success({narration:'He speaks.'})});assert.equal(lastRequest.text.format.schema.properties.relationships.maxItems,0);
+ assert.deepEqual((await generate(body('x',{sceneTrigger:{id:'wake',cue:'They wake.'},conversationParticipants:[{id:'mara',name:'Tobin Reed'}]}),{...keys,fetchImpl:success({narration:'He speaks.',relationships:[note]})})).relationships,[],'no relationship notes on a scene cue');
  assert.ok(lastRequest.instructions.includes('MEMORY AND RELATIONSHIPS'));
  // The instructions carry the new rules.
  const instructions=lastRequest.instructions;

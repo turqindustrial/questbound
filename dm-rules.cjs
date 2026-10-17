@@ -46,6 +46,11 @@ function rulesFor(body){
   featureDetails:eligible.filter(f=>input.includes(f.name.toLowerCase())).slice(0,4),
   limits:'This reference grants no new actions, spells or features. Missing rules require clarification, not invented mechanics. Engine results remain authoritative.'};
 }
+// The same reference in three parts, so the provider can cache what never changes (dm-server.cjs, the cache order):
+// the rules every turn shares, the features of this hero, and the spells and features this turn's words name.
+const standingRules={edition:'2024 / SRD 5.2',sources:['https://www.dndbeyond.com/sources/dnd/br-2024/spells','https://www.dndbeyond.com/sources/dnd/br-2024/playing-the-game'],coreRules,actionRules,limits:'This reference grants no new actions, spells or features. Missing rules require clarification, not invented mechanics. Engine results remain authoritative.'};
+function heroRules(body){const {availableFeatures}=rulesFor(body);return {availableFeatures};}
+function turnRules(body){const {spells,featureDetails}=rulesFor(body);return {spells,featureDetails};}
 function validateGroundedReply(context,reply){
  if(context.engineResolved&&[reply.actionId,reply.castCommand,reply.ruling,reply.check,reply.worldEvent].some(v=>v!=null))throw Error('The action is already resolved. The DM cannot apply it twice.');
  // A check in a fight is the turn's action: never once the action is spent, and never in a brawl (the game refuses both).
@@ -56,4 +61,4 @@ function validateGroundedReply(context,reply){
  if(r&&r.decision!=='cast'&&['damage','selfDamage','healing','temporaryHP'].some(k=>r[k]!==0))throw Error('A denied or clarified spell cannot apply effects.');
  if(r?.decision==='cast'&&context.pendingSpell?.engineDamage&&r.damage!==0)throw Error('Spell damage must be rolled by the game, not invented by the DM.');
 }
-module.exports={rulesFor,validateGroundedReply};
+module.exports={rulesFor,standingRules,heroRules,turnRules,validateGroundedReply};

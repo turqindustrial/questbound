@@ -51,19 +51,18 @@ assert.deepEqual(social.forgiveness,{weight:'grave',amends:1,needed:2,amendsToGo
  // ---- One on one: only the person turned to may answer ----
  const alone=contextOf(grudging,{conversationWith:{id:first.id,name:first.name,role:first.role,oneOnOne:true}});
  out=await ask('Will you hear me?',alone,{dialogue:[{speakerId:first.id,text:'Say it, then go.'}]});
- assert.deepEqual(plain(sent.text.format.schema.properties.dialogue.items.properties.speakerId.enum),[first.id]);
+ assert.equal(out.dialogue.length,1);
  assert.equal(out.dialogue[0].text,'Say it, then go.');
  assert.ok((await ask('Will you hear me?',alone,{dialogue:[{speakerId:second.id,text:'She will not.'}]})).dialogue.every(l=>l.speakerId===first.id),'an unavailable speaker is never heard');
  // Everyone here: both may speak, as before.
  const group=contextOf(grudging,{conversationWith:{id:first.id,name:first.name,role:first.role,oneOnOne:false}});
  out=await ask('Will you hear me?',group,{dialogue:[{speakerId:second.id,text:'She will not.'}]});
- assert.ok(sent.text.format.schema.properties.dialogue.items.properties.speakerId.enum.includes(second.id));assert.equal(out.dialogue[0].speakerId,second.id);
+ assert.equal(out.dialogue[0].speakerId,second.id);
  // A scene cue is never one on one.
  out=await ask('',{...alone,sceneTrigger:{kind:'greet',cue:'The player walks up.'}},{dialogue:[{speakerId:second.id,text:'Who is this?'}],suggestions:['I tell them my name.']});
  assert.equal(out.dialogue[0].speakerId,second.id);assert.deepEqual(plain(out.suggestions),['I tell them my name.'],'A scene cue keeps its suggestions');
  // Nobody to speak: still no dialogue at all.
- await ask('I look around.',{choices:[],conversationParticipants:[]},{});
- assert.equal(sent.text.format.schema.properties.dialogue.maxItems,0);
+ assert.deepEqual(plain((await ask('I look around.',{choices:[],conversationParticipants:[]},{dialogue:[{speakerId:first.id,text:'Who goes there?'}]})).dialogue),[]);
 
  // ---- In a brawl, the one you fight can shout back ----
  const brawl=r.adventureStep(game,health,hero,{type:'npc-attack',target:first.id,weapon:'Greatsword'},()=>0.02);
