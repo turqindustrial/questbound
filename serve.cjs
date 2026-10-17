@@ -7,7 +7,8 @@
 //   QUESTBOUND_DATA             the data folder (/data in the container): accounts, saves, sessions, art, logs. Copy
 //                               the host's place-art library (.questbound-place-art/, git- and docker-ignored) into it,
 //                               or every place the players reach is painted (and paid for) as before: see DEPLOY.md;
-//                               likewise the people library (.questbound-people/), or people met are all painted
+//                               likewise the people library (.questbound-people/), or people met are all painted,
+//                               and the creature library (.questbound-creatures/), or creatures fought are painted
 //   QUESTBOUND_INVITE_CODE      eight digits; else one is made once and kept in the data folder
 //   OPENAI_API_KEY, OPENAI_MODEL, OPENAI_STORY_MODEL (and the other QUESTBOUND_* settings dm-server.cjs reads)
 //   QUESTBOUND_MAX_PLAYERS (500), QUESTBOUND_TURNS_PER_PLAYER (60 per 10 min), QUESTBOUND_TURNS_IN_ALL (1200)
@@ -35,6 +36,7 @@ async function startHosted({dataDir=process.env.QUESTBOUND_DATA||path.join(__dir
  const at=await listen(gateway.server,port,bind);
  log('Questbound is hosted at '+publicOrigin+' (port '+at+'). Invite code: '+code+'. Data in '+dataDir+'.');
  if(!fs.existsSync(path.join(dataDir,'.questbound-people','library.json')))log('No people library in '+path.join(dataDir,'.questbound-people')+': everyone players meet is invented and painted (and paid for) until it is copied there (DEPLOY.md).');
+ if(!fs.existsSync(path.join(dataDir,'.questbound-creatures','library.json')))log('No creature library in '+path.join(dataDir,'.questbound-creatures')+': creatures players fight will be painted (and paid for) until it is copied there (DEPLOY.md).');
  if(!fs.existsSync(path.join(dataDir,'.questbound-place-art','library.json')))log('No place-art library in '+path.join(dataDir,'.questbound-place-art')+': places will be painted (and paid for) until it is copied there (DEPLOY.md).');
  const close=()=>Promise.all([gateway.server,table,dungeonMaster].map(s=>new Promise(resolve=>s.close(resolve))));
  return {gateway:gateway.server,table,dungeonMaster,info:{...gateway.info,port:at,dataDir,dmPort:dmAt,syncPort:syncAt,inviteCode:code},close};

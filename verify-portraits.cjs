@@ -53,7 +53,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   fs.writeFileSync(path.join(dir,'library.json'),JSON.stringify(stock));
   let paid=0,counted=0;const prompts=[];
   const fetchImpl=async(url,options)=>{paid++;prompts.push(JSON.parse(options.body).input);return {ok:true,json:async()=>({status:'completed',output:[{type:'image_generation_call',status:'completed',result:jpeg('painted').toString('base64')}]})};};
-  const open=()=>createArtStore({directory:art,fetchImpl,libraryDirectory:path.join(tmp,'no-places'),peopleLibrary:lib.createPeopleLibrary({directory:dir,refreshMs:0,picksDirectory:path.join(art,'people-picks')})});
+  const open=()=>createArtStore({directory:art,fetchImpl,libraryDirectory:path.join(tmp,'no-places'),creatureDirectory:path.join(tmp,'no-creatures'),peopleLibrary:lib.createPeopleLibrary({directory:dir,refreshMs:0,picksDirectory:path.join(art,'people-picks')})});
   let store=open();const ask=(subject,options={})=>store.request(subject,{apiKey:'test-only',model:'test-model',mayPaint:()=>true,onPainted:()=>counted++,...options});
   const waitPaid=async n=>{for(let i=0;i<200&&paid<n;i++)await new Promise(res=>setTimeout(res,10));};
   const person=(id,extra={})=>({campaignId:'tale-a',kind:'portrait',id,name:'Someone '+id,description:'A woman, with a woman\'s face. A broad fishwife with scaled hands and a red shawl.',setting:'',species:'Human',gender:'woman',role:'A fishwife.',...extra});
@@ -130,7 +130,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   {const tale=path.join(tmp,'tale-art');fs.mkdirSync(tale,{recursive:true});
    fs.writeFileSync(path.join(tale,artKey({campaignId:'hostile-encounter-wolf',kind:'creature',id:'main-foe'})+'.jpg'),jpeg('skirmish-wolf'));
    const never=async()=>{throw Error('a painting was asked for');};
-   const whole=createArtStore({directory:tale,fetchImpl:never,libraryDirectory:path.join(tmp,'no-places'),peopleLibrary:lib.createPeopleLibrary({directory:dir,refreshMs:0,picksDirectory:path.join(tale,'people-picks')})});
+   const whole=createArtStore({directory:tale,fetchImpl:never,libraryDirectory:path.join(tmp,'no-places'),creatureDirectory:path.join(tmp,'no-creatures'),peopleLibrary:lib.createPeopleLibrary({directory:dir,refreshMs:0,picksDirectory:path.join(tale,'people-picks')})});
    let g=game;
    const met=r.commitDmTurn(hero1,g,hp,null,{question:'I look about the market.',narration:'A tiefling tinker waves you over.',dialogue:[],introduce:{name:'Vex Ambersail',species:'Tiefling',gender:'other',role:'A travelling tinker.',appearance:'A lean tiefling with curling horns and a coat of a hundred pockets.',personality:'Chatty.',toughness:'common',attitude:'friendly',foe:'neutral',tie:null,class:'Artificer',regard:{stance:'curious',reason:'I have never met your kind.'}}});
    assert.ok(!met.error,met.error);g=met.game;
@@ -173,7 +173,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   // ---------- Ready journeys written ahead are offered the library's people too ----------
   assert.match(readText('dm-server.cjs'),/const cast=live\?await castFor\(loadPeople\(\)\):null;\s*return require\('\.\/adventure-generator\.cjs'\)\.generateAdventure\(\{[^\n]*ahead:true[^\n]*,cast,/,'the library writer passes the castable people');
   // ---------- Revisions ----------
-  {const dm=readText('dm-server.cjs');assert.equal(lib.revision,2);assert.match(dm,/people-library\.cjs'\)\.revision!==2\)/);assert.equal(require('./world-art.cjs').revision,9);}
+  {const dm=readText('dm-server.cjs');assert.equal(lib.revision,2);assert.match(dm,/people-library\.cjs'\)\.revision!==2\)/);assert.equal(require('./world-art.cjs').revision,10);}
   fs.rmSync(tmp,{recursive:true,force:true});
   console.log('Passed: portraits and creatures without paying for paintings.');
  }catch(e){fs.rmSync(tmp,{recursive:true,force:true});console.error(e);process.exit(1);}

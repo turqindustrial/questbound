@@ -18,14 +18,15 @@
 // ceiling is reached. `node dm-report.cjs` shows where today and the month stand.
 // Host jobs never count (2026-10-16, the host's words: "don't include the functions that I ask you to do in the
 // limitation of the api usage for the month I'll personally fund all of that outside of the testing"): what the host
-// runs by hand to build the game's libraries (the people library's text and portraits, the place-art library's
-// paintings) is tagged in the usage log (job 'people-library' or 'place-library', never with a guest label) and left
+// runs by hand to build the game's libraries (the people library's text and portraits, the place-art library's and
+// the creature library's paintings) is tagged in the usage log (job 'people-library', 'place-library' or
+// 'creature-library', never with a guest label) and left
 // out of every ceiling, allowance and alert; dm-report.cjs shows it on a line of its own. Paintings logged before the
 // tag existed are recognised by the library painting that made them (.questbound-art/<key>.json names the library's
 // campaign and when it was made; the usage line follows within seconds), so they drop out of the sums too.
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs);
 // bump `revision` when it changes (and the literal in dm-server.cjs loadSpending) and the server loads it afresh.
-const revision=4;
+const revision=5;
 const fs=require('node:fs'),path=require('node:path');
 delete require.cache[require.resolve('./alerts.cjs')];
 const {createAlerts}=require('./alerts.cjs'),{createLimiter}=require('./rate-limit.cjs');
@@ -49,8 +50,8 @@ const words={
 };
 const count=v=>Number.isFinite(v)&&v>0?v:0;
 // The host's own jobs (by the campaign an art subject was painted under) and whether a usage line is one.
-const hostJobs=['people-library','place-library'];
-const jobOfCampaign=campaignId=>typeof campaignId!=='string'?null:campaignId.startsWith('questbound-people-library')?'people-library':campaignId.startsWith('questbound-place-library')?'place-library':null;
+const hostJobs=['people-library','place-library','creature-library'];
+const jobOfCampaign=campaignId=>typeof campaignId!=='string'?null:campaignId.startsWith('questbound-people-library')?'people-library':campaignId.startsWith('questbound-place-library')?'place-library':campaignId.startsWith('questbound-creature-library')?'creature-library':null;
 function costOf(entry){
  if(!entry||typeof entry!=='object')return 0;
  const p=prices[entry.model]??unknownPrice,input=count(entry.input),cached=Math.min(count(entry.cached),input);

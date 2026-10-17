@@ -14,7 +14,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-spending-'));
 const fresh=name=>{const d=path.join(tmp,name);fs.mkdirSync(d);return d;};
 (async()=>{
  // The running Dungeon Master reloads spending.cjs only when its revision differs from dm-server's literal.
- assert.equal(revision,4);assert.match(fs.readFileSync(path.join(__dirname,'dm-server.cjs'),'utf8'),/require\('\.\/spending\.cjs'\)\.revision!==4\)/,'dm-server loads this revision afresh');
+ assert.equal(revision,5);assert.match(fs.readFileSync(path.join(__dirname,'dm-server.cjs'),'utf8'),/require\('\.\/spending\.cjs'\)\.revision!==5\)/,'dm-server loads this revision afresh');
  assert.equal(defaultTotal,8);assert.equal(defaultMonth,30);
  for(const w of Object.values(words))assert.doesNotMatch(w,busy,'never retried by the game as a busy Dungeon Master: '+w);
 
@@ -42,8 +42,8 @@ const fresh=name=>{const d=path.join(tmp,name);fs.mkdirSync(d);return d;};
  // for the month I'll personally fund all of that outside of the testing")
  {const dir=fresh('jobs'),log=path.join(dir,'.questbound-usage.jsonl'),raised=[];let clock=Date.now();
   const at=()=>new Date(clock).toISOString(),line=entry=>fs.appendFileSync(log,JSON.stringify({at:at(),mode:'turn',model:'gpt-6-luna',input:0,cached:0,output:0,...entry})+'\n');
-  assert.deepEqual([...hostJobs],['people-library','place-library']);assert.equal(jobOfCampaign('questbound-people-library-v1'),'people-library');assert.equal(jobOfCampaign('questbound-place-library-v1'),'place-library');assert.equal(jobOfCampaign('tale-1'),null);
-  const {hostJobOf}=require('./dm-server.cjs');assert.equal(hostJobOf({campaignId:'questbound-people-library-v1'},null),'people-library');assert.equal(hostJobOf({campaignId:'questbound-place-library-v1'},null),'place-library');assert.equal(hostJobOf({campaignId:'questbound-people-library-v1'},'a'.repeat(32)),null,'never for a guest');assert.equal(hostJobOf({campaignId:'tale-1'},null),null);
+  assert.deepEqual([...hostJobs],['people-library','place-library','creature-library']);assert.equal(jobOfCampaign('questbound-creature-library-v1'),'creature-library');assert.equal(jobOfCampaign('questbound-people-library-v1'),'people-library');assert.equal(jobOfCampaign('questbound-place-library-v1'),'place-library');assert.equal(jobOfCampaign('tale-1'),null);
+  const {hostJobOf}=require('./dm-server.cjs');assert.equal(hostJobOf({campaignId:'questbound-people-library-v1'},null),'people-library');assert.equal(hostJobOf({campaignId:'questbound-place-library-v1'},null),'place-library');assert.equal(hostJobOf({campaignId:'questbound-people-library-v1'},'a'.repeat(32)),null,'never for a guest');assert.equal(hostJobOf({campaignId:'tale-1'},null),null);assert.equal(hostJobOf({campaignId:'questbound-creature-library-v1'},null),'creature-library');assert.equal(hostJobOf({campaignId:'questbound-creature-library-v1'},'b'.repeat(32)),null,'never for a guest');
   const dm=fs.readFileSync(path.join(__dirname,'dm-server.cjs'),'utf8');assert.match(dm,/recordUsage\('people',storyModel,u,live,null,\{job:'people-library'\}\)/,'people batches are tagged');assert.match(dm,/\{images:1,imageModel,job:hostJobOf\(body\.context\.subject,guest\)\}/,'library paintings are tagged');
   // A painting of the place library from before the tag: its art record names the library's campaign.
   const art=path.join(dir,'.questbound-art');fs.mkdirSync(art);const painted=clock-60000;
@@ -60,7 +60,7 @@ const fresh=name=>{const d=path.join(tmp,name);fs.mkdirSync(d);return d;};
   assert.equal(spend.check('g1').ok,true,'guests go on although $20 was spent today');assert.equal(spend.background().ok,true);assert.ok(!raised.some(k=>/ceiling/.test(k)),'no ceiling alert');
   assert.equal(s.monthly,3,'nor in the month');
   // A ledger written before host jobs were left out: its inflated day total is not kept.
-  const old=fresh('ledger');fs.writeFileSync(path.join(old,'.questbound-spending.json'),JSON.stringify({days:{'2026-10-16':{all:30,guests:1,background:2}}}));fs.writeFileSync(path.join(old,'.questbound-usage.jsonl'),'');
+  const old=fresh('ledger');fs.writeFileSync(path.join(old,'.questbound-spending.json'),JSON.stringify({days:{[require('./spending.cjs').dayOf(clock)]:{all:30,guests:1,background:2}}}));fs.writeFileSync(path.join(old,'.questbound-usage.jsonl'),'');
   const o=createSpending({dir:old,now:()=>clock,alerts:{raise:()=>false}}).summary();assert.equal(o.all,0,'the old day total held host jobs');assert.equal(o.guests,1);assert.equal(o.background,2);
   const report=require('node:child_process').spawnSync(process.execPath,['dm-report.cjs','--dir',dir],{cwd:__dirname,encoding:'utf8'});assert.match(report.stdout,/Host jobs \(you fund these\) today: \$17\.00/,report.stdout+report.stderr);
   console.log('Host jobs: the people library\'s text and portraits and the place library\'s paintings (tagged, or recognised from the art records for lines from before the tag) never count against a ceiling, an allowance or an alert; dm-report shows them apart.');}

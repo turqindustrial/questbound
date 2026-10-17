@@ -53,13 +53,15 @@ else{
  console.log('  All guests together: '+w.guests+' (.questbound-guest-budget); '+(s.share===null?'no limit for each player':'each player up to '+usd(s.share)+' (.questbound-player-budget), the most any one used today '+usd(s.topGuest))+'.');
  console.log('  Background writing (tales written ahead) today: '+usd(s.background)+'.');
  console.log('  This month, guests and background writing: '+w.month+' (.questbound-month-budget).');
- console.log('  Host jobs (you fund these) today: '+usd(s.hostJobs??0)+': the people and place libraries you build by hand; never counted against any ceiling.');
+ console.log('  Host jobs (you fund these) today: '+usd(s.hostJobs??0)+': the people, place and creature libraries you build by hand; never counted against any ceiling.');
  console.log(s.paused?'  GUESTS ARE PAUSED: every guest request is refused. Resume with Questbound.cmd -ResumeGuests.':'  Guests are not paused (pause them at once with Questbound.cmd -PauseGuests).');}
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
 const byError={};for(const r of rejections)byError[r.error]=(byError[r.error]??0)+1;
 for(const [error,n] of Object.entries(byError).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+error);
 // Tales written in the background that failed (a ready journey for the library, a story job): what kind of failure.
 {const failed=noted.filter(e=>e.write&&e.failure);if(failed.length){console.log('\nBackground tales that failed: '+failed.length);const kinds={};for(const f of failed){const k=f.write+': '+f.failure+(f.status?' '+f.status:'')+(f.code?' '+f.code:'')+(f.reason?' ('+f.reason+')':'');kinds[k]=(kinds[k]??0)+1;}for(const [kind,n] of Object.entries(kinds).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+kind);}}
+// Creatures painted because the creature library had nothing like them (creature-library.cjs): what to add to it.
+{const missed=noted.filter(e=>e.art==='creature-unmatched');if(missed.length){console.log('\nCreatures painted for want of a library picture: '+missed.length+' (add their kinds to creature-catalogue.cjs, then run make-creature-library.cjs)');for(const m of missed.slice(-12))console.log('  '+String(m.name).slice(0,40).padEnd(40)+' '+[m.creatureKind,m.template,m.terrain].filter(Boolean).join(', ')+(m.closest?'  (closest: '+m.closest.id+', '+m.closest.score+')':''));}}
 // Second looks: replies that did not do what the player plainly asked (or could not be used) and were asked for again.
 console.log('\nSecond looks:'+looks.length+(usage.length?' of '+usage.length+' live requests':''));
 {const kinds={};for(const l of looks){const k=l.secondLook+' ('+l.outcome+')';kinds[k]=(kinds[k]??0)+1;}for(const [kind,n] of Object.entries(kinds).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+kind);}

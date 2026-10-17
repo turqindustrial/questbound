@@ -86,19 +86,27 @@ export function placeArtSubject(game,name){
  if(!id)return null;
  return landscapeSubject(game,id,places[id]);
 }
+// The land a creature is met in: the land of the place it holds (a wild fight), else the tale's home land.
+function creatureLand(game,placeId){
+ const place=placeId?worldPlace(game,placeId):null,land=(place?.region&&mapRegions(game).find(r=>r.id===place.region))||homeRegion(game);
+ return land.terrain;
+}
 export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
  // A creature met while exploring is painted from the Dungeon Master's description of it.
  // A creature of one of the game's own kinds (its template) is shown with that kind's picture, painted once for every
  // player (world-art.cjs); a named bandit keeps a painting of its own there, shared by every player of a ready journey
  // (its artId), so a journey's own errand threat is painted once, not once per copy.
- if(game.wildFight){const w=game.wildFight;return {campaignId:artCampaign(game,true),kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{})};}
+ // Every creature is shown from the host's creature library (creature-library.cjs) by its best fit: the subject says
+ // its template, the land it is met in and (a tale's foe) the kind the tale gave it, none of which changes the art key.
+ if(game.wildFight){const w=game.wildFight;return {campaignId:artCampaign(game,true),kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{}),terrain:creatureLand(game,w.place)};}
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';
  const skirmish=!room&&game.story?.introId==='hostile'&&/^hostile-encounter-[a-z]+$/.test(String(game.story.id))?game.story.id.slice('hostile-encounter-'.length):null,campaignId=artCampaign(game,!room);
  // The Skirmish's foe is one of the game's own kinds (shared picture); a tale's own foe who is a person (a known
  // species) is shown with a look-alike's face; any other foe is painted for its tale.
  const extra=room?{}:skirmish?{template:skirmish}:game.story?.foeSpecies?lookAlikeFields(game,campaignId,{species:game.story.foeSpecies,gender:genderOf(game.story.foeAppearance)}):{};
- return {...extra,campaignId,kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
+ const land=room?'caverns':creatureLand(game,null),kindWords=!room&&typeof game.story?.foeSpecies==='string'&&game.story.foeSpecies.trim()?{creatureKind:game.story.foeSpecies.trim().slice(0,60)}:{};
+ return {...extra,...kindWords,terrain:land,campaignId,kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
 }
 export function sceneArtSubjects(game){
  return [locationArtSubject(game),...npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>npcArtSubject(game,n.id)),creatureArtSubject(game)].filter(Boolean);

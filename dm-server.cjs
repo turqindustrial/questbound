@@ -296,15 +296,22 @@ function storyEffort(fallback,read=chosenModel){const chosen=read('.questbound-s
 function turnEffort(fallback,read=chosenModel){const chosen=read('.questbound-dm-effort');return ['none','minimal','low','medium','high'].includes(chosen)?chosen:fallback;}
 // Stories in the making are kept in a module of their own, which stays loaded while this file is reloaded.
 // The day's spending and the host's ceilings on it (spending.cjs) also stay loaded between requests.
-function loadSpending(){if(require('./spending.cjs').revision!==4)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
+function loadSpending(){if(require('./spending.cjs').revision!==5)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
 // A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
 const modes=new Set(['art','adventure','character','diagnostics','moderate','people-batch']);
-// The host's own library jobs (make-people-library.cjs, the place-art painter): their usage lines are tagged so the
+// The host's own library jobs (make-people-library.cjs, make-creature-library.cjs, the place-art painter): their usage lines are tagged so the
 // spending ceilings leave them out (spending.cjs: the host funds them). Every painting line carries job (null when
 // it is not one), so a line from before the tag can be told apart.
-const hostJobOf=(subject,guest)=>guest||typeof subject?.campaignId!=='string'?null:subject.campaignId.startsWith('questbound-people-library')?'people-library':subject.campaignId.startsWith('questbound-place-library')?'place-library':null;
+const hostJobOf=(subject,guest)=>guest||typeof subject?.campaignId!=='string'?null:subject.campaignId.startsWith('questbound-people-library')?'people-library':subject.campaignId.startsWith('questbound-place-library')?'place-library':subject.campaignId.startsWith('questbound-creature-library')?'creature-library':null;
+// A creature painted because the host's creature library had nothing like it (world-art.cjs onUnmatched) is noted in
+// the diagnostics, mechanical only (the creature's name as the tale gave it, template, land, kind, the closest picture
+// and its score), so the host can see what the library is missing (dm-report.cjs lists them). Live runs only.
+function recordCreatureMiss(note,live,guest){
+ if(!live||!note||typeof note!=='object')return;
+ try{const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-diagnostics.jsonl');fs.appendFileSync(file,JSON.stringify({at:new Date().toISOString(),...(guest?{guest}:{}),art:'creature-unmatched',name:String(note.name??'').slice(0,60),...(note.template?{template:String(note.template).slice(0,20)}:{}),...(note.terrain?{terrain:String(note.terrain).slice(0,20)}:{}),...(note.creatureKind?{creatureKind:String(note.creatureKind).slice(0,60)}:{}),closest:note.closest&&typeof note.closest.id==='string'?{id:note.closest.id.slice(0,60),score:Number(note.closest.score)||0}:null})+'\n');}catch{}
+}
 const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64}$/.test(body.guest)?body.guest:null;
 // Ready journeys (tale-library.cjs) also stay loaded between requests: a shared library of finished tales that players
 // compare and choose between, each written once at the effort the host chose and played by many (each player their own
@@ -340,7 +347,7 @@ function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spen
 // painted (the journey's opening place, under the journey's art id) or, once world-art.cjs can answer a place from
 // ready-made paintings, whatever its `readyMade(subject)` says. A device never asks for a cover that would be painted.
 function journeyCovers(){
- if(require('./world-art.cjs').revision!==9)delete require.cache[require.resolve('./world-art.cjs')];
+ if(require('./world-art.cjs').revision!==10)delete require.cache[require.resolve('./world-art.cjs')];
  const fs=require('node:fs'),path=require('node:path'),art=require('./world-art.cjs'),dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-art');
  return subject=>{try{if(typeof art.artStore?.readyMade==='function'&&art.artStore.readyMade(subject))return true;return fs.existsSync(path.join(dir,art.artKey(art.validateSubject(subject))+'.jpg'));}catch{return false;}};
 }
@@ -372,7 +379,7 @@ async function peopleToMeetFor(context,lib,alsoTaken=new Set()){
 // a face. Tests pass a stand-in `portraits` ({takenIn}); none when nothing can be read.
 async function portraitsTaken(context,{live=false,portraits=null}={}){
  try{
-  const store=portraits??(live?(()=>{if(require('./world-art.cjs').revision!==9)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore?.people;})():null);
+  const store=portraits??(live?(()=>{if(require('./world-art.cjs').revision!==10)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore?.people;})():null);
   const ids=[context?.story?.id,context?.story?.artId].filter(id=>typeof id==='string'&&id.length&&id.length<=120);
   return store?.takenIn&&ids.length?await store.takenIn(ids):new Set();
  }catch{return new Set();}
@@ -449,7 +456,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(body.context.libraryBrief!==undefined)delete body.context.libraryBrief;
   const shelf=library??(live?loadLibrary():null);
   if(body.context.mode==='art'&&body.context.journeys==='list'){if(!shelf)return {journeys:[]};try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend});}catch{}return {journeys:shelf.list({cover:journeyCovers()})};}
-  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==9)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel,job:hostJobOf(body.context.subject,guest)})});}
+  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==10)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onUnmatched:note=>recordCreatureMiss(note,live,guest),onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel,job:hostJobOf(body.context.subject,guest)})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
   // The host's library of ready-made people is written in batches (make-people-library.cjs, people-writer.cjs): only the
@@ -890,4 +897,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={hostJobOf,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
