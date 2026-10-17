@@ -5,6 +5,7 @@ import Icon from './Icon';
 import {colors,fonts,tint} from './theme';
 import {partyMembers} from './partyRules';
 import {turnOrderView} from './encounterRules';
+import HeroPortrait from './HeroPortrait';
 // Every hero at a party table (partyRules.js) in one row: name, hit points as a bar, and how they stand. In a fight
 // the row follows the turn order (adventureRules.js): the foe takes its place in it, and whose turn it is stands out.
 // The cards wrap onto a second line on a phone (four heroes and a foe); a brawl with more people than that shows a
@@ -17,7 +18,9 @@ export default function PartyPanel({game,health,maxHp,onMember=null,openMember=n
  const cards=members.map(m=>{
   const status=m.lead?(game.stage==='dead'?'dead':game.stage==='dying'?'down':'up'):m.status;
   const most=m.lead?maxHp:m.maxHp,hp=status!=='up'?0:m.lead?(health?.current??maxHp):m.hp;
-  return {key:m.id,kind:'hero',name:m.name,mine:m.lead,status,hp,most,current:turns?.current?.id===m.id};
+  // Each hero with the portrait their own player chose (HeroFacePicker.js).
+  let face=null;try{face=JSON.parse(game.party.members[m.id]?.character??'null');}catch{}
+  return {key:m.id,kind:'hero',name:m.name,mine:m.lead,status,hp,most,current:turns?.current?.id===m.id,face};
  });
  // The foe (or each person in a brawl) between the heroes, where initiative put them.
  for(const e of turns?.entries??[])if(e.kind!=='hero')cards.push({key:e.id,kind:e.kind,name:e.name,status:e.down?'down':'up',current:e.current});
@@ -30,6 +33,7 @@ export default function PartyPanel({game,health,maxHp,onMember=null,openMember=n
     const tappable=!!onMember&&c.kind==='hero'&&!c.mine,Card=tappable?Pressable:View,muted=c.kind==='hero'&&mutedSeats.includes(c.key);
     return <Card key={c.key} accessible {...(tappable?{accessibilityRole:'button',accessibilityState:{expanded:openMember===c.key},onPress:()=>onMember(openMember===c.key?null:c.key),dataSet:{qb:'party-card',keepfocus:'true'}}:{})} accessibilityLabel={c.name+(c.mine?' (you)':'')+(c.current?', taking their turn':'')+(c.kind==='hero'?(c.status==='dead'?', fallen':c.status==='down'?', down and dying':', '+c.hp+' of '+c.most+' hit points'):'')+(muted?', muted on this device':'')+(tappable?'. Tap to mute or report':'')} style={[s.card,c.kind!=='hero'&&s.foeCard,c.current&&s.current,openMember===c.key&&s.open,c.status==='dead'&&{opacity:.5}]}>
      <View style={s.nameRow}>
+      {c.kind==='hero'&&!!c.face?.name&&<HeroPortrait hero={c.face} game={game} size={20}/>}
       {c.current&&<Icon name="forward" size={11} color={colors.goldBright}/>}
       {c.kind!=='hero'&&<Icon name="swords" size={11} color={tint('#f06e80')}/>}
       {muted&&<Icon name="mute" size={11} color={colors.muted}/>}

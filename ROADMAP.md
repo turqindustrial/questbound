@@ -26,6 +26,10 @@ Nothing below is a line of code the assistant can write alone. Each is an owner'
 7. **Players.** The share card and the invite code are the start of a loop; a hit needs a community (Discord), creators playing it on camera, a trailer, a landing page, a mailing list, and patient weekly releases with a changelog. Nobody has heard of the game yet.
 8. **Rights.** The rules text is licensed (CC-BY, the SRD notices are in the game); the name "Questbound" should be checked against trademarks in the owner's markets before money changes hands.
 
+## Before the full launch
+
+- **More hero portrait options** (the host, 2026-10-17: "make a note to create more options for 4 before the full launch"). Heroes now get a free face from the people library by default, with Another face and an optional Paint my own (`hero-faces.cjs`, `HeroFacePicker.js`). The library has 300 people, about 7 to 9 for each species and gender (fewer still once a class or an age is wanted), so a player sees only a handful of faces that fit, and two heroes of the same kind at one table soon run out of different ones. Before the full launch: more library faces per species and gender (and per class and age), so every hero has several fitting faces to choose from; consider a small, cheap edit step (hair, colouring) or more painted variants.
+
 ## The order to do it in
 
 1. Run `DEPLOY.md` on a small cloud machine with a permanent address, so the PC can be turned off. (A day.)

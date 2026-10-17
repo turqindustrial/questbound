@@ -269,6 +269,15 @@ function QuestboundApp() {
     await saveCharacter(restored);await saveAdventure(snapshot,restored);
     setHero(restored);setForm({...blankBuild(),...restored,species:restored.species??restored.race});setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(!snapshot.chosen);setAdventureBlocked(false);
   }
+  // A new portrait for the hero (HeroFacePicker.js on the Character Sheet): saved on the hero, and the adventure follows
+  // (the save effect above); at a shared table it is the campaign's `portrait` edit, so every player sees it.
+  async function choosePortrait(portrait){
+    if(!hero)return;
+    const next={...hero};if(portrait)next.portrait=portrait;else delete next.portrait;
+    if(!isValidCharacter(next)){setError('That portrait could not be kept.');return;}
+    if(table.joined){try{await table.edit({kind:'portrait',portrait:portrait??null});}catch(e){setError(e.message);}return;}
+    try{await saveCharacter(next);setHero(next);setForm(f=>({...f,portrait}));}catch{setError('Your new portrait could not be saved. Try again.');}
+  }
   async function retireFromRoster(entry){
     const next={roster:roster.filter(e=>e.id!==entry.id),graves};
     try{await saveLists(next);setRoster(next.roster);}catch{setError('Could not update your roster. Try again.');}
@@ -488,7 +497,7 @@ function QuestboundApp() {
   {playing?<View dataSet={{safe:'pad'}} style={s.shell}>
     {/* In play: a fixed HUD and a play area that fills the rest of the screen. Nothing scrolls the page. While the
         player types on a small phone, the HUD gives its row to the story too. */}
-    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} health={health} maxHp={heroStats.hp} xp={experienceView(game,hero)} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
+    <View style={[{zIndex:5},typingPlay&&visibleHeight<430&&{display:'none'}]}><GameHud hero={hero} game={game} health={health} maxHp={heroStats.hp} xp={experienceView(game,hero)} wide={wideGame} onNavigate={openFromGame} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} feedback={feedbackContext}/></View>
     {(table.joined||!!table.notice||!!storageError||!!saveProblem)&&<View style={[s.notices,compact&&{paddingHorizontal:8}]}>
       {!table.joined&&!!table.notice&&<Pressable accessibilityRole="alert" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
@@ -561,7 +570,7 @@ function QuestboundApp() {
       {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} journeys={continuingNow?null:journeysOnOffer} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
       {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
       {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
-      {screen === 'Character Sheet' && hero && <CharacterSheet setGame={table.joined?next=>table.edit({kind:'training',training:next.skillTraining}).catch(e=>setError(e.message)):setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
+      {screen === 'Character Sheet' && hero && <CharacterSheet onPortrait={choosePortrait} setGame={table.joined?next=>table.edit({kind:'training',training:next.skillTraining}).catch(e=>setError(e.message)):setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>table.joined?table.edit({kind:'note',text}).catch(e=>setError(e.message)):setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
       {screen === 'Followers' && hero && <Followers hero={hero} game={game} setGame={setGame} onManage={table.joined?(id,action)=>table.edit(action==='accept'?{kind:'accept-offer',id}:{kind:'follower',id,action}):null} onBack={()=>setScreen('Adventure')}/>}
       {screen === 'Dice Roller' && <DiceRoller/>}

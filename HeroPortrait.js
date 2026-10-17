@@ -5,10 +5,12 @@ import {classIcons} from './iconPaths';
 import {heroArtSubject} from './worldArtRules';
 import {subscribeArt,cachedArt,artIdentity} from './artClient';
 import {fonts,colors,tint} from './theme';
-// The hero's painted portrait in a crimson medallion, with their level. Until the painting is ready (or if it cannot
-// be made) the class crest stands in, so the frame never shows a spinner.
-export default function HeroPortrait({hero,size=56,level,style}){
- const subject=heroArtSubject(hero),key=subject?artIdentity(subject):null;
+// The hero's portrait in a crimson medallion, with their level: a ready-made face from the host's people library, or
+// the hero's own painting (worldArtRules.js heroArtSubject, HeroFacePicker.js). Until it is ready (or if it cannot be
+// shown) the class crest stands in, so the frame never shows a spinner. With the game, the face chosen for a hero
+// without a choice keeps clear of the faces already in the tale and at the table.
+export default function HeroPortrait({hero,game=null,size=56,level,style}){
+ const subject=heroArtSubject(hero,game),key=subject?artIdentity(subject):null;
  const [art,setArt]=useState(()=>subject?cachedArt(subject):null);
  useEffect(()=>subject?subscribeArt(subject,value=>setArt({...value})):undefined,[key]);
  if(art?.status!=='ready'||!art.dataUrl)return <Crest icon={classIcons[hero?.class]??'star'} size={size} level={level} style={style}/>;

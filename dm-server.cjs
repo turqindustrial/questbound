@@ -340,7 +340,7 @@ function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spen
 // painted (the journey's opening place, under the journey's art id) or, once world-art.cjs can answer a place from
 // ready-made paintings, whatever its `readyMade(subject)` says. A device never asks for a cover that would be painted.
 function journeyCovers(){
- if(require('./world-art.cjs').revision!==9)delete require.cache[require.resolve('./world-art.cjs')];
+ if(require('./world-art.cjs').revision!==10)delete require.cache[require.resolve('./world-art.cjs')];
  const fs=require('node:fs'),path=require('node:path'),art=require('./world-art.cjs'),dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-art');
  return subject=>{try{if(typeof art.artStore?.readyMade==='function'&&art.artStore.readyMade(subject))return true;return fs.existsSync(path.join(dir,art.artKey(art.validateSubject(subject))+'.jpg'));}catch{return false;}};
 }
@@ -372,7 +372,7 @@ async function peopleToMeetFor(context,lib,alsoTaken=new Set()){
 // a face. Tests pass a stand-in `portraits` ({takenIn}); none when nothing can be read.
 async function portraitsTaken(context,{live=false,portraits=null}={}){
  try{
-  const store=portraits??(live?(()=>{if(require('./world-art.cjs').revision!==9)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore?.people;})():null);
+  const store=portraits??(live?(()=>{if(require('./world-art.cjs').revision!==10)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore?.people;})():null);
   const ids=[context?.story?.id,context?.story?.artId].filter(id=>typeof id==='string'&&id.length&&id.length<=120);
   return store?.takenIn&&ids.length?await store.takenIn(ids):new Set();
  }catch{return new Set();}
@@ -449,7 +449,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(body.context.libraryBrief!==undefined)delete body.context.libraryBrief;
   const shelf=library??(live?loadLibrary():null);
   if(body.context.mode==='art'&&body.context.journeys==='list'){if(!shelf)return {journeys:[]};try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend});}catch{}return {journeys:shelf.list({cover:journeyCovers()})};}
-  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==9)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel,job:hostJobOf(body.context.subject,guest)})});}
+  if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==10)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel,job:hostJobOf(body.context.subject,guest)})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
   // The host's library of ready-made people is written in batches (make-people-library.cjs, people-writer.cjs): only the

@@ -128,7 +128,7 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    const c=requireMember(b.campaignId,user);free(c);if(b.baseVersion!==c.version)return {conflict:true,...state(c,user)};
    const party=r.isPartyGame(c.snapshot.game);let snapshot=party?r.partyView(c.snapshot,seat(c,user)):c.snapshot,gained=null;const game={...snapshot.game};
    // In a one-hero campaign every member plays the host's hero; its lasting choices are the host's alone.
-   if(!party&&c.owner!==user.id&&['advance','training','attune','wield','shield'].includes(b.kind))throw fail(403,'Only the campaign host makes lasting choices for the host’s hero.');
+   if(!party&&c.owner!==user.id&&['advance','training','attune','portrait','wield','shield'].includes(b.kind))throw fail(403,'Only the campaign host makes lasting choices for the host’s hero.');
    if(b.kind==='note'){if(typeof b.text!=='string'||!b.text.trim()||b.text.length>1000)throw fail(400,'Write a note of up to 1,000 characters.');snapshot={...snapshot,game:r.addJournalNote(game,b.text)};}
    else if(b.kind==='wield'){const hero=JSON.parse(snapshot.character);if(typeof b.name!=='string'||!r.canTakeInHand(r.gearedHero(hero,game),b.name))throw fail(400,'That weapon is not ready to use by your hero.');snapshot={...snapshot,game:{...game,wield:b.name}};}
    // The shield on the back (both hands free) or taken up again: free out of a fight; in one it is the hero's action,
@@ -139,6 +139,8 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    else if(b.kind==='accept-offer'){const hero=JSON.parse(snapshot.character),result=r.acceptOffer(hero,game,b.id);if(result.error)throw fail(400,result.error);snapshot={...snapshot,game:result.game};}
    else if(b.kind==='attune'){const hero=JSON.parse(snapshot.character);if(typeof b.name!=='string')throw fail(400,'Choose an item to attune to.');const done=r.attuneItem(game,hero,b.name);if(done.error)throw fail(400,done.error);snapshot={...snapshot,game:{...done.game,log:[...done.lines,...(done.game.log??[])].slice(0,40)}};}
    else if(b.kind==='advance')snapshot=require('./campaign-advancement.cjs').advanceCharacter(snapshot,b.character);
+   // The hero's portrait (HeroFacePicker.js): a ready-made face, their own painting, or none; only the portrait changes.
+   else if(b.kind==='portrait'){const hero=JSON.parse(snapshot.character),portrait=b.portrait===null?undefined:b.portrait;if(!r.validPortraitChoice(portrait))throw fail(400,'Choose a ready-made face or your own painting for your portrait.');const next={...hero};if(portrait===undefined)delete next.portrait;else next.portrait=portrait;if(!r.isValidCharacter(next))throw fail(400,'That portrait could not be kept.');snapshot={...snapshot,character:JSON.stringify(next)};}
    else if(b.kind==='lead'){if(typeof b.id!=='string'||!game.story?.leads?.some(l=>l.id===b.id))throw fail(400,'Unknown quest lead.');const hero=JSON.parse(snapshot.character),next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==b.id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}},xp=r.withExperience(game,next,hero);snapshot={...snapshot,game:r.withDeeds(r.withStoryLog(game,xp.game,hero,{}),hero).game};if(xp.gained>0)gained={amount:xp.gained,label:xp.labels.join(' · ')};}
    else throw fail(400,'That campaign edit is not allowed.');
    return {...advance(c,snapshot,user),...(gained?{xp:gained}:{})};

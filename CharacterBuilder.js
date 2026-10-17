@@ -13,6 +13,7 @@ import {View, Text, TextInput, Pressable, StyleSheet, Modal} from 'react-native'
 import {fonts,colors,type,tint} from './theme';
 import {Crest} from './ui';
 import Icon from './Icon';
+import HeroFacePicker from './HeroFacePicker';
 import {classIcons} from './iconPaths';
 import {playSound} from './audio';
 import {abilities, standardArray, species, classes, backgrounds, finalScores, modifier, buildError, speciesLineages, currentSubclass, fixedLineage, heroSpecies, speciesProfile, legacySpecies, speciesGroups, baseSpeciesOf, keenSenseSkills} from './characterRules';
@@ -169,6 +170,8 @@ export default function CharacterBuilder({form, setForm, onSave, saving, blocked
     {isCaster && page === 7 && <SpellSelector form={form} onChange={change}/>}
     {page === reviewPage && <>
       {reviewRow('Name', form.name, 0)}
+      <Text style={s.label}>Portrait</Text>
+      <HeroFacePicker hero={form} value={form.portrait} onChange={portrait => change({portrait})} auto disabled={saving}/>
       {!!form.description && <Text style={s.intro}>{form.description}</Text>}{['age','backstory'].map(key=>form[key]?<View key={key}><Text style={s.label}>{key.charAt(0).toUpperCase()+key.slice(1)}</Text><Text style={s.text}>{form[key]}</Text></View>:null)}
       {reviewRow('Species', (!fixedLineage[form.species] && form.lineage && speciesLineages[form.species]?.includes(form.lineage) ? form.species + ' (' + form.lineage + ')' : form.species) + (baseSpeciesOf(form.species) === 'Elf' ? ' · Keen Senses: ' + (keenSenseSkills.includes(form.keenSense) ? form.keenSense : 'Perception') : ''), 1)}
       {reviewRow('Class', form.class, 2)}

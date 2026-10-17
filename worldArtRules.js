@@ -70,14 +70,49 @@ export function placeArtMatch(game,id,place){
 function landscapeSubject(game,id,place){
  return {campaignId:artCampaign(game,coreArtPlaces.includes(id)&&!!game.story?.locations?.[id]),kind:'landscape',id,name:place.name,description:place.description,setting:(game.story?.premise??'A crossroads inn, old stone bridge, ruined watchtower and buried lantern vaults in a forested valley.').slice(0,800),...placeArtMatch(game,id,place)};
 }
-// The player's own hero, painted in the same style as everyone they meet. The identity follows who the hero is
-// (name, species, class, look), not their level, so levelling up keeps the portrait.
-export function heroArtSubject(hero){
+// The player's own hero. The identity follows who the hero is (name, species, class, look), not their level, so
+// levelling up keeps the portrait.
+export function heroArtHash(hero){
+ const species=hero?.species??hero?.race??'';
+ let h=7;for(const c of [hero?.name,species,hero?.class,hero?.description??''].join('|').toLowerCase())h=(h*31+c.charCodeAt(0))>>>0;
+ return h.toString(36);
+}
+// Free hero portraits by default (2026-10-17, the host's words: "Free hero portraits by default: offer each new hero a
+// matching library face right away, with an optional 'paint my own'"; hero-faces.cjs, HeroFacePicker.js). The
+// hero's portrait (characterRules validPortraitChoice):
+// - a face from the host's people library ({library:'np123'}): that person's ready portrait, never painted;
+// - their own painting ({painted:<heroArtHash when it was painted, with -w for a woman's portrait>}): painted once
+//   from their own description (Paint my own: heroPaintingSubject), then always shown from that painting (`face:'own'`,
+//   which the server never paints), so changing the hero's words later never paints again by itself;
+// - none (every hero from before, and a new hero whose face could not be chosen yet): `face:'default'`. The server
+//   shows the hero's own painting when one was made at this identity (heroes from before keep theirs), else a library
+//   face chosen to fit them (species, gender, class, then age and look), kept for that hero. `avoid` keeps out the
+//   library people of this game and the faces of the other heroes at the table; `tales` names the tale's art
+//   campaigns, so the faces given to its people are kept out too and the hero's face is kept out of theirs.
+// None of those fields is part of the art key (only `face` is part of the device's cache key, artClient.js).
+const heroFaceSpecies=hero=>{const s=String(hero.species??hero.race??'');return s==='Elf'&&['High Elf','Wood Elf','Drow'].includes(hero.lineage)?hero.lineage:s==='Dark Elf'?'Drow':s;};
+const faceOf=hero=>/^np\d{3}$/.test(String(hero?.portrait?.library))?hero.portrait.library:null;
+function heroFaceContext(game,hero){
+ if(!game)return {};
+ const party=game.party?.members?Object.values(game.party.members).map(m=>{try{return faceOf(JSON.parse(m.character));}catch{return null;}}):[];
+ const own=faceOf(hero),avoid=[...new Set([...poolsInGame(game),...party])].filter(id=>id&&id!==own).slice(0,120);
+ const tales=[game.story?.id,game.story?.artId].filter(c=>typeof c==='string'&&c.length&&c.length<=120);
+ return {...(avoid.length?{avoid}:{}),...(tales.length?{tales:[...new Set(tales)]}:{})};
+}
+export function heroArtSubject(hero,game=null){
  if(!hero?.name||!hero.class)return null;
  const species=hero.species??hero.race??'',gender=genderOf(hero.description)??genderOf(hero.backstory),look=[portraitDescription(hero.description,gender),(species+' '+hero.class).trim(),hero.background?'Former '+String(hero.background).toLowerCase():null,hero.age?'Age '+hero.age:null].filter(Boolean).join('. ');
- let h=7;for(const c of [hero.name,species,hero.class,hero.description??''].join('|').toLowerCase())h=(h*31+c.charCodeAt(0))>>>0;
- return {campaignId:'hero-'+h.toString(36),kind:'portrait',id:portraitId('hero',gender),name:String(hero.name).slice(0,100),description:('The player character, an adventurer. '+look).slice(0,1800),setting:'An original high-fantasy world of roads, inns, ruins and wild places.'};
+ const base={kind:'portrait',name:String(hero.name).slice(0,100),description:('The player character, an adventurer. '+look).slice(0,1800),setting:'An original high-fantasy world of roads, inns, ruins and wild places.'};
+ const face=faceOf(hero),painted=typeof hero.portrait?.painted==='string'&&/^[0-9a-z]{1,13}(?:-w)?$/.test(hero.portrait.painted)?hero.portrait.painted:null,context=heroFaceContext(game,hero);
+ if(face)return {campaignId:'hero-'+heroArtHash(hero),...base,id:'face-'+face,face,...(context.tales?{tales:context.tales}:{})};
+ if(painted)return {campaignId:'hero-'+painted.replace(/-w$/,''),...base,id:painted.endsWith('-w')?'hero-w':'hero',face:'own'};
+ return {campaignId:'hero-'+heroArtHash(hero),...base,id:portraitId('hero',gender),face:'default',...(heroFaceSpecies(hero)?{species:heroFaceSpecies(hero).slice(0,80)}:{}),...(gender?{gender}:{}),trained:String(hero.class).slice(0,40),...context};
 }
+// Paint my own: the subject painted from the hero's present look (the one painting a look gets; the server paints it
+// within the host's allowance), and the portrait choice that shows it once it is ready.
+const heroGender=hero=>genderOf(hero?.description)??genderOf(hero?.backstory);
+export function heroPaintingSubject(hero){const subject=heroArtSubject(hero&&{...hero,portrait:undefined});if(!subject)return null;const {face,species,gender,trained,avoid,tales,...plain}=subject;return plain;}
+export const heroPaintingChoice=hero=>({painted:heroArtHash(hero)+(heroGender(hero)==='woman'?'-w':'')});
 // The painting of a named place in this adventure (the same subject the scene uses when you are there), for the
 // illustrated arrival plates in the story feed. Only surface places; the vaults have their own scenes.
 export function placeArtSubject(game,name){

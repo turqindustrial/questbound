@@ -18,9 +18,10 @@ import {GameButton,Crest,Segmented,Section,StatBar} from './ui';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
+import HeroFacePicker from './HeroFacePicker';
 import {fonts,colors,type,tint} from './theme';
 
-export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame}) {
+export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame, onPortrait}) {
   const [tab,setTab]=useState('Overview');
   const [showCalculations,setShowCalculations] = useState(false);
   // Armor class with magic worn counted; hit points and scores are the hero's own.
@@ -31,7 +32,7 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
   const tile = (label,value,description,icon) => <View key={label} dataSet={{qb:'plate'}} style={s.tile}><View style={s.tileHead}>{!!icon&&<Icon name={icon} size={14} color={colors.goldMid}/>}<PlainText style={s.label}>{label}</PlainText></View><PlainText style={s.value}>{value}</PlainText><Text style={[s.caption,s.center]}>{description}</Text></View>;
   return <View>
     <View style={[s.header,narrow&&{gap:14}]}>
-      <HeroPortrait hero={hero} size={narrow?56:72} level={hero.level}/>
+      <HeroPortrait hero={hero} game={game} size={narrow?56:72} level={hero.level}/>
       <View style={{flex:1,minWidth:0}}>
         <PlainText style={s.overline}>Character sheet</PlainText>
         {/* On a phone the name is set a size that lets its longest word fit the line. */}
@@ -57,6 +58,8 @@ export default function CharacterSheet({hero, game, onBack, health, setHealth, h
         {!xp.max&&<StatBar value={Math.round(xp.progress*1000)} maximum={1000} kind="gold" height={6}/>}
         <Text style={s.caption}>{xp.max?'Level 20: the highest a hero can reach.':xp.ready?'Level '+(xp.level+1)+' is yours to take: use Level up when you are out of a fight.':'Level '+(xp.level+1)+' at '+n(xp.next)+'. Fights won, chapters finished, leads seen through and new places all count.'}</Text>
       </View>;})(experienceView(game,hero))}
+      {/* The hero's portrait: a ready-made face that fits them, another, or their own painting (HeroFacePicker.js). */}
+      {!!onPortrait&&<View dataSet={{qb:'plate'}} style={s.panel}><Section icon="eye" title="Portrait" style={{marginTop:0}}/><HeroFacePicker hero={hero} game={game} value={hero.portrait} onChange={onPortrait}/></View>}
       <View dataSet={{qb:'plate'}} style={s.panel}><Section icon="shield" title="Defense" style={{marginTop:0}}/><Text style={s.text}>{stats.defense}</Text><Text style={s.caption}>With your armor worn and any shield on your arm. A protective spell in effect is counted in the armor class above.</Text>{!!stats.armorNote && <Text style={s.gold}>{stats.armorNote}</Text>}</View>
       {/* The hero's species (characterRules.js speciesTraits): speed, darkvision, size and traits. */}
       {(kind=><View dataSet={{qb:'plate'}} style={s.panel}><Section icon="leaf" title={kind.species} style={{marginTop:0}}/><Text style={s.text}>Speed {stats.speed} ft{kind.darkvision?' · Darkvision '+kind.darkvision+' ft':''} · {kind.size}</Text>{kind.traits.map(t=><Text key={t.name} style={s.caption}>✦ {t.name}: {t.brief}</Text>)}</View>)(speciesProfile(hero))}

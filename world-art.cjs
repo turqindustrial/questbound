@@ -8,6 +8,10 @@ const placeLibraryModule=require('./place-library.cjs');
 // with `pool`) is shown with their ready portrait, free.
 delete require.cache[require.resolve('./people-library.cjs')];
 const peopleLibraryModule=require('./people-library.cjs');
+// Heroes' faces (hero-faces.cjs), likewise: a hero is shown with a fitting face from the people library unless their
+// player chose to paint their own.
+delete require.cache[require.resolve('./hero-faces.cjs')];
+const heroFacesModule=require('./hero-faces.cjs');
 // Creatures of the world's own kinds (2026-10-16, to save the host's credits): a creature built from one of the
 // game's templates (encounterRules.js templateKeys: the Skirmish's foe, a lair's or an ambush's creature) is painted
 // once for the whole game, under this campaign, and every tale and player after that is shown the same picture free.
@@ -48,7 +52,7 @@ function personMatchFields(value){
 function validateSubject(value){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
  if(!value||!['portrait','landscape','creature'].includes(value.kind)||!text(value.campaignId,120)||!text(value.id,100)||!text(value.name,100)||!text(value.description,1800)||typeof value.setting!=='string'||value.setting.length>800)throw Error('The illustration needs a valid character or location description.');
- return {campaignId:value.campaignId,id:value.id,kind:value.kind,name:value.name,description:value.description,setting:value.setting,...placeMatchFields(value),...personMatchFields(value),...(value.kind==='portrait'&&peopleLibraryModule.poolIdPattern.test(String(value.pool))?{pool:value.pool}:{})};
+ return {campaignId:value.campaignId,id:value.id,kind:value.kind,name:value.name,description:value.description,setting:value.setting,...placeMatchFields(value),...personMatchFields(value),...(value.kind==='portrait'&&peopleLibraryModule.poolIdPattern.test(String(value.pool))?{pool:value.pool}:{}),...heroFacesModule.heroSubjectFields(value)};
 }
 // A landscape may say what kind of place it is and what land it lies in (worldArtRules.js), so the library can match
 // it; anything else is left out. Neither changes the art key.
@@ -69,6 +73,7 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
  const jobs=new Map(),queue=[];let running=0;
  const places=placeLibrary??placeLibraryModule.createPlaceLibrary({directory:libraryDirectory,picksDirectory:path.join(directory,'place-picks')});
  const people=peopleLibrary??peopleLibraryModule.createPeopleLibrary({directory:peopleDirectory,picksDirectory:path.join(directory,'people-picks')});
+ const heroFaces=heroFacesModule.createHeroFaces({directory:path.join(directory,'hero-faces'),people,speciesList:peopleLibraryModule.speciesList});
  // Finished paintings are kept in memory for quick answers, but only the most recent few hundred (they are on disk).
  const trim=()=>{if(jobs.size<=300)return;for(const [key,job] of jobs){if(jobs.size<=250)break;if(job.status==='ready'||job.status==='failed')jobs.delete(key);}};
  const publicJob=job=>job.status==='ready'?{status:'ready',key:job.key,dataUrl:job.dataUrl}:job.status==='failed'?{status:'failed',key:job.key,error:job.error}:{status:'pending',key:job.key};
@@ -104,6 +109,7 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
   // The shared creatures are painted only from their templates' own looks, whatever a request says.
   if(subject.campaignId===creatureCampaign){subject=templateSubject(subject.id);if(!subject)throw Error('The illustration needs a valid character or location description.');}
   const key=artKey(subject);
+  const face=await heroFacePortrait(subject,key,options);if(face)return face;
   const ready=await libraryLandscape(subject,key)??await libraryPortrait(subject,key);if(ready)return ready;
   // Nothing painted for this subject yet: a creature of a template is shown with its template's shared picture (painted
   // once for everyone), and a person with the face of a look-alike from the people library (free).
@@ -159,6 +165,12 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
   if(/^hero-/.test(campaign)||campaign.startsWith(peopleLibraryModule.peopleCampaign)||campaign===creatureCampaign||!placeLibraryModule.libraryEligible({kind:'landscape',campaignId:campaign}))return null;
   try{return await people.lookAlike?.(subject,key)??null;}catch{return null;}
  }
+ // A hero's face (hero-faces.cjs): a library face, free, or their own painting read as any painting is; never painted
+ // here. A hero subject without `face` (Paint my own, or an older game) goes on to be painted as before.
+ async function heroFacePortrait(subject,key,options){
+  if(!heroFacesModule.isHeroFaceSubject(subject))return null;
+  try{return await heroFaces.answer(subject,key,{painted,plain:()=>request(heroFacesModule.plainHeroSubject(subject),{...options,apiKey:null})});}catch{return {status:'failed',key,error:'The portrait could not be shown. You can keep playing and retry later.'};}
+ }
  // A template's picture painted for the Skirmish before creatures were shared is taken over, at no cost.
  async function adoptSkirmishPainting(subject,key){
   const from=artKey({campaignId:'hostile-encounter-'+subject.id,kind:'creature',id:'main-foe'});
@@ -174,4 +186,4 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
  return {request,readyMade,size:()=>jobs.size,places,people};
 }
 const artStore=createArtStore();
-module.exports={revision:9,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL,creatureCampaign,creatureTemplates,templateSubject};
+module.exports={revision:10,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL,creatureCampaign,creatureTemplates,templateSubject};

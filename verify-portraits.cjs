@@ -12,7 +12,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
 const {rulesSource,readText}=require('./rules-files.cjs');
 const lib=require('./people-library.cjs'),{createArtStore,artKey,validateSubject,creatureTemplates,creatureCampaign,templateSubject,artPrompt}=require('./world-art.cjs');
-const r=vm.runInNewContext(rulesSource({extra:['worldArtRules.js']})+'\n({species,classes,templateKeys,readyHero,newAdventure,freshStoryGame,commitDmTurn,validAdventure,adventureSnapshot,validStory,introducePerson,libraryPeopleMet,npcArtSubject,creatureArtSubject,heroArtSubject,startWildFight,hostileEncounterGame,hostileFoes,joinRegion})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(rulesSource({extra:['worldArtRules.js']})+'\n({species,classes,templateKeys,readyHero,newAdventure,freshStoryGame,commitDmTurn,validAdventure,adventureSnapshot,validStory,introducePerson,libraryPeopleMet,npcArtSubject,creatureArtSubject,heroArtSubject,heroPaintingSubject,startWildFight,hostileEncounterGame,hostileFoes,joinRegion})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const jpeg=id=>Buffer.concat([Buffer.from([255,216,255,224]),Buffer.from(String(id)),Buffer.from([255,217])]);
 const shown=answer=>Buffer.from(String(answer.dataUrl).split(',')[1]??'','base64').toString('latin1');
@@ -78,8 +78,10 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   const journey=await ask(person('resident-a',{campaignId:'journey-x'}));const copy=await ask(person('n1',{campaignId:'copy-x',related:'journey-x'}));assert.notEqual(copy.library,journey.library,'a copy of a journey avoids the journey\'s own faces');
   // Painted before: kept. Heroes, children and kinds the library has nobody of: painted.
   const old=person('n10',{campaignId:'tale-d'});fs.writeFileSync(path.join(art,artKey(old)+'.jpg'),jpeg('older'));assert.ok(shown(await ask(old)).includes('older'));
-  const hero=r.heroArtSubject(r.readyHero('fighter'));assert.equal(hero.species,undefined,'a hero carries nothing to match on');
-  let before=paid;await ask(hero);await waitPaid(before+1);assert.equal(paid,before+1,'the player\'s own hero is painted');
+  // A hero without a choice is shown a ready-made face (verify-hero-face.cjs); Paint my own paints, once.
+  let before=paid;const faced=await ask(r.heroArtSubject(r.readyHero('fighter')));assert.ok(faced.library,'a hero is shown a ready-made face');assert.equal(paid,before,'(free)');
+  const hero=r.heroPaintingSubject(r.readyHero('fighter'));assert.equal(hero.species,undefined,'Paint my own carries nothing to match on');assert.equal(hero.face,undefined);
+  before=paid;await ask(hero);await waitPaid(before+1);assert.equal(paid,before+1,'the player\'s own hero is painted when they ask');
   before=paid;await ask({...hero,species:'Human',gender:'man'});await new Promise(res=>setTimeout(res,30));assert.equal(paid,before,'(and painted once)');
   before=paid;await ask(person('n11',{campaignId:'tale-d',description:'A thin girl with a reed rod.',role:'A girl fishing.'}));await waitPaid(before+1);assert.equal(paid,before+1,'a child is painted');
   before=paid;await ask(person('n12',{campaignId:'tale-d',species:'Lizardfolk'}));await waitPaid(before+1);assert.equal(paid,before+1,'a kind the library has nobody of is painted');
@@ -173,7 +175,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   // ---------- Ready journeys written ahead are offered the library's people too ----------
   assert.match(readText('dm-server.cjs'),/const cast=live\?await castFor\(loadPeople\(\)\):null;\s*return require\('\.\/adventure-generator\.cjs'\)\.generateAdventure\(\{[^\n]*ahead:true[^\n]*,cast,/,'the library writer passes the castable people');
   // ---------- Revisions ----------
-  {const dm=readText('dm-server.cjs');assert.equal(lib.revision,2);assert.match(dm,/people-library\.cjs'\)\.revision!==2\)/);assert.equal(require('./world-art.cjs').revision,9);}
+  {const dm=readText('dm-server.cjs');assert.equal(lib.revision,2);assert.match(dm,/people-library\.cjs'\)\.revision!==2\)/);assert.equal(require('./world-art.cjs').revision,10);}
   fs.rmSync(tmp,{recursive:true,force:true});
   console.log('Passed: portraits and creatures without paying for paintings.');
  }catch(e){fs.rmSync(tmp,{recursive:true,force:true});console.error(e);process.exit(1);}
