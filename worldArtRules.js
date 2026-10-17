@@ -90,8 +90,9 @@ export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
  // A creature met while exploring is painted from the Dungeon Master's description of it.
  // A creature of one of the game's own kinds (its template) is shown with that kind's picture, painted once for every
- // player (world-art.cjs); a named bandit keeps a painting of its own there.
- if(game.wildFight){const w=game.wildFight;return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{})};}
+ // player (world-art.cjs); a named bandit keeps a painting of its own there, shared by every player of a ready journey
+ // (its artId), so a journey's own errand threat is painted once, not once per copy.
+ if(game.wildFight){const w=game.wildFight;return {campaignId:artCampaign(game,true),kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{})};}
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';
  const skirmish=!room&&game.story?.introId==='hostile'&&/^hostile-encounter-[a-z]+$/.test(String(game.story.id))?game.story.id.slice('hostile-encounter-'.length):null,campaignId=artCampaign(game,!room);
  // The Skirmish's foe is one of the game's own kinds (shared picture); a tale's own foe who is a person (a known
