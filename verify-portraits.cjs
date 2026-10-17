@@ -170,6 +170,8 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
    const next=r.freshStoryGame(h,{...JSON.parse(JSON.stringify(journeyStory(2))),id:'next-tale'},r.newAdventure(h));const joined=r.joinRegion(next,g2,{sameRegion:true,bearing:'N',miles:5});
    assert.ok(Object.values(joined.people).some(p=>p.pool===stock[0].id),'the old keeper keeps their pool id in the next tale');
    console.log('Story writer: keeper and mara may be cast from the library too (strict schema, never twice, the tale\'s own role); a cast keeper is valid, counts as met and is shown with their own portrait, here and in the next tale.');}
+  // ---------- Ready journeys written ahead are offered the library's people too ----------
+  assert.match(readText('dm-server.cjs'),/const cast=live\?await castFor\(loadPeople\(\)\):null;\s*return require\('\.\/adventure-generator\.cjs'\)\.generateAdventure\(\{[^\n]*ahead:true[^\n]*,cast,/,'the library writer passes the castable people');
   // ---------- Revisions ----------
   {const dm=readText('dm-server.cjs');assert.equal(lib.revision,2);assert.match(dm,/people-library\.cjs'\)\.revision!==2\)/);assert.equal(require('./world-art.cjs').revision,9);}
   fs.rmSync(tmp,{recursive:true,force:true});
