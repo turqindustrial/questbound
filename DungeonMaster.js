@@ -36,6 +36,7 @@ import {deedById} from './deedRules';
 import {cue} from './cinematics';
 import {openFeedback} from './Feedback';
 import {countTurn,noteTalking} from './playMetrics';
+import {routineTelling} from './fightLines';
 const endpoints=dmEndpoints();
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
 const panelKey='questbound.suggestions.v1';
@@ -225,7 +226,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,...(body.told==='game'?{told:'game',fightRound:body.fightRound}:{})},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
       const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw refusal(preview.error);
@@ -241,8 +242,12 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         let index=0;await finish(action,body,normalized,()=>dice[index++]??0.5);
       }
       else {let body={narration:narration??command.narration??'Your action is resolved below.'};
-        if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},normalized,()=>rolled[index++]??0.5);
+        // A routine fight move (a plain attack, Dodge, End turn, a draught...) is told by the game itself, with no request
+        // to the Dungeon Master; a fight's start, kills, critical hits and every few rounds still go to it (fightLines.js).
+        const told=narration===undefined?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences()}):null;
+        if(told)body=told;
+        else if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
+        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
       }
     };
     let attempted=preset?.action??null;

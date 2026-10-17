@@ -69,7 +69,10 @@ export function recordedTurn(hero,before,beforeHP,result,conversation,npcId=null
  // Replies with a dialogue list keep the narrator separate; only older replies without one speak as the addressed NPC.
  else if(npcId&&conversation.dialogue===undefined)events.push({kind:'dialogue',speakerId:npcId,speakerName:speaker(npcId),text:conversation.narration});
  else events.push({kind:'narration',text:conversation.narration});
- const turn={id:(before.playback?.at(-1)?.id??0)+1,npcId,participants:conversationPeople(after).map(n=>n.id),events:events.slice(0,100).map(e=>({...e,text:e.text.slice(0,2200)}))};
+ // A routine fight move told by the game itself (fightLines.js) is marked, with the round it fell in, so the
+ // Dungeon Master is asked to tell one every few rounds of a long fight.
+ const told=conversation.told==='game'?{told:'game',...(typeof conversation.fightRound==='string'&&conversation.fightRound.length<=40?{fightRound:conversation.fightRound}:{})}:{};
+ const turn={id:(before.playback?.at(-1)?.id??0)+1,npcId,participants:conversationPeople(after).map(n=>n.id),...told,events:events.slice(0,100).map(e=>({...e,text:e.text.slice(0,2200)}))};
  return {...result,game:{...after,playback:[...(before.playback??[]),turn].slice(-12)},turn};
 }
 
