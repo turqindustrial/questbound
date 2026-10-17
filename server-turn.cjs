@@ -42,8 +42,11 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
    if(body.ruling.decision==='cast'){const reply=await post(resolved.game,resolved.health,{engineResolved:resolved.events});for(const key of ['narration','dialogue','relationships','remember','loot','introduce','suggestions'])body[key]=reply[key];}
    let i=0;return finish(action,body,command.normalizedCommand,()=>rolled[i++]??randomImpl());
   }
-  const body=await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40)});let i=0;
-  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl());
+  // A routine fight move is told by the game itself, with no request to the Dungeon Master (fightLines.js), exactly as
+  // on a device: the same rule, the same seeded lines.
+  const told=narration===undefined?r.routineTelling({hero:ruled,before:game,preview,health,action:command.action,words:question,preferences:preferences(request.storyPreferences)}):null;
+  const body=told??await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40)});let i=0;
+  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),told?{told:'game',fightRound:told.fightRound}:{});
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
  // A greeting is a trigger turn (no player line): the Dungeon Master writes it as a scene moment in which only that
