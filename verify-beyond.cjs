@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const {rulesSource}=require('./rules-files.cjs');
 // Beyond the map (2026-10-11, the host's words: "make sure travel is possible outside of the region of the map, with
 // more map generated outside if the player decides to move to a new map. then make sure the game remembers the old map
@@ -131,8 +132,8 @@ assert.equal(look('I want to leave this land.')?.sure??false,false);assert.equal
 (async()=>{
  const calls=[];const fetchImpl=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(quiet)}]}]})};};
  const out=await generate({input:'I head north beyond the map.',context:base},{apiKey:'test-only',model:'test-model',fetchImpl});
- assert.equal(out.actionId,'beyond-N','asked twice, the game sets out itself');assert.equal(calls.length,2);assert.match(calls[1].instructions,/LOOK AGAIN: .*beyond-N/);
- assert.ok(calls[0].instructions.includes('BEYOND THE MAP: the choices beyond-N'),'the Dungeon Master is told how lands beyond the map work');
+ assert.equal(out.actionId,'beyond-N','asked twice, the game sets out itself');assert.equal(calls.length,2);assert.match(requestParts(calls[1]).instructions,/LOOK AGAIN: .*beyond-N/);
+ assert.ok(requestParts(calls[0]).instructions.includes('BEYOND THE MAP: the choices beyond-N'),'the Dungeon Master is told how lands beyond the map work');
  // ---- At the shared table the campaign server accepts the same moves ----
  const {resolveTurn}=require('./server-turn.cjs'),ask=async()=>({narration:'The road runs on for days.',actionId:null,suggestions:[]});
  const snap=JSON.parse(JSON.stringify(r.adventureSnapshot(hero,g,hp,true)));

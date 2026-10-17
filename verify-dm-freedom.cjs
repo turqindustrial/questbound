@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const {generate}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 // The Dungeon Master server: spells must be named (nicknames allowed), new places are revealed only when the player
 // is free to set out, and the instructions cover attack wording, precise deaths, brutality and exploration.
 let lastRequest=null;
@@ -27,12 +28,12 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal(lastRequest.text.format.schema.properties.discovery.type[0],'object');assert.ok(lastRequest.text.format.schema.required.includes('discovery'));
  assert.equal((await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})})).discovery,null,'a place the map could not use is never added (asked again, then left out)');
  {await generate(free,{...keys,fetchImpl:success({narration:'You go.'})});const freeSchema=JSON.stringify(lastRequest.text.format.schema);await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(JSON.stringify(lastRequest.text.format.schema),freeSchema,'the schema is the same whether or not the player may set out (it is cached); the map refuses the place instead (above)');}
- await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.'})});assert.equal(lastRequest.text.format.schema.properties.discovery.type,'null','Narrating a resolved turn reveals nothing');
+ {const told=await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.',discovery:ridge})});assert.equal(told.discovery,null,'Narrating a resolved turn reveals nothing');assert.equal(told.narration,'You arrive.');assert.equal(JSON.stringify(lastRequest.text.format.schema),JSON.stringify(require('./dm-server.cjs').replySchemaFor()),'the one schema, the same for every phase');}
  // One game action per reply: when two arrive together the first is kept and the other dropped, not the whole reply.
  const look={skill:null,ability:'Wisdom',dc:10,mode:'normal',reason:'Look',success:'Yes',failure:'No',damageCount:0,damageDie:6,damageOn:'none'};
  const both=await generate(free,{...keys,fetchImpl:success({narration:'Both.',discovery:ridge,check:look})});assert.equal(both.discovery.name,'Thornback Ridge');assert.equal(both.check,null,'The journey is kept, the check dropped');
  const walk=await generate({...free,context:{...free.context,choices:[{id:'travel-tower',label:'Travel to Lookout Rock'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-tower',check:look,discovery:ridge})});assert.equal(walk.actionId,'travel-tower');assert.equal(walk.check,null);assert.equal(walk.discovery,null);
- assert.match(lastRequest.instructions,/WHAT IS TRUE NOW:/);assert.match(lastRequest.instructions,/never invent an obstacle/);
+ assert.match(requestParts(lastRequest).instructions,/WHAT IS TRUE NOW:/);assert.match(requestParts(lastRequest).instructions,/never invent an obstacle/);
  assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'Odd.',discovery:{...ridge,kind:'castle'}})})).discovery,null,'new place the map could not use');
  // Danger in the wilds: a lair's creature, a feature, and ambushes only where the player is out in the wilds.
  const widow={template:'spider',name:'Grey Widow',appearance:'A spider as large as a pony, grey and bristled.'};
@@ -44,7 +45,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal(sprung.ambush.template,'boar');assert.equal(lastRequest.text.format.schema.properties.ambush.type[0],'object');
  assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})})).ambush,null,'No ambush away from the wilds');
  assert.equal((await generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})})).ambush,null);
- assert.ok(lastRequest.instructions.includes('DANGER IN THE WILDS'));
+ assert.ok(requestParts(lastRequest).instructions.includes('DANGER IN THE WILDS'));
  // Loot: handed over with the narration, never mid-fight, never more gold than the hero has.
  const shop=body('I buy a healing potion from the captain.',{stage:'inn',inventory:{gold:60},player:{level:1}});
  const potionBuy={gold:-50,items:[{name:'Potion of Healing',kind:'potion',qty:1,value:0}],reason:'Bought from the captain.'};
@@ -52,14 +53,14 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  await assert.rejects(generate(shop,{...keys,fetchImpl:success({narration:'x',loot:{...potionBuy,gold:-80}})}),/enough gold/);
  assert.equal((await generate({...shop,context:{...shop.context,choices:[{id:'travel-inn',label:'Travel'}]}},{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',loot:potionBuy})})).loot,null,'Loot waits for the narration of an action');
  assert.equal((await generate(body('I loot it.',{stage:'combat',inventory:{gold:60}}),{...keys,fetchImpl:success({narration:'Not now.',loot:potionBuy})})).loot,null,'No loot mid-fight');
- assert.ok(lastRequest.instructions.includes('LOOT AND TRADE'));
+ assert.ok(requestParts(lastRequest).instructions.includes('LOOT AND TRADE'));
 {// Spoils and magic (lootRules.js): the schema knows armor and magic ids; the engine's own search is never doubled;
  // gold over the level's most is cut to it (not dropped); magic only rewards a chapter or a lead, within the level.
   const chest=body('I search the chest.',{stage:'inn',inventory:{gold:10},player:{level:1}});
  await generate(chest,{...keys,fetchImpl:success({narration:'You open it.'})});
  const itemSchema=lastRequest.text.format.schema.properties.loot.anyOf?.[0]??lastRequest.text.format.schema.properties.loot;
  assert.ok(itemSchema.properties.items.items.properties.kind.enum.includes('armor'),'armor is a kind');assert.ok(itemSchema.properties.items.items.properties.magic.enum.includes('cloak-of-protection')&&itemSchema.properties.items.items.required.includes('magic'),'magic is an id from the catalogue');
- assert.ok(lastRequest.instructions.includes('SPOILS: context.spoils')&&lastRequest.instructions.includes('MAGIC REWARDS'));
+ assert.ok(requestParts(lastRequest).instructions.includes('SPOILS: context.spoils')&&requestParts(lastRequest).instructions.includes('MAGIC REWARDS'));
  const hoard={gold:150,items:[{name:'Silver chalice',kind:'treasure',qty:1,value:25,note:'A dented cup.',magic:null}],reason:'Found in the chest.'};
  const clamped=await generate(chest,{...keys,fetchImpl:success({narration:'Coins spill out.',loot:hoard})});assert.equal(clamped.loot.gold,100,'gold over the cap is cut to the most a level-1 hero may find, not dropped');assert.equal(clamped.loot.items.length,1);
  const searched=body('I search the bandit.',{stage:'victory',inventory:{gold:10},player:{level:1},engineResolved:['You search the Bandit Cutthroat.','Found: 9 gold, Scimitar.']});
@@ -81,9 +82,9 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const acting=await generate(body('I travel on.',{choices:[{id:'travel-inn',label:'Travel'}]}),{...keys,fetchImpl:success({narration:'You go.',actionId:'travel-inn',relationships:[note]})});assert.equal(acting.relationships.length,0);
  const ghost=await generate(body('I mourn him.',{npcFates:{mara:'dead'}}),{...keys,fetchImpl:success({narration:'Silence.',relationships:[note]})});assert.equal(ghost.relationships.length,0);
  assert.deepEqual((await generate(body('x',{sceneTrigger:{id:'wake',cue:'They wake.'},conversationParticipants:[{id:'mara',name:'Tobin Reed'}]}),{...keys,fetchImpl:success({narration:'He speaks.',relationships:[note]})})).relationships,[],'no relationship notes on a scene cue');
- assert.ok(lastRequest.instructions.includes('MEMORY AND RELATIONSHIPS'));
+ assert.ok(requestParts(lastRequest).instructions.includes('MEMORY AND RELATIONSHIPS'));
  // The instructions carry the new rules.
- const instructions=lastRequest.instructions;
+ const instructions=requestParts(lastRequest).instructions;
  for(const part of ['ATTACKS:','Unarmed Strike','attackOptions.mainWeapon','SPELLS MUST BE NAMED','nickname','KILLING AND DEATH','describe that death precisely','storyPreferences.brutality','restrained','gritty','brutal','OPEN WORLD','context.world.canDiscover'])assert.ok(instructions.includes(part),part);
  console.log('Passed: unnamed casts become a question, nicknames and misspellings pass, discovery gated and bounded, one action per reply, and attack/death/brutality/open-world instructions present.');
 })().catch(e=>{console.error(e);process.exit(1);});

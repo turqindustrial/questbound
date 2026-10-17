@@ -1,4 +1,5 @@
 // The host's library of ready-made people (2026-10-16, the host's words: "use the api to generate 1000 completely
+const {requestParts,requestScene}=require('./dm-server.cjs');
 // unique npcs for the players to run into so that it doesn't eat up all of my credit as they progress", "make sure to
 // keep in mind every class, race, and gender", then "let's cut that npc amount to 300 for now and make sure they are
 // all entirely unique"). Checks: the plan (300 people: every class with every species once, each class and species
@@ -56,7 +57,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    const out=await server.generate(body,{apiKey:'k',model:'m',fetchImpl});
    assert.equal(calls.length,1);const sent=calls[0];assert.equal(sent.text.format.name,'people_batch');assert.equal(sent.text.format.strict,true);assert.equal(sent.reasoning,undefined,'a plain model gets no reasoning field');
    const schema=sent.text.format.schema.properties.people;assert.equal(schema.minItems,7);assert.equal(schema.maxItems,7);same(schema.items.required,Object.keys(schema.items.properties),'every property required');assert.equal(schema.items.additionalProperties,false);
-   assert.match(sent.instructions,/a woman never has a beard/i);assert.match(sent.instructions,/Every part of every name must be new/);assert.match(sent.instructions,/entirely unique/);assert.match(JSON.parse(sent.input).avoidNames.join(),/Sefa Ashgrove/);same(JSON.parse(sent.input).brief.map(s=>s.hookTheme),brief.map(s=>s.hookTheme),'each slot\'s hook theme is sent');
+   assert.match(requestParts(sent).instructions,/a woman never has a beard/i);assert.match(requestParts(sent).instructions,/Every part of every name must be new/);assert.match(requestParts(sent).instructions,/entirely unique/);assert.match(requestScene(sent).avoidNames.join(),/Sefa Ashgrove/);same(requestScene(sent).brief.map(s=>s.hookTheme),brief.map(s=>s.hookTheme),'each slot\'s hook theme is sent');
    const ids=out.people.map(p=>p.id),refused=Object.fromEntries(out.refused.map(x=>[x.slot,x.reason]));
    assert.equal(refused[brief[2].slot],'famous name','a name from someone else\'s world is refused');
    assert.equal(refused[brief[3].slot],'name used','a given name used twice (whatever its case and accents) is refused');
@@ -112,11 +113,11 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
   {const calls=[],turn=async(reply,ctx=context)=>{const fetchImpl=async(url,options)=>{calls.push(JSON.parse(options.body));return done(reply);};return server.generate({input:'I look about the landing.',context:JSON.parse(JSON.stringify(ctx))},{apiKey:'k',model:'m',fetchImpl,people:roster});};
    const brief={species:'Human',role:'x.',appearance:'As listed.',personality:'',toughness:'common',attitude:'friendly',foe:'neutral',tie:null,gender:'other',regard:{stance:'curious',reason:'I have never seen your kind up close.'},class:null};
    const out=await turn({...quiet,introduce:{...brief,pool:'np002',name:'Oswin'},dialogue:[{speakerId:'new',text:'Crossing tonight?'}]});
-   const sent=calls[0],offered=JSON.parse(sent.input).context.world?.peopleToMeet;
+   const sent=calls[0],offered=requestScene(sent).context.world?.peopleToMeet;
    assert.ok(Array.isArray(offered)&&offered.length===4,'four people offered where the hero is');assert.ok(!offered.some(p=>p.pool==='np001'),'never one already met');
    assert.ok(!sent.input.includes('poolTaken'),'the ids already met are the server\'s business, not the model\'s');
    const schema=sent.text.format.schema.properties.introduce;assert.equal(schema.properties.pool.enum,undefined,'the schema names no one (it is cached): the reply is held to who was offered');assert.ok(schema.required.includes('pool'));same([...schema.required].sort(),Object.keys(schema.properties).sort(),'strict: every property required');same(schema.properties.pool.type,['string','null']);
-   assert.match(sent.instructions,/PEOPLE TO MEET: context\.world\.peopleToMeet/);
+   assert.match(requestParts(sent).instructions,/PEOPLE TO MEET: context\.world\.peopleToMeet/);
    assert.equal(out.introduce.pool,'np002');assert.equal(out.introduce.name,'Oswin Reedly','their own name');assert.match(out.introduce.appearance,/tarred coat/);assert.equal(out.introduce.gender,'man');assert.equal(out.introduce.toughness,'frail');
    assert.match(out.introduce.personality,/Calls everyone "cousin"\./,'their voice goes with them');assert.ok(out.introduce.hook&&out.introduce.motive);assert.equal(out.introduce.attitude,'friendly','how they meet the hero is the Dungeon Master\'s');assert.equal(out.introduce.regard.stance,'curious');
    assert.equal(out.dialogue[0].speakerId,'new');
@@ -192,7 +193,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    const fetchImpl=async(url,options)=>{calls.push(JSON.parse(options.body));return done(JSON.parse(JSON.stringify(tale)));};
    const got=await generateAdventure({input:'x',context:{mode:'adventure',introId:'easy',easyStart:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl,cast});
    const sent=calls[0],items=sent.text.format.schema.properties.residents.items;same(items.properties.pool.enum,[null,'np001','np002']);assert.ok(items.required.includes('pool'),'strict: pool required');
-   assert.match(sent.instructions,/READY-MADE PEOPLE: context\.castable/);same(JSON.parse(sent.input).context.castable.map(c=>c.pool),['np001','np002']);
+   assert.match(requestParts(sent).instructions,/READY-MADE PEOPLE: context\.castable/);same(requestScene(sent).context.castable.map(c=>c.pool),['np001','np002']);
    const [oswin,second,third]=[got.story.residents[0],got.story.residents[1],got.story.residents.at(-1)];
    assert.equal(oswin.pool,'np002');assert.equal(oswin.gender,'man');assert.match(oswin.appearance,/tarred coat/,'the library\'s look, so the ready portrait fits');assert.equal(oswin.role,tale.residents[0].role,'the tale\'s own role');
    assert.equal(second.pool,undefined,'a pool id under another name is dropped');assert.equal(third.pool,undefined,'never cast twice');
@@ -202,7 +203,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    // No cast, the next tale in a region, or a dm-server write without a library: as before.
    calls.length=0;const plain=await generateAdventure({input:'x',context:{mode:'adventure',introId:'easy',easyStart:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl});assert.equal(calls[0].text.format.schema.properties.residents.items.properties.pool,undefined);assert.ok(plain.story.residents.every(x=>x.pool===undefined));
    calls.length=0;await generateAdventure({input:'x',context:{mode:'adventure',introId:'easy',easyStart:true,choices:[],continuing:{previousTitle:'Old',newStartBearing:'north'}}},{apiKey:'k',model:'m',fetchImpl,cast}).catch(()=>{});assert.ok(!calls[0].input.includes('castable'),'the next tale in a region casts nobody from the library');
-   calls.length=0;await server.generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'caravan',choices:[]}},{apiKey:'k',model:'m',fetchImpl,people:roster}).catch(()=>{});assert.ok(JSON.parse(calls[0].input).context.castable.length>=4,'the Dungeon Master offers the writer people from the library');
+   calls.length=0;await server.generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'caravan',choices:[]}},{apiKey:'k',model:'m',fetchImpl,people:roster}).catch(()=>{});assert.ok(requestScene(calls[0]).context.castable.length>=4,'the Dungeon Master offers the writer people from the library');
    calls.length=0;await server.generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'caravan',choices:[]}},{apiKey:'k',model:'m',fetchImpl}).catch(()=>{});assert.ok(!calls[0].input.includes('castable'));
    same(castResidents({residents:[{name:'X',pool:'np009'}]},[]).residents[0].pool,undefined);
    console.log('Story writer: offered a dozen ready-made people for a fresh tale (never the next tale in a region), a resident cast from them keeps the library\'s name, kind, gender, class and look (and so its ready portrait), the tale\'s own role; seated with its pool id.');}

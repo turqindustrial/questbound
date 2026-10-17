@@ -3,6 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // story writer can think for minutes (the host's choice of effort) without any request waiting long.
 const {createStoryJobs,jobIdOk,revision}=require('./story-jobs.cjs');
 const {generate,storyEffort,questInstructions}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const c=vm.runInNewContext(fs.readFileSync('dmConnection.js','utf8').replace(/export /g,'')+'\n({askDm,writeStory})',{fetch,AbortSignal,TextDecoder,setTimeout,Date,Math});
 const tick=(ms=5)=>new Promise(resolve=>setTimeout(resolve,ms));
 const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',ties:{other:'friend',foe:'neutral',note:'n'}}}};
@@ -48,12 +49,12 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  // ---- The Dungeon Master is told how a long tale is run ----
  assert.match(questInstructions,/THE LONG TALE:/);assert.match(questInstructions,/story-advance/);assert.match(questInstructions,/lead-done/);assert.match(questInstructions,/a chapter takes many turns/);
  let turnRequest=null;await generate({input:'I look around.',context:{choices:[]}},{apiKey:'k',model:'m',fetchImpl:async(url,options)=>{turnRequest=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'You look.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null})}]}]})};}});
- assert.ok(turnRequest.instructions.includes(questInstructions));
+ assert.ok(requestParts(turnRequest).instructions.includes(questInstructions));
  // ---- A greeting that comes back as spoken words alone is whole ----
  const greet=reply=>generate({input:'You turn to Yarro Keth.',context:{choices:[],conversationParticipants:[{id:'keeper',name:'Nemi Rusk'},{id:'mara',name:'Yarro Keth'}],sceneTrigger:{id:'greet:mara',cue:'Only Yarro Keth speaks.'}}},{apiKey:'k',model:'m',fetchImpl:async(url,options)=>{turnRequest=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,...reply})}]}]})};}});
  const hello=await greet({narration:'',dialogue:[{speakerId:'mara',text:'You have the look of someone who reads marks. Good.'}]});
  assert.equal(hello.narration,'Yarro Keth looks up.');assert.equal(hello.dialogue[0].text,'You have the look of someone who reads marks. Good.');
- assert.match(turnRequest.instructions,/never empty, never the spoken words/);
+ assert.match(requestParts(turnRequest).instructions,/never empty, never the spoken words/);
  await assert.rejects(()=>greet({narration:'',dialogue:[]}),/could not be used this time/,'Nothing said and nothing told is still refused');
  // ---- The game's side: ask once, then ask after it ----
  const sent=[];let gate=null;

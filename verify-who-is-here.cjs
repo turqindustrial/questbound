@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const {rulesSource}=require('./rules-files.cjs');
 // Who is here, and what they say (2026-10-11, the host's words: "have npcs appear as they are discovered as well as the
 // ones that are immediately noticeable at any given location, not all locations need multiple people, but many should"
@@ -64,7 +65,7 @@ assert.equal(r.freePersonId({n1:{},n2:{},n4:{}}),'n3');assert.equal(r.freePerson
  const calls=[];const replies=[quiet,{...quiet,narration:'An old ferryman lifts his lantern.',introduce:ferryman,dialogue:[{speakerId:'new',text:'Crossing tonight?'}]}];
  const fetchImpl=async(url,options)=>{calls.push(JSON.parse(options.body));const reply=replies[Math.min(calls.length-1,replies.length-1)];return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(reply)}]}]})};};
  const met=await server.generate({input:'I travel to Heron Ferry.',context:arrival},{apiKey:'test-only',model:'test-model',fetchImpl});
- assert.equal(calls.length,2);assert.match(calls[1].instructions,/LOOK AGAIN: Your telling brings the player to Heron Ferry, a water/);assert.equal(met.introduce?.name,'Oswin Reedly','someone to meet');
+ assert.equal(calls.length,2);assert.match(requestParts(calls[1]).instructions,/LOOK AGAIN: Your telling brings the player to Heron Ferry, a water/);assert.equal(met.introduce?.name,'Oswin Reedly','someone to meet');
  // ---- Different words: a later line that echoes an earlier one is dropped, never the reply ----
  const crowd={stage:'inn',story:{foe:'Barrow warden'},world:{current:{id:'inn',name:'Stillwater Market',kind:'settlement'},knownPlaces:[],peopleHere:3,canIntroduce:true},choices:[],npcSocialState:[{id:'keeper',name:'Reeve Ormund',present:true},{id:'mara',name:'Wren Halloway',present:true},{id:'n1',name:'Tilda Marsh',present:true}],conversationParticipants:[{id:'keeper',name:'Reeve Ormund'},{id:'mara',name:'Wren Halloway'},{id:'n1',name:'Tilda Marsh'}]};
  const echo={...quiet,narration:'The three of them look up.',dialogue:[{speakerId:'keeper',text:'Welcome, stranger.'},{speakerId:'mara',text:'Welcome, traveller!'},{speakerId:'n1',text:'The barrow is awake, and the reeve will not say why.'},{speakerId:'mara',text:'The reeve will not say why the barrow is awake.'}]};
@@ -72,11 +73,11 @@ assert.equal(r.freePersonId({n1:{},n2:{},n4:{}}),'n3');assert.equal(r.freePerson
  same(out.dialogue.map(l=>l.speakerId),['keeper','n1'],'each says something of their own');assert.equal(echoCalls.length,1,'never asked again over it');
  assert.ok(server.distinctDialogue([{speakerId:'keeper',text:'Go to the ferry.'},{speakerId:'mara',text:'I can pole you there.'}]).length===2,'different words are kept');
  // ---- What the Dungeon Master and the story writer are told ----
- const said=echoCalls[0].instructions;
+ const said=requestParts(echoCalls[0]).instructions;
  assert.ok(said.includes('WHO IS HERE: on arriving anywhere, the people anyone would notice at once are there at once')&&said.includes('marked unnoticed'),'noticeable people at once, others when found');
  assert.ok(said.includes('DIFFERENT WORDS: when several people speak in one reply'),'different words from different people');
  const cueCalls=[];await server.generate({input:'You arrive.',context:{...crowd,sceneTrigger:{id:'arrive:inn',cue:'The player arrives.'}}},{apiKey:'test-only',model:'test-model',fetchImpl:async(url,options)=>{cueCalls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...quiet,narration:'They look up.',dialogue:[{speakerId:'keeper',text:'There you are.'}]})}]}]})};}});
- assert.match(cueCalls[0].instructions,/each speaker saying something different \(never two greetings alike\)/);
+ assert.match(requestParts(cueCalls[0]).instructions,/each speaker saying something different \(never two greetings alike\)/);
  const gen=fs.readFileSync('adventure-generator.cjs','utf8');assert.ok(gen.includes('noticed:{type:\'boolean\'}')&&gen.includes('noticed: true for someone in plain sight')&&gen.includes('six to ten further named people (never more than twelve)'),'the writer seats people where they would be');
  console.log('Who is here: people seated where they gather (two at the start, three at a peopled place, 96 in all), noticed at once or found by looking (hidden until introduced by name, then met and in the People panel), arrivals at peopled places with nobody named asked again for someone to meet, and different words from different people (echoes dropped, greetings never alike).');
 })().catch(e=>{console.error(e);process.exit(1);});

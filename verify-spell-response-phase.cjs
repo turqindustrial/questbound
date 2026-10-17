@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const {generate}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const r=require('./verify-dm-integration.cjs');
 const hero={name:'Spell QA',class:'Wizard',species:'Human',level:1,scores:{Strength:10,Dexterity:14,Constitution:14,Intelligence:16,Wisdom:12,Charisma:10},spells:['acid-splash']};
 hero.equipment=r.equipmentFor(hero);
@@ -17,18 +18,22 @@ async function run(reply,ctx=context){let request;const result=await generate({i
   const {request,result}=await run({...empty,ruling});
   const fields=request.text.format.schema.properties;
   // The standing guidance says what a casting issue is and how to tell a described spell; the ruling is held to the dice.
-  for(const text of ['CASTING ISSUES','SPELLS TO DESCRIBE','pendingSpell.damageMost'])assert.ok(request.instructions.includes(text),text);
+  for(const text of ['CASTING ISSUES','SPELLS TO DESCRIBE','pendingSpell.damageMost'])assert.ok(requestParts(request).instructions.includes(text),text);
   assert.equal(context.pendingSpell.damageMost,6,'Acid Splash at level 1 deals at most 1d6');
-  assert.equal(fields.ruling.type,'object');
-  for(const field of ['actionId','castCommand','check'])assert.equal(fields[field].type,'null');
+  // The one reply schema for every phase: the ruling this phase must give is asked for in its note after the scene,
+  // and a reply without one is asked for again (the old ruling schema demanded it).
+  assert.deepEqual(fields.ruling.type,['object','null']);assert.match(requestParts(request).tail,/Adjudicate pendingSpell now/);
+  {const none=await run({...empty,ruling:null});assert.equal(none.result.ruling.decision,'clarify','no ruling: asked again, then a clarify that spends nothing');}
   const committed=r.commitDmTurn(hero,game,null,{type:'ai-spell',request:command.action.request,ruling:result.ruling},{question:input,narration:result.narration},()=>0);
   assert.equal(committed.error,undefined);
   assert.deepEqual(committed.game.spellSlotsUsed,game.spellSlotsUsed);
   if(decision==='cast')assert.equal(committed.game.pendingSpell,undefined);
   else assert.deepEqual(committed.game.npcHP,game.npcHP);
  }
- const {request}=await run(empty,{...context,engineResolved:['Acid Splash resolved.']});
- for(const field of ['actionId','castCommand','ruling','check','worldEvent'])assert.equal(request.text.format.schema.properties[field].type,'null');
+ // Narrating the resolved spell: whatever else the reply tries to start is left out (the telling only tells).
+ {const {request,result}=await run({...empty,castCommand:'I cast Acid Splash on the keeper',worldEvent:'The keeper flees.'},{...context,engineResolved:['Acid Splash resolved.']});
+  for(const field of ['actionId','castCommand','ruling','check','worldEvent'])assert.equal(result[field],null,field);assert.equal(result.narration,empty.narration);
+  assert.match(requestParts(request).tail,/Narrate the already resolved engine results/);}
  console.log('Passed: pending spells require rulings; cast/deny/clarify preserve cantrip costs; non-casts do not damage; narration cannot repeat effects.');
  if(process.argv.includes('--live')){
   const response=await fetch('http://localhost:8084/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({input,context})});

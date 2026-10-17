@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const {rulesSource}=require('./rules-files.cjs');
 // A tale's people: besides keeper and mara, a written tale names residents who live in its country (two at the
 // starting place, so the opening is never two people alone; others where the tale puts them). They are seated in
@@ -140,8 +141,8 @@ const brief=server.sceneFor({input:'x',context:{npcSocialState:[{id:'n5',name:'C
  const social=[{id:'keeper',name:'Reeve Ormund',present:true},{id:'n20',name:'Brom Ashby',present:true}];
  const out=await server.generate({input:'I greet Brom.',context:{choices:[],story:{foe:'Barrow warden'},npcSocialState:social,conversationParticipants:[{id:'n20',name:'Brom Ashby'}],nearbyNPCs:[{id:'n20',name:'Brom Ashby'}],world:{canIntroduce:true,peopleHere:2}}},{apiKey:'test-only',model:'test-model',fetchImpl:fake({})});
  assert.equal(out.dialogue?.[0]?.speakerId,'n20','a person n20 may speak');
- assert.ok(sent.instructions.includes('metHero')&&sent.instructions.includes('peopleHere')&&sent.instructions.includes('PEOPLE ANYWHERE: places are lived in'),'the Dungeon Master names people when scenes call for them');
- assert.ok(sent.instructions.includes('ERRAND: context.story.errand'),'and keeps an errand tale about its errand');
- assert.match(sent.input,/Named people here: Brom Ashby./,'the plain account of the present names who is here');
+ assert.ok(requestParts(sent).instructions.includes('metHero')&&requestParts(sent).instructions.includes('peopleHere')&&requestParts(sent).instructions.includes('PEOPLE ANYWHERE: places are lived in'),'the Dungeon Master names people when scenes call for them');
+ assert.ok(requestParts(sent).instructions.includes('ERRAND: context.story.errand'),'and keeps an errand tale about its errand');
+ assert.match(JSON.stringify(requestScene(sent).context.now),/Named people here: Brom Ashby./,'the plain account of the present names who is here');
  console.log('Residents: a tale\'s people seated where they live (two at the start, never more than three a place, ties by name), met on reaching their homes (in the Log once), speaking in the opening, kept by the next tale with earlier people numbered after them, shared at the table; Easy to get into\'s errand as a lair; 96 people in all and 4 a place.');
 })().catch(e=>{console.error(e);process.exit(1);});

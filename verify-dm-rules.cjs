@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict');
 const {rulesFor,validateGroundedReply}=require('./dm-rules.cjs');
 const {generate}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const spells=require('./spellCatalog.json');
 const body={input:'Can I use Detect Magic or Burning Hands?',context:{player:{class:'Wizard',level:1},choices:[],spellReference:[{name:'Detect Magic'},{name:'Burning Hands'}]}};
 const rules=rulesFor(body);
@@ -26,10 +27,10 @@ assert.throws(()=>validateGroundedReply({pendingSpell:{engineDamage:true}}, {...
 (async()=>{
  let captured;
  await generate(body,{apiKey:'test-only',model:'test-model',fetchImpl:async(url,options)=>{captured=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...empty,narration:'Detect Magic requires concentration.'})}]}]})};}});
- assert.ok(captured.instructions.includes('Cantrips are level 0'));
- assert.ok(captured.instructions.includes('one spell slot'));
- assert.ok(captured.instructions.includes('natural 20 is not automatic success'));
+ assert.ok(requestParts(captured).instructions.includes('Cantrips are level 0'));
+ assert.ok(requestParts(captured).instructions.includes('one spell slot'));
+ assert.ok(requestParts(captured).instructions.includes('natural 20 is not automatic success'));
  // The spells this turn names are read with the scene (context.rulesReference), after the cached standing rules.
-assert.ok(JSON.parse(captured.input).context.rulesReference.spells[0].description.startsWith(rules.spells[0].description.slice(0,35)));assert.ok(!captured.instructions.includes(rules.spells[0].description.slice(0,35)),'not in the cached instructions');
+assert.ok(requestScene(captured).context.rulesReference.spells[0].description.startsWith(rules.spells[0].description.slice(0,35)));assert.ok(!requestParts(captured).instructions.includes(rules.spells[0].description.slice(0,35)),'not in the cached instructions');
  console.log(`Passed: ${spells.length} exact spell references, availability and level gating, class-feature retrieval, duplicate-action protection, denied-effect protection, engine damage ownership, and API rules injection. Mocked provider; no paid calls.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

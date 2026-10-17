@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const {rulesSource,rulesFiles}=require('./rules-files.cjs');
 // The Dungeon Master remembers each adventure from start to finish (memoryRules.js; the host, 2026-10-13). The story
 // log keeps 400 lines; the chronicle in game.memory keeps every tale and chapter, compressed (never dropped) as it
@@ -148,10 +149,10 @@ assert.ok(block.earlierTales.some(t=>/^Before that, oldest first: The First Road
  const schema=request.text.format.schema;assert.ok(schema.required.includes('remember'),'required, as strict mode wants');
  assert.deepEqual(plain(schema.properties.remember.items.required),['text','about','settles']);assert.equal(schema.properties.remember.items.additionalProperties,false);assert.deepEqual(schema.properties.remember.items.properties.settles.type,['string','null']);
  assert.ok(Object.keys(schema.properties).indexOf('remember')<Object.keys(schema.properties).indexOf('suggestions'),'suggestions stay last');
- assert.ok(JSON.parse(request.input).context.memory,'the model reads the memory');
+ assert.ok(requestScene(request).context.memory,'the model reads the memory');
  // Out of character nothing is remembered; a reply that starts an action keeps its facts for the telling.
- const ooc=await server.generate({...body,context:{...body.context,outOfCharacter:{canRewind:false,lastTurn:null}}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({...reply,remember:[],rewind:false,fault:false})});
- assert.deepEqual(ooc.remember,[]);assert.equal(request.text.format.schema.properties.remember.maxItems,0);
+ const ooc=await server.generate({...body,context:{...body.context,outOfCharacter:{canRewind:false,lastTurn:null}}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({...reply,rewind:false,fault:false})});
+ assert.deepEqual(ooc.remember,[],'a fact written out of character is left out');assert.equal(request.text.format.schema.properties.remember.maxItems,2,'the one schema for every phase');
  const acting=await server.generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({...reply,actionId:ctx.choices[0].id})});assert.deepEqual(acting.remember,[]);
  // ---- 9. A shared table: facts from any member's turn are kept in the shared world ----
  const engine=require('./rules-engine.cjs').rules(),{resolveTurn}=require('./server-turn.cjs');
@@ -174,12 +175,12 @@ assert.ok(block.earlierTales.some(t=>/^Before that, oldest first: The First Road
   const {generateAdventure,tidyStorySoFar}=require('./adventure-generator.cjs'),{journeyStory}=require('./journey-fixtures.cjs'),asked=[];
   const writer=async(url,options)=>{asked.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(journeyStory(1))}]}]})};};
   await generateAdventure({input:'Create the next chapter.',context:{mode:'adventure',introId:'surprise',continuing:{previousTitle:'Tale number 130',newStartBearing:'north'},storySoFar:told,choices:[]}},{apiKey:'k',model:'m',fetchImpl:writer});
-  let sent=JSON.parse(asked.at(-1).input).context.storySoFar;
-  assert.ok(/STORY SO FAR: context\.storySoFar/.test(asked.at(-1).instructions),'the writer is told what it is');
+  let sent=requestScene(asked.at(-1)).context.storySoFar;
+  assert.ok(/STORY SO FAR: context\.storySoFar/.test(requestParts(asked.at(-1)).instructions),'the writer is told what it is');
   assert.equal(JSON.stringify(sent),JSON.stringify(tidyStorySoFar(told)),'and gets it, tidied');assert.equal(sent.tales[0],told.tales[0]);
   assert.ok(Buffer.byteLength(asked.at(-1).input)<20000,'the request stays small: '+Buffer.byteLength(asked.at(-1).input));
   await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',ahead:true,storySoFar:told,choices:[]}},{apiKey:'k',model:'m',fetchImpl:writer});
-  assert.ok(!/STORY SO FAR/.test(asked.at(-1).instructions)&&JSON.parse(asked.at(-1).input).context.storySoFar===undefined,'a tale written ahead (no hero yet) never gets one');
+  assert.ok(!/STORY SO FAR/.test(requestParts(asked.at(-1)).instructions)&&requestScene(asked.at(-1)).context.storySoFar===undefined,'a tale written ahead (no hero yet) never gets one');
   assert.equal(tidyStorySoFar({tales:'not a list'}),null);assert.equal(tidyStorySoFar(['x']),null);
   const rough=tidyStorySoFar({tales:Array.from({length:30},(_,i)=>'Tale '+i+'\u0000 '+'x'.repeat(900))});
   assert.ok(rough.tales.length===16&&rough.tales.every(t=>t.length<=600&&!/\u0000/.test(t)),'anything else is cut to size');}

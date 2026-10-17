@@ -4,6 +4,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // model would read twice or cannot use this phase, small overruns in a reply are repaired instead of refused, test
 // runs leave no trace in the local logs, and stories and heroes can come from a separate (thinking) model.
 const server=require(process.env.QB_DM??'./dm-server.cjs'),{generate,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,contractInstructions}=server;
+const {requestParts,requestScene}=server;
 const {modelOptions,providerTimeout,outputBudget,effortOf}=require('./ai-request.cjs');
 const {generateAdventure}=require(process.env.QB_ADV??'./adventure-generator.cjs');
 const {checkSetup}=require('./check-dm-setup.cjs');
@@ -83,7 +84,7 @@ const largestWorld=[],memorySent=[];
 // The fallen not yet searched reach the model as they are (lootRules.js).
 {const spoils=[{name:'Grey Widow',kind:'creature',what:'Giant spider',lair:true,feature:'A satchel under the webs.'}];assert.deepEqual(sceneFor({...body,context:{...full,spoils}},{}).context.spoils,spoils,'context.spoils survives the trim');}
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
-const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.equal(narrated.choices,undefined,'no choices while telling (an empty list is left out)');assert.equal(narrated.spellReference,undefined);assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
+const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.equal(narrated.choices,undefined,'no choices while telling (an empty list is left out)');assert.deepEqual(narrated.spellReference,quiet.spellReference,'the spells stay while telling, with what lasts the tale, so the parts after them stay cached');assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
 const legacy=sceneFor({input:'x',context:{...r.dmContext(hero,r.newAdventure(hero),hp)}},{}).context;assert.ok(Array.isArray(legacy.travelRoutes),'Without a written story the routes stay');
 assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{context:{now:['No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.']},input:'x'},'A bare context passes through, with what is true now and the player words last (and nothing empty)');
 // ---- Repairs instead of refusals ----
@@ -107,8 +108,8 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  const reply=await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({})});
  assert.equal(reply.narration,'The camp is quiet.');
  assert.deepEqual(request.reasoning,{effort:'none'},'Turns do not think');assert.equal(request.max_output_tokens,3000,'room for a long telling with four spoken lines');
- assert.ok(request.instructions.includes(contractInstructions),'The standing guidance is in the instructions');
- const input=JSON.parse(request.input);assert.equal(input.context.actionContract,undefined);assert.equal(input.input,body.input);assert.ok(Array.isArray(input.context.world.creatureTemplates),'A camp turn may reveal a lair');
+ assert.ok(requestParts(request).instructions.includes(contractInstructions),'The standing guidance is in the instructions');
+ const input=requestScene(request);assert.equal(input.context.actionContract,undefined);assert.equal(input.input,body.input);assert.ok(Array.isArray(input.context.world.creatureTemplates),'A camp turn may reveal a lair');
  await generate(body,{apiKey:'k',model:'gpt-4.1',fetchImpl:fake({})});assert.equal(request.reasoning,undefined,'Models without reasoning are not sent the field');
  await generate(body,{apiKey:'k',model:'gpt-6-luna',reasoning:'low',fetchImpl:fake({})});assert.deepEqual(request.reasoning,{effort:'low'});assert.equal(request.max_output_tokens,9000,'Thinking needs room');
  const place={name:'Drowned Chapel',description:'A sunken chapel, '+long(400),kind:'ruin',bearing:'N',miles:2,travel:true,danger:'risky',feature:null,lair:{template:'wolf',name:'Greymaw',appearance:'A huge grey wolf, '+long(500),ally:null}};
@@ -164,7 +165,7 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  {const errand={title:'Burn the camp',task:'Burn out the reaver camp.',place:'Reaver Camp',reward:'40 gold and the jarl\'s favour'};
   const context={choices:[],stage:'inn',inventory:{gold:10,items:[]},player:{level:1},story:{errand},engineResolved:['Chapter 1 complete: Burn the camp. A letter.','Chapter 2 begins: The Fjord. Find the ships.']};
   const paid=await generate({input:'I tell the jarl the camp is burned out.',context},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'The jarl nods.'})});
-  assert.match(request.instructions,/keeper hands over the promised reward \(40 gold and the jarl's favour\) now/);assert.equal(paid.loot?.gold,40,'the named gold is paid');
+  assert.match(requestParts(request).instructions,/keeper hands over the promised reward \(40 gold and the jarl's favour\) now/);assert.equal(paid.loot?.gold,40,'the named gold is paid');
   const given=await generate({input:'I tell the jarl.',context},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He pays.',loot:{gold:25,items:[{name:'Jarl\'s Ring',kind:'treasure',qty:1,value:50,note:'Gold.',magic:null}],reason:'The promised reward'}})});
   assert.equal(given.loot.gold,25,'the model\'s own reward is kept as given');
   const later=await generate({input:'I tell the jarl.',context:{...context,engineResolved:['Chapter 2 complete: The Fjord.']}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'He nods.'})});assert.equal(later.loot,null,'only the errand\'s own chapter pays it');}

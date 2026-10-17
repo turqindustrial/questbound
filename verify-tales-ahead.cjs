@@ -4,6 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
 // here calls the provider.
 const {revision,generation}=require('./tale-library.cjs');
 const {generate}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-tales-'));
 
 const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',regard:{stance:'wary',reason:'I lost a brother to your kind.'},ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',regard:{stance:'warm',reason:'Travellers bring news.'},ties:{other:'friend',foe:'neutral',note:'n'}}}};
@@ -22,9 +23,9 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await ask({mode:'adventure',introId:'idea',idea:'A haunted lighthouse on a frozen coast'});assert.equal(taken.length,0,'so is the player\'s own idea');
 
  // ---- The story writer: the player's own idea, and tales written before the hero is known ----
- const idea=calls.at(-1);assert.match(idea.instructions,/PLAYER'S IDEA/);assert.match(idea.instructions,/take only its mood/);assert.ok(idea.input.includes('haunted lighthouse'));assert.match(JSON.parse(idea.input).creativeDirection,/own idea: A haunted lighthouse/);
+ const idea=calls.at(-1);assert.match(requestParts(idea).instructions,/PLAYER'S IDEA/);assert.match(requestParts(idea).instructions,/take only its mood/);assert.ok(idea.input.includes('haunted lighthouse'));assert.match(requestScene(idea).creativeDirection,/own idea: A haunted lighthouse/);
  await assert.rejects(ask({mode:'adventure',introId:'idea',idea:'  '}),/Write your idea/);
- const odd=await ask({mode:'adventure',introId:'idea',idea:'A cursed\u0000 bell\n\n tolls   at noon'});assert.ok(JSON.parse(calls.at(-1).input).creativeDirection.endsWith('A cursed bell tolls at noon'),'one clean line');
+ const odd=await ask({mode:'adventure',introId:'idea',idea:'A cursed\u0000 bell\n\n tolls   at noon'});assert.ok(requestScene(calls.at(-1)).creativeDirection.endsWith('A cursed bell tolls at noon'),'one clean line');
  assert.ok(odd.story.npcs.keeper.regard,'a tale for a known hero keeps the people\'s view of their kind');
  // Easy start with a written opening: written fresh, so it begins with orders in hand; Easy to get into and Let fate
  // decide (from a game before the library) are a ready journey, and every journey begins with orders in hand.
@@ -34,31 +35,31 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  const {generateAdventure}=require('./adventure-generator.cjs');
  const intros0=JSON.parse(fs.readFileSync('adventureIntros.json','utf8'));
  const ahead=await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',ahead:true,choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
- assert.match(calls.at(-1).instructions,/WRITTEN AHEAD/);assert.equal(ahead.story.npcs.keeper.regard,undefined,'written ahead, the view of the hero\'s kind is left to the game');
+ assert.match(requestParts(calls.at(-1)).instructions,/WRITTEN AHEAD/);assert.equal(ahead.story.npcs.keeper.regard,undefined,'written ahead, the view of the hero\'s kind is left to the game');
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',continuing:{previousTitle:'Old',newStartBearing:'north'},idea:'my sister comes looking for me',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
- assert.match(JSON.parse(calls.at(-1).input).creativeDirection,/The player wishes: my sister comes looking for me/);
+ assert.match(requestScene(calls.at(-1)).creativeDirection,/The player wishes: my sister comes looking for me/);
  const intros=JSON.parse(fs.readFileSync('adventureIntros.json','utf8')),own=intros.find(i=>i.id==='idea');assert.ok(own&&own.idea&&!own.local&&intros[0].id==='idea'&&intros[1].id==='easy'&&intros[2].id==='surprise','Your own tale first, then Easy to get into, then Let fate decide');
  const easyIntro=intros[1];assert.ok(easyIntro.errand&&easyIntro.openingDialogue&&easyIntro.scale==='saga'&&!easyIntro.local,'Easy to get into is an errand with voices');assert.ok(intros.find(i=>i.id==='surprise').openingDialogue&&own.openingDialogue,'Let fate decide and Your own tale open with voices');
  // ---- The story writer: residents for every tale, an errand for Easy to get into, and a varied opening ----
  const {errandDirections,openingScenes}=(()=>{const src=fs.readFileSync('adventure-generator.cjs','utf8');return vm.runInNewContext(src.match(/const openingScenes=\[[^\]]*\];/)[0]+src.match(/const errandDirections=\[[^\]]*\];/)[0]+'({openingScenes,errandDirections})');})();
  assert.equal(errandDirections.length,12);assert.equal(openingScenes.length,12);
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'easy',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
- const easyCall=calls.at(-1),easySchema=easyCall.text.format.schema,easyInput=JSON.parse(easyCall.input);
+ const easyCall=calls.at(-1),easySchema=easyCall.text.format.schema,easyInput=requestScene(easyCall);
  for(const field of ['residents','errand','openingDialogue'])assert.ok(easySchema.required.includes(field),'an errand tale must have '+field);
- assert.match(easyCall.instructions,/EASY TO GET INTO/);assert.match(easyCall.instructions,/RESIDENTS:/);assert.ok(!easyCall.instructions.includes('Only the two specified NPCs'),'the writer may put more than two people at the start');
+ assert.match(requestParts(easyCall).instructions,/EASY TO GET INTO/);assert.match(requestParts(easyCall).instructions,/RESIDENTS:/);assert.ok(!requestParts(easyCall).instructions.includes('Only the two specified NPCs'),'the writer may put more than two people at the start');
  assert.ok(errandDirections.some(d=>easyInput.creativeDirection.endsWith(d)),'an errand from the list');assert.ok(openingScenes.includes(easyInput.openingScene),'a kind of opening moment');
  assert.deepEqual(easySchema.properties.openingDialogue.items.properties.speakerId.enum.slice(0,3),['keeper','mara','resident1']);assert.equal(easySchema.properties.residents.maxItems,12);
  assert.equal(easySchema.properties.errand.properties.threat.properties.ally.type.join(),'object,null');
  await generateAdventure({input:'Create',context:{mode:'adventure',introId:'surprise',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});
- const fate=calls.at(-1);assert.ok(fate.text.format.schema.required.includes('residents')&&!fate.text.format.schema.required.includes('errand'),'every tale has residents; only Easy to get into has an errand');assert.ok(openingScenes.includes(JSON.parse(fate.input).openingScene));assert.ok(!fate.instructions.includes('EASY TO GET INTO'));
- await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});assert.equal(JSON.parse(calls.at(-1).input).openingScene,undefined,'a written opening keeps its own arrival');
+ const fate=calls.at(-1);assert.ok(fate.text.format.schema.required.includes('residents')&&!fate.text.format.schema.required.includes('errand'),'every tale has residents; only Easy to get into has an errand');assert.ok(openingScenes.includes(requestScene(fate).openingScene));assert.ok(!requestParts(fate).instructions.includes('EASY TO GET INTO'));
+ await generateAdventure({input:'Create',context:{mode:'adventure',introId:'crown',choices:[]}},{apiKey:'k',model:'m',fetchImpl:storyFetch});assert.equal(requestScene(calls.at(-1)).openingScene,undefined,'a written opening keeps its own arrival');
  // ---- Easy start: any opening but the Skirmish asks the writer for the errand, its voices and a direction to match ----
- const easyFor=async context=>{await generateAdventure({input:'Create',context:{mode:'adventure',choices:[],...context}},{apiKey:'k',model:'m',fetchImpl:storyFetch});const call=calls.at(-1);return {schema:call.text.format.schema,instructions:call.instructions,input:JSON.parse(call.input)};};
+ const easyFor=async context=>{await generateAdventure({input:'Create',context:{mode:'adventure',choices:[],...context}},{apiKey:'k',model:'m',fetchImpl:storyFetch});const call=calls.at(-1);return {schema:call.text.format.schema,instructions:requestParts(call).instructions,input:requestScene(call)};};
  for(const [label,context] of [['a written opening',{introId:'crown'}],['an idea of their own',{introId:'idea',idea:'A heist in a city on a sleeping giant'}],['the next tale',{introId:'surprise',continuing:{previousTitle:'Old',newStartBearing:'north'}}],['Let fate decide',{introId:'surprise'}]]){
   const on=await easyFor({...context,easyStart:true});
   for(const field of ['errand','openingDialogue','residents'])assert.ok(on.schema.required.includes(field),label+' with Easy start must have '+field);
-  assert.match(on.instructions,/EASY TO GET INTO/,label+' with Easy start is told how an errand begins');assert.ok(/errand/i.test(on.input.creativeDirection)||errandDirections.some(d=>on.input.creativeDirection.endsWith(d)),label+': the direction sets an errand');
-  const off=await easyFor({...context,easyStart:false});assert.ok(!off.schema.required.includes('errand')&&!off.instructions.includes('EASY TO GET INTO'),label+' without Easy start has no errand');
+  assert.match(requestParts(on).instructions,/EASY TO GET INTO/,label+' with Easy start is told how an errand begins');assert.ok(/errand/i.test(on.input.creativeDirection)||errandDirections.some(d=>on.input.creativeDirection.endsWith(d)),label+': the direction sets an errand');
+  const off=await easyFor({...context,easyStart:false});assert.ok(!off.schema.required.includes('errand')&&!requestParts(off).instructions.includes('EASY TO GET INTO'),label+' without Easy start has no errand');
  }
  {const on=await easyFor({introId:'crown',easyStart:true});assert.ok(on.input.creativeDirection.startsWith(intros0.find(i=>i.id==='crown').setting),'a written opening keeps its own setting');assert.equal(on.input.openingScene,undefined,'and its own arrival');}
  await assert.rejects(easyFor({introId:'hostile',easyStart:true}),/without the AI/,'the Skirmish is never written, easy or not');
@@ -94,7 +95,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
   assert.equal(map({selected:'hostile',continuing:true}),JSON.stringify({introId:'surprise',easyStart:true}),'the next tale is asked for as Let fate decide, easy when on');
   assert.equal(map({selected:'surprise',continuing:true,easyStart:false}),JSON.stringify({introId:'surprise',easyStart:false}));}
  {const saved=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+';({storyPreferences})',{globalThis:{localStorage:{getItem:()=>JSON.stringify({easyStart:false}),setItem(){}}},JSON,Set});assert.equal(saved.storyPreferences().easyStart,false,'a saved choice is read back');}
- const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8');assert.ok(/NARRATOR: context\.storyPreferences\.narrator/.test(dm)&&dm.includes('standingPrompt=instructions+narratorInstructions+')&&dm.includes('instructions:standingPrompt+')&&/never changes the rules/.test(dm)&&dm.includes('phaseInstructions+narratorVoice(body)+note')&&/NARRATOR THIS TURN: Wick the Lamplighter/.test(dm)&&/NARRATOR THIS TURN: Sable the Bard/.test(dm),'the Dungeon Master is told who narrates, in its standing instructions and, concretely, last in each turn');
+ const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8');assert.ok(/NARRATOR: context\.storyPreferences\.narrator/.test(dm)&&dm.includes('standingPrompt=instructions+narratorInstructions+')&&dm.includes('instructions:standingPrompt,')&&/never changes the rules/.test(dm)&&dm.includes('phaseInstructions+note+narratorVoice(body)')&&/NARRATOR THIS TURN: Wick the Lamplighter/.test(dm)&&/NARRATOR THIS TURN: Sable the Bard/.test(dm),'the Dungeon Master is told who narrates, in its standing instructions and, concretely, last in each turn');
  const header=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(header.includes('{teller.name}')&&header.includes('name={teller.icon}'),'the narrator heads the story');
  fs.rmSync(tmp,{recursive:true,force:true});
  console.log("Tales ahead, your own idea and narrators: a ready journey starts at once (the library itself: verify-journeys.cjs), written openings, the next tale and the player's own idea are written fresh, the idea cleaned and kept to Questbound's own world, Easy start on every opening, and three narrators of our own.");

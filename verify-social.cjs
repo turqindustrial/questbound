@@ -85,8 +85,8 @@ assert.deepEqual(social.forgiveness,{weight:'grave',amends:1,needed:2,amendsToGo
  out=await ask('Who are you?',early,{suggestions:'not a list'});
  assert.deepEqual(plain(out.suggestions),[]);
  // Out of character: none at all.
- out=await ask('DM, what was that roll?',{...early,outOfCharacter:{canRewind:false}},{rewind:false,suggestions:[]});
- assert.equal(sent.text.format.schema.properties.suggestions.maxItems,0);assert.deepEqual(plain(out.suggestions),[]);
+ out=await ask('DM, what was that roll?',{...early,outOfCharacter:{canRewind:false}},{rewind:false,suggestions:['I ask her name.']});
+ assert.deepEqual(plain(out.suggestions),[],'any written out of character are left out');
 
  // ---- At a shared table: the count is the world's, the same from either hero, and amends by either one count ----
  const friend=r.readyHero('wizard');

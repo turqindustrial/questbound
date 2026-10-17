@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const {rulesSource}=require('./rules-files.cjs');
 // A clear introduction for every tale (2026-10-11, the host's words: "map out intros with a clear introduction and make
 // sure all adventure beginnings have this rule applied"). However a tale begins (a written opening, Let fate decide,
@@ -73,7 +74,7 @@ assert.equal(server.sceneFor({input:'x',context:JSON.parse(JSON.stringify(later)
   const call=calls[0],schema=call.text.format.schema;
   assert.ok(schema.required.includes('introduction')&&schema.required.includes('openingDialogue'),JSON.stringify(o)+': asked for an introduction and opening voices');
   same(Object.keys(schema.properties.introduction.properties),['you','place','trouble','people','first']);
-  assert.match(call.instructions,/INTRODUCTION: every tale opens with a clear introduction/);assert.match(call.instructions,/two different voices, and give each speaker something of their own/);
+  assert.match(requestParts(call).instructions,/INTRODUCTION: every tale opens with a clear introduction/);assert.match(requestParts(call).instructions,/two different voices, and give each speaker something of their own/);
   same(out.story.introduction,intro);
  }
  await assert.rejects(generateAdventure({input:'x',context:{mode:'adventure',introId:'hostile',choices:[]}},{apiKey:'k',model:'m',fetchImpl}),/starts on your device/);
@@ -82,6 +83,6 @@ assert.equal(server.sceneFor({input:'x',context:JSON.parse(JSON.stringify(later)
  // The Dungeon Master is told how to treat the first move.
  const turnCalls=[];const dm=async(url,options)=>{turnCalls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'You stand in Stillwater Market.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,suggestions:[]})}]}]})};};
  await server.generate({input:'Where am I?',context:{...JSON.parse(JSON.stringify(ctx)),choices:[]}},{apiKey:'test-only',model:'test-model',fetchImpl:dm});
- assert.match(turnCalls[0].instructions,/FIRST TURN: context.openingTurn means this is the player's first move/);assert.ok(JSON.parse(turnCalls[0].input).context.introduction.place===intro.place);
+ assert.match(requestParts(turnCalls[0]).instructions,/FIRST TURN: context.openingTurn means this is the player's first move/);assert.ok(requestScene(turnCalls[0]).context.introduction.place===intro.place);
  console.log('Introductions: every way a tale begins ('+openings.length+' openings with and without Easy start, written ahead, the next tale, and the Skirmish) opens by saying who you are here, where, what is happening, who is in front of you and what you could do first: asked of the story writer, built from the story when missing, shown as the first card and journal lines, and kept to by the Dungeon Master on the first move.');
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -1,4 +1,5 @@
 ﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const hero={name:'Trigger tester',class:'Fighter',species:'Human',level:1,scores:{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
 const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({sceneTrigger,withSceneTrigger,recordedTurn,conversationPeople,conversationTarget,freshStoryGame,validStory,hostileEncounterGame,hostileFoes})',{combatBasics:r.combatBasics});
 const hp={current:12,temp:0},valid=(g,h=hp)=>r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(g)),h,true),hero);
@@ -55,7 +56,7 @@ assert.equal(p.validStory({...story,openingDialogue:[{speakerId:'stranger',text:
  const reply=body=>async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(body)}]}]})};};
  const context={choices:[],conversationParticipants:[{id:'keeper',name:'The keeper'}],sceneTrigger:{id:'return-inn',cue:'The player has just returned.'}};
  const spoken=await generate({input:'You return to the inn.',context},{apiKey:'test',model:'test',fetchImpl:reply({narration:'The keeper looks up.',dialogue:[{speakerId:'keeper',text:'Welcome back.'}],recruitment:[],actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null})});
- assert.equal(spoken.dialogue[0].text,'Welcome back.');assert.ok(sent.instructions.includes('SCENE TRIGGER'));assert.deepEqual(sent.text.format.schema.properties.actionId,{type:'null'});
+ assert.equal(spoken.dialogue[0].text,'Welcome back.');assert.ok(requestParts(sent).instructions.includes('SCENE TRIGGER'));assert.match(requestParts(sent).tail,/SCENE TRIGGER/,'the cue is told after the scene');
  const checked=await generate({input:'I search the camp for tracks.',context:{choices:[],conversationParticipants:[]}},{apiKey:'test',model:'test',fetchImpl:reply({narration:'You search.',dialogue:[],recruitment:[],actionId:null,castCommand:null,ruling:null,worldEvent:null,check:{skill:'Survival',ability:'Wisdom',dc:12,mode:'normal',reason:'Search for tracks',success:'You find tracks.',failure:'The ground is too trampled.',damageCount:0,damageDie:0,damageOn:'none'}})});
  assert.equal(checked.check.damageDie,6,'A no-damage check with die 0 is accepted');
  const {generateAdventure}=require('./adventure-generator.cjs');

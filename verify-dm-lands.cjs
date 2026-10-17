@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const {generate}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const {generateAdventure}=require('./adventure-generator.cjs');
 const {artPrompt,revision}=require('./world-art.cjs');
 // What the Dungeon Master and the story writer are asked for, and how their replies are tidied: new lands with
@@ -17,8 +18,8 @@ const body=(input,extra={})=>({input,context:{choices:[],story,player:{species:'
  const far=await generate(free,{...keys,fetchImpl:success({narration:'Three days under sail.',discovery:{...port,region:{name:'  The Halloway Shore  ',terrain:'hills'}}})});
  assert.deepEqual(far.discovery.region,{name:'The Halloway Shore',terrain:'hills'});assert.equal(far.discovery.miles,140,'Days of travel are allowed into a new land');
  const schema=lastRequest.text.format.schema.properties.discovery;assert.ok(schema.required.includes('region'));assert.deepEqual(schema.properties.region.properties.terrain.enum,['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns']);
- assert.match(lastRequest.instructions,/FAR JOURNEYS:/);assert.match(lastRequest.instructions,/miles up to 300/);
- assert.deepEqual(JSON.parse(lastRequest.input).context.world.region,{name:'The Brinefold',terrain:'coast'},'The Dungeon Master is told which land this is');
+ assert.match(requestParts(lastRequest).instructions,/FAR JOURNEYS:/);assert.match(requestParts(lastRequest).instructions,/miles up to 300/);
+ assert.deepEqual(requestScene(lastRequest).context.world.region,{name:'The Brinefold',terrain:'coast'},'The Dungeon Master is told which land this is');
  const near=await generate(free,{...keys,fetchImpl:success({narration:'You walk.',discovery:{...port,region:null}})});assert.equal(near.discovery.miles,12,'Without a new land, a place is within a day\'s walk');assert.equal(near.discovery.region,null);
  const odd=await generate(free,{...keys,fetchImpl:success({narration:'You walk.',discovery:{...port,region:{name:'Jungle of Sighs',terrain:'jungle'}}})});assert.equal(odd.discovery.region,null,'An unknown terrain is no new land');assert.equal(odd.discovery.miles,12);
  const big=await generate(free,{...keys,fetchImpl:success({narration:'You ride.',discovery:{...port,miles:5000,region:{name:'The Far East',terrain:'desert'}}})});assert.equal(big.discovery.miles,300);
@@ -28,18 +29,18 @@ const body=(input,extra={})=>({input,context:{choices:[],story,player:{species:'
  const met=await generate(meet,{...keys,fetchImpl:success({narration:'She looks you over.',introduce:{...person,gender:'woman',regard:{stance:'wary',reason:'  A tiefling once cheated her of a season\'s fares.  '}}})});
  assert.equal(met.introduce.gender,'woman');assert.deepEqual(met.introduce.regard,{stance:'wary',reason:'A tiefling once cheated her of a season\'s fares.'});
  const intro=lastRequest.text.format.schema.properties.introduce;assert.ok(intro.required.includes('gender')&&intro.required.includes('regard'));assert.deepEqual(intro.properties.regard.properties.stance.enum,['kin','warm','curious','indifferent','wary','scornful']);
- assert.match(lastRequest.instructions,/KINDS OF PEOPLE:/);assert.match(lastRequest.instructions,/a woman never has a beard/);assert.match(lastRequest.instructions,/Two people in the same room should not react to the same hero in the same way/);
+ assert.match(requestParts(lastRequest).instructions,/KINDS OF PEOPLE:/);assert.match(requestParts(lastRequest).instructions,/a woman never has a beard/);assert.match(requestParts(lastRequest).instructions,/Two people in the same room should not react to the same hero in the same way/);
  const loose=await generate(meet,{...keys,fetchImpl:success({narration:'She looks you over.',introduce:{...person,gender:'crone',regard:{stance:'adoring',reason:'x'}}})});
  assert.equal(loose.introduce.gender,'other');assert.equal(loose.introduce.regard,null,'A person is still met when the extras are malformed');assert.equal(loose.introduce.name,'Old Marta Venn');
  const bare=await generate(meet,{...keys,fetchImpl:success({narration:'She looks you over.',introduce:person})});assert.equal(bare.introduce.gender,'other');assert.equal(bare.introduce.regard,null);
  // What is known of each person nearby reaches the model.
  await generate(body('I greet them.',{nearbyNPCs:[{id:'keeper',name:'Ysolde Fenn',regardsYourKind:{stance:'scornful',reason:'Tieflings burned the salt sheds.'}}]}),{...keys,fetchImpl:success({narration:'She does not smile.'})});
- assert.equal(JSON.parse(lastRequest.input).context.nearbyNPCs[0].regardsYourKind.stance,'scornful');
+ assert.equal(requestScene(lastRequest).context.nearbyNPCs[0].regardsYourKind.stance,'scornful');
  // ---- Loot: every item comes with a note ----
  const shop=body('I search the wreck.',{inventory:{gold:20},stage:'wild'});
  const haul=await generate(shop,{...keys,fetchImpl:success({narration:'Under the thwart you find a tin and a ring.',loot:{gold:0,items:[{name:'Tin of pitch',kind:'gear',qty:1,value:0,note:'  Shipwright\'s pitch: seals a leak or a seam.  '},{name:'Silver ring',kind:'treasure',qty:1,value:25,note:'x'.repeat(400)},{name:'Wet rope',kind:'gear',qty:1,value:0}],reason:'Searched the wreck.'}})});
  assert.equal(haul.loot.items[0].note,'Shipwright\'s pitch: seals a leak or a seam.');assert.ok(haul.loot.items[1].note.length<=160);assert.equal(haul.loot.items[2].note,'');
- assert.ok(lastRequest.text.format.schema.properties.loot.properties.items.items.required.includes('note'));assert.match(lastRequest.instructions,/note: one short sentence saying what the thing is/);
+ assert.ok(lastRequest.text.format.schema.properties.loot.properties.items.items.required.includes('note'));assert.match(requestParts(lastRequest).instructions,/note: one short sentence saying what the thing is/);
  // ---- The story writer: a land, a layout, landmarks, and people with gender and regard ----
  const written={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',region:'The Brinefold',terrain:'coast',layout:{bridge:{bearing:'W',miles:1.5},tower:{bearing:'S',miles:.8,from:'inn'}},
   landmarks:[{name:'Tern Ferry',description:'A rope ferry across the estuary.',kind:'water',bearing:'E',miles:2,from:'inn',danger:'safe',feature:'A bell nobody answers.'}],
@@ -53,13 +54,13 @@ const body=(input,extra={})=>({input,context:{choices:[],story,player:{species:'
  assert.deepEqual(s.properties.layout.properties.tower.properties.from.enum,['inn','bridge']);assert.equal(s.properties.landmarks.maxItems,6);assert.ok(!s.properties.landmarks.items.properties.kind.enum.includes('lair'));
  // The long tale: chapters, leads and the lands beyond.
  assert.equal(s.properties.chapters.maxItems,5);assert.deepEqual(s.properties.chapters.items.required,['title','goal','turn']);assert.equal(s.properties.leads.maxItems,4);assert.equal(s.properties.lands.maxItems,2);assert.ok(s.properties.lands.items.required.includes('place'));
- assert.match(request.instructions,/THE LONG TALE:/);assert.match(request.instructions,/played for hours/);assert.match(request.instructions,/journey of days to one of the far lands/);
- const sent=JSON.parse(request.input);assert.equal(sent.selectedOpening.id,'drowned');assert.ok(sent.selectedOpening.journey&&sent.creativeDirection.includes(sent.selectedOpening.stakes),'The writer is given the journey and the stakes');
+ assert.match(requestParts(request).instructions,/THE LONG TALE:/);assert.match(requestParts(request).instructions,/played for hours/);assert.match(requestParts(request).instructions,/journey of days to one of the far lands/);
+ const sent=requestScene(request);assert.equal(sent.selectedOpening.id,'drowned');assert.ok(sent.selectedOpening.journey&&sent.creativeDirection.includes(sent.selectedOpening.stakes),'The writer is given the journey and the stakes');
  for(const id of ['keeper','mara']){const n=s.properties.npcs.properties[id];assert.ok(n.required.includes('gender')&&n.required.includes('regard')&&n.required.includes('ties'));assert.deepEqual(n.properties.gender.enum,['woman','man','other']);}
  for(const id of ['inn','bridge','tower'])assert.ok(s.properties.locations.properties[id].required.includes('kind'));
  const strict=node=>{if(!node||typeof node!=='object')return;if(node.type==='object'){assert.equal(node.additionalProperties,false);assert.deepEqual([...node.required].sort(),Object.keys(node.properties).sort(),'Every property is required (strict schema)');Object.values(node.properties).forEach(strict);}if(node.items)strict(node.items);};strict(s);
- assert.match(request.instructions,/THE LAND:/);assert.match(request.instructions,/rather than a neat triangle/);assert.match(request.instructions,/A woman never has a beard/);assert.match(request.instructions,/species of the hero \(context\.player\.species\)/);
- assert.equal(JSON.parse(request.input).context.player.species,'Tiefling','The writer is told the hero\'s species');
+ assert.match(requestParts(request).instructions,/THE LAND:/);assert.match(requestParts(request).instructions,/rather than a neat triangle/);assert.match(requestParts(request).instructions,/A woman never has a beard/);assert.match(requestParts(request).instructions,/species of the hero \(context\.player\.species\)/);
+ assert.equal(requestScene(request).context.player.species,'Tiefling','The writer is told the hero\'s species');
  // ---- The painter ----
  const prompt=artPrompt({campaignId:'c',kind:'portrait',id:'keeper-w',name:'Thora',description:'A woman. A dwarf smith.',setting:''});
  assert.match(prompt,/no beard, moustache or stubble of any kind, whatever her species \(a dwarf woman has no beard\)/);assert.equal(revision,11);{const dm=require('node:fs').readFileSync('dm-server.cjs','utf8'),literals=[...dm.matchAll(/world-art\.cjs'\)\.revision!==(\d+)/g)].map(m=>Number(m[1]));assert.ok(literals.length>=3&&literals.every(n=>n===revision),'dm-server reloads the painter at its revision, everywhere: '+literals);assert.equal(Number(/people-library\.cjs'\)\.revision!==(\d+)/.exec(dm)?.[1]),require('./people-library.cjs').revision,'dm-server reloads the people library at its revision');}

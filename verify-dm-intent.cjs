@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 // facts it is shown, which replies get a second look, and when the game acts itself.
 const {situation,secondLook,settled,namedJourneys}=require('./dm-intent.cjs');
 const {generate,sceneFor,turnEffort}=require('./dm-server.cjs');
+const {requestParts,requestScene}=require('./dm-server.cjs');
 const places=[{id:'inn',name:'Caravan Camp'},{id:'bridge',name:'Overgrown Roadside'},{id:'tower',name:'Lookout Rock'},{id:'p1',name:'Tern Ferry'},{id:'p2',name:'Old Ferry Road'}];
 const base={stage:'inn',enemyHP:16,foeFate:null,story:{foe:'Bandit Cutthroat'},world:{current:{id:'inn',name:'Caravan Camp'},knownPlaces:places,canDiscover:true},
  choices:[{id:'travel-bridge',label:'Travel to Overgrown Roadside'},{id:'travel-tower',label:'Travel to Lookout Rock'},{id:'travel-p1',label:'Travel to Tern Ferry'},{id:'long-rest',label:'Rest'},{id:'short-rest',label:'Short rest'},{id:'potion',label:'Drink a healing draught'}]};
@@ -78,12 +79,12 @@ const turn=async(input,replies,context=base)=>{const s=scripted(replies);const r
 (async()=>{
  // Acted first time: one request.
  let r=await turn('I head for the lookout.',[{...quiet,actionId:'travel-tower',narration:'You climb toward the rock.'}]);
- assert.equal(r.calls.length,1);assert.equal(r.reply.actionId,'travel-tower');assert.ok(!r.calls[0].instructions.includes('LOOK AGAIN'));
- assert.ok(JSON.parse(r.calls[0].input).context.now[0]==='The player is at Caravan Camp.');
+ assert.equal(r.calls.length,1);assert.equal(r.reply.actionId,'travel-tower');assert.ok(!requestParts(r.calls[0]).instructions.includes('LOOK AGAIN'));
+ assert.ok(requestScene(r.calls[0]).context.now[0]==='The player is at Caravan Camp.');
  // Refused, then acted when asked again: the second reply is the one that counts.
  r=await turn('I head for the lookout.',[{...quiet,narration:'The ambush is still underway; you cannot leave.'},{...quiet,actionId:'travel-tower',narration:'You climb toward the rock.'}]);
- assert.equal(r.calls.length,2);assert.ok(r.calls[1].instructions.includes('LOOK AGAIN')&&r.calls[1].instructions.includes('travel-tower'));assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You climb toward the rock.');
- assert.ok(r.calls[1].instructions.startsWith(r.calls[0].instructions),'the note follows the standing instructions, which stay cached');
+ assert.equal(r.calls.length,2);assert.ok(requestParts(r.calls[1]).instructions.includes('LOOK AGAIN')&&requestParts(r.calls[1]).instructions.includes('travel-tower'));assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You climb toward the rock.');
+ assert.ok(requestParts(r.calls[1]).instructions.startsWith(requestParts(r.calls[0]).instructions),'the note follows the standing instructions, which stay cached');
  // Refused twice, and the request is unmistakable: the game sets out itself.
  r=await turn('I head for the lookout.',[{...quiet,narration:'You should wait for the captain.'}]);
  assert.equal(r.calls.length,2);assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You set out for Lookout Rock.');assert.deepEqual(r.reply.dialogue,[]);
@@ -103,7 +104,7 @@ const turn=async(input,replies,context=base)=>{const s=scripted(replies);const r
  // A reply that cannot be used is asked for again, with the reason, up to twice; then the usable part of the last
  // reply is told (the telling, never the unknown action) instead of failing the turn.
  r=await turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'},{...quiet,narration:'Steel sings on the whetstone.'}]);
- assert.equal(r.calls.length,2);assert.ok(r.calls[1].instructions.includes('could not be used'));assert.equal(r.reply.narration,'Steel sings on the whetstone.');
+ assert.equal(r.calls.length,2);assert.ok(requestParts(r.calls[1]).instructions.includes('could not be used'));assert.equal(r.reply.narration,'Steel sings on the whetstone.');
  r=await turn('I sharpen my mace.',[{...quiet,actionId:'invent-gold'}]);
  assert.equal(r.calls.length,3,'two quiet attempts after the first');assert.equal(r.reply.actionId,null,'the unknown action is never applied');assert.equal(r.reply.narration,'The camp is quiet.');
  // A momentary rate limit at the provider is waited out; no credit is reported at once.
