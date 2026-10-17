@@ -18,7 +18,7 @@ import {heroSpecies} from './characterRules';
 // Experience as the screen shows it ("1,240/2,700"); xp is experienceView(game,hero) from experienceRules.js.
 const xpShort=n=>String(Math.round(n??0)).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 export const xpText=xp=>xp&&!xp.max?'XP '+xpShort(xp.xp)+'/'+xpShort(xp.next):'';
-export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLevelUp,xp=null,feedback={}}){
+export default function GameHud({hero,game=null,health,maxHp,wide,onNavigate,levelUp,onLevelUp,xp=null,feedback={}}){
  const [menu,setMenu]=useState(false),[notes,setNotes]=useState(false),[request,setRequest]=useState(null),shown=useShownHp();
  // A Report chip or the Dungeon Master's admitted fault opens this sheet with the problem attached.
  useFeedbackRequests(next=>{setMenu(false);setRequest(next??{});setNotes(true);});
@@ -38,7 +38,7 @@ export default function GameHud({hero,health,maxHp,wide,onNavigate,levelUp,onLev
  return <View dataSet={{qb:'hud'}} style={[s.bar,!wide&&s.barCompact,short&&{paddingVertical:4}]}>
   {wordmark&&<View style={s.brand}><Text dataSet={{qb:'title'}} style={s.wordmark}>Questbound</Text><View style={s.divider}/></View>}
   <Pressable accessibilityRole="button" accessibilityLabel={'Open '+hero.name+"'s character sheet"} onPress={()=>go('Character Sheet')} style={s.identity}>
-   <View dataSet={{qb:low?'low-ring':undefined,hit}}><HeroPortrait hero={hero} size={wide&&!short?44:34} level={hero.level}/></View>
+   <View dataSet={{qb:low?'low-ring':undefined,hit}}><HeroPortrait hero={hero} game={game} size={wide&&!short?44:34} level={hero.level}/></View>
    <View style={[s.hero,!wide&&{flex:1}]}>
     <View style={s.heroTop}><Text numberOfLines={1} style={[s.name,!wide&&{fontSize:15}]}>{hero.name}</Text>{(wide||width>=400)&&<Text numberOfLines={1} style={s.meta}>{roomy?'Level '+hero.level+' '+hero.class+(xp&&!xp.max?' · '+xpText(xp):''):'Lv '+hero.level+' '+hero.class}</Text>}</View>
     <View style={s.hpRow}>

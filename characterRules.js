@@ -118,8 +118,23 @@ export function buildError(form) {
   if(form.advancements !== undefined && (!Array.isArray(form.advancements) || form.advancements.some((a,i,all)=>!advancementLevels(form.class).includes(a.level) || a.level>(form.level??1) || all.findIndex(b=>b.level===a.level)!==i || !Array.isArray(a.abilities) || a.abilities.length!==2 || a.abilities.some(v=>!abilities.includes(v))))) return 'Check your level-up ability choices.';
   if(form.devScores !== undefined && !validDevScores(form.devScores)) return 'Developer ability scores must be whole numbers from 1 to 20.';
   if(form.devLevel !== undefined && !validLevel(form.devLevel)) return 'The developer level must be between 1 and 20.';
+  if(!validPortraitChoice(form.portrait)) return 'Choose a ready-made face or your own painting for your portrait.';
   if(Object.values(finalScores(form)).some(score=>score>20)) return 'Ability improvements cannot raise a score above 20.';
   return '';
+}
+// The hero's portrait (2026-10-17, the host: "Free hero portraits by default: offer each new hero a matching library
+// face right away, with an optional 'paint my own'"): none (a hero from before, or one whose face the server keeps:
+// the hero's own painting if one was made, else a ready-made face chosen to fit them), a face from the host's people
+// library ({library:'np123'}), or the hero's own painting ({painted:<the look it was painted for>}: worldArtRules.js
+// heroPaintingChoice, so a later change of words never paints again by itself).
+export function validPortraitChoice(value) {
+  if (value === undefined) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== 1) return false;
+  if (keys[0] === 'library') return typeof value.library === 'string' && /^np\d{3}$/.test(value.library);
+  if (keys[0] === 'painted') return typeof value.painted === 'string' && /^[0-9a-z]{1,13}(?:-w)?$/.test(value.painted);
+  return false;
 }
 export function finalScores(form) {
   const later = name => (form.advancements??[]).filter(a=>a.level>(form.devLevel??20)).reduce((sum,a)=>sum+a.abilities.filter(v=>v===name).length,0);

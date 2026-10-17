@@ -69,7 +69,7 @@ export default function Inventory({hero,game,onWield,onAttune,onShield}){
   <View dataSet={{qb:'plate'}} style={s.panel}>
    <View style={s.labelRow}><Icon name="armor" size={14} color={colors.goldMid}/><Text style={s.label}>Equipment</Text></View>
    <View style={s.doll}>
-    <HeroPortrait hero={hero} size={84} level={hero.level}/>
+    <HeroPortrait hero={hero} game={game} size={84} level={hero.level}/>
     <View style={{flex:1,minWidth:0}}>
      <Text numberOfLines={1} style={s.heroName}>{hero.name}</Text>
      <Text numberOfLines={1} style={s.heroLine}>{heroSpecies(hero)} {hero.class}</Text>

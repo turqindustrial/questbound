@@ -49,7 +49,14 @@ function upgradedText(text){
 }
 // Whether two heroes kept as text are the same hero: equal as they are, or once both are upgraded (one save may hold
 // the hero from before an upgrade and another from after, as when a load was cut short between the two writes).
-export const sameHeroText=(a,b)=>typeof a==='string'&&typeof b==='string'&&(a===b||upgradedText(a)===upgradedText(b));
+// The portrait is left out of that comparison: a new face is saved on the hero first and on the adventure after it,
+// and a load cut short between the two writes must still find the adventure (characterRules validPortraitChoice).
+function withoutPortraitText(text){
+ let hero;try{hero=JSON.parse(upgradedText(text));}catch{return text;}
+ if(!hero||typeof hero!=='object'||!Object.hasOwn(hero,'portrait'))return upgradedText(text);
+ const {portrait,...rest}=hero;return JSON.stringify(rest);
+}
+export const sameHeroText=(a,b)=>typeof a==='string'&&typeof b==='string'&&(a===b||upgradedText(a)===upgradedText(b)||withoutPortraitText(a)===withoutPortraitText(b));
 // Format 0 → 1 for the game itself (see above). Pure: the same game in gives the same game out.
 function gameToVersion1(game,hero){
  if(!game||typeof game!=='object')return game;

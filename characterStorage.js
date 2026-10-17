@@ -1,7 +1,7 @@
 import {validPlannedSubclass} from './subclassOptions';
 import {spellSelectionError} from './spellOptions';
 import { validEquipment } from './equipmentRules';
-import { buildError, finalScores, backgrounds } from './characterRules';
+import { buildError, finalScores, backgrounds, validPortraitChoice } from './characterRules';
 import AsyncStorage from './playerStorage';
 import {upgradeCharacter} from './saveMigrations';
 
@@ -12,6 +12,8 @@ export function isValidCharacter(value) {
   if (value?.equipment !== undefined && !validEquipment(value)) return false;
   // The save format (saveVersion.js): none on a hero from before formats were numbered; a later build's number is
   // accepted too, so a hero survives the game being rolled back.
+  // The portrait (characterRules validPortraitChoice): a hero from before has none.
+  if (value && !validPortraitChoice(value.portrait)) return false;
   if (value?.saveVersion !== undefined && !(Number.isInteger(value.saveVersion) && value.saveVersion >= 1 && value.saveVersion <= 99)) return false;
   if (value?.schemaVersion === 2 && (buildError(value) || value.rulesVersion !== '2024' || value.originFeat !== backgrounds[value.background]?.feat || JSON.stringify(value.scores) !== JSON.stringify(finalScores(value)))) return false;
   return !!value && ['name', 'race', 'class'].every(key => typeof value[key] === 'string' && value[key].trim().length > 0 && value[key].length <= 60)
