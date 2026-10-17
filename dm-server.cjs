@@ -132,7 +132,7 @@ function sceneFor(body,{canDiscover=false,canAmbush=false}={}){
 // foe and how the creatures stand, the people here, a short memory and nothing of far-away lands; outside one the
 // far-away lists are shorter (anything the player names is kept); what two lists both tell is told once. Only what the
 // model reads changes: every check on the reply still sees the whole context.
-const leanLimits={morePlaces:12,farLandsWithPlaces:5,peopleElsewhere:12,journalInFight:2,taleLinesInFight:2};
+const leanLimits={morePlaces:12,farLands:10,farLandsWithPlaces:5,peopleElsewhere:12,journalInFight:2,taleLinesInFight:2};
 const fightingNow=c=>c.stage==='combat'||!!c.npcCombat?.active||!!c.dying;
 // Whether the player's words name a place or person given as "Name (…)" or "Name, …".
 const namedIn=(input,text)=>{const n=String(text??'').split(/ \(|, /)[0].trim().toLowerCase().replace(/^the /,'');return n.length>=3&&String(input??'').toLowerCase().includes(n);};
@@ -151,7 +151,10 @@ function leaner(scene,body){
    for(const k of ['morePlaces','morePlacesNotListed','farLands','regions','landsRemembered','placesLeft','peopleMet'])delete w[k];
   }else{
    if(Array.isArray(w.morePlaces)&&w.morePlaces.length>leanLimits.morePlaces){const kept=keepNamed(w.morePlaces,leanLimits.morePlaces);w.morePlacesNotListed=(Number(w.morePlacesNotListed)||0)+w.morePlaces.length-kept.length;w.morePlaces=kept;}
-   if(Array.isArray(w.farLands))w.farLands=w.farLands.map((l,i)=>!l||typeof l!=='object'||!Array.isArray(l.places)||i<leanLimits.farLandsWithPlaces||namedIn(input,l.name)||l.places.some(p=>namedIn(input,p))?l:{name:l.name,...(l.road?{road:l.road}:{}),placesKnown:l.places.length});
+   // Other lands: the nearest ten with their roads (the nearest five with their places by name); the rest are named in
+   // world.regions, and any land or place the player names is kept in full.
+   if(Array.isArray(w.farLands)){const named=l=>!!l&&typeof l==='object'&&(namedIn(input,l.name)||(Array.isArray(l.places)&&l.places.some(p=>namedIn(input,p))));
+    w.farLands=w.farLands.filter((l,i)=>i<leanLimits.farLands||named(l)).map((l,i)=>!l||typeof l!=='object'||!Array.isArray(l.places)||i<leanLimits.farLandsWithPlaces||named(l)?l:{name:l.name,...(l.road?{road:l.road}:{}),placesKnown:l.places.length});}
   }
   scene.world=w;
  }
@@ -176,6 +179,11 @@ function leaner(scene,body){
  // Hit points are told in npcHP (with the turn's other figures, last), not again among the standings.
  const hp=scene.npcHP&&typeof scene.npcHP==='object'?scene.npcHP:{};
  if(Array.isArray(scene.npcSocialState))scene.npcSocialState=scene.npcSocialState.map(n=>{if(!n||typeof n!=='object')return n;const out={...n};if(out.response==='No hostile response recorded.')delete out.response;if(out.id in hp&&out.hp===hp[out.id])delete out.hp;return out;});
+ // Hit points of people who are not here are not needed (the checks on the reply still see them all).
+ {const here=new Set((Array.isArray(scene.npcSocialState)?scene.npcSocialState:[]).filter(n=>n&&typeof n==='object'&&n.present!==false).map(n=>n.id));
+  if(scene.npcHP&&typeof scene.npcHP==='object')scene.npcHP=Object.fromEntries(Object.entries(scene.npcHP).filter(([id])=>here.has(id)||scene.followers?.[id]));}
+ // Which places were visited is told with each place (world.knownPlaces, morePlaces), not again as a list of ids.
+ if(scene.world&&scene.map&&typeof scene.map==='object'&&Array.isArray(scene.map.visited)){const {visited,...rest}=scene.map;scene.map=rest;}
  if(Array.isArray(scene.conversationParticipants))scene.conversationParticipants=scene.conversationParticipants.map(n=>n&&typeof n==='object'&&social.has(n.id)?{id:n.id,name:n.name}:n);
  // A note in brackets that several choices share (how a grapple is saved against, what lies beyond the map) is given once.
  if(Array.isArray(scene.choices)){const seen=new Set();scene.choices=scene.choices.map(ch=>{if(!ch||typeof ch.label!=='string')return ch;const m=/ (\([^()]{12,}\))$/.exec(ch.label);if(!m)return ch;if(seen.has(m[1]))return {...ch,label:ch.label.slice(0,m.index)};seen.add(m[1]);return ch;});}
@@ -1041,4 +1049,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={hostJobOf,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={standingPrompt,heroPrompt,replySchemaFor,cacheKeyFor,promptLayout,hostJobOf,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

@@ -45,6 +45,12 @@ else{
  const guests=usage.filter(u=>u.guest),guestCost=guests.reduce((n,u)=>n+costOf(u),0);
  if(guests.length)console.log('Guests: '+guests.length+' requests from '+new Set(guests.map(u=>u.guest)).size+' browser(s), about '+money(guestCost)+'.');
  const avg=usage.filter(u=>u.mode==='turn');if(avg.length)console.log('A game turn request averages '+Math.round(avg.reduce((a,u)=>a+u.input,0)/avg.length)+' input tokens, of which '+Math.round(avg.reduce((a,u)=>a+u.cached,0)/avg.length)+' cached, and '+Math.round(avg.reduce((a,u)=>a+u.output,0)/avg.length)+' output tokens.');
+ // The cache (dm-server.cjs, 2026-10-17): how much of each turn's input the provider reused, and what a turn costs, for
+ // turns sent in the cache order (layout 2 in the usage log) and for those from before, so the effect shows after a
+ // deploy. The goal is about 85% cached.
+ {const share=list=>{const input=list.reduce((a,u)=>a+u.input,0),cached=list.reduce((a,u)=>a+u.cached,0),p=prices[list[0]?.model];return {n:list.length,input:Math.round(input/Math.max(1,list.length)),pct:Math.round(100*cached/Math.max(1,input)),cost:p?list.reduce((a,u)=>a+costOf(u),0)/list.length:null};};
+  const line=(label,list)=>{if(!list.length)return;const c=share(list);console.log('  '+label+': '+c.n+' turn requests, '+c.input+' input tokens each on average, '+c.pct+'% of them cached'+(c.cost!==null?', about $'+c.cost.toFixed(5)+' a request':'')+'.');};
+  if(avg.length){console.log('Cache (goal: about 85% of turn input cached):');line('in the cache order',avg.filter(u=>u.layout>=2));line('before it',avg.filter(u=>!(u.layout>=2)));}}
 }
 // The host's ceilings (spending.cjs): how close today and the month are, and whether guests are paused.
 {const s=createSpending({dir,alerts:{raise:()=>false}}).summary(),w=standing(s);
