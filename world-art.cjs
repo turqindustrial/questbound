@@ -8,10 +8,47 @@ const placeLibraryModule=require('./place-library.cjs');
 // with `pool`) is shown with their ready portrait, free.
 delete require.cache[require.resolve('./people-library.cjs')];
 const peopleLibraryModule=require('./people-library.cjs');
+// Creatures of the world's own kinds (2026-10-16, to save the host's credits): a creature built from one of the
+// game's templates (encounterRules.js templateKeys: the Skirmish's foe, a lair's or an ambush's creature) is painted
+// once for the whole game, under this campaign, and every tale and player after that is shown the same picture free.
+// The picture is the template's own look (a copy of hostileEncounter.js hostileFoes, which verify-world-art.cjs
+// checks), never a player's words, so nobody can paint something else into it; a Skirmish painting made before is
+// taken over at no cost. A bandit is a person with a look of their own: only the template's own Bandit Cutthroat is
+// shared, and a named bandit (or a gang) keeps a painting of their own. Creatures written for one tale (its main foe)
+// keep their own painting, unless the foe is a person (they then get a look-alike from the people library).
+const creatureCampaign='questbound-creatures-v1';
+const creatureTemplates={
+ bandit:{name:'Bandit Cutthroat',look:'A lean human bandit in a patched leather jerkin and a mud-stained hood, a notched scimitar in one hand and a knife in the other. A scarf covers the lower face; a crude tattoo of a crow marks one wrist.'},
+ wolf:{name:'Starving Dire Wolf',look:'A huge grey-black wolf, ribs showing through matted fur, yellow eyes and a torn left ear. Its muzzle is scarred and its hackles stand high.'},
+ goblin:{name:'Goblin Raider',look:'A wiry green-grey goblin with oversized ears, a jagged grin and a helmet made from a dented cooking pot. It carries a chipped short blade and a rope belt hung with stolen trinkets.'},
+ skeleton:{name:'Restless Skeleton',look:'A yellowed human skeleton in rusted mail scraps, a cracked round shield strapped to one arm and a corroded shortsword in hand. Faint blue light flickers in its eye sockets.'},
+ boar:{name:'Enraged Boar',look:'A massive bristle-backed boar with curved, chipped tusks, a torn ear and a broken arrow shaft lodged in its flank. It paws furrows into the earth.'},
+ spider:{name:'Giant Cave Spider',look:'A spider the size of a large dog, with glossy black legs banded in rust red, eight clustered amber eyes and dripping fangs. Web strands trail from its abdomen.'},
+ zombies:{name:'Rotting Zombie',look:'A shambling corpse in the rags of a farmhand’s smock, grey skin split and sagging, one eye clouded white. Its jaw hangs loose and dirt cakes its reaching hands.'},
+ orc:{name:'Orc Marauder',look:'A broad-shouldered grey-green orc with a shaved scalp, jutting lower tusks and a scarred lip, wearing scavenged ring mail and a wolf-pelt mantle. It swings a heavy notched greataxe.'},
+ wolves:{name:'Grey Wolf',look:'A lean grey timber wolf with a pale chest, amber eyes and a ridge of raised fur along its back. Its lips pull back from long yellowed fangs.'}
+};
+const templateSubject=template=>Object.hasOwn(creatureTemplates,template)?{campaignId:creatureCampaign,kind:'creature',id:template,name:creatureTemplates[template].name,description:'A creature: '+creatureTemplates[template].name+'. '+creatureTemplates[template].look,setting:'An original fantasy wilderness.'}:null;
+// Whether this creature is shown with its template's shared picture.
+const sharedTemplate=subject=>subject.kind==='creature'&&subject.template&&subject.campaignId!==creatureCampaign&&(subject.template!=='bandit'||String(subject.name).trim().toLowerCase()===creatureTemplates.bandit.name.toLowerCase())?subject.template:null;
+// What a person's portrait is matched on in the people library (people-library.cjs lookAlike): only known values,
+// never part of the art key. A creature carries them only when it is a person (a tale's foe of a known species).
+function personMatchFields(value){
+ if(!['portrait','creature'].includes(value.kind))return {};
+ const fields={};
+ if(typeof value.species==='string'&&value.species.trim()){const s=peopleLibraryModule.speciesOf(value.species.slice(0,80));fields.species=s??'unknown';}
+ if(peopleLibraryModule.genderList.includes(value.gender))fields.gender=value.gender;
+ if(peopleLibraryModule.classList.includes(value.trained))fields.trained=value.trained;
+ if(typeof value.role==='string'&&value.role.trim())fields.role=value.role.replace(/\s+/g,' ').trim().slice(0,200);
+ if(Array.isArray(value.avoid)){const avoid=[...new Set(value.avoid.filter(id=>peopleLibraryModule.poolIdPattern.test(String(id))))].slice(0,120);if(avoid.length)fields.avoid=avoid;}
+ if(typeof value.related==='string'&&value.related.trim().length&&value.related.length<=120)fields.related=value.related;
+ if(value.kind==='creature'&&Object.hasOwn(creatureTemplates,value.template))fields.template=value.template;
+ return fields;
+}
 function validateSubject(value){
  const text=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
  if(!value||!['portrait','landscape','creature'].includes(value.kind)||!text(value.campaignId,120)||!text(value.id,100)||!text(value.name,100)||!text(value.description,1800)||typeof value.setting!=='string'||value.setting.length>800)throw Error('The illustration needs a valid character or location description.');
- return {campaignId:value.campaignId,id:value.id,kind:value.kind,name:value.name,description:value.description,setting:value.setting,...placeMatchFields(value),...(value.kind==='portrait'&&peopleLibraryModule.poolIdPattern.test(String(value.pool))?{pool:value.pool}:{})};
+ return {campaignId:value.campaignId,id:value.id,kind:value.kind,name:value.name,description:value.description,setting:value.setting,...placeMatchFields(value),...personMatchFields(value),...(value.kind==='portrait'&&peopleLibraryModule.poolIdPattern.test(String(value.pool))?{pool:value.pool}:{})};
 }
 // A landscape may say what kind of place it is and what land it lies in (worldArtRules.js), so the library can match
 // it; anything else is left out. Neither changes the art key.
@@ -31,7 +68,7 @@ function artPrompt(subject){
 function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-art'),fetchImpl=fetch,imageModel=process.env.QUESTBOUND_IMAGE_MODEL||DEFAULT_IMAGE_MODEL,concurrency=Number(process.env.QUESTBOUND_ART_CONCURRENCY)||2,libraryDirectory=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-place-art'),placeLibrary=null,peopleDirectory=path.join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-people'),peopleLibrary=null}={}){
  const jobs=new Map(),queue=[];let running=0;
  const places=placeLibrary??placeLibraryModule.createPlaceLibrary({directory:libraryDirectory,picksDirectory:path.join(directory,'place-picks')});
- const people=peopleLibrary??peopleLibraryModule.createPeopleLibrary({directory:peopleDirectory});
+ const people=peopleLibrary??peopleLibraryModule.createPeopleLibrary({directory:peopleDirectory,picksDirectory:path.join(directory,'people-picks')});
  // Finished paintings are kept in memory for quick answers, but only the most recent few hundred (they are on disk).
  const trim=()=>{if(jobs.size<=300)return;for(const [key,job] of jobs){if(jobs.size<=250)break;if(job.status==='ready'||job.status==='failed')jobs.delete(key);}};
  const publicJob=job=>job.status==='ready'?{status:'ready',key:job.key,dataUrl:job.dataUrl}:job.status==='failed'?{status:'failed',key:job.key,error:job.error}:{status:'pending',key:job.key};
@@ -61,9 +98,21 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
  // mayPaint says whether a new painting may be made for whoever asked (the host's daily allowance for guests);
  // paintings already made are always shown.
  // `host`: the request comes from the host's own PC (no guest label); only the host paints the people library itself.
- async function request(value,{apiKey,model,retry=false,safety=null,mayPaint=null,onPainted=null,host=false}={}){
-  const subject=validateSubject(value),key=artKey(subject);
+ async function request(value,options={}){
+  const {apiKey,model,retry=false,safety=null,mayPaint=null,onPainted=null,host=false}=options;
+  let subject=validateSubject(value);
+  // The shared creatures are painted only from their templates' own looks, whatever a request says.
+  if(subject.campaignId===creatureCampaign){subject=templateSubject(subject.id);if(!subject)throw Error('The illustration needs a valid character or location description.');}
+  const key=artKey(subject);
   const ready=await libraryLandscape(subject,key)??await libraryPortrait(subject,key);if(ready)return ready;
+  // Nothing painted for this subject yet: a creature of a template is shown with its template's shared picture (painted
+  // once for everyone), and a person with the face of a look-alike from the people library (free).
+  if(!await painted(key)){
+   const template=sharedTemplate(subject);
+   if(template)return {...await request(templateSubject(template),options),key};
+   if(subject.campaignId===creatureCampaign&&await adoptSkirmishPainting(subject,key))return request(subject,options);
+   const alike=await lookAlikePortrait(subject,key);if(alike)return alike;
+  }
   let job=jobs.get(key);
   if(job){
    if(job.status!=='failed'||!retry)return publicJob(job);
@@ -95,7 +144,27 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
   if(subject.kind!=='portrait'||!subject.pool)return null;
   const job=jobs.get(key);if(job&&job.status!=='failed')return null;
   try{await fs.access(path.join(directory,key+'.jpg'));return null;}catch{}
-  try{const dataUrl=await people.portrait(subject.pool);return dataUrl?{status:'ready',key,dataUrl,library:subject.pool}:null;}catch{return null;}
+  try{const dataUrl=await people.portrait(subject.pool);if(!dataUrl)return null;try{await people.notePool?.(subject.campaignId,subject.id,subject.pool);}catch{}return {status:'ready',key,dataUrl,library:subject.pool};}catch{return null;}
+ }
+ // Whether this subject has a painting of its own (on disk, or being painted).
+ async function painted(key){
+  const job=jobs.get(key);if(job&&job.status!=='failed')return true;
+  try{await fs.access(path.join(directory,key+'.jpg'));return true;}catch{return false;}
+ }
+ // Anyone who is not a player's hero, not from the library and not painted yet is shown with a look-alike's portrait
+ // from the people library (people-library.cjs lookAlike): no painting, no usage. Their face is kept for the tale.
+ async function lookAlikePortrait(subject,key){
+  if(!['portrait','creature'].includes(subject.kind)||subject.pool)return null;
+  const campaign=String(subject.campaignId);
+  if(/^hero-/.test(campaign)||campaign.startsWith(peopleLibraryModule.peopleCampaign)||campaign===creatureCampaign||!placeLibraryModule.libraryEligible({kind:'landscape',campaignId:campaign}))return null;
+  try{return await people.lookAlike?.(subject,key)??null;}catch{return null;}
+ }
+ // A template's picture painted for the Skirmish before creatures were shared is taken over, at no cost.
+ async function adoptSkirmishPainting(subject,key){
+  const from=artKey({campaignId:'hostile-encounter-'+subject.id,kind:'creature',id:'main-foe'});
+  try{await fs.mkdir(directory,{recursive:true});await fs.copyFile(path.join(directory,from+'.jpg'),path.join(directory,key+'.jpg'),require('node:fs').constants.COPYFILE_EXCL);}catch{return false;}
+  try{await fs.writeFile(path.join(directory,key+'.json'),JSON.stringify({subject,copiedFrom:from,createdAt:new Date().toISOString()},null,2));}catch{}
+  return true;
  }
  // Whether a landscape can be shown from the library without painting (a ready journey's card uses it for its cover,
  // which then costs nothing). The library is read lazily; the first ask starts that read.
@@ -105,4 +174,4 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
  return {request,readyMade,size:()=>jobs.size,places,people};
 }
 const artStore=createArtStore();
-module.exports={revision:8,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL};
+module.exports={revision:9,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL,creatureCampaign,creatureTemplates,templateSubject};

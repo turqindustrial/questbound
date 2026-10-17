@@ -30,15 +30,23 @@ const artCampaign=(game,own)=>own&&game.story?.artId?game.story.artId:game.story
 const coreArtPlaces=['inn','bridge','tower'];
 // A resident's portrait in a ready journey goes by their name, not their seat (n1…), which differs from copy to copy.
 const residentArtId=(game,id,person)=>game.story?.artId&&person.resident?'resident-'+String(person.name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60):id;
+// What the painter needs to show someone with the face of a look-alike from the host's people library (people-library.cjs,
+// world-art.cjs): their species, gender, training and calling, the library people already in this game (avoid: nobody
+// else gets their face) and the tale's other art campaign (a ready journey's own, or this copy's). Never part of the art key.
+const poolsInGame=game=>[...new Set([...Object.values(game.people??{}),...Object.values(game.story?.npcs??{})].map(p=>p?.pool).filter(p=>/^np\d{3}$/.test(String(p))))];
+function lookAlikeFields(game,campaignId,{species,gender,trained,role}){
+ const avoid=poolsInGame(game).slice(0,120),artId=game.story?.artId,related=artId?(campaignId===artId?game.story.id:artId):null;
+ return {...(species?{species:String(species).slice(0,80)}:{}),...(gender?{gender}:{}),...(trained?{trained}:{}),...(role?{role:String(role).slice(0,200)}:{}),...(avoid.length?{avoid}:{}),...(related&&related!==campaignId?{related}:{})};
+}
 export function npcArtSubject(game,id){
  const person=!game.story?.npcs?.[id]&&game.people?.[id];
  // Someone met while exploring is painted from how the Dungeon Master described them when they were met; someone from
  // the host's library of ready-made people (pool) is shown with their ready portrait instead (world-art.cjs), painted
  // as before only if that portrait is missing.
- if(person){const gender=genderOf(person.appearance,person.gender);return {campaignId:artCampaign(game,!!person.resident),kind:'portrait',id:portraitId(residentArtId(game,id,person),gender),name:person.name,description:portraitDescription([person.appearance,person.species,person.role].filter(Boolean).join('. '),gender).slice(0,1800),setting:(game.story?.premise??'').slice(0,800),...(/^np\d{3}$/.test(String(person.pool))?{pool:person.pool}:{})};}
+ if(person){const gender=genderOf(person.appearance,person.gender),campaignId=artCampaign(game,!!person.resident);return {campaignId,kind:'portrait',id:portraitId(residentArtId(game,id,person),gender),name:person.name,description:portraitDescription([person.appearance,person.species,person.role].filter(Boolean).join('. '),gender).slice(0,1800),setting:(game.story?.premise??'').slice(0,800),...(/^np\d{3}$/.test(String(person.pool))?{pool:person.pool}:lookAlikeFields(game,campaignId,{species:person.species,gender:person.gender==='other'?'other':gender,trained:game.npcClasses?.[id]?.class??person.class,role:person.role}))};}
  const npc=game.story?.npcs?.[id]??originalNPCs[id];if(!npc)return null;
- const gender=game.story?.npcs?.[id]?genderOf(npc.appearance,npc.gender):null;
- return {campaignId:artCampaign(game,!!game.story?.npcs?.[id]),kind:'portrait',id:game.story?.npcs?.[id]?portraitId(id,gender):id,name:npc.name,description:(game.story?.npcs?.[id]?portraitDescription([npc.appearance,npc.role,npc.description].filter(Boolean).join('. '),gender):[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ')).slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800)};
+ const written=game.story?.npcs?.[id],gender=written?genderOf(npc.appearance,npc.gender):null,campaignId=artCampaign(game,!!written);
+ return {campaignId,kind:'portrait',id:game.story?.npcs?.[id]?portraitId(id,gender):id,name:npc.name,description:(game.story?.npcs?.[id]?portraitDescription([npc.appearance,npc.role,npc.description].filter(Boolean).join('. '),gender):[npc.appearance,npc.role,npc.description].filter(Boolean).join('. ')).slice(0,1800),setting:(game.story?.locations?.inn?.description??'Warm crossroads inn in an original fantasy world.').slice(0,800),...(written?(/^np\d{3}$/.test(String(npc.pool))?{pool:npc.pool}:lookAlikeFields(game,campaignId,{species:npc.species,gender:npc.gender==='other'?'other':gender,trained:game.npcClasses?.[id]?.class??npc.class,role:npc.role})):{})};
 }
 export function locationArtSubject(game){
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,id=room?'dungeon-'+game.dungeon.room:mapLocation(game),place=room?{name:room.name,description:room.text}:game.story?.locations?.[id]??worldPlace(game,id)??mapPlaces[id];
@@ -81,9 +89,15 @@ export function placeArtSubject(game,name){
 export function creatureArtSubject(game){
  if(game.stage!=='combat')return null;
  // A creature met while exploring is painted from the Dungeon Master's description of it.
- if(game.wildFight){const w=game.wildFight;return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800)};}
+ // A creature of one of the game's own kinds (its template) is shown with that kind's picture, painted once for every
+ // player (world-art.cjs); a named bandit keeps a painting of its own there.
+ if(game.wildFight){const w=game.wildFight;return {campaignId:game.story?.id??'crossroads-v1',kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{})};}
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';
- return {campaignId:artCampaign(game,!room),kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
+ const skirmish=!room&&game.story?.introId==='hostile'&&/^hostile-encounter-[a-z]+$/.test(String(game.story.id))?game.story.id.slice('hostile-encounter-'.length):null,campaignId=artCampaign(game,!room);
+ // The Skirmish's foe is one of the game's own kinds (shared picture); a tale's own foe who is a person (a known
+ // species) is shown with a look-alike's face; any other foe is painted for its tale.
+ const extra=room?{}:skirmish?{template:skirmish}:game.story?.foeSpecies?lookAlikeFields(game,campaignId,{species:game.story.foeSpecies,gender:genderOf(game.story.foeAppearance)}):{};
+ return {...extra,campaignId,kind:'creature',id:room?'guardian-'+game.dungeon.room:'main-foe',name,description:room?'Creature: '+name+'. '+room.text:game.story?.foeAppearance??('A small original fantasy creature: '+name+'. '+(game.story?'':'A floating, pale blue magical light, with sparks and no humanoid face.')),setting:(locationArtSubject(game)?.description??'').slice(0,800)};
 }
 export function sceneArtSubjects(game){
  return [locationArtSubject(game),...npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>npcArtSubject(game,n.id)),creatureArtSubject(game)].filter(Boolean);

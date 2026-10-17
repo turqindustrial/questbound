@@ -231,7 +231,8 @@ const personText=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.lengt
 // Someone drawn from the host's library of ready-made people (people-library.cjs on the Dungeon Master's PC) carries
 // its id (pool, np001…): their portrait is ready-painted, and nobody from the library is met twice in one game.
 export const libraryPersonId=id=>typeof id==='string'&&/^np\d{3}$/.test(id);
-export const libraryPeopleMet=game=>Object.values(game?.people??{}).map(p=>p?.pool).filter(libraryPersonId);
+// A tale's keeper and mara may be cast from the library too (adventure-generator.cjs castResidents): they count as met.
+export const libraryPeopleMet=game=>[...Object.values(game?.people??{}),...Object.values(game?.story?.npcs??{})].map(p=>p?.pool).filter(libraryPersonId);
 export const meetingAttitudes=['hostile','unfriendly','indifferent','friendly'];
 // Whether someone can be met here now: there is room for a new person (48 in the land, four living at a place), or
 // someone who keeps out of sight lives here and can be found (roomForSomeoneNew is the first alone).
@@ -308,7 +309,7 @@ export function seatResidents(game,residents,places=[]){
  for(const p of Array.isArray(places)?places:[])if(p&&/^p\d{1,3}$/.test(p.id)&&typeof p.name==='string'){where[p.id]=p.id;where[key(p.name)]=p.id;}
  for(const id of coreNpcIds){core[id]=id;const n=key(story.npcs?.[id]?.name);if(n)core[n]=id;}
  const people={...game.people},memory={...game.npcMemory},count={},written={};
- const taken=new Set([...Object.keys(core).filter(k=>!coreNpcIds.includes(k)),key(story.foe),...Object.values(people).map(p=>key(p.name))].filter(Boolean)),pools=new Set(libraryPeopleMet({people}));
+ const taken=new Set([...Object.keys(core).filter(k=>!coreNpcIds.includes(k)),key(story.foe),...Object.values(people).map(p=>key(p.name))].filter(Boolean)),pools=new Set(libraryPeopleMet({people,story}));
  for(const p of Object.values(people))count[p.home]=(count[p.home]??0)+1;
  residents.forEach((r,i)=>{
   if(Object.keys(ids).length>=maxResidents||Object.keys(people).length>=maxPeople||!r||typeof r!=='object')return;

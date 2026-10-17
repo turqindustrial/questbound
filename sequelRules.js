@@ -78,7 +78,7 @@ export function joinRegion(next,previous,{sameRegion,bearing='N',miles=5}){
   const home=following(id)?(sameRegion?placeMap[homeOf(id)]??'inn':'inn'):placeMap[homeOf(id)];
   let name=lore.name;if(newNames.has(name.trim().toLowerCase()))name=(name+' the Elder').slice(0,60);
   people[nid]={name,species:String(lore.species??'').slice(0,60),role:String(lore.role).slice(0,200),appearance:String(lore.appearance??'').trim().length>=10?String(lore.appearance).slice(0,400):(name+', as the hero remembers them.').slice(0,400),personality:String(lore.personality??'').slice(0,200),
-   ...(lore.motive?{motive:String(lore.motive).slice(0,400)}:{}),...(src?.pool?{pool:src.pool}:{}),...(src?.hook?{hook:String(src.hook).slice(0,240)}:{}),toughness:core?(id==='keeper'?'tough':'common'):src.toughness,home,foe:'neutral',...(tie?.to&&idMap[tie.to]?{tie:{to:idMap[tie.to],kind:tie.kind}}:{}),
+   ...(lore.motive?{motive:String(lore.motive).slice(0,400)}:{}),...((src??old.npcs[id])?.pool?{pool:(src??old.npcs[id]).pool}:{}),...(src?.hook?{hook:String(src.hook).slice(0,240)}:{}),toughness:core?(id==='keeper'?'tough':'common'):src.toughness,home,foe:'neutral',...(tie?.to&&idMap[tie.to]?{tie:{to:idMap[tie.to],kind:tie.kind}}:{}),
     ...(['woman','man','other'].includes(lore.gender)?{gender:lore.gender}:{}),...((src??old.npcs[id])?.regard?{regard:(src??old.npcs[id]).regard}:{})};
   if(previous.npcMemory?.[id]){const m={...previous.npcMemory[id]};if(!following(id))delete m.allegiance;memory[nid]=m;}
   // A trained person (every companion is one) keeps their class and level under their new id.
