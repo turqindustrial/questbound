@@ -1,6 +1,6 @@
 import {storyText,questState} from './storyRules';
 import {recordNpcAggression,npcServiceError,npcProfile,npcLore,npcIdsOf} from "./npcRules";
-import {automaticEffects,requestSpell,resolveSpellRuling,spellAgain,moveMark,markGone,knownSpells} from "./spellRules";
+import {automaticEffects,requestSpell,resolveSpellRuling,knownSpells} from "./spellRules";
 import {slotChoices,slotUsed} from "./spellOptions";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
@@ -29,6 +29,7 @@ import {abilityCheck,restartAdventure,inspectTower,bridgeStep,studyOrListen} fro
 import {endSpellMarks} from "./spellConditionRules";
 import {withDefenses} from "./spellDamageRules";
 import {tickBuffs} from "./spellBuffRules";
+import {spellAgain,moveMark,markGone} from "./lastingSpellRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;

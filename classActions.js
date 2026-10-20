@@ -1,10 +1,11 @@
-import {requestSpell,knownSpells,automaticEffects,spellCostOptions,lastingSpells,sustainOptions} from './spellRules';
+import {requestSpell,knownSpells,automaticEffects,spellCostOptions} from './spellRules';
 import {modifier,validLevel,martialDie,proficiencyBonus} from './characterRules';
 import {rollAttack,rollDamage} from './weaponRules';
 import {spellLibrary,slotChoices} from './spellOptions';
 import {offhandWeapons,masteryOf,withMark,heroEdge,edgeMode} from './masteryRules';
 import {npcScene,npcMaxHP,npcLore} from './npcRules';
 import {subclassAction,subclassUses,subclassRiderRoll,subclassDefended,subclassScaled} from './subclassRules';
+import {lastingSpells,sustainOptions} from "./lastingSpellRules";
 
 export const castingAbilities={Artificer:'Intelligence',Bard:'Charisma',Cleric:'Wisdom',Druid:'Wisdom',Paladin:'Charisma',Ranger:'Wisdom',Sorcerer:'Charisma',Warlock:'Charisma',Wizard:'Intelligence'};
 export function classActions(hero,game) {
