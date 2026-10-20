@@ -137,7 +137,7 @@ function deathRate(n){let dead=0;for(let i=1;i<=n;i++){let st={game:down.game,he
 const savesPlain=(()=>{r.survivalOdds.save=0;try{return deathRate(400);}finally{Object.assign(r.survivalOdds,odds);}})(),savesLucky=deathRate(400);
 assert.ok(savesLucky<savesPlain&&savesLucky>0.15,'death saves are a touch kinder, never safe ('+savesLucky+' vs '+savesPlain+')');
 // Nothing the Dungeon Master or the player reads names it.
-for(const f of ['dmContext.js','turnResourceRules.js','dmChoiceRules.js','dm-server.cjs','dm-instructions.cjs','dm-rules.cjs','descriptions.js','legalText.js','feedbackRules.js','chronicleRules.js','loadingRules.js'])assert.ok(!/survivalOdds|sparedBlow/.test(fs.readFileSync(f,'utf8')),f+' never mentions the hidden luck');
+for(const f of ['dmContext.js','turnResourceRules.js','dmChoiceRules.js','dmSceneRules.js','dm-server.cjs','dm-instructions.cjs','dm-rules.cjs','descriptions.js','legalText.js','feedbackRules.js','chronicleRules.js','loadingRules.js'])assert.ok(!/survivalOdds|sparedBlow/.test(fs.readFileSync(f,'utf8')),f+' never mentions the hidden luck');
 
 // ---- Bringing the dead back, or laying them to rest ----
 const deadGame=s.game;
