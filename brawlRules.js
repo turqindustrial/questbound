@@ -27,7 +27,7 @@ export function attackPerson(step) {
   let {next} = step;
   const victim = npcScene(game).find(n => n.id === action.target && n.present);
   // The subclass's own action turned on a person (`feat`): a Tangle-Bolt, a Rattling Jest, a Feint... as against a
-  // creature, with the person's own defences (spellRules.js personDefenses). It may begin a brawl, like a blow.
+  // creature, with the person's own defences (spellDamageRules.js personDefenses). It may begin a brawl, like a blow.
   if (action.feat) {
     const sub = subclassAction(hero);
     if (!sub || !(sub.effect.mark || sub.effect.vex || sub.effect.strike)) return {game, health, error: 'That is not something you can turn on a person.'};
@@ -294,7 +294,7 @@ export function brawlStep(game,health,hero,action,random,opts,stats,target,activ
  result.game={...result.game,...(result.game.npcCombat?{npcCombat:{...result.game.npcCombat,round:result.game.npcCombat.round+1}}:{}),bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
  // The hero's turn is over (Vex reaches into the next), and any Sap not yet spent has run out.
  result.game=sapsEnd(endHeroTurn(result.game));
- // A lasting spell cast this turn can be used again from the next (spellRules.js lastingSpells).
+ // A lasting spell cast this turn can be used again from the next (lastingSpellRules.js lastingSpells).
  if(result.game.concentration?.fresh){result.game.concentration={...result.game.concentration};delete result.game.concentration.fresh;}
  if(result.game.concentration?.remaining!=null){result.game.concentration={...result.game.concentration,remaining:result.game.concentration.remaining-1};if(result.game.concentration.remaining<=0)delete result.game.concentration;}
  result.game={...result.game,journal:appendJournal(result.game.journal,'encounter',game.stage==='inn'?'Inn combat':'Combat',events.join('\n').slice(0,3000))};
@@ -309,7 +309,7 @@ export function runNpcTurns(game,health,hero,turns,dodge,random,party=null){
  const who=id=>npcProfile(next,id),alive=id=>(next.npcHP?.[id]??who(id).maximumHP)>0;
  const enemies=()=>next.npcCombat.order.filter(n=>n.side==='enemy'&&alive(n.id));
  const dodgeLead=party?(party.dodging??[]).includes(next.party?.lead):dodge;
- // Lasting spells on the people fighting (spellRules.js lastingTurn): what burns them as their turn begins, and the
+ // Lasting spells on the people fighting (lastingSpellRules.js lastingTurn): what burns them as their turn begins, and the
  // areas heroes hold and acid left on them as it ends (played as the next one's turn begins, or after the last).
  let ending=null;
  const turnEnds=id=>{if(!alive(id))return;const r=lastingTurn(next,id,'end',{...personDefenses(next,id),name:who(id).name},random);next=r.game;logs.push(...r.lines);};

@@ -1,4 +1,4 @@
-// What a fight leaves behind (mapRules.js timePasses, spellRules.js markGone, adventureRules.js heroStep): time goes by
+// What a fight leaves behind (mapRules.js timePasses, lastingSpellRules.js markGone, adventureRules.js heroStep): time goes by
 // on a retreat and a short rest, so a held spell or a spell's temporary hit points run out; a spell held on a creature
 // of a fight that is over cannot reach anyone it was never cast on; and a finished brawl at the old crossroads inn
 // leaves no record that spoils the next fight at the bridge.

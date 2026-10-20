@@ -1,4 +1,4 @@
-// What is left of a turn to offer as choices (dmContext.js dmChoices): class features and draughts as a bonus action
+// What is left of a turn to offer as choices (dmChoiceRules.js dmChoices): class features and draughts as a bonus action
 // in a creature fight or a brawl, a subclass's own action, and a lasting spell used again as the action.
 import {npcMaxHP,npcLore} from "./npcRules";
 import {windLimit,subclassTempFloor,potionGifts,surgeReady} from "./classActions";

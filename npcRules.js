@@ -62,7 +62,7 @@ export function classScores(cls){
 // The two saving throws each class is trained in.
 export const classSaves={Artificer:['Constitution','Intelligence'],Barbarian:['Strength','Constitution'],Bard:['Dexterity','Charisma'],Cleric:['Wisdom','Charisma'],Druid:['Intelligence','Wisdom'],Fighter:['Strength','Constitution'],Monk:['Strength','Dexterity'],Paladin:['Wisdom','Charisma'],Ranger:['Strength','Dexterity'],Rogue:['Dexterity','Intelligence'],Sorcerer:['Constitution','Charisma'],Warlock:['Wisdom','Charisma'],Wizard:['Intelligence','Wisdom']};
 export const validNpcClasses=(value,game)=>value===undefined||(!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([id,c])=>npcIdsOf(game).includes(id)&&!!c&&typeof c==='object'&&npcClassList.includes(c.class)&&Number.isInteger(c.level)&&c.level>=1&&c.level<=20));
-// Aid raises a companion's hit point maximum while it lasts (game.aided, spellRules.js).
+// Aid raises a companion's hit point maximum while it lasts (game.aided, spellBuffRules.js).
 export function npcProfile(game,id){
  const base=npcProfileBase(game,id),plus=game?.aided?.[id]??0;
  return base&&plus?{...base,maximumHP:base.maximumHP+plus}:base;

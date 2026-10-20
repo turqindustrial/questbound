@@ -59,7 +59,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const [autoShield,setAutoShield]=useState(()=>storyPreferences().autoShield!==false);
  useEffect(()=>subscribeStoryPreferences(p=>setAutoShield(p.autoShield!==false)),[]);
  const ruled=useMemo(()=>rulesHero(hero,{autoShield}),[hero,autoShield]);
- // Every journey and road beyond the edge the map can send (dmContext.js mapMoves).
+ // Every journey and road beyond the edge the map can send (dmChoiceRules.js mapMoves).
  const moves=useMemo(()=>mapMoves(game),[game]);
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');

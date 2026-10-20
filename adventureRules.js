@@ -57,7 +57,7 @@ export const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,
   // The foe as it fights: its own numbers, scaled to the side it faces (encounterRules.js scaledFoe; a hero alone is
   // never scaled).
   export function encounterFoe(hero, game) {
-    // With what it is immune or vulnerable to (spellRules.js creatureDefenses: the undead take no Poison, a skeleton
+    // With what it is immune or vulnerable to (spellDamageRules.js creatureDefenses: the undead take no Poison, a skeleton
     // breaks under Bludgeoning).
     return withDefenses(game, 'foe', scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game)));
   }

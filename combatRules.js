@@ -15,7 +15,7 @@ export function combatBasics(hero) {
   // What the hero's subclass adds (subclassRules.js): hit points per level, initiative, armour class, critical range.
   const sub = subclassPassive(hero), subHP = sub.hp*hero.level;
   const laterHP = Math.max(1,Math.floor(hitDice[hero.class]/2)+1+mods.Constitution);
-  // Aid (spellRules.js) raises the maximum while it lasts: gearedHero gives the hero its amount as hero.aid.
+  // Aid (spellBuffRules.js) raises the maximum while it lasts: gearedHero gives the hero its amount as hero.aid.
   const aidBonus = Number.isInteger(hero.aid) && hero.aid > 0 ? Math.min(40,hero.aid) : 0;
   const hp = Math.max(1,hitDice[hero.class] + mods.Constitution) + (hero.level-1)*laterHP + hero.level*(dwarfBonus+toughBonus) + draconicBonus + subHP + aidBonus;
   const hpFormula = `${hitDice[hero.class]} (${hero.class}) ${signed(mods.Constitution)} Constitution${dwarfBonus ? ' +1 Dwarven Toughness' : ''}${toughBonus ? ' +2 Tough' : ''}${hero.level>1 ? ` + ${hero.level-1} × (${laterHP+dwarfBonus+toughBonus}) later levels` : ''}${draconicBonus ? ` +${draconicBonus} Draconic Resilience` : ''}${subHP ? ` +${subHP} ${sub.hpName}` : ''}${aidBonus ? ` +${aidBonus} Aid` : ''}`;
