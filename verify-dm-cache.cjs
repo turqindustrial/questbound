@@ -99,14 +99,11 @@ const strictProblems=(s,at,out=[])=>{
  // ---- 2. The instructions: the standing prompt alone, the same for every hero, phase, retry and second look ----
  for(const {label,q} of sent){
   assert.equal(q.instructions,standingPrompt,label+': the instructions are the standing prompt, unchanged');
-  const first=q.input[0];assert.equal(first.role,'user');assert.ok(first.content.startsWith('THIS HERO\'S CLASS FEATURES (reference): '),label+': then the hero\'s features');
-  // No developer message after the instructions: sent as developer messages, the hero's features and the note kept the
-  // provider from caching anything past the instructions (layout 3, measured live on 2026-10-20).
-  assert.ok(q.input.every(m=>m.role==='user'),label+': every part after the instructions is a user message');
+  const first=q.input[0];assert.equal(first.role,'developer');assert.ok(first.content.startsWith('THIS HERO\'S CLASS FEATURES (reference): '),label+': then the hero\'s features');
   const tail=requestParts(q).tail;
   for(const turnOnly of ['CURRENT PHASE','SCENE TRIGGER','OUT OF CHARACTER','NARRATOR THIS TURN','LOOK AGAIN']){assert.ok(!standingPrompt.includes(turnOnly+':'),turnOnly+' is never in the standing part');
-   assert.ok(!first.content.includes(turnOnly+':')&&q.input.slice(1,-1).every(m=>!String(m.content).includes(turnOnly+':')||String(m.content).startsWith('Scene: ')),label+': '+turnOnly+' only in the note after the scene');}
-  if(tail)assert.ok(String(q.input.at(-1).content).startsWith('GAME NOTE FOR THIS TURN'),label+': this turn\'s note is last, opening with its lead');
+   assert.ok(!first.content.includes(turnOnly+':')&&q.input.slice(1,-1).every(m=>!String(m.content).includes(turnOnly+':')||m.role==='user'),label+': '+turnOnly+' only in the note after the scene');}
+  if(tail)assert.equal(q.input.at(-1).role,'developer',label+': this turn\'s note is last');
   assert.ok(!/"spells"|"featureDetails"/.test(q.instructions+first.content),label+': the spells this turn names are read with the scene, not in the cached part');}
  assert.ok(standingPrompt.includes('"coreRules"')&&standingPrompt.includes('"actionRules"')&&standingPrompt.includes('OWN WORLD')&&standingPrompt.includes('HOW THE TURN ARRIVES'),'the shared rules and how the turn arrives are in the standing part');
  assert.match(requestParts(at('wizard: ruling')).tail,/^CURRENT PHASE: Adjudicate pendingSpell/);assert.match(requestParts(at('wizard: out of character')).tail,/^OUT OF CHARACTER:/);
@@ -116,16 +113,16 @@ const strictProblems=(s,at,out=[])=>{
  // The narrator's voice for this turn is the very last thing the model reads (it ignored a style note buried in the
  // cached part), after a second look's note too.
  {let q=null;const body={input:'I look.',context:{...ctx,storyPreferences:{narrator:'bard'}}};await generate(body,{apiKey:'k',model:'m',fetchImpl:async(u,opt)=>{q=JSON.parse(opt.body);return done({});}});
-  assert.equal(q.instructions,standingPrompt);assert.match(q.input.at(-1).content,/\nNARRATOR THIS TURN: Sable the Bard[^\n]*$/,'the narrator\'s line is last');
+  assert.equal(q.instructions,standingPrompt);assert.match(q.input.at(-1).content,/^NARRATOR THIS TURN: Sable the Bard[^\n]*$/,'the narrator\'s line is last');
   const notes=[];await generate({input:'I look.',context:{...ctx,storyPreferences:{narrator:'lamplighter'}}},{apiKey:'k',model:'m',fetchImpl:async(u,opt)=>{const x=JSON.parse(opt.body);notes.push(x);return done(notes.length===1?{narration:'You gain 900 gold.',actionId:'invent-gold'}:{});}});
-  assert.match(requestParts(notes[1]).tail,/^LOOK AGAIN:[\s\S]*\nNARRATOR THIS TURN: Wick the Lamplighter[^\n]*$/,'a retry\'s note, then the narrator last');}
+  assert.match(notes[1].input.at(-1).content,/^LOOK AGAIN: [\s\S]*\nNARRATOR THIS TURN: Wick the Lamplighter[^\n]*$/,'a retry\'s note, then the narrator last');}
 
  // ---- 3. The scene: in parts from what lasts to what changes, the player's words in the last ----
  const names=['what lasts the tale','the land and what the hero carries','who is here','the story so far'];
  assert.deepEqual(sceneParts.map(p=>p.name),names);
  for(const {label,q} of sent){
-  const users=q.input.filter(m=>String(m.content).startsWith('Scene: ')),heads=users.map(m=>m.content.split('\n')[0]);
-  assert.ok(q.input.slice(1).every((m,i,a)=>String(m.content).startsWith('Scene: ')||i===a.length-1),label+': the scene parts sit between the hero and this turn\'s note');
+  const users=q.input.filter(m=>m.role==='user'),heads=users.map(m=>m.content.split('\n')[0]);
+  assert.ok(q.input.slice(1).every((m,i,a)=>m.role==='user'||i===a.length-1),label+': the scene parts sit between the hero and this turn\'s note');
   assert.equal(heads.at(-1),'Scene: this turn, and the player\'s message.',label);
   const order=heads.slice(0,-1).map(h=>names.indexOf(h.replace(/^Scene: |\.$/g,'')));assert.ok(order.every((n,i)=>n>=0&&(i===0||n>order[i-1])),label+': the parts in order: '+heads);
   const last=JSON.parse(users.at(-1).content.slice(users.at(-1).content.indexOf('\n')+1)),body=requestScene(q);
@@ -180,7 +177,7 @@ const strictProblems=(s,at,out=[])=>{
   // Any other refusal is reported as before.
   await assert.rejects(generate({input:'I look.',context:ctx},{apiKey:'k',model:'m',fetchImpl:async()=>({ok:false,status:400,headers:{get:()=>null},json:async()=>({error:{message:'Bad request.'}})})}),/could not complete this request/);
   assert.equal(globalThis.__questboundNoCacheKey,undefined);
-  assert.equal(promptLayout,4);}
+  assert.equal(promptLayout,3);}
 
  // ---- 6. What a warm cache can reuse: every leading part a request shares with one sent before it ----
  const U=sent.map(x=>units(x.q)),T=U.map(u=>u.map(tokens));
@@ -203,10 +200,9 @@ const strictProblems=(s,at,out=[])=>{
  // dm-report.cjs shows the cached share and the input per turn, for turns sent in parts, in the cache order and before it.
  {const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'qb-cache-'));
   const now=new Date().toISOString(),line=o=>JSON.stringify({at:now,mode:'turn',model:'gpt-6-luna',output:200,reasoning:0,ask:1,...o});
-  fs.writeFileSync(path.join(dir,'.questbound-usage.jsonl'),[line({input:20000,cached:10000}),line({input:19000,cached:17000,layout:2}),line({input:20000,cached:15000,layout:3,phase:'turn'}),line({input:20000,cached:18000,layout:4,phase:'turn'}),line({input:18000,cached:16000,layout:4,phase:'told'}),line({input:20000,cached:19000,layout:4,phase:'turn',ask:2,aside:true})].join('\n')+'\n');
+  fs.writeFileSync(path.join(dir,'.questbound-usage.jsonl'),[line({input:20000,cached:10000}),line({input:19000,cached:17000,layout:2}),line({input:20000,cached:18000,layout:3,phase:'turn'}),line({input:18000,cached:16000,layout:3,phase:'told'}),line({input:20000,cached:19000,layout:3,phase:'turn',ask:2,aside:true})].join('\n')+'\n');
   const out=require('node:child_process').spawnSync(process.execPath,['dm-report.cjs','--dir',dir],{cwd:__dirname,encoding:'utf8'}).stdout;fs.rmSync(dir,{recursive:true,force:true});
   assert.match(out,/sent in parts: 3 turn requests, 19333 input tokens each on average, 91% of them cached/);assert.match(out,/by phase: turns 2 \(93%\), tellings and cues 1 \(89%\), second looks 1 \(95%\)\./);
-  assert.match(out,/in parts with developer notes \(until 20 October\): 1 turn requests, 20000 input tokens each on average, 75% of them cached/);
   assert.match(out,/in the cache order: 1 turn requests, 19000 input tokens each on average, 89% of them cached/);assert.match(out,/before it: 1 turn requests, 20000 input tokens each on average, 50% of them cached/);}
  console.log('Cache order: one reply schema for every phase naming nothing of the turn; the instructions are the standing prompt alone ('+tokens(standingPrompt)+' tokens), the same for every hero, phase, retry and second look; then the hero, the scene in parts from what lasts to what changes with the player\'s words last, and this turn\'s note (phase, retry, narrator last); a fighter without spells, a fight with a short memory and no far lands; prompt_cache_key one per hero. About '+pct+'% of '+(sent.length-1)+' requests after the first (about '+Math.round(all/(sent.length-1))+' tokens each) could come from a warm cache.');
 })().catch(e=>{console.error(e);process.exit(1);});

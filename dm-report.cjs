@@ -52,13 +52,11 @@ else{
   const line=(label,list)=>{if(!list.length)return;const c=share(list);console.log('  '+label+': '+c.n+' turn requests, '+c.input+' input tokens each on average, '+c.pct+'% of them cached'+(c.cost!==null?', about $'+c.cost.toFixed(5)+' a request':'')+'.');};
   // Layout 3 (2026-10-17): the request sent in parts (instructions alone, then the hero, the scene in parts, this
   // turn's note), with the share for each phase (turns, tellings and cues, spell rulings, out of character).
-  // Layout 4 (2026-10-20): the same parts, all as user messages (as developer messages, the hero and the note kept the
-  // provider from caching anything past the instructions); layout 3 has a line of its own below.
-  const parts=avg.filter(u=>u.layout>=4);
+  const parts=avg.filter(u=>u.layout>=3);
   if(avg.length){console.log('Cache (goal: about 85% of turn input cached):');line('sent in parts',parts);
    if(parts.length){const by=[['turn','turns'],['told','tellings and cues'],['ruling','spell rulings'],['ooc','out of character']].map(([k,label])=>{const l=parts.filter(u=>u.phase===k);return l.length?label+' '+l.length+' ('+share(l).pct+'%)':null;}).filter(Boolean);
     const again=parts.filter(u=>(u.ask??1)>1&&!u.aside),aside=parts.filter(u=>u.aside);if(again.length)by.push('asked again '+again.length+' ('+share(again).pct+'%)');if(aside.length)by.push('second looks '+aside.length+' ('+share(aside).pct+'%)');if(by.length)console.log('    by phase: '+by.join(', ')+'.');}
-   line('in parts with developer notes (until 20 October)',avg.filter(u=>u.layout===3));line('in the cache order',avg.filter(u=>u.layout===2));line('before it',avg.filter(u=>!(u.layout>=2)));}}
+   line('in the cache order',avg.filter(u=>u.layout===2));line('before it',avg.filter(u=>!(u.layout>=2)));}}
 }
 // The host's ceilings (spending.cjs): how close today and the month are, and whether guests are paused.
 {const s=createSpending({dir,alerts:{raise:()=>false}}).summary(),w=standing(s);
