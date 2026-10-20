@@ -1,4 +1,3 @@
-import {dmChoices,shortRestsLeft} from './dmContext';
 import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow} from './spellRules';
 import {spellSlots,slotUsed} from './spellOptions';
 import {placeName} from './mapRules';
@@ -16,6 +15,7 @@ import {subclassAction,subclassUsesLeft} from './subclassRules';
 import {spellDamageMax} from "./spellDamageRules";
 import {allySpell,allySpellLimit} from "./spellBuffRules";
 import {sustainTargets,lastingSpells} from "./lastingSpellRules";
+import {dmChoices,shortRestsLeft} from "./dmChoiceRules";
 // One-tap actions for this moment of the game, drawn from the engine's own list of valid choices. Each one sends a
 // plain sentence to the Dungeon Master with the engine action attached, so the rules resolve it and the DM narrates.
 // Spells need a target, so "Cast…" starts the sentence in the message box instead. `icon` names a line icon

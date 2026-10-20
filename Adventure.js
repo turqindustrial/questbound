@@ -31,7 +31,6 @@ import DungeonMaster from './DungeonMaster';
 import AdventureMap from './AdventureMap';
 import {campaignState,earnedGold} from './campaignRules';
 import {mapState,mapLocation,placeDescription,placeName,beyondWords,mapRegions,currentRegion} from './mapRules';
-import {mapMoves} from './dmContext';
 import {combatBasics} from './combatRules';
 import {gearedHero,setShield} from './inventoryRules';
 import {attuneItem} from './lootRules';
@@ -42,6 +41,7 @@ import {useVisualViewport} from './webLayout';
 import {fonts,colors,type,tint} from './theme';
 import {heroSpecies} from './characterRules';
 import {spellDefense} from "./spellBuffRules";
+import {mapMoves} from "./dmChoiceRules";
 // The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
 const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
 // On wide screens the side column can be folded to a slim rail so the story and a conversation get the whole width
