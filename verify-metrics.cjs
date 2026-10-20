@@ -113,7 +113,7 @@ assert.equal(rr.ratingMomentOf({stage:'inn'},{...tale,stage:'dead'}),null,'loadi
 assert.equal(rr.ratingMomentOf(tale,{...tale,story:{...tale.story,title:'Another tale',chapter:3}}),null,'nor is a new tale');
 assert.equal(rr.ratingMomentOf(tale,{...tale,stage:'combat'}),null);
 // The card and the settings are where the game shows them.
-{const app=fs.readFileSync('App.js','utf8'),card=fs.readFileSync('SessionRating.js','utf8'),dm=['DungeonMaster.js','useDmTurn.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');
+{const app=['App.js','MenuScreens.js'].map(f=>fs.readFileSync(f,'utf8')).join(' '),card=fs.readFileSync('SessionRating.js','utf8'),dm=['DungeonMaster.js','useDmTurn.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');
  assert.ok(app.includes("{screen === 'Settings' && <InsightSettings/>}")&&app.includes('<SessionRating key={rating.id}')&&app.includes('startPlayMetrics()')&&app.includes("noteStoryWait('start')")&&app.includes("noteStoryWait('done')")&&app.includes("noteStoryWait('failed')"));
  assert.ok(/ratingBlocked\.current=!launched\|\|agreementShown\|\|storyCover\|\|feedbackOpen\|\|typingPlay\|\|\(fighting&&game\.stage!=='dead'\)\|\|game\.stage==='dying'/.test(app),'never mid-fight, dying, typing or under a cover');
  assert.ok(dm.includes("playSound('send');countTurn();")&&dm.includes('noteTalking(!!person)'));
