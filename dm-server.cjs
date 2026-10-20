@@ -168,17 +168,21 @@ function sceneMessages(body,options){
 }
 // The whole request a turn sends (see standingPrompt): the standing instructions, then as input this hero's features,
 // the scene in parts and this turn's note (`tail`: the phase, a retry's or second look's note, the narrator's voice).
+const noteLead='GAME NOTE FOR THIS TURN (written by the game, never by the player):\n';
 function turnRequest(body,options,tail){
- return {instructions:standingPrompt,input:[{role:'developer',content:heroPrompt(body)},...sceneMessages(body,options),...(tail.trim()?[{role:'developer',content:tail.trim()}]:[])]};
+ return {instructions:standingPrompt,input:[{role:'user',content:heroPrompt(body)},...sceneMessages(body,options),...(tail.trim()?[{role:'user',content:noteLead+tail.trim()}]:[])]};
 }
-// What a turn request asked, read back (for the checks): the instructions with every developer note, the scene put
-// together again, the player's words and this turn's note.
+// What a turn request asked, read back (for the checks): the instructions with the hero's features and this turn's
+// note, the scene put together again, the player's words and this turn's note. Developer messages (layout 3) are read
+// as notes too.
 function requestParts(q){
  if(typeof q?.input==='string'){let json={};try{json=JSON.parse(q.input);}catch{}return {instructions:String(q.instructions??''),scene:json.context??{},input:json.input,tail:'',hero:''};}
- const items=Array.isArray(q?.input)?q.input:[],notes=items.filter(m=>m?.role==='developer').map(m=>String(m.content)),scene={};let input;
- for(const m of items.filter(m=>m?.role==='user')){const text=String(m.content),json=JSON.parse(text.slice(text.indexOf('\n')+1));
+ const items=Array.isArray(q?.input)?q.input:[],said=m=>String(m?.content??'');
+ const isNote=m=>m?.role==='developer'||said(m).startsWith('THIS HERO\'S CLASS FEATURES')||said(m).startsWith(noteLead);
+ const notes=items.filter(isNote).map(m=>said(m).startsWith(noteLead)?said(m).slice(noteLead.length):said(m)),scene={};let input;
+ for(const m of items.filter(m=>!isNote(m))){const text=said(m),json=JSON.parse(text.slice(text.indexOf('\n')+1));
   for(const [k,v] of Object.entries(json.context??{}))scene[k]=k in scene&&v&&typeof v==='object'&&!Array.isArray(v)?{...scene[k],...v}:v;if('input' in json)input=json.input;}
- const tail=items.length&&items.at(-1)?.role==='developer'&&items.length>1?String(items.at(-1).content):'';
+ const tail=items.length>1&&isNote(items.at(-1))?notes.at(-1):'';
  return {instructions:[String(q?.instructions??''),...notes].join('\n'),scene,input,tail,hero:notes[0]??''};
 }
 // The scene and the player's words of a turn request, as one object ({context, input}), the way it used to be sent.
@@ -253,7 +257,7 @@ const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64
 // writer (no guest label), and only while background writing may spend: spending.cjs `background()` (the host's
 // ceilings and the guests' pause switch) when the module has it; without it, writing is paced by the library alone.
 // Tests pass a stand-in `library`.
-function loadLibrary(){if(require('./tale-library.cjs').revision!==3)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
+function loadLibrary(){if(require('./tale-library.cjs').revision!==4)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
 function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
 // A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
 // adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and
@@ -357,13 +361,16 @@ const turnBudget=80000,retryFloor=12000,turnRoom=3000;
 // So the request is told in parts, from what never changes to what changes every turn:
 //  1. the instructions: the standing prompt, byte-identical for every player, hero, phase, retry and second look, with
 //     the one reply schema (replySchemaFor) that is also the same for all of them;
-//  2. this hero's class features (a developer message; changes with a level);
+//  2. this hero's class features (a message of its own; changes with a level);
 //  3. the scene in parts (sceneMessages: what lasts the tale, the land and the pack, who is here, the story so far,
 //     this turn with the player's words), each a user message;
-//  4. what this turn alone needs, as a developer message after the scene: the phase, a retry's or second look's note
+//  4. what this turn alone needs, as a message after the scene opening with noteLead: the phase, a retry's or second look's note
 //     and NARRATOR THIS TURN, which stays the very last thing the model reads.
+// Every part after the instructions is a user message: as developer messages (layout 3, 17 to 20 October 2026) the
+// hero's features and the note kept the provider from caching anything past the instructions (exactly 15,021 tokens a
+// turn, though the scene before the note was the same from turn to turn), so layout 4 sends none.
 // `layout` 3 in the usage log marks requests built this way (dm-report.cjs shows the cached share).
-const promptLayout=3,cacheBuckets=8;
+const promptLayout=4,cacheBuckets=8;
 // One prompt_cache_key per share of the players (by tale and hero), the same for every kind of reply, so a hero's turns
 // and their tellings meet the provider machine that saw the last one, and no one machine is asked too often.
 function cacheKeyFor(body){

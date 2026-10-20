@@ -16,7 +16,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-journeys-'));
 const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 (async()=>{
  // ---- The numbers ----
- same(librarySettings,{size:10,floor:6,perDay:4,retirePlays:8,retireDays:14,graceDays:2,failurePause:600000},'ten on offer, refilled freely below six and four a day above, retired after eight plays or fourteen days');
+ same(librarySettings,{size:10,floor:6,perDay:4,retirePlays:20,retireDays:14,graceDays:2,failurePause:600000},'ten on offer, refilled freely below six and four a day above, retired after twenty plays or fourteen days');
  assert.ok(lib.revision>=1&&lib.generation>=5);assert.equal(journeyTerrains.length,9);assert.equal(journeyMoods.length,10);assert.ok(journeySeeds.length>=24&&new Set(journeySeeds).size===journeySeeds.length,'two dozen different seed premises');
  assert.ok(journeyMoods.every(m=>m.id&&m.label&&m.steer.length>30),'every mood tells the writer what it means');
 
@@ -51,9 +51,9 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
  assert.equal(a.title,shown[0].title);assert.equal(shelf.list().length,10,'a journey is not used up by being played');
  assert.equal(shelf.start('../etc'),null,'only journey ids');assert.equal(shelf.start('0f8fad5b-d9cb-469f-a165-70867728950e'),null);
  assert.ok(journeyCheck(a),'a copy is a tale the game\'s rules accept');
- // ---- Retirement: after eight plays (with a grace period for a card still on screen), or fourteen days ----
- for(let i=0;i<6;i++)shelf.start(first);
- assert.ok(!shelf.list().some(j=>j.id===first),'played eight times: retired');assert.ok(shelf.start(first),'still startable for a while by a player who had the card on screen');
+ // ---- Retirement: after twenty plays (with a grace period for a card still on screen), or fourteen days ----
+ for(let i=0;i<18;i++)shelf.start(first);
+ assert.ok(!shelf.list().some(j=>j.id===first),'played twenty times: retired');assert.ok(shelf.start(first),'still startable for a while by a player who had the card on screen');
  clock+=2*day+1;assert.equal(shelf.start(first),null,'gone after the grace period');assert.ok(!fs.existsSync(path.join(dir,'journey-g5-'+first+'.json')));
  // ---- Paced refill: freely below the floor, then at most four a day ----
  assert.equal(shelf.list().length,9);
@@ -170,5 +170,5 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   assert.ok(screen.includes("Every ready journey begins this way")&&screen.includes('journey={ready}'),'Easy start shows on, locked, for a journey');
   assert.ok(app.includes("journey:journeyId,easyStart:true")&&app.includes('fateJourney(offered).id')&&app.includes('await rememberJourney(next.story.libraryId)')&&app.includes("freshStoryGame(hero,{...body.story,introId},base)")&&app.includes('journeysToOffer(list,{played,titles:'),'the game starts a journey, remembers it and never offers it again');}
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Ready journeys: a library of ten finished tales with pitches (hook, what you do and face, mood, chapters, what sets it apart) in nine terrains and ten moods from different seeds, each written once and played by many as their own copy, started at once, never offered twice to one device, retired after eight plays or fourteen days and refilled freely below six and four a day above (stopped by the spending ceilings), checked by the game\'s rules before it is offered, with each journey\'s own places and people painted once for all its players.');
+ console.log('Ready journeys: a library of ten finished tales with pitches (hook, what you do and face, mood, chapters, what sets it apart) in nine terrains and ten moods from different seeds, each written once and played by many as their own copy, started at once, never offered twice to one device, retired after twenty plays or fourteen days and refilled freely below six and four a day above (stopped by the spending ceilings), checked by the game\'s rules before it is offered, with each journey\'s own places and people painted once for all its players.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

@@ -18,11 +18,11 @@
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs); bump
 // `revision` (and the literal in dm-server.cjs loadLibrary) when it changes. Raise `generation` when the story writer's
 // output changes shape.
-const revision=3,generation=5;
+const revision=4,generation=5;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const day=86400000;
 // The library's numbers (see the report of 2026-10-13 for the cost reckoning).
-const librarySettings={size:10,floor:6,perDay:4,retirePlays:8,retireDays:14,graceDays:2,failurePause:10*60*1000};
+const librarySettings={size:10,floor:6,perDay:4,retirePlays:20,retireDays:14,graceDays:2,failurePause:10*60*1000};
 const journeyTerrains=['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns'];
 // The moods a journey can be written in, each with a line for the story writer.
 const journeyMoods=[
