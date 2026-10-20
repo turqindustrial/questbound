@@ -2,7 +2,7 @@
 // the crossroads wisp. creatureCombatStep starts the fight with the opening attack and initiative; creatureRound plays a
 // round (the hero's move, the companions' blows, the creature's answer). A wild fight starts on arrival or by the
 // Dungeon Master's ambush, and ends back at its place (moved from adventureRules.js).
-import {withDefenses,defended,attackBoost,helpless,spendGuidance,riderDamage,automaticEffects,wokenByHarm,spellDefense,lastingTurn,spellTurnStarts,wardEdge,charmedBy,banedAttack,shieldReaction,resistedDamage,concentrationAfterDamage,spellTurnEnds,heroTurnBegins} from "./spellRules";
+import {withDefenses,defended,riderDamage,automaticEffects,spellDefense,lastingTurn,wardEdge,shieldReaction,resistedDamage,concentrationAfterDamage,heroTurnBegins} from "./spellRules";
 import {placeName,timePasses,travelRoute,worldPlace,mapState,mapLocation} from "./mapRules";
 import {resolveClassAction,surgeReady,bonusOptions} from "./classActions";
 import {combatBasics} from "./combatRules";
@@ -17,6 +17,7 @@ import {packMagic,magicItems} from "./lootRules";
 import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassPassive,subclassWardRoll} from "./subclassRules";
 import {fall,inHand,foeStanding,tickHeroSpells,overflowOf,finishStep,adventureStepCore,encounterFoe} from "./adventureRules";
 import {givePotion,drinkDraught} from "./recoveryRules";
+import {attackBoost,helpless,spendGuidance,wokenByHarm,spellTurnStarts,charmedBy,banedAttack,spellTurnEnds} from "./spellConditionRules";
 // A fight at a found place is over (won, fled or fallen): the step's lines and the game are told and left as it ends.
 export function wildFightEnds(game, result) {
   const w = game.wildFight, outcome = result.game.stage === 'victory' ? 'won' : result.game.stage === 'escaped' ? 'fled' : 'fell';
