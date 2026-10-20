@@ -291,7 +291,7 @@ export function foeHitsPartyHero(game,foe,who,pid,mode,random){
  return {game:{...game,party:{...game.party,members:{...game.party.members,[pid]:next}}},lines};
 }
 const omitDying=hero=>{const h={...(hero??{})};delete h.dying;delete h.death;return h;};
-// A party's fight in turns (adventureRules.js), for the screen and the Dungeon Master: each place in the order, whose
+// A party's fight in turns (partyTurnRules.js), for the screen and the Dungeon Master: each place in the order, whose
 // turn it is, and whether it is this device's own hero's.
 export function turnOrderView(game){
  const t=game?.turnOrder,p=game?.party;if(!t||!p?.members||!Array.isArray(t.order))return null;
