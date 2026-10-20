@@ -6,7 +6,7 @@ _Last updated 13 October 2026. The same words are shown in the game under Settin
 
 ### Your words go to an AI
 
-What you type, your hero and the state of your game are sent to the host's computer and from there to OpenAI, which writes the Dungeon Master's replies and paints the pictures. OpenAI's moderation service checks what you type first, and the game holds back hateful, harassing or sexual messages. Type nothing you would not want processed that way: no personal, financial or health details, yours or anyone else's.
+What you type, your hero and the state of your game are sent to the host's computer and from there to OpenAI, which writes the Dungeon Master's replies and paints missing pictures. OpenAI's moderation service checks what you type first, and the game holds back hateful, harassing or sexual messages. Type nothing you would not want processed that way: no personal, financial or health details, yours or anyone else's.
 
 ### Saves in this browser
 

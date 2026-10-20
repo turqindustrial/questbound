@@ -70,4 +70,4 @@ Cinzel, Cinzel Decorative, EB Garamond and Inter, under the SIL Open Font Licens
 
 ### Pictures and sound
 
-The title paintings, the portraits of heroes and people, and the pictures of places are generated with OpenAI's image models at the host's request. The icons, interface and music are Questbound's own.
+The title paintings, the game's libraries of ready-made pictures (places, people, creatures and heroes' faces) and any picture painted during play are generated with OpenAI's image models at the host's request. The icons, interface and music are Questbound's own.
