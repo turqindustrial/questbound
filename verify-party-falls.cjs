@@ -1,4 +1,4 @@
-// A party at the shared table when heroes fall (adventureRules.js partyStep, partyRules.js, encounterRules.js,
+// A party at the shared table when heroes fall (partyTurnRules.js partyStep, partyRules.js, encounterRules.js,
 // npcRules.js, campaigns.cjs validSnapshot): a hero who drops in a fight in the wilds or in a brawl lies there while the
 // others fight on, whoever's device rolled the blow; a dead member never stops a later fight; a hero who wakes from
 // their death saves wakes where the party stands; a hold ends when its holder drops and nothing of a fight outlasts it.

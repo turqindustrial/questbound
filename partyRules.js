@@ -6,7 +6,7 @@ import {heroSpecies} from './characterRules';
 // per hero in game.party.members. A snapshot always has one hero in the lead: the one whose device sent it. Every
 // device views the table with its own hero in the lead (partyView), so the rules engine always plays one hero, the
 // player's own; the others travel with them, can be struck by the foe (encounterRules.js) and given a draught
-// (adventureRules.js), and the Dungeon Master is told about them but never speaks or acts for them (dmContext.js).
+// (recoveryRules.js), and the Dungeon Master is told about them but never speaks or acts for them (dmContext.js).
 // Turning the view is not a move: the table compares snapshots in their settled form (canonicalParty), which is the
 // same from every point of view, so only real changes are sent.
 export const heroFields=['potions','pack','wield','shieldAway','skillTraining','levelsOwed','xp','deeds','resources','shortRests','spellSlotsUsed','arcanumUsed','concentration','castingConditions','temporarySpell','heroCondition','pendingSpell','vex','buffs','speciesUsed','lastHit','hurtBy','shieldUp','dying','death'];
@@ -29,7 +29,7 @@ function stageAfterFall(game){
  return placeOf(record);
 }
 // The settled table: the world as it stands and every hero's own state, the lead's taken from the snapshot.
-// Whose turn it is in a party's fight (adventureRules.js keeps the order in game.turnOrder).
+// Whose turn it is in a party's fight (partyTurnRules.js keeps the order in game.turnOrder).
 export const turnHolder=game=>game?.turnOrder?.order?.[game.turnOrder.at]?.id??null;
 export function settleParty(snapshot){
  const game=snapshot.game,party=game.party,lead=party.lead,status=game.stage==='dead'?'dead':game.stage==='dying'?'down':'up';

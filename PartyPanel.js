@@ -7,7 +7,7 @@ import {partyMembers} from './partyRules';
 import {turnOrderView} from './encounterRules';
 import HeroPortrait from './HeroPortrait';
 // Every hero at a party table (partyRules.js) in one row: name, hit points as a bar, and how they stand. In a fight
-// the row follows the turn order (adventureRules.js): the foe takes its place in it, and whose turn it is stands out.
+// the row follows the turn order (partyTurnRules.js): the foe takes its place in it, and whose turn it is stands out.
 // The cards wrap onto a second line on a phone (four heroes and a foe); a brawl with more people than that shows a
 // More chip rather than scrolling sideways.
 // At a table, another player's hero card can be tapped (onMember, with their seat) for Mute, Report and, for the

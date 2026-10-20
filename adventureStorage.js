@@ -41,7 +41,7 @@ export function validParty(g){
     &&(m.hero===undefined||(m.hero&&typeof m.hero==='object'&&!Array.isArray(m.hero)&&(m.hero.potions===undefined||integerBetween(m.hero.potions,0,20))&&(m.hero.levelsOwed===undefined||integerBetween(m.hero.levelsOwed,0,5))&&(m.hero.xp===undefined||integerBetween(m.hero.xp,0,355000))&&(m.hero.shieldAway===undefined||m.hero.shieldAway===true)&&validPack(m.hero.pack)))
     &&(m.stats===undefined||(integerBetween(m.stats?.ac,0,40)&&integerBetween(m.stats?.hp,1,999)));});
 }
-// A party's fight in turns (adventureRules.js): each hero, the foe or each person fighting, in initiative order.
+// A party's fight in turns (partyTurnRules.js): each hero, the foe or each person fighting, in initiative order.
 export function validTurnOrder(g){
   const t=g.turnOrder;if(t===undefined)return true;
   if(!g.party||!t||typeof t!=='object'||!Array.isArray(t.order)||t.order.length<1||t.order.length>16)return false;

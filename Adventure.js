@@ -101,7 +101,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // One-tap actions for this moment; the map's Travel buttons send through the same Dungeon Master turn.
  const quick=[...(levelUp&&onLevelUp?[{key:'level-up',glyph:'✦',icon:'star',label:'Level up',primary:true,run:onLevelUp}]:[]),...quickActions(hero,game,health)];
  // Whose move it is: the player's action, or (once it is spent) a bonus action or the end of the turn.
- // In a party's fight the turn may be someone else's (adventureRules.js keeps the order).
+ // In a party's fight the turn may be someone else's (partyTurnRules.js keeps the order).
   const partyTurn=turnOrderView(game),turnLabel=partyTurn&&!partyTurn.mine?(partyTurn.current?.name??'Another')+'’s turn':game.actionUsed?'Bonus action or end turn':game.surged?'One more action':'Your turn';
  // The map sends a journey to any place a road reaches (a chip's own words when it has one) and a road beyond the edge
  // of the map, through the same Dungeon Master turn.
