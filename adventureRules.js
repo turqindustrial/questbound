@@ -5,7 +5,7 @@ import {slotChoices,slotUsed} from "./spellOptions";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
-import {mapState,mapLocation,travelError,travelTo,discoveryError,discoverPlace,travelRoute,timePasses,beyondError,goBeyond,knownLand,discoveryRoom,roomToMake,letRumoursGo} from "./mapRules";
+import {mapState,mapLocation,travelTo,travelRoute,timePasses} from "./mapRules";
 import {turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {modifier} from "./characterRules";
@@ -24,6 +24,7 @@ import {wildFightEnds,arrivalAmbush,ambushStep,creatureRound,creatureCombatStep}
 import {anyoneStanding,partyFightGoesOn,partyStep} from "./partyTurnRules";
 import {attackPerson,againOnPerson,brawlStep} from "./brawlRules";
 import {giveDraught,drinkPotion,drinkFromPack,shortRest,longRest} from "./recoveryRules";
+import {travelStep,discoverStep,beyondStep} from "./travelRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -390,54 +391,6 @@ function endConcentration(step) {
     game: next,
     health
   };
-}
-function travelStep(step) {
-  const {game, health, action, hp} = step;
-  const error = travelError(game, action.destination);
-  if (error) return {
-    game,
-    health,
-    error
-  };
-  if (hp.current <= 0) return {
-    game,
-    health,
-    error: 'You need to recover before traveling.'
-  };
-  const traveling={...game};delete traveling.npcCombat;return travelTo(traveling, hp, action.destination);
-}
-function discoverStep(step) {
-  const {game, health, action, hp} = step;
-  const error = discoveryError(game, action);
-  if (error) return {
-    game,
-    health,
-    error
-  };
-  if (hp.current <= 0) return {
-    game,
-    health,
-    error: 'You need to recover before exploring.'
-  };
-  const exploring={...game};delete exploring.npcCombat;
-  // When the map is full, a rumour never followed (or a land never reached) gives way first; lands travelled are
-  // never forgotten (mapRules.js roomToMake).
-  const far=!!action.place?.region&&!knownLand(game,action.place.region.name);
-  const room=letRumoursGo(exploring,discoveryRoom(exploring,far));
-  const found=discoverPlace(room.game, hp, action, room);
-  return room.lines.length&&!found.error?{...found,events:[...room.lines,...(found.events??[])]}:found;
-}
-// Beyond the edge of the map: a new land opens that way (a rumour or a land never reached giving way when the map
-// is full; lands travelled are never forgotten) and the hero walks there; the trip takes days.
-function beyondStep(step) {
-  const {game, health, action, hp} = step;
-  const error = beyondError(game, action.bearing);
-  if (error) return {game, health, error};
-  if (hp.current <= 0) return {game, health, error: 'You need to recover before traveling.'};
-  const leaving={...game};delete leaving.npcCombat;
-  const room=letRumoursGo(leaving,roomToMake(leaving,{lands:1,places:1}));
-  const trip=goBeyond(room.game, hp, action.bearing, room);
-  return {game:trip.game, health:trip.health, events:[...room.lines, ...trip.events]};
 }
 function inspectTower(step) {
   const {game, health, next} = step;
