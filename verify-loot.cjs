@@ -203,8 +203,8 @@ same(r.deathSave({stage:'dying',dying:{successes:0,failures:0,place:'inn'}},null
 // A deed for carrying off a magic item.
 assert.ok(r.deedList.some(d=>d.id==='treasure-hunter'&&d.earned({game:bl.game,hero:kara,log:[]})),'Treasure Hunter: a magic item carried off');
 // The Dungeon Master's server and the story writer keep their own copies of the catalogue's ids: they must agree.
-{const dm=fs.readFileSync('dm-server.cjs','utf8'),rarity=vm.runInNewContext('('+dm.match(/const magicRarity=(\{[^}]+\})/)[1]+')');
- same(Object.entries(rarity).sort(),r.magicItemIds.map(id=>[id,r.magicItems[id].rarity]).sort(),'dm-server.cjs magicRarity matches lootRules.js');
+{const dm=fs.readFileSync('dm-schemas.cjs','utf8'),rarity=vm.runInNewContext('('+dm.match(/const magicRarity=(\{[^}]+\})/)[1]+')');
+ same(Object.entries(rarity).sort(),r.magicItemIds.map(id=>[id,r.magicItems[id].rarity]).sort(),'dm-schemas.cjs magicRarity matches lootRules.js');
  const gen=fs.readFileSync('adventure-generator.cjs','utf8'),hoard=vm.runInNewContext(gen.match(/const hoardItems=(\[[^\]]+\])/)[1]);
  same(hoard,r.magicItemIds.filter(id=>!r.magicItems[id].heal),'the story writer offers every non-draught item');}
 // ---- 7. Validators ----

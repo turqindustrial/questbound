@@ -10,12 +10,10 @@ const {situation,secondLook,settled}=require('./dm-intent.cjs');
 // The standing instructions (dm-instructions.cjs), reloaded with this file like the modules above.
 delete require.cache[require.resolve('./dm-instructions.cjs')];
 const {standingPrompt,heroPrompt,narratorVoice,questInstructions,memoryInstructions,contractInstructions}=require('./dm-instructions.cjs');
+// The reply schema and its parts (dm-schemas.cjs), reloaded with this file like the modules above.
+delete require.cache[require.resolve('./dm-schemas.cjs')];
+const {magicRarity,magicIds,rarityOrder,rarityFor,tieKindsList,foeTieList,regardStanceList,terrainKinds,npcClassNames,introduceSchema,placeKinds,compass,creatureKinds,allyKinds,checkSchema,replySchemaFor,phaseFields,listFields}=require('./dm-schemas.cjs');
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
-// Magic items come from the catalogue below (SRD 5.2 items whose effects the game applies), never from the telling.
-const magicRarity={'weapon+1':'uncommon','weapon+2':'rare','weapon+3':'very rare','armor+1':'rare','armor+2':'very rare','shield+1':'uncommon','shield+2':'rare','shield+3':'very rare','cloak-of-protection':'uncommon','ring-of-protection':'rare','stone-of-good-luck':'uncommon','bracers-of-defense':'rare','gauntlets-of-ogre-power':'uncommon','headband-of-intellect':'uncommon','boots-of-elvenkind':'uncommon','cloak-of-elvenkind':'uncommon','eyes-of-the-eagle':'uncommon','wand-of-the-war-mage+1':'uncommon','wand-of-the-war-mage+2':'rare','wand-of-the-war-mage+3':'very rare','wand-of-magic-missiles':'uncommon','periapt-of-wound-closure':'uncommon','potion-greater-healing':'uncommon','potion-superior-healing':'rare','potion-supreme-healing':'very rare'};
-const magicIds=Object.keys(magicRarity),rarityOrder=['uncommon','rare','very rare'];
-// The rarest reward a hero of this level may be given: uncommon to level 4, rare to 10, very rare after.
-const rarityFor=level=>level>=11?'very rare':level>=5?'rare':'uncommon';
 // Long text is shortened with an ellipsis; the game's own limits stay the measure of what is too long.
 const cut=(s,n)=>typeof s==='string'&&s.length>n?s.slice(0,n-1).trimEnd()+'\u2026':s;
 const tidy=(s,n)=>cut(typeof s==='string'?s.trim():s,n);
@@ -212,7 +210,6 @@ function repairedIntroduce(p,context){
  r.regard=r.regard&&typeof r.regard==='object'&&regardStanceList.includes(r.regard.stance)&&typeof r.regard.reason==='string'?{stance:r.regard.stance,reason:tidy(r.regard.reason,200)}:null;
  return r;
 }
-const lootSchema=max=>({type:['object','null'],properties:{gold:{type:'integer'},items:{type:'array',maxItems:max,items:{type:'object',properties:{name:{type:'string'},kind:{type:'string',enum:['weapon','armor','potion','ammunition','treasure','gear','quest']},qty:{type:'integer'},value:{type:'number'},note:{type:'string'},magic:{type:['string','null'],enum:[null,...magicIds]}},required:['name','kind','qty','value','note','magic'],additionalProperties:false}},reason:{type:'string'}},required:['gold','items','reason'],additionalProperties:false});
 // An item's note is a courtesy: one that is missing or too long is tidied, never a reason to refuse the loot.
 const repairedLoot=l=>l&&typeof l==='object'&&Array.isArray(l.items)?{...l,items:l.items.map(i=>i&&typeof i==='object'?{...i,note:typeof i.note==='string'?tidy(i.note,160):''}:i)}:l;
 // Gold over what is plausible for the hero's level is cut to the most that is (the narration keeps its find), and
@@ -237,13 +234,7 @@ function validLoot(l,context){if(l===null)return true;const level=context.player
 // The people the game knows: the two residents and anyone met since (n1…n48).
 const personId=id=>/^(?:keeper|mara|n(?:[1-9]|[1-8]\d|9[0-6]))$/.test(String(id));
 const knownPeople=context=>{const ids=(context.npcSocialState??[]).map(n=>n?.id).filter(personId);return ids.length?ids:['keeper','mara'];};
-const tieKindsList=['family','beloved','close friend','friend','ally','acquaintance','rival','enemy'],foeTieList=['kin','beloved','ally','neutral','enemy'];
-const regardStanceList=['kin','warm','curious','indifferent','wary','scornful'],terrainKinds=['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns'];
-// The classes a trained person (or a companion) can fight as: the SRD classes and the Artificer (npcRules.js npcClassList).
-const npcClassNames=['Artificer','Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard'];
-const introduceSchema=(ids,poolIds=[])=>({type:['object','null'],properties:{...(poolIds===null?{pool:{type:['string','null']}}:poolIds.length?{pool:{type:['string','null'],enum:[null,...poolIds]}}:{}),name:{type:'string'},species:{type:'string'},role:{type:'string'},appearance:{type:'string'},personality:{type:'string'},toughness:{type:'string',enum:['frail','common','tough']},attitude:{type:'string',enum:['hostile','unfriendly','indifferent','friendly']},foe:{type:'string',enum:foeTieList},tie:{type:['object','null'],properties:{to:ids?{type:'string',enum:ids}:{type:'string'},kind:{type:'string',enum:tieKindsList}},required:['to','kind'],additionalProperties:false},gender:{type:'string',enum:['woman','man','other']},regard:{type:'object',properties:{stance:{type:'string',enum:regardStanceList},reason:{type:'string'}},required:['stance','reason'],additionalProperties:false},class:{type:['string','null'],enum:[null,...npcClassNames]}},required:[...(poolIds===null||poolIds.length?['pool']:[]),'name','species','role','appearance','personality','toughness','attitude','foe','tie','gender','regard','class'],additionalProperties:false});
 function validIntroduce(p,context){if(p===null)return true;const t=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;return !!p&&t(p.name,2,60)&&p.name.trim().toLowerCase()!==String(context.story?.foe??'').toLowerCase()&&t(p.species,0,60)&&t(p.role,3,200)&&t(p.appearance,10,400)&&t(p.personality,0,200)&&['frail','common','tough'].includes(p.toughness)&&['hostile','unfriendly','indifferent','friendly'].includes(p.attitude)&&foeTieList.includes(p.foe)&&(p.tie===null||(!!p.tie&&knownPeople(context).includes(p.tie.to)&&tieKindsList.includes(p.tie.kind)))&&(p.class===undefined||p.class===null||npcClassNames.includes(p.class));}
-const relationshipSchema=(max,ids=['keeper','mara'])=>({type:'array',maxItems:max,items:{type:'object',properties:{npcId:ids?{type:'string',enum:ids}:{type:'string'},change:{type:'string',enum:['pleased','grateful','offended','angered','bond','grudge','amends','forgave','ally','parts']},memory:{type:'string'}},required:['npcId','change','memory'],additionalProperties:false}});
 function validRelationships(list,context){const dead=Object.entries(context.npcFates??{}).filter(([,f])=>f==='dead').map(([id])=>id);return Array.isArray(list)&&list.length<=2&&new Set(list.map(d=>d?.npcId)).size===list.length&&list.every(d=>d&&knownPeople(context).includes(d.npcId)&&!dead.includes(d.npcId)&&['pleased','grateful','offended','angered','bond','grudge','amends','forgave','ally','parts'].includes(d.change)&&typeof d.memory==='string'&&d.memory.trim().length>=3&&d.memory.length<=200&&relationshipAllowed(d,context));}
 // Amends only for someone the player has wronged; forgiveness of a grudge only as far as the game's own count allows
 // (enough amends and time, or this deed the last amends needed once the time has passed); someone cold without a
@@ -258,15 +249,8 @@ function relationshipAllowed(d,context){
  if(d.change==='forgave'){if(!s?.grudge)return cold;const f=s.forgiveness;return !!f&&typeof f==='object'&&(f.canForgive===true||(Number(f.amendsToGo)<=1&&f.daysToGo===0));}
  return true;
 }
-const placeKinds=['settlement','camp','road','forest','wilds','mountain','water','ruin','cave','shrine','landmark','lair'],compass=['N','NE','E','SE','S','SW','W','NW'];
-const creatureKinds=['bandit','wolf','goblin','skeleton','boar','spider','zombies','orc','wolves'];
-// A creature can bring one of another kind at its side (a bandit's hound, a goblin on a worg); never a pack.
-const allyKinds=['bandit','wolf','goblin','skeleton','boar','spider','orc'];
-const allySchema={type:['object','null'],properties:{template:{type:'string',enum:allyKinds},name:{type:'string'},appearance:{type:'string'}},required:['template','name','appearance'],additionalProperties:false};
-const creatureSchema={type:['object','null'],properties:{template:{type:'string',enum:creatureKinds},name:{type:'string'},appearance:{type:'string'},ally:allySchema},required:['template','name','appearance','ally'],additionalProperties:false};
 const validSketch=c=>!!c&&typeof c.name==='string'&&c.name.trim().length>=2&&c.name.length<=60&&typeof c.appearance==='string'&&c.appearance.trim().length>=10&&c.appearance.length<=400;
 const validCreature=c=>c===null||(!!c&&creatureKinds.includes(c.template)&&validSketch(c)&&(c.ally==null||(allyKinds.includes(c.ally.template)&&c.ally.template!==c.template&&validSketch(c.ally))));
-const discoverySchema={type:['object','null'],properties:{name:{type:'string'},description:{type:'string'},kind:{type:'string',enum:placeKinds},bearing:{type:'string',enum:compass},miles:{type:'number'},travel:{type:'boolean'},danger:{type:'string',enum:['safe','risky','lair']},feature:{type:['string','null']},lair:creatureSchema,region:{type:['object','null'],properties:{name:{type:'string'},terrain:{type:'string',enum:terrainKinds}},required:['name','terrain'],additionalProperties:false}},required:['name','description','kind','bearing','miles','travel','danger','feature','lair','region'],additionalProperties:false};
 function validDiscovery(d){return d===null||(d&&typeof d.name==='string'&&d.name.trim().length>=2&&d.name.length<=60&&typeof d.description==='string'&&d.description.trim().length>=10&&d.description.length<=300&&placeKinds.includes(d.kind)&&compass.includes(d.bearing)&&typeof d.miles==='number'&&Number.isFinite(d.miles)&&typeof d.travel==='boolean'&&['safe','risky','lair'].includes(d.danger??'safe')&&(d.feature==null||(typeof d.feature==='string'&&d.feature.trim().length>=3&&d.feature.length<=200))&&validCreature(d.lair??null)&&(!d.lair||d.danger==='lair'));}
 // A cast only goes ahead when the player's words name a spell (or something that could be a nickname for one):
 // "I cast a spell at him" never lets the model pick the spell.
@@ -276,9 +260,7 @@ function spellNamed(input,context){
  const words=String(input).toLowerCase().match(/[a-z][a-z']*/g)??[];
  return words.some(w=>w.length>=2&&!genericWords.has(w)&&!names.split(/[^a-z']+/).includes(w));
 }
-const checkSchema={type:['object','null'],properties:{skill:{type:['string','null'],enum:[null,'Acrobatics','Animal Handling','Arcana','Athletics','Deception','History','Insight','Intimidation','Investigation','Medicine','Nature','Perception','Performance','Persuasion','Religion','Sleight of Hand','Stealth','Survival']},ability:{type:'string',enum:['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma']},dc:{type:'integer'},mode:{type:'string',enum:['normal','advantage','disadvantage']},reason:{type:'string'},success:{type:'string'},failure:{type:'string'},damageCount:{type:'integer'},damageDie:{type:'integer'},damageOn:{type:'string',enum:['failure','always','none']}},required:['skill','ability','dc','mode','reason','success','failure','damageCount','damageDie','damageOn'],additionalProperties:false};
 function validCheck(c){return c===null||(c&&(c.skill==null||checkSchema.properties.skill.enum.includes(c.skill))&&['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(c.ability)&&Number.isInteger(c.dc)&&c.dc>=5&&c.dc<=30&&['normal','advantage','disadvantage'].includes(c.mode)&&['reason','success','failure'].every(k=>typeof c[k]==='string'&&c[k].length>0&&c[k].length<=300)&&Number.isInteger(c.damageCount)&&c.damageCount>=0&&c.damageCount<=20&&[4,6,8,10,12,20].includes(c.damageDie)&&['failure','always','none'].includes(c.damageOn));}
-const rulingSchema={type:['object','null'],properties:{decision:{type:'string',enum:['cast','deny','clarify']},note:{type:'string'},damage:{type:'integer'},selfDamage:{type:'integer'},healing:{type:'integer'},temporaryHP:{type:'integer'}},required:['decision','note','damage','selfDamage','healing','temporaryHP'],additionalProperties:false};
 function validRuling(r){return r===null||(r&&['cast','deny','clarify'].includes(r.decision)&&typeof r.note==='string'&&r.note.trim().length>=3&&r.note.length<=500&&['damage','selfDamage','healing','temporaryHP'].every(k=>Number.isInteger(r[k])&&r[k]>=0&&r[k]<=500));}
 
 function validRequest(body){return body&&typeof body.input==='string'&&body.input.trim().length>0&&body.input.length<=1000&&body.context&&Array.isArray(body.context.choices)&&body.context.choices.length<=30&&body.context.choices.every(c=>typeof c.id==='string'&&c.id.length<=100&&typeof c.label==='string'&&c.label.length<=150);}
@@ -522,42 +504,6 @@ function cacheKeyFor(body){
  let h=0;for(const ch of who)h=(h*31+ch.charCodeAt(0))>>>0;
  return {prompt_cache_key:'qb-dm-'+(h%cacheBuckets)};
 }
-// The reply's schema: one for every turn (an ordinary turn, a resolved turn or scene cue that only tells, a spell
-// awaiting a ruling, a word out of character), naming none of this turn's choices or people, so every request starts
-// the same. What each phase may return is held to it when the reply is read (phaseFields, applied in steadied), and judge holds
-// the reply to this turn (its choices, who may speak, who may be recruited, who is known), mending what it can.
-let oneReplySchema=null;
-function replySchemaFor(){
- if(oneReplySchema)return oneReplySchema;
- const properties={narration:{type:'string'},
-  dialogue:{type:'array',maxItems:4,items:{type:'object',properties:{speakerId:{type:'string'},text:{type:'string',maxLength:700}},required:['speakerId','text'],additionalProperties:false}},
-  recruitment:{type:'array',maxItems:2,items:{type:'object',properties:{npcId:{type:'string'},decision:{type:'string',enum:['join','decline','check','offer']},reason:{type:'string',maxLength:400},terms:{type:'string',maxLength:300},dc:{type:['integer','null']},class:{type:['string','null'],enum:[null,...npcClassNames]}},required:['npcId','decision','reason','terms','dc','class'],additionalProperties:false}},
-  relationships:relationshipSchema(2,null),
-  introduce:introduceSchema(null,null),
-  loot:lootSchema(4),
-  actionId:{type:['string','null']},
-  castCommand:{type:['string','null']},
-  ruling:rulingSchema,
-  worldEvent:{type:['string','null']},
-  check:checkSchema,
-  discovery:discoverySchema,
-  ambush:creatureSchema,
-  rewind:{type:['boolean','null']},
-  fault:{type:['boolean','null']},
-  remember:rememberSchema(2),
-  suggestions:{type:'array',maxItems:3,items:{type:'string',maxLength:120}}};
- return oneReplySchema={type:'object',properties,required:['narration','dialogue','recruitment','relationships','loot','introduce','actionId','castCommand','ruling','worldEvent','check','discovery','ambush','rewind','fault','remember','suggestions'],additionalProperties:false};
-}
-// What each phase may return (the reply schema used to hold this; the one schema allows every field): a field a phase
-// cannot use is left out when the reply is read, as the old per-phase schemas would have left it. On a spell awaiting a
-// ruling a game action beside the ruling is not left out: the reply is unclear, and judge refuses it (asked again,
-// then a clarify that spends nothing).
-const phaseFields={
- turn:{rewind:false,fault:false},
- told:{recruitment:false,actionId:false,castCommand:false,ruling:false,worldEvent:false,check:false,discovery:false,ambush:false,rewind:false,fault:false},
- ruling:{recruitment:false,relationships:false,introduce:false,loot:false,rewind:false,fault:false,remember:false},
- ooc:{dialogue:false,recruitment:false,relationships:false,introduce:false,loot:false,actionId:false,castCommand:false,ruling:false,worldEvent:false,check:false,discovery:false,ambush:false,remember:false,suggestions:false}};
-const listFields=new Set(['dialogue','recruitment','relationships','remember','suggestions']);
 async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null,moderation=null,people=null,portraits=null}){
   if(fetchImpl===fetch)({model,storyModel}=liveModels(model,storyModel));
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
@@ -933,10 +879,7 @@ function echoes(a,b){
  return shared>=2&&shared/small>=0.7;
 }
 function distinctDialogue(lines){const kept=[];for(const l of Array.isArray(lines)?lines:[]){if(l&&kept.some(k=>echoes(k.text,l.text)))continue;kept.push(l);}return kept;}
-// The reply's `remember` field (the story so far, memoryRules.js): at most two facts, each one sentence the game cannot
-// see in its own records, with the ids it concerns, or settling a fact listed in context.memory by its id. Valid in
-// strict mode: always present, empty when there is nothing to keep.
-const rememberSchema=n=>({type:'array',maxItems:n,items:{type:'object',properties:{text:{type:'string',maxLength:200},about:{type:'array',maxItems:4,items:{type:'string',maxLength:40}},settles:{type:['string','null']}},required:['text','about','settles'],additionalProperties:false}});
+// The reply's `remember` field tidied (its schema, rememberSchema, is in dm-schemas.cjs).
 const rememberMechanics=/\b\d+\s*(?:hp|hit points?|xp|ac|dc)\b|\b(?:hit points?|armou?r class|spell slots?|initiative|saving throws?|d20|\d*d\d+|experience points?|level up)\b/i;
 function cleanRemember(list,context){
  const shown=[...(context?.memory?.facts??[]),...(context?.memory?.otherFacts??[])].map(t=>String(t)),openIds=new Set(shown.map(t=>t.match(/^(f\d{1,6})\b/)?.[1]).filter(Boolean));
