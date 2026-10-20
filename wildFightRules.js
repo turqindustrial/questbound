@@ -15,7 +15,8 @@ import {alliesScatter,endWildFight,allFoeTemplates,naturalAllies,startWildFight,
 import {offhandWeapons,masteryOf,withinGrip,creatureSize,grappledBy,holding,letGo,unarmedDC,unarmedSave,withMark,heroIdOf,heroEdge,edgeMode,isLight,markOf,endHeroTurn,creatureTurnStarts,foeEdge,boonKeyOf,sapSpent,sapsEnd} from "./masteryRules";
 import {packMagic,magicItems} from "./lootRules";
 import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassPassive,subclassWardRoll} from "./subclassRules";
-import {fall,givePotion,drinkDraught,inHand,foeStanding,tickHeroSpells,overflowOf,finishStep,adventureStepCore,encounterFoe} from "./adventureRules";
+import {fall,inHand,foeStanding,tickHeroSpells,overflowOf,finishStep,adventureStepCore,encounterFoe} from "./adventureRules";
+import {givePotion,drinkDraught} from "./recoveryRules";
 // A fight at a found place is over (won, fled or fallen): the step's lines and the game are told and left as it ends.
 export function wildFightEnds(game, result) {
   const w = game.wildFight, outcome = result.game.stage === 'victory' ? 'won' : result.game.stage === 'escaped' ? 'fled' : 'fell';

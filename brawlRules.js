@@ -15,7 +15,8 @@ import {arrowsLeft,spendArrow,spendThrown,potionHealing} from "./inventoryRules"
 import {fightingCompanions,partyTargets,companionBrawlWeapon,foeOffense,brawlStrength,foeHitsPartyHero} from "./encounterRules";
 import {grappledBy,holding,letGo,unarmedDC,unarmedSave,withMark,heroIdOf,heroEdge,edgeMode,masteryOf,markOf,endHeroTurn,sapsEnd,creatureTurnStarts,foeEdge,sapSpent} from "./masteryRules";
 import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassWardRoll} from "./subclassRules";
-import {inHand,drinkDraught,adventureStepCore,stepLogEntries,tickHeroSpells,overflowOf,fall} from "./adventureRules";
+import {inHand,adventureStepCore,stepLogEntries,tickHeroSpells,overflowOf,fall} from "./adventureRules";
+import {drinkDraught} from "./recoveryRules";
 // A blow (or a grapple, a shove, the subclass's own action) at a person; it may begin a brawl.
 export function attackPerson(step) {
   const {game, health, hero, action, random, stats, hp, entries} = step;
