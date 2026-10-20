@@ -1,4 +1,4 @@
-// What the game offers is what the rules accept (dmContext.js dmChoices, quickActions.js, dmCommands.js,
+// What the game offers is what the rules accept (dmChoiceRules.js dmChoices, quickActions.js, dmCommands.js,
 // adventureRules.js): Hellish Rebuke after the action is spent is a reaction the engine takes; a written story offers
 // no long rest once the keeper is dead or hostile, no healing draught at full health and no vault of the old crossroads
 // tale; a party's Cast… chip heals the hero it was made for even when two heroes share a name, and a typed name is

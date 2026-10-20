@@ -11,7 +11,7 @@ import {dmCommand,withAttackIntent} from './dmCommands';
 import {storyPreferences} from './storyPreferences';
 import {useState,useEffect,useRef,useMemo} from 'react';
 import {Keyboard} from 'react-native';
-import {dmChoices,commitDmTurn,mapMoves} from './dmContext';
+import {commitDmTurn} from './dmContext';
 import {playSound} from './audio';
 import {speakTurn,stopNarrator} from './narrator';
 import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemory';
@@ -24,6 +24,7 @@ import {cue} from './cinematics';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
 import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure} from './dmTurnRules';
+import {dmChoices,mapMoves} from "./dmChoiceRules";
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;

@@ -1,10 +1,10 @@
 import {encounterFoe,foeStanding} from './adventureRules';
-import {creatureNature} from './spellRules';
 import {spellLibrary} from './spellOptions';
 import {npcScene,npcLore} from './npcRules';
 import {combatBasics} from './combatRules';
 import {gearedHero} from './inventoryRules';
 import {storyText} from './storyRules';
+import {creatureNature} from "./spellDamageRules";
 
 // Routine fight moves told by the game itself (the host, 2026-10-17: "Let the game narrate routine fight moves: a plain
 // attack, Dodge or 'end my turn' currently asks the AI to describe it, even though the dice cards already show what

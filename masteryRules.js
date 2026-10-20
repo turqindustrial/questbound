@@ -113,7 +113,7 @@ export function heroEdge(game,key,weapon){
  const adv=[],dis=[];
  if(game.vex?.target===key)adv.push('Vex');
  if(markOf(game,key).prone)((weapon.ranged||weapon.thrown)?dis:adv).push('prone');
- // What a spell left on it (spellRules.js): held, asleep, blinded, outlined, or lit by Guiding Bolt.
+ // What a spell left on it (spellConditionRules.js): held, asleep, blinded, outlined, or lit by Guiding Bolt.
  const conds=(markOf(game,key).spells??[]).map(m=>m.cond),open=conds.find(c=>openConds.includes(c));
  if(open)adv.push(open);
  if(conds.includes('guided'))adv.push('Guiding Bolt');
@@ -158,7 +158,7 @@ export function fightOver(game){
  if(!lasting.some(k=>game[k]!==undefined))return game;
  const next={...game};for(const k of lasting)delete next[k];return next;
 }
-// A spell's mark on a creature (spellRules.js withSpellMark).
+// A spell's mark on a creature (spellConditionRules.js withSpellMark).
 // acid: Acid Arrow's or Vitriolic Sphere's later burn; burning: Searing Smite; aflame: burning webs; scorched: held metal
 // glowing red-hot (Heat Metal). `level`: the slot the spell was cast with, for damage that comes later.
 const spellMarkConds=['asleep','drowsy','entranced','paralyzed','laughing','commanded','groveling','restrained','outlined','blinded','charmed','frightened','baned','guided','poisoned','acid','burning','aflame','scorched'];
@@ -180,7 +180,7 @@ export function validMarks(g){
 // What a hero's spell leaves on another hero at the shared table (key 'h:<their id>'), on a companion (their person
 // id) or, for wards and Longstrider, on the caster: game.boons[key] = [{id, by: the caster's hero id, amount?, type?,
 // used?}], kept in the shared world so every device sees it. A concentration spell's boons end with the caster's
-// concentration (spellRules.js endBoons); a long rest ends them all.
+// concentration (spellBuffRules.js endBoons); a long rest ends them all.
 export const boonOn=(game,key,id)=>(game?.boons?.[key]??[]).find(b=>b.id===id)??null;
 export const ownBoonKey=game=>'h:'+heroIdOf(game);
 // The boon key for whoever a creature strikes: this device's hero (null), another hero ('party:<id>') or a companion.

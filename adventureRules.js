@@ -1,6 +1,6 @@
 import {storyText,questState} from './storyRules';
 import {recordNpcAggression,npcServiceError,npcProfile,npcLore,npcIdsOf} from "./npcRules";
-import {automaticEffects,requestSpell,resolveSpellRuling,tickBuffs,endSpellMarks,spellAgain,moveMark,markGone,withDefenses,knownSpells} from "./spellRules";
+import {automaticEffects,requestSpell,resolveSpellRuling,knownSpells} from "./spellRules";
 import {slotChoices,slotUsed} from "./spellOptions";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
@@ -26,6 +26,10 @@ import {attackPerson,againOnPerson,brawlStep} from "./brawlRules";
 import {giveDraught,drinkPotion,drinkFromPack,shortRest,longRest} from "./recoveryRules";
 import {travelStep,discoverStep,beyondStep} from "./travelRules";
 import {abilityCheck,restartAdventure,inspectTower,bridgeStep,studyOrListen} from "./crossroadsRules";
+import {endSpellMarks} from "./spellConditionRules";
+import {withDefenses} from "./spellDamageRules";
+import {tickBuffs} from "./spellBuffRules";
+import {spellAgain,moveMark,markGone} from "./lastingSpellRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -53,7 +57,7 @@ export const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,
   // The foe as it fights: its own numbers, scaled to the side it faces (encounterRules.js scaledFoe; a hero alone is
   // never scaled).
   export function encounterFoe(hero, game) {
-    // With what it is immune or vulnerable to (spellRules.js creatureDefenses: the undead take no Poison, a skeleton
+    // With what it is immune or vulnerable to (spellDamageRules.js creatureDefenses: the undead take no Poison, a skeleton
     // breaks under Bludgeoning).
     return withDefenses(game, 'foe', scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game)));
   }

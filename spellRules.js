@@ -1,9 +1,13 @@
 import {spellLibrary,automaticSpells,speciesSpells,speciesUseLimit,slotChoices,slotUsed} from './spellOptions';
 import {modifier,proficiencyBonus,subclassActive} from './characterRules';
 import {rollAttack,rollDamage,attackOptions} from './weaponRules';
-import {npcProfile,npcScene,npcIdsOf,classSaves,npcLore} from './npcRules';
-import {heroIdOf,markOf,withMark,edgeMode,boonOn,ownBoonKey} from './masteryRules';
+import {npcProfile,npcScene,npcIdsOf} from './npcRules';
+import {heroIdOf,withMark,edgeMode} from './masteryRules';
 import {subclassSpellBonus} from './subclassRules';
+import {conditionText,withSpellMark,spellCondsOf,helpless,spellEdge,spendGuidance,spellSaveShift,attackBoost,breakable,brokenLine,breakOnDamage,endSpellMarks} from "./spellConditionRules";
+import {spellDamageMax,personDefenses,defended,creatureNature,withDefenses,riderDamage,harmCreature} from "./spellDamageRules";
+import {partyHeal,castBuff,companionsHere,castOnAllies} from "./spellBuffRules";
+import {lastingSpells,websBurn} from "./lastingSpellRules";
 
 export const spellAbility={Artificer:'Intelligence',Bard:'Charisma',Cleric:'Wisdom',Druid:'Wisdom',Paladin:'Charisma',Ranger:'Wisdom',Sorcerer:'Charisma',Warlock:'Charisma',Wizard:'Intelligence',Fighter:'Intelligence',Rogue:'Intelligence'};
 // Explicit effects only. Unimplemented spells use a visible DM ruling, never guessed dice.
@@ -102,37 +106,10 @@ export const narratedSpells={
 for(const [id,[hint,object]] of Object.entries(narratedSpells))automaticEffects[id]={...(automaticEffects[id]??{}),narrated:hint,...(object?{object:true}:{})};
 // Where a spell can be cast: anywhere the hero stands and is not down (a found place and after victory included).
 export const castingStages=['inn','bridge','tower','wild','victory','dungeon','combat'];
-const spellName=id=>spellLibrary.find(s=>s.id===id)?.name??id;
+export const spellName=id=>spellLibrary.find(s=>s.id===id)?.name??id;
 // Casting a concentration spell ends the one already held (2024 rules): the line that says so.
 export function concentrationReplaced(game,spell){
   return spell.concentration&&game.concentration&&game.concentration.id!==spell.id?`${spellName(game.concentration.id)} ends: you can hold only one spell at a time.`:null;
-}
-const spellDamageTypes='Acid|Bludgeoning|Cold|Fire|Force|Lightning|Necrotic|Piercing|Poison|Psychic|Radiant|Slashing|Thunder';
-// The most damage a spell can deal to one target, read from its own text (every damage roll it names, summed, with
-// the spellcasting modifier where the spell adds it), raised for a higher slot or a cantrip's levels. A Dungeon
-// Master's ruling is held to this; 0 when the spell names no damage dice.
-export function spellDamageMax(hero,spell,slot){
-  if(!spell)return 0;
-  const sentences=String(spell.description??'').split(/(?<=\.)\s+/),mod=modifier(hero?.scores?.[castingAbility(hero)]??10);
-  let most=0,types=0;
-  for(const sentence of sentences){
-    if(!/damage/i.test(sentence))continue;
-    const dice=[...sentence.matchAll(/(\d+)d(\d+)(?:\s*\+\s*(\d+))?/g)];if(!dice.length)continue;
-    for(const d of dice)most+=Number(d[1])*Number(d[2])*(spell.level===0?cantripDice(hero?.level??1):1)+Number(d[3]??0);
-    if(/spellcasting ability modifier/i.test(sentence))most+=Math.max(0,mod);
-    types=Math.max(types,(sentence.match(new RegExp('\\b(?:'+spellDamageTypes+')\\b','g'))??[]).length);
-  }
-  const up=String(spell.higherLevel??'').match(/increases? by (\d+)d(\d+) for (?:each|every) (?:spell )?slot level above (\d)/i);
-  const level=typeof slot==='number'?slot:spell.level;
-  if(up&&level>Number(up[3]))most+=Number(up[1])*Number(up[2])*(level-Number(up[3]))*Math.max(1,Math.min(2,types));
-  return most;
-}
-// A person's defences against a spell: their own armour class, and saves by how tough they are.
-export function personDefenses(game,id){
-  const profile=npcProfile(game,id),toughness=game.people?.[id]?.toughness,save=toughness==='tough'?2:toughness==='frail'?-1:0;
-  // A trained person (npcRules.js npcClasses) adds their proficiency to their class's two saving throws.
-  const t=profile?.trainedAs,prof=t?2+Math.floor((t.level-1)/4):0,saves=Object.fromEntries(['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].map(a=>[a,t?Math.max(save,1)+((classSaves[t.class]??[]).includes(a)?prof:0):save]));
-  return {ac:profile?.ac??10,saves,distance:10,name:profile?.name??'They',save};
 }
 export const cantripDice = level => level>=17?4:level>=11?3:level>=5?2:1;
 export function knownSpells(hero) {
@@ -203,7 +180,7 @@ export function castableNow(hero,game,spell,extra={}){
   const costs=spellCostOptions(hero,game,spell).filter(c=>!(fighting&&c==='ritual')&&!(fighting&&typeof c==='number'&&c>0&&game.slotSpentThisTurn));
   return costs.some(slot=>!castError(hero,game,{id:spell.id,slot,intent:'now',componentsConfirmed:true,...extra}));
 }
-function spendSpell(hero,game,spell,slot) {
+export function spendSpell(hero,game,spell,slot) {
   const next={...game};
   if(typeof slot==='number' && slot>0){next.spellSlotsUsed=Array.from({length:9},(_,i)=>slotUsed(game,i+1)+(i+1===slot?1:0));next.resources={...game.resources,slots:next.spellSlotsUsed[0]};next.slotSpentThisTurn=game.stage==='combat'||!!game.npcCombat?.active;}
   if(slot==='arcanum')next.arcanumUsed=[...(game.arcanumUsed??[]),spell.level];
@@ -214,32 +191,6 @@ function spendSpell(hero,game,spell,slot) {
 export function durationRounds(duration) {
   const match=duration.match(/(\d+) (round|minute|hour|day)/i);
   return match ? Number(match[1])*({round:1,minute:10,hour:600,day:14400}[match[2].toLowerCase()]) : null;
-}
-// Only explicitly automated self-casts change defenses; DM rulings may target others.
-// Mage Armor and Barkskin set a floor under the hero's AC; Shield of Faith adds 2 and Shield (until their next turn) 5.
-export function spellDefense(game,baseAC,attacker={}) {
-  const active=game?.concentration;
-  const id=active?.automaticProtection===true && active.remaining>0?active.id:null;
-  let ac=baseAC;
-  if(ac!==null){
-    if(game?.buffs?.['mage-armor']?.ac)ac=Math.max(ac,game.buffs['mage-armor'].ac);
-    if(game?.buffs?.barkskin)ac=Math.max(ac,17);
-    if(id==='shield-of-faith'&&active.self!==false)ac+=2;
-    // A friend's Shield of Faith on this hero (game.boons).
-    else if(boonOn(game,ownBoonKey(game),'shield-of-faith'))ac+=2;
-    if(game?.shieldUp)ac+=5;
-  }
-  return {ac,disadvantage:id==='blur' && !attacker.blindsight && !attacker.truesight};
-}
-// Healing another player's hero in the party: up to their maximum, and one who is down (dying) wakes. Null when they
-// are not in the party, are this device's own hero, or are dead.
-export function partyHeal(game,id,amount){
-  const member=game.party?.members?.[id];if(!member||id===game.party.lead||member.status==='dead')return null;
-  let name='your companion';try{name=JSON.parse(member.character).name||name;}catch{}
-  const most=member.stats?.hp??1,was=member.status==='down'?0:member.health?.current??most,now=Math.min(most,was+Math.max(0,amount));
-  if(now<=was)return {party:game.party,name,was,now:was};
-  const hero={...(member.hero??{})};delete hero.dying;
-  return {party:{...game.party,members:{...game.party.members,[id]:{...member,status:'up',health:{current:now,temp:member.status==='down'?0:member.health?.temp??0},hero}}},name,was,now};
 }
 export function requestSpell(hero,game,health,maximum,request,random=Math.random,target={ac:11,saves:{Dexterity:2,Wisdom:0},distance:5}) {
   if(health?.current===0)return {error:'You cannot cast at 0 HP.'};
@@ -516,15 +467,7 @@ export function requestSpell(hero,game,health,maximum,request,random=Math.random
 // Heat Metal: whether the heated metal is armour the creature wears (it cannot drop it): a construct or an armoured
 // warden, or armour the caster named.
 function heatWorn(nature,target,intent){return !!nature.construct||/construct|warden|sentinel|knight|armou?r/i.test(String(target?.name??''))||/\b(armou?r|mail|breastplate|plate|helm|helmet|cuirass|gauntlets?)\b/i.test(String(intent??''));}
-function heatLine(saved,worn){return worn?'it cannot shed the armour, so it burns on, and its attacks have disadvantage until your next turn.':saved?'it keeps hold of the burning metal, and its attacks have disadvantage until your next turn.':'it drops the red-hot metal.';}
-// A target's resistance, immunity or vulnerability to a damage type.
-export function defended(target,type,amount){
-  if(!type||!amount||!target)return amount;
-  const has=list=>(list??[]).some(t=>String(t).toLowerCase()===String(type).toLowerCase());
-  if(has(target.immunities))return 0;
-  let n=amount;if(has(target.resistances))n=Math.floor(n/2);if(has(target.vulnerabilities))n*=2;
-  return n;
-}
+export function heatLine(saved,worn){return worn?'it cannot shed the armour, so it burns on, and its attacks have disadvantage until your next turn.':saved?'it keeps hold of the burning metal, and its attacks have disadvantage until your next turn.':'it drops the red-hot metal.';}
 export function resolveSpellRuling(hero,game,health,maximum,ruling,random=Math.random) {
   if(health?.current===0)return {error:'You cannot cast at 0 HP.'};
   const request=game.pendingSpell?{...game.pendingSpell}:null;if(!request)return {error:'No spell is awaiting a ruling.'};
@@ -596,6 +539,8 @@ export function concentrationAfterDamage(hero,game,damage,random=Math.random) {
 }
 
 // ---------- Spells that last in a fight: conditions, curses, blessings ----------
+// (The table is here because automaticEffects is built from it; what the conditions do is in spellConditionRules.js,
+// the curses' extra damage in spellDamageRules.js and the blessings in spellBuffRules.js.)
 // Conditions a spell lays on a creature in a fight (it saves against the caster's DC). They are kept in game.marks under
 // the creature's key ('foe', 'ally:0', a person's id) as `spells` entries {id, cond, by: the caster's hero id, dc,
 // save, rounds?}; one held by concentration ends when the caster's concentration does (endSpellMarks).
@@ -627,250 +572,6 @@ Object.assign(automaticEffects,{
   'searing-smite':{smite:true,searing:true,die:6,upcast:1,type:'Fire'},'ensnaring-strike':{smite:true,ensnare:true,die:6,upcast:1,type:'Piercing'},'true-strike':{trueStrike:true,type:'Radiant'},
   shield:{shield:true},
 });
-const conditionLines={
-  drowsy:'grows heavy-eyed and does nothing until the end of its next turn, when it must save again or fall asleep. Harm rouses it.',
-  asleep:'falls into a magical sleep: it does nothing until it wakes, and wakes if it is hurt.',
-  entranced:'stands entranced and does nothing; harm breaks the spell.',
-  paralyzed:'is paralyzed: it cannot act, attacks on it have advantage, and a blow from beside it is a critical hit. It tries to break free at the end of each of its turns.',
-  laughing:'collapses in helpless laughter: it is prone and does nothing. It tries to recover at the end of each of its turns.',
-  commanded:'obeys the command and loses its next turn.',groveling:'grovels: it drops prone and loses its next turn.',
-  restrained:'is held fast: its attacks have disadvantage and attacks on it have advantage. It tries to break free at the end of each of its turns.',
-  outlined:'is outlined in light: attacks on it have advantage while the spell holds.',
-  blinded:'is blinded: its attacks have disadvantage and attacks on it have advantage. It tries again at the end of each of its turns.',
-  charmed:'is charmed: it will not attack you, until you or your friends harm it.',
-  frightened:'is frightened: its attacks have disadvantage. It tries to master its fear at the end of each of its turns.',
-  baned:'is baned: it takes 1d4 off its attack rolls and saving throws while the spell holds.',
-};
-function conditionText(cond,called,spell){return (called.charAt(0).toUpperCase()+called.slice(1))+' '+(conditionLines[cond]??'is affected by '+spell.name+'.');}
-// What a creature is, as far as spells care: a humanoid (Hold Person, Charm Person), undead or a fiend (Divine Smite).
-const humanoidWords=/\b(human|humans|elf|elves|elven|dwarf|dwarves|halfling|gnome|orc|orcs|goblin|goblins|hobgoblin|bugbear|kobold|tiefling|dragonborn|goliath|bandit|bandits|cultist|cultists|knight|guard|soldier|thief|mage|priest|priestess|witch|wizard|sorcerer|sorceress|warlock|captain|brigand|pirate|raider|assassin|noble|merchant|lord|lady|queen|king|woman|man)\b/i;
-export function creatureNature(game,key){
-  // A person is a humanoid; an elf goes into a trance instead of sleeping (so magic cannot put it to sleep).
-  if(key&&key!=='foe'&&!String(key).startsWith('ally:'))return {humanoid:true,undead:false,fiend:false,construct:false,skeleton:false,sleepless:/\b(elf|elves|elven|drow)\b/i.test(String(npcLore(game,key)?.species??''))};
-  const kind=(key==='foe'?(game.wildFight?[game.wildFight.template,game.wildFight.name].join(' '):game.dungeon?.active?'warden construct':game.story?[game.story.foeSpecies,game.story.foe].join(' '):'lantern wisp'):String(game.foeAllies?.[Number(String(key).slice(5))]?.template??'')).toLowerCase();
-  return {humanoid:humanoidWords.test(kind),otherworldly:/\b(aberration|beholder|celestial|angel|deva|elemental|fey|sprite|pixie|dryad|hag|fiend|fiendish|demon|devil|imp|quasit|hellhound|undead|skeleton|skeletons|zombie|zombies|ghoul|ghast|wight|wraith|specter|spectre|ghost|vampire|lich|mummy|revenant|banshee|wisp)\b/.test(kind),undead:/\b(undead|skeleton|skeletons|zombie|zombies|ghoul|ghast|wight|wraith|specter|spectre|ghost|vampire|lich|mummy|revenant|banshee)\b/.test(kind),fiend:/\b(fiend|demon|devil|imp|quasit|hellhound|fiendish)\b/.test(kind),construct:/\b(construct|golem|animated|homunculus)\b/.test(kind),skeleton:/\bskeletons?\b/.test(kind),sleepless:/\b(elf|elves|elven|drow)\b/.test(kind)};
-}
-// What a creature shrugs off, as SRD 5.2 gives it (worked out from what it is, so old saves and written foes have it
-// too): the undead and constructs take no Poison damage and are never Poisoned or Exhausted (so magic cannot put them
-// to sleep either); a skeleton's bones break under Bludgeoning blows; an elf's trance keeps it from magical sleep.
-export function creatureDefenses(game,key){
-  const nature=creatureNature(game,key),tireless=nature.undead||nature.construct;
-  return {immunities:tireless?['Poison']:[],conditionImmunities:tireless?['Poisoned','Exhaustion']:[],vulnerabilities:nature.skeleton?['Bludgeoning']:[],sleepless:tireless||!!nature.sleepless};
-}
-// A target's numbers with what it is immune or vulnerable to added (anything written for it is kept).
-export function withDefenses(game,key,target){
-  if(!target)return target;
-  const own=creatureDefenses(game,key),join=(a,b)=>[...new Set([...(a??[]),...b])];
-  return {...target,immunities:join(target.immunities,own.immunities),conditionImmunities:join(target.conditionImmunities,own.conditionImmunities),vulnerabilities:join(target.vulnerabilities,own.vulnerabilities),sleepless:!!target.sleepless||own.sleepless};
-}
-const spellMarksOf=(game,key)=>markOf(game,key).spells??[];
-export function withSpellMark(game,key,entry){
-  const kept=spellMarksOf(game,key).filter(m=>!(m.id===entry.id&&m.by===entry.by));
-  return withMark(game,key,{spells:[...kept,entry].slice(-4)});
-}
-function setSpellMarks(game,key,list){return withMark(game,key,{spells:list.length?list:undefined});}
-export const spellCondsOf=(game,key)=>spellMarksOf(game,key).map(m=>m.cond);
-// Whether a creature is helpless (a melee hit on it from beside it is a critical hit).
-export const helpless=(game,key)=>spellCondsOf(game,key).some(c=>['paralyzed','asleep'].includes(c));
-// Whether a creature will not attack this hero (charmed by them).
-export const charmedBy=(game,key,heroId)=>spellMarksOf(game,key).some(m=>m.cond==='charmed'&&m.by===heroId);
-// The edge on an attack at a creature from what spells left on it: advantage on one paralyzed, asleep, held fast,
-// blinded, outlined or struck by Guiding Bolt.
-export function spellEdge(game,key,ranged=false){
-  const adv=[],dis=[],conds=spellCondsOf(game,key);
-  if(conds.some(c=>['paralyzed','asleep','restrained','blinded','outlined','entranced'].includes(c)))adv.push(conds.find(c=>['paralyzed','asleep','restrained','blinded','outlined','entranced'].includes(c)));
-  if(conds.includes('guided'))adv.push('Guiding Bolt');
-  const prone=markOf(game,key).prone;if(prone)(ranged?dis:adv).push('prone');
-  return {adv,dis};
-}
-// Guiding Bolt's glow is spent on the first attack made at the creature.
-export function spendGuidance(game,key){const list=spellMarksOf(game,key);return list.some(m=>m.cond==='guided')?setSpellMarks(game,key,list.filter(m=>m.cond!=='guided')):game;}
-// Bane on a creature: 1d4 off its attack roll or saving throw.
-export function spellSaveShift(game,key,random=Math.random){return spellCondsOf(game,key).includes('baned')?{amount:1+Math.floor(random()*4)}:{amount:0};}
-export function banedAttack(game,key,attack,random=Math.random){
-  if(!spellCondsOf(game,key).includes('baned')||attack.critical||attack.miss)return {attack,note:''};
-  const d=1+Math.floor(random()*4);return {attack:{...attack,total:attack.total-d},note:' − '+d+' Bane'};
-}
-// Bless on this hero: 1d4 on an attack roll or a saving throw.
-// (Their own Bless, unless they hold it only for others, or a friend's Bless on them: game.boons.)
-export function attackBoost(game,random=Math.random){return (game.concentration?.id==='bless'&&game.concentration.self!==false)||boonOn(game,ownBoonKey(game),'bless')?{amount:1+Math.floor(random()*4)}:{amount:0};}
-// Harm breaks a magical sleep, a trance and a charm.
-const breakable=['asleep','drowsy','entranced','charmed'];
-const brokenLine=(name,conds)=>`${name} is hurt, and ${conds.map(c=>c==='charmed'?'the charm breaks':c==='asleep'?'wakes':c==='drowsy'?'is roused':'snaps out of the trance').join(' and ')}.`;
-export function breakOnDamage(game,key){
-  const list=spellMarksOf(game,key);if(!list.some(m=>breakable.includes(m.cond)))return game;
-  return setSpellMarks(game,key,list.filter(m=>!breakable.includes(m.cond)));
-}
-// Wakes anyone whose hit points fell between two states of the game (any blow, from anyone); returns the lines.
-export function wokenByHarm(before,after,name=k=>k){
-  let game=after;const lines=[];
-  const hpOf=(g,k)=>k==='foe'?g.enemyHP:String(k).startsWith('ally:')?g.foeAllies?.[Number(String(k).slice(5))]?.hp:g.npcHP?.[k];
-  for(const key of Object.keys(after.marks??{})){
-    const was=hpOf(before,key),now=hpOf(after,key);
-    if(typeof was!=='number'||typeof now!=='number'||now>=was)continue;
-    const broke=spellMarksOf(after,key).filter(m=>breakable.includes(m.cond));
-    if(!broke.length)continue;
-    game=breakOnDamage(game,key);if(now>0)lines.push(brokenLine(name(key),broke.map(m=>m.cond)));
-  }
-  return {game,lines};
-}
-// A concentration spell's marks last only while its caster holds it (theirs on this device, or a party member's).
-// The same holds for what such a spell left on friends (endBoons).
-export function endSpellMarks(game,recast=null){
-  if(game.boons)game=endBoons(game,recast);
-  if(!game.marks)return game;
-  const me=heroIdOf(game),holds=by=>by===me?game.concentration?.id:game.party?.members?.[by]?.hero?.concentration?.id;
-  let next=game;
-  for(const key of Object.keys(game.marks)){
-    const list=spellMarksOf(game,key);if(!list.length)continue;
-    const kept=list.filter(m=>{const spell=spellLibrary.find(s=>s.id===m.id);if(m.by===me&&recast&&m.id===recast)return false;return !spell?.concentration||holds(m.by)===m.id;});
-    if(kept.length!==list.length)next=setSpellMarks(next,key,kept);
-  }
-  return next;
-}
-// At the start of a creature's turn: whether spells keep it from acting.
-export function spellTurnStarts(game,key,name){
-  const conds=spellCondsOf(game,key),lines=[];
-  const still=conds.find(c=>['paralyzed','asleep','drowsy','entranced','laughing','commanded','groveling'].includes(c));
-  if(still)lines.push(`${name} ${({paralyzed:'is paralyzed and cannot act.',asleep:'sleeps on.',drowsy:'is drowsy and does nothing.',entranced:'stands entranced.',laughing:'is helpless with laughter.',commanded:'obeys your command and loses its turn.',groveling:'grovels and loses its turn.'})[still]}`);
-  // Commanded to grovel, it throws itself down: it lies prone until its next turn.
-  return {skip:!!still,lines,game:still==='groveling'?withMark(game,key,{prone:true}):game};
-}
-// At the end of a creature's turn: it tries again to shake off a spell that allows it, and short spells run out.
-export function spellTurnEnds(game,key,name,saves,random=Math.random){
-  const list=spellMarksOf(game,key);if(!list.length)return {game,lines:[]};
-  const kept=[],lines=[];
-  for(const m of list){
-    if(m.rounds!==undefined&&m.rounds<=1){if(['poisoned','blinded','charmed','frightened'].includes(m.cond))lines.push(`${name} is no longer ${m.cond}.`);continue;}
-    const entry=m.rounds!==undefined?{...m,rounds:m.rounds-1}:m;
-    // Sleep: drowsy to the end of its turn, then a second Wisdom save, or it sleeps (Unconscious) while the spell lasts.
-    if(m.cond==='drowsy'){
-      const die=1+Math.floor(random()*20),bonus=saves?.[m.save]??0,bane=spellCondsOf(game,key).includes('baned')?1+Math.floor(random()*4):0,total=die+bonus-bane,woke=total>=m.dc;
-      lines.push(`${name} makes a ${m.save} save d20 ${die} + ${bonus}${bane?' − '+bane+' Bane':''} = ${total} vs DC ${m.dc}: ${woke?'it shakes off '+spellName(m.id)+'.':'it falls into a magical sleep, and only harm or a hard shake will wake it.'}`);
-      if(!woke)kept.push({...entry,cond:'asleep'});
-      continue;
-    }
-    if(['paralyzed','laughing','restrained','blinded','frightened'].includes(m.cond)){
-      const die=1+Math.floor(random()*20),bonus=saves?.[m.save]??0,bane=spellCondsOf(game,key).includes('baned')?1+Math.floor(random()*4):0,total=die+bonus-bane;
-      if(total>=m.dc){lines.push(`${name} makes a ${m.save} save d20 ${die} + ${bonus} = ${total} vs DC ${m.dc} and breaks free of ${spellName(m.id)}.`);continue;}
-      lines.push(`${name} makes a ${m.save} save d20 ${die} + ${bonus} = ${total} vs DC ${m.dc} and stays ${({paralyzed:'paralyzed',laughing:'helpless with laughter',restrained:'held fast',blinded:'blinded',frightened:'frightened'})[m.cond]}.`);
-    }
-    kept.push(entry);
-  }
-  let next=setSpellMarks(game,key,kept);
-  // Hideous Laughter keeps a creature down; once it ends the creature can get up as usual.
-  return {game:next,lines};
-}
-// Hex or Hunter's Mark on the creature struck, and Divine Favor on a weapon hit: the extra damage of one hit.
-export function riderDamage(hero,game,key,critical,random=Math.random,{weapon=false}={}){
-  let next=game;const lines=[];let amount=0,type=null;
-  const held=game.concentration,effect=held?automaticEffects[held.id]:null;
-  if(effect?.rider&&!held.lost&&!held.gone){
-    if(!held.target){next={...next,concentration:{...held,target:key}};lines.push(`${spellName(held.id)} settles on the creature you struck.`);}
-    if(!held.target||held.target===key){
-      const dice=Array.from({length:critical?2:1},()=>1+Math.floor(random()*effect.rider.die)),n=dice.reduce((a,b)=>a+b,0);
-      amount+=n;type=effect.rider.type;lines.push(`${spellName(held.id)}: +${n} ${effect.rider.type} damage (${dice.length}d${effect.rider.die} [${dice.join(', ')}]).`);
-    }
-  }
-  if(weapon&&(game.buffs?.['divine-favor']?.remaining??0)>0){
-    const dice=Array.from({length:critical?2:1},()=>1+Math.floor(random()*4)),n=dice.reduce((a,b)=>a+b,0);
-    amount+=n;type=type??'Radiant';lines.push(`Divine Favor: +${n} Radiant damage (${dice.length}d4 [${dice.join(', ')}]).`);
-  }
-  return {game:next,amount,type,lines};
-}
-const armourWorn=hero=>(hero.equipment?.items??[]).some(i=>i.quantity>0&&/(Armor|Mail|Chain Shirt|Breastplate|Plate)\b/.test(i.name)&&!/^Shield$/.test(i.name));
-// A buff the hero casts on themselves.
-function castBuff(hero,game,hp,spell,effect,{mod,request,foeType}){
-  const next={...game},lines=[],buffs={...(game.buffs??{})};
-  switch(effect.buff){
-    case 'bless':lines.push('Bless: you add 1d4 to your attack rolls and saving throws while you hold the spell (up to 1 minute).');break;
-    case 'heroism':{const gain=Math.max(1,mod);hp.temp=Math.max(hp.temp,gain);lines.push(`Heroism: you know no fear, and gain ${gain} temporary HP at the start of each of your turns while you hold the spell. Temporary HP now ${hp.temp}.`);break;}
-    case 'guidance':lines.push('Guidance: you add 1d4 to your next ability check while the spell holds (up to 1 minute).');break;
-    case 'resistance':{
-      const said=String(request.intent??'').toLowerCase(),types=['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'];
-      const t=types.find(x=>said.includes(x.toLowerCase()))??(types.includes(foeType)?foeType:'Slashing');
-      next.concentration={...next.concentration,damageType:t};
-      lines.push(`Resistance: ${t} damage that reaches you is reduced by 1d4, once a turn, while you hold the spell (up to 1 minute).`);break;
-    }
-    case 'mage-armor':{
-      if(armourWorn(hero))return {error:'Mage Armor works only for someone wearing no armour.'};
-      const ac=13+modifier(hero.scores?.Dexterity??10);buffs['mage-armor']={remaining:4800,ac};
-      lines.push(`Mage Armor: your Armor Class is ${ac} (13 + Dexterity) for 8 hours, while you wear no armour.`);break;
-    }
-    case 'ward':case 'stride':{
-      const own=ownBoonKey(game),kept=(game.boons?.[own]??[]).filter(b=>b.id!==spell.id);next.boons={...(game.boons??{}),[own]:[...kept,{id:spell.id,by:heroIdOf(game)}]};
-      lines.push(effect.buff==='ward'?'Protection from Evil and Good: aberrations, celestials, elementals, fey, fiends and undead have disadvantage on their attacks against you, and cannot charm, frighten or possess you, while you hold the spell (up to 10 minutes).':'Longstrider: you move 10 feet faster for the next hour.');break;
-    }
-    case 'barkskin':buffs.barkskin={remaining:600};lines.push('Barkskin: your Armor Class is at least 17 for the next hour.');break;
-    case 'divine-favor':buffs['divine-favor']={remaining:10};lines.push('Divine Favor: your weapon hits deal an extra 1d4 Radiant damage for 1 minute.');break;
-    case 'shillelagh':{
-      if(!(hero.equipment?.items??[]).some(i=>i.quantity>0&&/\b(Club|Quarterstaff)\b/.test(i.name)))return {error:'Shillelagh needs a club or a quarterstaff in your hand.'};
-      buffs.shillelagh={remaining:10,ability:castingAbility(hero)??'Wisdom'};
-      lines.push(`Shillelagh: your club or quarterstaff strikes with your ${castingAbility(hero)??'Wisdom'} and a heavier die for 1 minute.`);break;
-    }
-    default:break;
-  }
-  next.buffs=buffs;if(!Object.keys(buffs).length)delete next.buffs;
-  return {game:next,lines};
-}
-// Shield, cast for the hero as a reaction when a blow would otherwise land: +5 AC until the start of their next turn,
-// unless the player turned that off on their device.
-// Returns null when it cannot or would not help (a critical hit, a blow that hits anyway, no reaction or slot left).
-export function shieldReaction(hero,game,attackTotal,ac,critical){
-  // The player can keep their slots: the device setting "Use Shield when it saves you" (storyPreferences.js autoShield)
-  // reaches the rules as hero.autoShield=false (Adventure.js rulesHero).
-  if(hero?.autoShield===false)return null;
-  if(critical||attackTotal<ac||attackTotal>=ac+5||game.reactionUsed||game.shieldUp)return null;
-  const spell=knownSpells(hero).find(s=>s.id==='shield');if(!spell)return null;
-  const slot=slotChoices(hero,game,spell)[0];if(typeof slot!=='number')return null;
-  const next=spendSpell(hero,game,spell,slot);if(game.slotSpentThisTurn)next.slotSpentThisTurn=true;else delete next.slotSpentThisTurn;
-  return {game:{...next,reactionUsed:true,shieldUp:true},line:`Shield (reaction, level ${slot} slot): a barrier of force flares up: +5 AC until your next turn, so the blow misses.`};
-}
-// The start of the hero's turn: Shield drops, Resistance can work again, and Heroism grants its temporary hit points.
-export function heroTurnBegins(hero,game,health){
-  let next=game,hp=health;const lines=[];
-  if(next.shieldUp){next={...next};delete next.shieldUp;}
-  if(next.concentration?.used){next={...next,concentration:{...next.concentration}};delete next.concentration.used;}
-  // A friend's Resistance on this hero works once a turn too.
-  const own=ownBoonKey(next),resist=boonOn(next,own,'resistance');
-  if(resist?.used)next={...next,boons:{...next.boons,[own]:next.boons[own].map(b=>b.id==='resistance'?{id:b.id,by:b.by,type:b.type}:b)}};
-  // Heroism, their own (unless held only for others) or a friend's.
-  const heroic=next.concentration?.id==='heroism'&&next.concentration.self!==false?Math.max(1,modifier(hero.scores?.[castingAbility(hero)]??10)):boonOn(next,own,'heroism')?.amount??0;
-  if(heroic>0&&(hp?.current??0)>0){
-    if(heroic>(hp.temp??0)){hp={...hp,temp:heroic};lines.push(`Heroism: ${heroic} temporary HP.`);}
-  }
-  return {game:next,health:hp,lines};
-}
-// Spells and buffs that count down at the end of the hero's turn.
-export function tickBuffs(game){
-  if(!game.buffs)return game;
-  const buffs={};for(const [id,b] of Object.entries(game.buffs)){if(b.remaining===null||b.remaining===undefined){buffs[id]=b;continue;}if(b.remaining>1)buffs[id]={...b,remaining:b.remaining-1};}
-  const next={...game,buffs};if(!Object.keys(buffs).length)delete next.buffs;return next;
-}
-// Guidance spent on an ability check: 1d4, and the spell ends.
-export function guidanceBonus(game,random=Math.random){
-  // A friend's Guidance on this hero is spent the same way.
-  const own=game?ownBoonKey(game):null;
-  if(game?.concentration?.id!=='guidance'||game.concentration.self===false){
-    if(!own||!boonOn(game,own,'guidance'))return null;
-    const die=1+Math.floor(random()*4),list=game.boons[own].filter(b=>b.id!=='guidance'),boons={...game.boons};if(list.length)boons[own]=list;else delete boons[own];
-    const next={...game,boons};if(!Object.keys(boons).length)delete next.boons;return {die,game:next};
-  }
-  const die=1+Math.floor(random()*4),next={...game};delete next.concentration;return {die,game:next};
-}
-// Resistance: 1d4 off damage of the chosen type, once a turn.
-export function resistedDamage(game,type,amount,random=Math.random){
-  const c=game.concentration;
-  if(c?.id!=='resistance'||c.self===false||c.damageType!==type||c.used||amount<=0){
-    // A friend's Resistance on this hero.
-    const own=ownBoonKey(game),b=boonOn(game,own,'resistance');
-    if(!b||b.type!==type||b.used||amount<=0)return {game,amount,line:null};
-    const d=1+Math.floor(random()*4),now=Math.max(0,amount-d);
-    return {game:{...game,boons:{...game.boons,[own]:game.boons[own].map(x=>x.id==='resistance'?{...x,used:true}:x)}},amount:now,line:`Resistance takes ${amount-now} off the ${type.toLowerCase()} damage.`};
-  }
-  const d=1+Math.floor(random()*4),now=Math.max(0,amount-d);
-  return {game:{...game,concentration:{...c,used:true}},amount:now,line:`Resistance takes ${amount-now} off the ${type.toLowerCase()} damage.`};
-}
 
 // Shared preflight for conversational casting. Unknown world facts never become fabricated effects.
 // In a story fight the creature can be named loosely: "the bandit", "the goblins", "the beast", "him", "it".
@@ -916,6 +617,7 @@ export function inspectSpellCast(hero,game,health,spell,request,target){
 }
 
 // ---------- Spells for friends: blessings, wards and Aid ----------
+// (The table is here because automaticEffects is built from it; the casting, boons and buffs are in spellBuffRules.js.)
 // Spells that go to friends as well as the caster (2024 rules): how many each reaches at its own level and how many
 // more for each slot level above it. On another hero at the shared table or a companion they leave a boon
 // (masteryRules.js game.boons); on the caster they work as before (concentration, buffs). Aid raises hit points.
@@ -923,314 +625,5 @@ Object.assign(automaticEffects,{
   'protection-from-evil-and-good':{buff:'ward'},longstrider:{buff:'stride'},aid:{aid:true},
 });
 delete automaticEffects.longstrider.narrated;
-const allyTargets={bless:{base:3,upcast:1},heroism:{base:1,upcast:1},guidance:{base:1},resistance:{base:1},'shield-of-faith':{base:1},'protection-from-evil-and-good':{base:1},longstrider:{base:1,upcast:1},aid:{base:3}};
+export const allyTargets={bless:{base:3,upcast:1},heroism:{base:1,upcast:1},guidance:{base:1},resistance:{base:1},'shield-of-faith':{base:1},'protection-from-evil-and-good':{base:1},longstrider:{base:1,upcast:1},aid:{base:3}};
 for(const [id,t] of Object.entries(allyTargets))automaticEffects[id]={...automaticEffects[id],targets:t};
-// Spells a hero casts for friends, and how many friends one casting reaches.
-export const allySpell=id=>!!allyTargets[id];
-export const allySpellLimit=(spell,level=spell.level)=>{const t=allyTargets[spell.id]??{base:1};return (t.base??1)+Math.max(0,level-spell.level)*(t.upcast??0);};
-// Who a spell for friends can reach: 'self', another hero at the table ('party:<id>'), or a companion here (their id).
-const allyBoonKey=(game,a)=>a==='self'?ownBoonKey(game):a.startsWith('party:')?'h:'+a.slice(6):a;
-function allyName(game,a){
-  if(a==='self')return 'you';
-  if(a.startsWith('party:')){try{return JSON.parse(game.party.members[a.slice(6)].character).name||'your companion';}catch{return 'your companion';}}
-  return npcProfile(game,a)?.name??a;
-}
-function allyError(game,a){
-  if(a==='self')return '';
-  if(typeof a!=='string')return 'Name who the spell is for.';
-  if(a.startsWith('party:')){const id=a.slice(6),m=game.party?.members?.[id];if(!m||id===game.party.lead)return 'That hero is not here.';return m.status==='dead'?'They are dead. No spell you know can bring them back.':'';}
-  if(!npcScene(game).some(n=>n.id===a&&n.present)||game.npcFate?.[a]==='dead')return 'They are not here.';
-  return '';
-}
-// The other heroes standing at the table, and the companions at the hero's side.
-const partyHeroIds=game=>Object.entries(game.party?.members??{}).filter(([id,m])=>id!==game.party.lead&&m?.status==='up').map(([id])=>id);
-const companionsHere=game=>npcScene(game).filter(n=>n.present&&n.fate!=='dead'&&game.followers?.[n.id]?.status==='following').map(n=>n.id);
-// When the player names no one: Bless and Aid go to the caster, then the other heroes standing at the table, then the
-// companions at their side, as many as the spell reaches; every other spell for friends goes to the caster.
-export function defaultAllies(game,spell,level=spell.level){
-  if(!['bless','aid'].includes(spell.id))return ['self'];
-  return ['self',...partyHeroIds(game).map(id=>'party:'+id),...companionsHere(game)].slice(0,allySpellLimit(spell,level));
-}
-// The friends a player named ("on me, Bram and Mara", "on the party"): their keys, or null when a name is not one of
-// them (the spell then goes to the Dungeon Master's ruling as before).
-export function alliesNamed(game,spell,text,level=spell.level){
-  const t=String(text??'').toLowerCase().replace(/[.!]+$/,'').trim();
-  if(!t)return null;
-  if(/^(?:us|us all|all of us|everyone|everybody|the party|my party|my friends|my allies|my companions|the group|the team)$/.test(t))return ['self',...partyHeroIds(game).map(id=>'party:'+id),...companionsHere(game)].slice(0,allySpellLimit(spell,level));
-  const names=[];
-  for(const id of Object.keys(game.party?.members??{})){if(id===game.party.lead)continue;let name='';try{name=String(JSON.parse(game.party.members[id].character).name??'').toLowerCase();}catch{}if(name)names.push(['party:'+id,name]);}
-  for(const n of npcScene(game).filter(p=>p.present&&p.fate!=='dead'))names.push([n.id,String(npcLore(game,n.id)?.name??n.name??n.id).toLowerCase()]);
-  const keys=[];
-  for(const raw of t.split(/\s*(?:,|\band\b|&)\s*/).map(w=>w.trim().replace(/^(?:the|my)\s+/,'')).filter(Boolean)){
-    if(['me','myself','self','i','you'].includes(raw)){keys.push('self');continue;}
-    // The game writes people's ids into the player's words ("on mara"), so an id matches too.
-    const hit=names.find(([id,name])=>{const first=name.split(' ')[0];return raw===id||raw===name||raw===first||raw.startsWith(first+' ')||name.split(' ').includes(raw);});
-    if(!hit)return null;keys.push(hit[0]);
-  }
-  return keys.length?[...new Set(keys)]:null;
-}
-const nameList=list=>list.length<=1?(list[0]??''):list.slice(0,-1).join(', ')+' and '+list[list.length-1];
-const resistanceType=(request,foeType)=>{const said=String(request.intent??'').toLowerCase(),types=['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'];return types.find(x=>said.includes(x.toLowerCase()))??(types.includes(foeType)?foeType:'Slashing');};
-// A spell for friends, cast on the friends chosen (the caster among them or not). `hp` is the caster's own hit points,
-// changed in place as castBuff does.
-function castOnAllies(hero,game,hp,spell,effect,{level,mod,request,foeType}){
-  const limit=allySpellLimit(spell,level),chosen=[...new Set(request.allies?.length?request.allies:['self'])];
-  if(chosen.length>limit)return {error:`${spell.name} reaches ${limit===1?'one creature':'up to '+limit+' creatures'} with this slot.`};
-  for(const a of chosen){const e=allyError(game,a);if(e)return {error:e};}
-  // Guidance helps with ability checks, which the game rolls only for heroes; for a companion the Dungeon Master rules.
-  if(effect.buff==='guidance'&&chosen.some(a=>a!=='self'&&!a.startsWith('party:')))return {ruling:true};
-  let next={...game};const me=heroIdOf(game),self=chosen.includes('self'),others=chosen.filter(a=>a!=='self'),names=chosen.map(a=>allyName(game,a));
-  const who=nameList(names),lines=[];
-  // A concentration spell held only for others leaves the caster as they were.
-  if(spell.concentration&&next.concentration?.id===spell.id&&!self)next.concentration={...next.concentration,self:false};
-  if(effect.aid){
-    // Aid: each one's hit point maximum and current hit points rise by 5 for each slot level above 1st, for 8 hours (a
-    // long rest ends it). A second casting does not add to the first; a stronger one raises it to the new amount.
-    const amount=Math.min(40,5*Math.max(1,level-1)),raised=[];
-    for(const a of chosen){
-      if(a==='self'){const had=next.buffs?.aid?.amount??0;if(amount>had){next.buffs={...(next.buffs??{}),aid:{remaining:4800,amount}};hp.current+=amount-had;raised.push('you');}continue;}
-      if(a.startsWith('party:')){
-        const id=a.slice(6),m=next.party.members[id],had=m.hero?.buffs?.aid?.amount??0;if(amount<=had)continue;
-        const up=amount-had,most=(m.stats?.hp??1)+up,was=m.status==='down'?0:m.health?.current??m.stats?.hp??1,hero2={...(m.hero??{}),buffs:{...(m.hero?.buffs??{}),aid:{remaining:4800,amount}}};
-        if(m.status==='down')delete hero2.dying;
-        next.party={...next.party,members:{...next.party.members,[id]:{...m,status:'up',stats:{...(m.stats??{ac:10}),hp:most},health:{current:Math.min(most,was+up),temp:m.status==='down'?0:m.health?.temp??0},hero:hero2}}};
-        raised.push(allyName(game,a)+(was===0?' (wakes)':''));continue;
-      }
-      const had=next.aided?.[a]??0;if(amount<=had)continue;
-      const up=amount-had,was=next.npcHP?.[a]??npcProfile(next,a).maximumHP;
-      next.aided={...(next.aided??{}),[a]:amount};next.npcHP={...(next.npcHP??{}),[a]:was+up};
-      if(was===0&&next.npcFate?.[a]){next.npcFate={...next.npcFate};delete next.npcFate[a];if(!Object.keys(next.npcFate).length)delete next.npcFate;}
-      raised.push(allyName(game,a)+(was===0?' (comes round)':''));
-    }
-    lines.push(raised.length?`Aid on ${nameList(raised)}: each one’s hit point maximum and current hit points rise by ${amount} for 8 hours.`:`Aid: everyone chosen already has as much from Aid (${amount}).`);
-    return {game:next,lines};
-  }
-  if(self){
-    if(effect.buff&&['bless','heroism','guidance','resistance'].includes(effect.buff)){const own=castBuff(hero,next,hp,spell,effect,{mod,request,foeType});if(own.error)return own;next=own.game;}
-    else if(effect.protection)next.concentration={...next.concentration,automaticProtection:true};
-    else next=withBoonFor(next,ownBoonKey(next),{id:spell.id,by:me});
-  }
-  const type=effect.buff==='resistance'?resistanceType(request,foeType):null,amount=Math.max(1,mod);
-  for(const a of others){
-    const entry={id:spell.id,by:me,...(effect.buff==='heroism'?{amount}:{}),...(type?{type}:{})};
-    next=withBoonFor(next,allyBoonKey(next,a),entry);
-    // Heroism's first temporary hit points reach another hero at once.
-    if(effect.buff==='heroism'&&a.startsWith('party:')){const id=a.slice(6),m=next.party.members[id];if(m.status==='up'&&(m.health?.temp??0)<amount)next.party={...next.party,members:{...next.party.members,[id]:{...m,health:{current:m.health?.current??m.stats?.hp??1,temp:amount}}}};}
-  }
-  const on=`${spell.name} on ${who}`;
-  lines.push(({
-    bless:`${on}: each adds 1d4 to attack rolls and saving throws while you hold the spell (up to 1 minute).`,
-    heroism:`${on}: each knows no fear and gains ${amount} temporary HP at the start of each of their turns while you hold the spell.${self?' Your temporary HP now '+hp.temp+'.':''}`,
-    guidance:`${on}: the next ability check adds 1d4 while the spell holds (up to 1 minute).`,
-    resistance:`${on}: ${type} damage that reaches them is reduced by 1d4, once a turn, while you hold the spell (up to 1 minute).`,
-    ward:`${on}: aberrations, celestials, elementals, fey, fiends and undead have disadvantage on their attacks against them, and cannot charm, frighten or possess them, while you hold the spell (up to 10 minutes).`,
-    stride:`${on}: each moves 10 feet faster for the next hour.`,
-  })[effect.buff]??`${on}: a shimmering field gives each +2 AC while you hold the spell (up to 10 minutes).`);
-  return {game:next,lines};
-}
-function withBoonFor(game,key,entry){const kept=(game.boons?.[key]??[]).filter(b=>b.id!==entry.id);return {...game,boons:{...(game.boons??{}),[key]:[...kept,entry].slice(-8)}};}
-// A concentration spell's boons last only while its caster holds it (on this device, or a party member's); casting it
-// again replaces the old ones.
-export function endBoons(game,recast=null){
-  if(!game.boons)return game;
-  const me=heroIdOf(game),holds=by=>by===me?game.concentration?.id:game.party?.members?.[by]?.hero?.concentration?.id;
-  const boons={};
-  for(const [key,list] of Object.entries(game.boons)){
-    const kept=list.filter(b=>{const spell=spellLibrary.find(s=>s.id===b.id);if(b.by===me&&recast&&b.id===recast)return false;return !spell?.concentration||holds(b.by)===b.id;});
-    if(kept.length)boons[key]=kept;
-  }
-  if(JSON.stringify(boons)===JSON.stringify(game.boons))return game;
-  const next={...game,boons};if(!Object.keys(boons).length)delete next.boons;return next;
-}
-// Protection from Evil and Good on whoever a creature strikes: disadvantage for an aberration, celestial, elemental,
-// fey, fiend or undead. `boonKey`: masteryRules boonKeyOf.
-export function wardEdge(game,key,boonKey){return boonOn(game,boonKey,'protection-from-evil-and-good')&&creatureNature(game,key).otherworldly?['Protection from Evil and Good']:[];}
-
-// ---------- Spells that go on working ----------
-// Concentration spells whose damage comes again (2024 rules), while the caster holds them and the fight lasts: at the end
-// of the turn of a creature in the area (zone 'area': every creature in the fight; 'target': the one it was cast on or
-// moved to), or as the caster's bonus action or Magic action on a later turn (`again`; `later`: not on the turn it was
-// cast; `move`: it moves to the creature it is used on; `same`: only the creature first chosen). The caster's
-// concentration keeps {level, dc, target, fresh} for this, so another device can play it at the shared table.
-export const lastingSpells={
-  moonbeam:{zone:'target',save:'Constitution',die:10,count:2,upcast:1,type:'Radiant',half:true,again:'action',move:true,verb:'move the beam onto'},
-  'flaming-sphere':{zone:'target',save:'Dexterity',die:6,count:2,upcast:1,type:'Fire',half:true,again:'bonus',move:true,verb:'roll the sphere into'},
-  'call-lightning':{save:'Dexterity',die:10,count:3,upcast:1,type:'Lightning',half:true,again:'action',later:true,verb:'call down lightning on'},
-  'spirit-guardians':{zone:'area',save:'Wisdom',die:8,count:3,upcast:1,type:'Radiant',half:true},
-  'insect-plague':{zone:'area',save:'Constitution',die:10,count:4,upcast:1,type:'Piercing',half:true},
-  'wall-of-fire':{zone:'area',die:8,count:5,upcast:1,type:'Fire'},
-  'black-tentacles':{zone:'area',save:'Strength',die:6,count:3,type:'Bludgeoning',restrain:true},
-  'heat-metal':{again:'bonus',die:8,count:2,upcast:1,type:'Fire',later:true,same:true,verb:'heat the metal of'},
-  'spiritual-weapon':{again:'bonus',attack:'melee',die:8,count:1,upcast:1,type:'Force',addMod:true,later:true,verb:'strike with the spiritual weapon at'},
-  'vampiric-touch':{again:'action',attack:'melee',die:6,count:3,upcast:1,type:'Necrotic',drain:true,later:true,verb:'drain'},
-};
-// Damage a spell leaves on one creature, by the spell that left it (its mark in game.marks): Acid Arrow's and
-// Vitriolic Sphere's later acid at the end of its next turn, Searing Smite's burn and Ensnaring Strike's thorns at the
-// start of each of its turns, and burning webs.
-const markHarm={
-  'acid-arrow':{cond:'acid',on:'end',die:4,count:2,upcast:1,from:2,type:'Acid'},
-  'vitriolic-sphere':{cond:'acid',on:'end',die:4,count:5,type:'Acid'},
-  'searing-smite':{cond:'burning',on:'start',die:6,count:1,upcast:1,from:1,type:'Fire',saveEnds:'Constitution'},
-  'ensnaring-strike':{cond:'restrained',on:'start',die:6,count:1,upcast:1,from:1,type:'Piercing'},
-  web:{cond:'aflame',on:'start',die:4,count:2,type:'Fire',once:true},
-};
-const spellLevelOf=id=>spellLibrary.find(s=>s.id===id)?.level??1;
-// Every hero holding a lasting spell: this device's own and the party's (each with the hero's name for the feed).
-function lastingSources(game){
-  const me=heroIdOf(game),list=[];
-  if(game.concentration&&lastingSpells[game.concentration.id])list.push({by:me,c:game.concentration,name:null});
-  for(const [id,m] of Object.entries(game.party?.members??{})){
-    if(id===me||m?.status!=='up'||!lastingSpells[m.hero?.concentration?.id])continue;
-    let name='a companion';try{name=JSON.parse(m.character).name||name;}catch{}
-    list.push({by:id,c:m.hero.concentration,name});
-  }
-  return list;
-}
-// A creature's hit points as a spell's damage leaves them: the foe, a creature beside it, or a person.
-export function harmCreature(game,key,amount){
-  if(!amount)return {game,line:null};
-  if(key==='foe')return {game:{...game,enemyHP:Math.max(0,(game.enemyHP??0)-amount)},line:null};
-  if(String(key).startsWith('ally:')){const i=Number(String(key).slice(5)),a=game.foeAllies?.[i];if(!a)return {game,line:null};const hp=Math.max(0,a.hp-amount);return {game:{...game,foeAllies:game.foeAllies.map((x,j)=>j===i?{...x,hp}:x)},line:hp===0&&a.hp>0?(game.subdue?'The '+a.name+' drops, beaten.':'The '+a.name+' is slain.'):null};}
-  const most=npcProfile(game,key)?.maximumHP??10,was=game.npcHP?.[key]??most,now=Math.max(0,was-amount);
-  let next={...game,npcHP:{...game.npcHP,[key]:now}},line=null;
-  // A spell that drops someone kills them, as a weapon does.
-  if(was>0&&now===0&&!next.npcFate?.[key]){next.npcFate={...next.npcFate,[key]:'dead'};line=(npcProfile(game,key)?.name??key)+' is dead.';}
-  return {game:next,line};
-}
-// What spells do to a creature at the start or end of its turn (`phase`): the damage spells left on it, and the areas
-// heroes hold. `foe`: its name and defences (saves, resistances). Returns the game with its hit points changed.
-export function lastingTurn(game,key,phase,foe,random=Math.random){
-  let next=game,total=0;const lines=[],name=foe?.name??'It',roll=(n,d)=>Array.from({length:n},()=>1+Math.floor(random()*d)),sum=d=>d.reduce((a,b)=>a+b,0);
-  for(const m of markOf(game,key).spells??[]){
-    const h=markHarm[m.id];if(!h||h.cond!==m.cond||h.on!==phase)continue;
-    const dice=roll(h.count+Math.max(0,(m.level??h.from??0)-(h.from??0))*(h.upcast??0),h.die),dealt=defended(foe??{},h.type,sum(dice));
-    total+=dealt;let line=`${spellName(m.id)}: ${name} takes ${dealt} ${h.type} damage (${dice.length}d${h.die} [${dice.join(', ')}]).`;
-    if(h.saveEnds){const die=1+Math.floor(random()*20),bonus=foe?.saves?.[h.saveEnds]??0,shift=spellSaveShift(next,key,random).amount,t=die+bonus-shift,ok=t>=m.dc;line+=` ${h.saveEnds} save d20 ${die} + ${bonus}${shift?' − '+shift+' Bane':''} = ${t} vs DC ${m.dc}: ${ok?'the flames die out.':'it keeps burning.'}`;if(ok)next=dropSpellMark(next,key,m);}
-    if(h.once)next=dropSpellMark(next,key,m);
-    lines.push(line);
-  }
-  if(phase==='end')for(const src of lastingSources(next)){
-    const l=lastingSpells[src.c.id];if(!l.zone||(l.zone==='target'&&src.c.target!==key))continue;
-    const level=src.c.level??spellLevelOf(src.c.id),dc=src.c.dc??13,dice=roll(l.count+Math.max(0,level-spellLevelOf(src.c.id))*(l.upcast??0),l.die),rolled=sum(dice);
-    let saved=false,text='';
-    if(l.save){const die=1+Math.floor(random()*20),bonus=foe?.saves?.[l.save]??0,shift=spellSaveShift(next,key,random).amount,t=die+bonus-shift;saved=t>=dc;text=`${l.save} save d20 ${die} + ${bonus}${shift?' − '+shift+' Bane':''} = ${t} vs DC ${dc}: ${saved?'success':'failure'}; `;}
-    const dealt=defended(foe??{},l.type,saved?(l.half?Math.floor(rolled/2):0):rolled);total+=dealt;
-    lines.push(`${spellName(src.c.id)}${src.name?' ('+src.name+')':''}: ${name} ends its turn in it. ${text}${dealt} ${l.type} damage (${dice.length}d${l.die} [${dice.join(', ')}]${saved&&l.half?', halved':''}).`);
-    if(l.restrain&&!saved&&!(markOf(next,key).spells??[]).some(m=>m.id===src.c.id))next=withSpellMark(next,key,{id:src.c.id,cond:'restrained',by:src.by,dc,save:'Strength'});
-  }
-  if(total>0){
-    const struck=harmCreature(next,key,total);next=struck.game;if(struck.line)lines.push(struck.line);
-    const broke=spellCondsOf(next,key).filter(c=>breakable.includes(c));if(broke.length){next=breakOnDamage(next,key);lines.push(brokenLine(name,broke));}
-  }
-  return {game:next,lines,damage:total};
-}
-function dropSpellMark(game,key,m){return setSpellMarks(game,key,(markOf(game,key).spells??[]).filter(x=>!(x.id===m.id&&x.cond===m.cond&&x.by===m.by)));}
-// Webs that fire touches burn away: a creature caught in them is free, and burns at the start of its next turn.
-export function websBurn(game,key,type,name){
-  if(type!=='Fire')return {game,lines:[]};
-  const caught=(markOf(game,key).spells??[]).find(m=>m.id==='web'&&m.cond==='restrained');if(!caught)return {game,lines:[]};
-  let next=dropSpellMark(game,key,caught);next=withSpellMark(next,key,{id:'web',cond:'aflame',by:caught.by,dc:caught.dc,save:'Dexterity',rounds:1});
-  return {game:next,lines:[`The webs around ${name.replace(/^The /,'the ')} catch fire and burn away: ${name} is free, but burns at the start of its next turn.`]};
-}
-// The spell held can be used again this turn (its kind: 'bonus' or 'action'), or why not.
-export function againError(game,fighting=game.stage==='combat'||!!game.npcCombat?.active){
-  const c=game.concentration,l=c?lastingSpells[c.id]:null;
-  if(!l?.again)return 'You hold no spell you can call on again.';
-  if(!fighting)return `${spellName(c.id)} is used again in a fight.`;
-  if(l.later&&c.fresh)return `${spellName(c.id)} can be used again on a later turn.`;
-  if(l.again==='bonus'&&game.bonusUsed)return 'Your bonus action is already used this turn.';
-  if(l.again==='action'&&game.actionUsed)return 'You have already used your action this turn. Use a bonus action or end your turn.';
-  if(l.again==='action'&&game.surged)return 'The extra action from Action Surge cannot be used for magic.';
-  return '';
-}
-// A lasting spell used again (Spiritual Weapon's strike, Heat Metal, rolling the Flaming Sphere, moving Moonbeam, Call
-// Lightning, Vampiric Touch) on the creature `key`, whose defences are `target`.
-export function spellAgain(hero,game,health,maximum,key,target,random=Math.random){
-  const fighting=game.stage==='combat'||!!game.npcCombat?.active,error=againError(game,fighting);if(error)return {error};
-  if(health?.current===0)return {error:'You cannot cast at 0 HP.'};
-  target=withDefenses(game,key,target);
-  const c=game.concentration,l=lastingSpells[c.id],spell=spellLibrary.find(s=>s.id===c.id),level=c.level??spell.level;
-  if(l.same&&c.target&&key!==c.target)return {error:`${spell.name} works only on the metal it first heated.`};
-  const mod=modifier(hero.scores[castingAbility(hero)]),bonus=proficiencyBonus(hero.level)+mod,dc=8+bonus,roll=(n,d)=>Array.from({length:n},()=>1+Math.floor(random()*d)),sum=d=>d.reduce((a,b)=>a+b,0);
-  const count=l.count+Math.max(0,level-spell.level)*(l.upcast??0),called=key==='foe'?'the '+String(target.name??'foe').replace(/^the /i,''):target.name??key;
-  let next={...game,concentration:{...c,...(l.move?{target:key}:{})}},damage=0;const hp={current:health?.current??maximum,temp:health?.temp??0},logs=[],how=l.again==='bonus'?'bonus action':'action';
-  if(l.attack){
-    const edge=spellEdge(next,key,false),rolled=rollAttack({attackBonus:bonus+(hero.equipment?.magic?.spellAttack??0)},edgeMode('normal',edge),random),bless=attackBoost(next,random);
-    const attack={...rolled,total:rolled.total+bless.amount},hit=!attack.miss&&(attack.critical||attack.total>=target.ac),critical=attack.critical||(hit&&helpless(next,key));
-    if(edge.adv.includes('Guiding Bolt'))next=spendGuidance(next,key);
-    let line=`${spell.name} (${how}) at ${called}: d20 [${attack.dice.join(', ')}] (${attack.mode}) + ${bonus}${bless.amount?' + '+bless.amount+' Bless':''} = ${attack.total} vs AC ${target.ac}. ${critical?'Critical hit':hit?'Hit':'Miss'}`;
-    if(hit){
-      const dice=roll(count*(critical?2:1),l.die),raw=sum(dice)+(l.addMod?mod:0);damage=defended(target,l.type,raw);
-      line+=`; ${damage} ${l.type} damage (${dice.length}d${l.die} [${dice.join(', ')}]${l.addMod?' + '+mod:''}).`;logs.push(line);
-      const rider=riderDamage(hero,next,key,critical,random);next=rider.game;damage+=defended(target,rider.type,rider.amount);logs.push(...rider.lines);
-      if(l.drain&&damage>0){const was=hp.current;hp.current=Math.min(maximum,hp.current+Math.floor(damage/2));logs.push(`You draw back ${hp.current-was} HP.`);}
-    } else logs.push(line+'.');
-  } else {
-    const dice=roll(count,l.die),rolled=sum(dice);
-    if(l.save){
-      const die=1+Math.floor(random()*20),saveBonus=target.saves?.[l.save]??0,shift=spellSaveShift(next,key,random).amount,total=die+saveBonus-shift,saved=total>=dc;
-      damage=defended(target,l.type,saved?(l.half?Math.floor(rolled/2):0):rolled);
-      logs.push(`${spell.name} (${how}) on ${called}: ${l.save} save d20 ${die} + ${saveBonus}${shift?' − '+shift+' Bane':''} = ${total} vs DC ${dc}: ${saved?'success':'failure'}; ${damage} ${l.type} damage (${count}d${l.die} [${dice.join(', ')}]${saved&&l.half?', halved':''}).`);
-    } else {
-      // Heat Metal: the damage comes with no save; a failed Constitution save drops the metal if it can, and keeping hold
-      // of it (a success, or armour it wears) spoils its attacks until your next turn.
-      damage=defended(target,l.type,rolled);
-      const die=1+Math.floor(random()*20),saveBonus=target.saves?.Constitution??0,total=die+saveBonus,saved=total>=dc,worn=!!c.worn;
-      logs.push(`${spell.name} (${how}): the metal of ${called} glows red-hot again: ${damage} ${l.type} damage (${count}d${l.die} [${dice.join(', ')}]). Constitution save d20 ${die} + ${saveBonus} = ${total} vs DC ${dc}: ${heatLine(saved,worn)}`);
-      if(saved||worn)next=withSpellMark(next,key,{id:spell.id,cond:'scorched',by:heroIdOf(next),dc,save:'Constitution',rounds:1});
-    }
-  }
-  if(damage>0){
-    const burnt=websBurn(next,key,l.type,called.charAt(0).toUpperCase()+called.slice(1));next=burnt.game;logs.push(...burnt.lines);
-    const broke=spellCondsOf(next,key).filter(c2=>breakable.includes(c2));if(broke.length){next=breakOnDamage(next,key);logs.push(brokenLine(called.charAt(0).toUpperCase()+called.slice(1),broke));}
-  }
-  return {game:next,health:hp,logs,damage,bonus:l.again==='bonus'};
-}
-// Hex or Hunter's Mark moved to a new creature (a bonus action) once the one it was on has dropped.
-export function moveMark(game,key,called){
-  const c=game.concentration;if(!c||!automaticEffects[c.id]?.rider)return {error:'You hold no Hex or Hunter’s Mark to move.'};
-  if(!c.lost)return {error:`${spellName(c.id)} moves only once the creature it is on has dropped.`};
-  if((game.stage==='combat'||game.npcCombat?.active)&&game.bonusUsed)return {error:'Your bonus action is already used this turn.'};
-  const next={...game,concentration:{...c,target:key}};delete next.concentration.lost;
-  return {game:next,logs:[`${spellName(c.id)} moves to ${called} (bonus action): each of your hits with an attack roll on it deals the extra damage.`],damage:0,bonus:true};
-}
-// Hex or Hunter's Mark whose creature has dropped (it may be moved with a bonus action: `lost`), or whose fight has
-// ended without it dropping (it holds on a creature no longer here: `gone`).
-export function markGone(game){
-  const c=game.concentration;if(!c?.target)return game;
-  // Any other held spell on a creature of a fight that is over: one that stays on its creature (Heat Metal) ends with
-  // it gone; one that can be moved (Moonbeam, Flaming Sphere) is held on nothing until it is moved or runs out.
-  if(!automaticEffects[c.id]?.rider){
-    const k=String(c.target);if(!(k==='foe'||k.startsWith('ally:'))||game.stage==='combat')return game;
-    const next={...game};if(lastingSpells[c.id]?.same)delete next.concentration;else{next.concentration={...c};delete next.concentration.target;}
-    return next;
-  }
-  const k=String(c.target),fight=game.stage==='combat';
-  const dropped=k==='foe'?game.enemyHP<=0:k.startsWith('ally:')?!(game.foeAllies?.[Number(k.slice(5))]?.hp>0):(game.npcHP?.[k]??1)<=0||game.npcFate?.[k]==='dead';
-  const away=!dropped&&(k==='foe'||k.startsWith('ally:'))&&!fight;
-  if(!dropped&&!away)return game;
-  const next={...game,concentration:{...c,...(dropped?{lost:true}:{gone:true})}};delete next.concentration.target;return next;
-}
-// What a held spell can do again right now, as choices: [id, label, action, kind] (kind 'bonus' or 'action'), at each
-// creature it can reach (`keys`: the foe and the creatures beside it, or the people fighting; with names).
-export function sustainChoices(game,targets){
-  const c=game.concentration,list=[];if(!c)return list;
-  const l=lastingSpells[c.id],fighting=game.stage==='combat'||!!game.npcCombat?.active;
-  if(l?.again&&!againError(game,fighting)){
-    const name=spellName(c.id),pool=l.same&&c.target?targets.filter(t=>t.key===c.target):targets;
-    for(const t of pool)list.push(['again:'+t.key,`${name} (${l.again==='bonus'?'bonus action':'action'}): ${l.verb} ${t.name}`,'again:'+t.key,l.again]);
-  }
-  if(c.lost&&automaticEffects[c.id]?.rider&&!((game.stage==='combat'||game.npcCombat?.active)&&game.bonusUsed))
-    for(const t of targets)list.push(['move-mark:'+t.key,`Move ${spellName(c.id)} to ${t.name} (bonus action)`,'move-mark:'+t.key,'bonus']);
-  return list;
-}
-// The creatures a held spell can reach now: the foe and the creatures beside it, or the people fighting the hero.
-export function sustainTargets(game){
-  if(game.stage==='combat'){
-    const foe=game.wildFight?.name??game.story?.foe??(game.dungeon?.active?'the guardian':'the Lantern Wisp');
-    return [...(game.enemyHP>0?[{key:'foe',name:/^the /i.test(foe)?foe:'the '+foe}]:[]),...(game.foeAllies??[]).map((a,i)=>({key:'ally:'+i,name:'the '+a.name,hp:a.hp})).filter(a=>a.hp>0).map(({key,name})=>({key,name}))];
-  }
-  if(game.npcCombat?.active)return game.npcCombat.order.filter(n=>n.side==='enemy'&&(game.npcHP?.[n.id]??npcProfile(game,n.id)?.maximumHP??1)>0&&game.npcFate?.[n.id]!=='dead').map(n=>({key:n.id,name:npcProfile(game,n.id)?.name??n.id}));
-  return [];
-}
-export const sustainOptions=game=>sustainChoices(game,sustainTargets(game));

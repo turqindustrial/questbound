@@ -18,9 +18,9 @@ export function arrowsLeft(game,hero){const p=packOf(game,hero),bought=p.items.f
 // Power). The geared hero is never saved, so hit points stay those of the hero themselves.
 export const weaponBaseOf=it=>it?.kind==='weapon'?(weapons[it.base]?it.base:weapons[it.name]?it.name:null):null;
 export function gearedHero(base,game){
- // Shillelagh on the hero's club or quarterstaff (spellRules.js) changes how it strikes while it lasts.
+ // Shillelagh on the hero's club or quarterstaff (spellBuffRules.js) changes how it strikes while it lasts.
  let hero=game?.buffs?.shillelagh&&base&&!base.shillelagh?{...base,shillelagh:game.buffs.shillelagh.ability}:base;
- // Aid raises the hero's hit point maximum while it lasts (spellRules.js; combatBasics reads hero.aid).
+ // Aid raises the hero's hit point maximum while it lasts (spellBuffRules.js; combatBasics reads hero.aid).
  if(hero&&game?.buffs?.aid?.amount>0&&!hero.aid)hero={...hero,aid:game.buffs.aid.amount};
  if((!game?.pack&&!game?.wield&&!game?.shieldAway)||!hero?.equipment||hero.equipment.startingItems)return hero;
  const items=(hero.equipment.items??[]).filter(i=>i.name!=='Arrow').map(i=>({...i}));

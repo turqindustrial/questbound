@@ -72,7 +72,7 @@ export function weaponAttacks(hero) {
     const weapon = weapons[base], magic = Number.isInteger(item.plus) ? item.plus : 0;
     if (!weapon) return [];
     const monk = hero.class === 'Monk' && !armored && !shieldUp && !weapon.ranged && (!weapon.martial || weapon.finesse);
-    // Shillelagh (spellRules.js): a club or quarterstaff strikes with the caster's spellcasting ability when that is better.
+    // Shillelagh (spellBuffRules.js): a club or quarterstaff strikes with the caster's spellcasting ability when that is better.
     const staff = !!hero.shillelagh && ['Club', 'Quarterstaff'].includes(name) && (hero.scores[hero.shillelagh] ?? 0) > hero.scores.Strength;
     const ability = staff ? hero.shillelagh : weapon.ranged || ((weapon.finesse || monk) && hero.scores.Dexterity > hero.scores.Strength) ? 'Dexterity' : 'Strength';
     const bonus = modifier(hero.scores[ability]);

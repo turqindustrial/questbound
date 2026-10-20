@@ -60,7 +60,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>{setSpellsOpen(false);setCastSpell(null);closeAttack();},[lastTurnId]);
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
-  // A party's fight goes in turns (adventureRules.js): on someone else's turn this device waits; after a minute and a
+  // A party's fight goes in turns (partyTurnRules.js): on someone else's turn this device waits; after a minute and a
   // half (or at once when their player has left the table) it may pass that turn.
   const turnKey=turnWait?turnsNow.round+':'+turnWait.id:'';
   const [patience,setPatience]=useState('');

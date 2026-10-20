@@ -31,8 +31,6 @@ import DungeonMaster from './DungeonMaster';
 import AdventureMap from './AdventureMap';
 import {campaignState,earnedGold} from './campaignRules';
 import {mapState,mapLocation,placeDescription,placeName,beyondWords,mapRegions,currentRegion} from './mapRules';
-import {mapMoves} from './dmContext';
-import {spellDefense} from './spellRules';
 import {combatBasics} from './combatRules';
 import {gearedHero,setShield} from './inventoryRules';
 import {attuneItem} from './lootRules';
@@ -42,6 +40,8 @@ import {rememberTurn} from './turnMemory';
 import {useVisualViewport} from './webLayout';
 import {fonts,colors,type,tint} from './theme';
 import {heroSpecies} from './characterRules';
+import {spellDefense} from "./spellBuffRules";
+import {mapMoves} from "./dmChoiceRules";
 // The side column's tabs on wide screens (phones have the same four beside Story in the bottom bar).
 const sideTabs=[['quest','scroll','Quest'],['map','map','Map'],['pack','bag','Inventory'],['log','journal','Log']];
 // On wide screens the side column can be folded to a slim rail so the story and a conversation get the whole width
@@ -59,7 +59,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const [autoShield,setAutoShield]=useState(()=>storyPreferences().autoShield!==false);
  useEffect(()=>subscribeStoryPreferences(p=>setAutoShield(p.autoShield!==false)),[]);
  const ruled=useMemo(()=>rulesHero(hero,{autoShield}),[hero,autoShield]);
- // Every journey and road beyond the edge the map can send (dmContext.js mapMoves).
+ // Every journey and road beyond the edge the map can send (dmChoiceRules.js mapMoves).
  const moves=useMemo(()=>mapMoves(game),[game]);
  const transition=useSceneTransition();
  const [tab,setTab]=useState('story');
