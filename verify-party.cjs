@@ -100,6 +100,6 @@ const seq=values=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
  // ---- The Dungeon Master is told of the others ----
  const told=r.dmContext(ilyra,r.partyView(afterBlow,'B').game,viewB.health);assert.equal(told.party.length,1);assert.equal(told.party[0].name,kara.name);assert.equal(told.party[0].condition,'down and dying');assert.equal(told.player.name,ilyra.name);
  assert.equal(r.dmContext(kara,solo,{current:maxA,temp:0}).party,undefined,'nothing without a party');
- const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8');assert.ok(/PARTY: context\.party/.test(dm)&&/never speak, decide, move, attack, cast or act for them/.test(dm)&&dm.includes('narratorInstructions+partyInstructions+'),'the Dungeon Master never acts for another player\'s hero');
+ const dm=fs.readFileSync(require.resolve('./dm-instructions.cjs'),'utf8');assert.ok(/PARTY: context\.party/.test(dm)&&/never speak, decide, move, attack, cast or act for them/.test(dm)&&dm.includes('narratorInstructions+partyInstructions+'),'the Dungeon Master never acts for another player\'s hero');
  console.log('Party: own heroes at one table, the same table from every point of view (a turned view is never sent), foes striking any standing hero, falling, death saves on one\'s own turn while the fight goes on, a draught to revive a friend, levels for every living hero, party saves and leaving, and a Dungeon Master who never acts for another player\'s hero.');
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -152,7 +152,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
    same([...await server.portraitsTaken({story:{id:'tale-c',artId:'journey-q'}},{portraits:{takenIn:async ids=>new Set(ids.map(i=>'np-'+i))}})].sort(),['np-journey-q','np-tale-c'],'the tale and its journey both count');
    same([...await server.portraitsTaken({story:{id:'tale-c'}},{})],[],'nothing to read: nothing taken');
    assert.match(readText('dm-server.cjs'),/peopleToMeetFor\(body\.context,roster,roster\?await portraitsTaken\(body\.context,\{live,portraits\}\)/);
-   const dm=readText('dm-server.cjs');assert.match(dm,/taken from context\.world\.peopleToMeet when it lists anyone/);assert.match(dm,/take them from this list first/);assert.match(dm,/usually one of the world's common peoples/);assert.match(require('./adventure-generator.cjs').storyInstructions,/most people are of the world's common peoples/);
+   const dm=readText('dm-instructions.cjs');assert.match(dm,/taken from context\.world\.peopleToMeet when it lists anyone/);assert.match(dm,/take them from this list first/);assert.match(dm,/usually one of the world's common peoples/);assert.match(require('./adventure-generator.cjs').storyInstructions,/most people are of the world's common peoples/);
    console.log('The Dungeon Master: never offered a library person whose face a look-alike of the tale wears, and told to take someone new from the ready-made people first.');}
   // ---------- The story writer may cast keeper and mara from the library ----------
   {const {generateAdventure,castResidents}=require('./adventure-generator.cjs');

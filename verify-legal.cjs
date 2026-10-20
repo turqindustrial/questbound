@@ -90,7 +90,7 @@ assert.equal(r.validPlannedSubclass({class:'Barbarian',plannedSubclass:'Path of 
  assert.ok(seen.includes('dm-server.cjs')&&seen.includes('classFeatureCatalog.json')&&seen.includes('public/privacy.html')&&seen.includes('README.md'),'the guard reads servers, data, pages and documents');
 }
 // The Dungeon Master and the story writer are told to stay in Questbound's own world.
-for(const file of ['dm-server.cjs','adventure-generator.cjs'])assert.ok(fs.readFileSync(file,'utf8').includes('Never use names, places, gods, organisations, creatures or spells that belong to any publisher'),file);
+for(const file of ['dm-instructions.cjs','adventure-generator.cjs'])assert.ok(fs.readFileSync(file,'utf8').includes('Never use names, places, gods, organisations, creatures or spells that belong to any publisher'),file);
 // The pages are reachable: Settings → About, the title screen, the account form, and the pairing page before pairing.
 const app=fs.readFileSync('App.js','utf8'),home=fs.readFileSync('HomeScreen.js','utf8'),gate=fs.readFileSync('phone-server.cjs','utf8');
 assert.ok(app.includes("{screen === 'Legal' && <Legal tab={legalTab} onTab={setLegalTab}/>}")&&app.includes("['privacy','Privacy policy','key'],['terms','Terms of use','scroll'],['permissions','Permissions agreement','check'],['licences','Licences and credits','book']"));

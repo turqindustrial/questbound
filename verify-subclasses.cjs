@@ -265,7 +265,7 @@ assert.notDeepEqual(plain(r.dmCommand(make('Fighter','Champion'),fightFor(make('
  const {sceneFor}=require('./dm-server.cjs');const scene=sceneFor({context:plain(c),input:'I brace'}).context;assert.deepEqual(scene.player.subclassFeatures,plain(c.player.subclassFeatures),'the trimmed scene keeps them');
  delete require.cache[require.resolve('./dm-rules.cjs')];const {rulesFor}=require('./dm-rules.cjs'),rules=rulesFor({input:'I use Iron Brace',context:plain(c)});
  assert.ok(rules.availableFeatures.some(f=>f.name==='Iron Brace'&&f.automation==='engine'));assert.deepEqual(rules.featureDetails.map(f=>f.name),['Iron Brace']);
- assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes('SUBCLASS FEATURES: context.player.subclassFeatures'),'the standing instructions explain them');
+ assert.ok(fs.readFileSync('dm-instructions.cjs','utf8').includes('SUBCLASS FEATURES: context.player.subclassFeatures'),'the standing instructions explain them');
  assert.deepEqual(plain(r.dmContext(make('Barbarian','Path of the Bulwark',{level:2}),r.newAdventure(make('Barbarian','Path of the Bulwark',{level:2})),null).player.subclassFeatures),[],'nothing before level 3');}
 {// The non-bonus action is a choice beside Dodge; the bonus one among the bonus actions.
  const snare=make('Artificer','Snarewright'),choices=r.dmChoices(snare,fightFor(snare),hpOf(snare)).map(c=>c.id);assert.ok(choices.includes('class:tangle'));
