@@ -433,6 +433,20 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     return write(['medium','high','xhigh'].includes(effort)?'low':effort);
   }
   if(body.context.mode==='character'){delete require.cache[require.resolve('./character-generator.cjs')];return require('./character-generator.cjs').generateCharacter(body,{apiKey,model:storyModel,reasoning:storyReasoning,fetchImpl,safety,onUsage:u=>recordUsage('character',storyModel,u,live,guest)});}
+  return playTurn(body,{apiKey,model,reasoning,fetchImpl,onNarration,live,guest,safety,people,portraits});
+}
+// A game turn, in phases: what this turn allows (turnPlan), the request to the model with its waits (turnAsker),
+// reading the reply, mending it and, as a last resort, rescuing what can be used (replyReader), asking again until
+// a reply can be used (answered), then the second look (secondLooked). The phases share the plan and its state: the
+// number of requests asked, the last response, and whether a reply is read quietly or for the second look.
+async function playTurn(body,env){
+  const turn=await turnPlan(body,env);
+  const ask=turnAsker(body,turn,env),reader=replyReader(body,turn,env);
+  const first=await answered(body,turn,env,ask,reader);
+  return secondLooked(body,turn,env,ask,reader,first);
+}
+// What this turn allows: its phase, who may speak, be recruited or be met, what the reply may carry, and its time.
+async function turnPlan(body,{fetchImpl,reasoning,live,people,portraits}){
   const choices=body.context.choices.map(c=>c.id);
   const resolvingSpell=!!body.context.pendingSpell&&!body.context.engineResolved;
   const nullSchema={type:'null'};
@@ -475,13 +489,15 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   // A turn's time: the phone gateway and the account service wait 90 seconds for the Dungeon Master, so every quiet
   // attempt and the second look fit inside turnBudget, each request given at most what is left.
   const begun=Date.now(),left=()=>turnBudget-(Date.now()-begun);
+  return {choices,resolvingSpell,speakers,canIntroduce,roster,offered,recruitable,offerable,recruitIds,withId,alone,allowedSpeakers,voices,sceneTrigger,ooc,phaseInstructions,canDiscover,canAmbush,canRelate,engineSpoils,canLoot,noCheck,shape,replySchema,turnReasoning,begun,left,state:{lastReply:null,asks:0,quiet:false,aside:false}};
+}
+function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySchema,left,state},{apiKey,model,fetchImpl,onNarration,live,guest,safety}){
   // One request to the model: `note` (a retry's or second look's) goes into this turn's note after the scene, so the
   // instructions and the scene before it stay cached. The provider's
   // completed response is kept beside the text so an unreadable reply can be described (replyShape). Each request
   // is numbered in the usage log (ask 1 is the turn itself, later ones its retries and second looks: dm-report.cjs).
-  let lastReply=null,asks=0;
-  const ask=async(note,effort,limit=90000,room=turnRoom)=>{
-  const asked=++asks,aside=asideNow;
+  return async(note,effort,limit=90000,room=turnRoom)=>{
+  const asked=++state.asks,aside=state.aside;
   let response;
   // The request in parts, in the cache order (turnRequest): the standing instructions and the one reply schema (the same
   // for every player, phase and retry), this hero's features, the scene from what lasts to what changes with the player's
@@ -505,21 +521,22 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   await new Promise(resolve=>setTimeout(resolve,wait));
   }
   const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{})});};
-  if(onNarration)return streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage,c=>{lastReply=c;});
-  const data=await response.json();lastReply=data;usage(data.usage);
+  if(onNarration)return streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage,c=>{state.lastReply=c;});
+  const data=await response.json();state.lastReply=data;usage(data.usage);
   // Cut short (the output limit, or the provider stopping): what was written is kept on the error for the last resort.
   if(data.status!=='completed')throw Object.assign(Error('The AI reply was incomplete. No game action was applied.'),{partial:outputText(data),incomplete:data.incomplete_details?.reason??String(data.status??'cut off')});
   return outputText(data);
   };
+}
+function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,noCheck,ooc,sceneTrigger,shape,canIntroduce,offered,roster,allowedSpeakers,alone,canRelate,canLoot,canDiscover,canAmbush,state},{live}){
   // Reading a reply: repaired where the fault is small, refused where it is not. An unreadable reply keeps its text on
   // the error, so a sound narration in it can still be told as a last resort (rescued below).
-  let quietNow=false,asideNow=false;
-  const noted=(kind,outcome)=>{if(!quietNow)recordSecondLook(kind,outcome,body,live);};
+  const noted=(kind,outcome)=>{if(!state.quiet)recordSecondLook(kind,outcome,body,live);};
   const read=text=>{
    try{const value=JSON.parse(text);if(value&&typeof value==='object'&&!Array.isArray(value))return value;}catch{}
    const repaired=repairedJson(text);
    if(repaired!==null){noted('unparseable reply','repaired');return repaired;}
-   const shape=replyShape(text,lastReply);if(!quietNow)recordRejection('unparseable reply',null,body,live,shape,asideNow?{aside:true}:null);
+   const shape=replyShape(text,state.lastReply);if(!state.quiet)recordRejection('unparseable reply',null,body,live,shape,state.aside?{aside:true}:null);
    throw Object.assign(Error(shape.refusal?'The Dungeon Master declined to answer that. Try other words.':'The AI did not return a usable reply.'),{partial:typeof text==='string'?text:'',refusal:shape.refusal});
   };
   // Small faults the game mends in place instead of asking again, each noted for dm-report.cjs.
@@ -587,7 +604,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
    }
   };
   const judge=(result,{quiet=false}={})=>{
-  quietNow=quiet;
+  state.quiet=quiet;
   try{
   steadied(result);
   if(typeof result.narration!=='string'||!result.narration.trim()||result.narration.length>1800||(result.actionId!==null&&!choices.includes(result.actionId)))throw Error('The AI proposed an invalid response.');
@@ -636,8 +653,8 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   reply.narration=checkedHp(reply.narration,body.context);reply.dialogue=reply.dialogue.map(l=>({...l,text:checkedHp(l.text,body.context)}));
   validateGroundedReply(body.context,reply);
   return reply;
-  }catch(e){if(!quiet)recordRejection(e.message,result,body,live,null,asideNow?{aside:true}:null);if(e&&typeof e==='object')e.fromReply=true;throw e;}
-  finally{quietNow=false;}
+  }catch(e){if(!quiet)recordRejection(e.message,result,body,live,null,state.aside?{aside:true}:null);if(e&&typeof e==='object')e.fromReply=true;throw e;}
+  finally{state.quiet=false;}
   };
   const digest=text=>judge(read(text));
   // The last resort, once the quiet attempts are spent or the time is short: what the last reply holds that the game
@@ -680,23 +697,25 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
    const narration=partialNarration(text).trim();if(!narration)return null;
    return {narration,dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,fault:null,suggestions:[]};
   };
-  // A reply that cannot be used for a mechanical reason (unreadable, cut short, outside the schema or the rules) is
-  // asked for again with the reason, up to twice and only while the turn has time; a passing provider fault (a time
-  // out, a server error) is tried once more. Then the last resort; only if nothing in it can be used does the player see
-  // a calm error (with the Report chip). What the player has to hear (they cannot pay) is never asked again.
-  const answered=async()=>{
+  return {read,judge,digest,rescued,fromText};
+}
+// A reply that cannot be used for a mechanical reason (unreadable, cut short, outside the schema or the rules) is
+// asked for again with the reason, up to twice and only while the turn has time; a passing provider fault (a time
+// out, a server error) is tried once more. Then the last resort; only if nothing in it can be used does the player see
+// a calm error (with the Report chip). What the player has to hear (they cannot pay) is never asked again.
+async function answered(body,{turnReasoning,left,state},{live},ask,{read,judge,rescued,fromText}){
    let note='',room=turnRoom,last=null,lastText=null,passed=false;const reasons=[];
    for(let tries=0;;tries++){
     try{
      const text=await ask(note,turnReasoning,note?40000:90000,room);lastText=text;
      const parsed=read(text);last=structuredClone(parsed);
      const reply=judge(parsed);
-     if(reasons.length)recordTurn('asked again',reasons,body,live,asks);
+     if(reasons.length)recordTurn('asked again',reasons,body,live,state.asks);
      return reply;
     }
     catch(e){
      const message=String(e?.message??e);
-     if(typeof e?.partial==='string'){lastText=e.partial;if(e.incomplete)recordRejection('incomplete reply',null,body,live,{...replyShape(e.partial,lastReply),incomplete:String(e.incomplete).slice(0,40)});}
+     if(typeof e?.partial==='string'){lastText=e.partial;if(e.incomplete)recordRejection('incomplete reply',null,body,live,{...replyShape(e.partial,state.lastReply),incomplete:String(e.incomplete).slice(0,40)});}
      const fixable=(unusable(message)||e?.fromReply===true)&&!e?.refusal,passing=transient(e);
      if((!fixable&&!passing)||/enough gold/.test(message))throw e;
      reasons.push(faultKind(e));
@@ -709,21 +728,21 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
       continue;
      }
      const saved=rescued(last)??rescued(fromText(lastText));
-     if(saved){recordTurn('rescued',reasons,body,live,asks);return saved;}
-     recordTurn('failed',reasons,body,live,asks);
+     if(saved){recordTurn('rescued',reasons,body,live,state.asks);return saved;}
+     recordTurn('failed',reasons,body,live,state.asks);
      if(fixable)throw Object.assign(Error('The Dungeon Master\'s reply could not be used this time, so nothing was applied. Try again, perhaps in other words.'),{httpStatus:e?.httpStatus});
      throw e;
     }
    }
-  };
-  const first=await answered();
-  // A second look (dm-intent.cjs): when the reply does not do what the player's words plainly ask and the game
-  // offers, the model is asked once more with the point spelled out and a little thought, if the turn has time. If it
-  // still does not act and the request is unmistakable, the game starts the action itself.
+}
+// A second look (dm-intent.cjs): when the reply does not do what the player's words plainly ask and the game
+// offers, the model is asked once more with the point spelled out and a little thought, if the turn has time. If it
+// still does not act and the request is unmistakable, the game starts the action itself.
+async function secondLooked(body,{canDiscover,turnReasoning,left,state},{live},ask,{digest},first){
   const fault=secondLook(body,first,{canDiscover});
   if(!fault)return first;
   let second=null;
-  if(left()>=retryFloor){asideNow=true;try{second=digest(await ask('\nLOOK AGAIN: '+fault.note,turnReasoning==='none'?'low':turnReasoning,40000));}catch{}finally{asideNow=false;}}
+  if(left()>=retryFloor){state.aside=true;try{second=digest(await ask('\nLOOK AGAIN: '+fault.note,turnReasoning==='none'?'low':turnReasoning,40000));}catch{}finally{state.aside=false;}}
   const still=second?secondLook(body,second,{canDiscover}):fault,sure=[still,fault].find(f=>f?.sure)??null;
   recordSecondLook(fault.kind,second&&!still?'the model acted':sure?'the game acted':'left as answered',body,live);
   if(second&&!still)return second;
