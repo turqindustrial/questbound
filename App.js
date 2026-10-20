@@ -17,10 +17,11 @@ import CampaignJournal from './CampaignJournal';
 import {addJournalNote,appendJournal,appendStoryLog} from './journalRules';
 import Advancement from './Advancement';
 import {spellSelectionError} from './spellOptions';
-import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure, forgetAdventure} from './adventureStorage';
+import {saveAdventure, adventureSnapshot} from './adventureStorage';
 import {useSharedTable} from './useSharedTable';
+import {useHeroSaves,heroSaveActions} from './useHeroSaves';
 import {backupLocalSave,tableMembership} from './tableClient';
-import {isPartyGame,partyView,joinParty,soloFromParty,partyMembers} from './partyRules';
+import {isPartyGame,joinParty,soloFromParty,partyMembers} from './partyRules';
 import PartyPanel from './PartyPanel';
 import MemberActions,{useMutedMembers} from './TableMemberActions';
 import SharedTable from './SharedTable';
@@ -32,7 +33,7 @@ import {combatBasics} from './combatRules';
 import CharacterBuilder from './CharacterBuilder';
 import { blankBuild, buildError, makeCharacter, abilities, modifier, heroSpecies } from './characterRules';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { loadCharacter, saveCharacter, isValidCharacter, forgetCharacter } from './characterStorage';
+import { saveCharacter, isValidCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, Platform, useWindowDimensions } from 'react-native';
 import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
@@ -67,18 +68,16 @@ import {agreementStatus,acceptAgreement} from './agreementRules';
 import SaveTransfer from './SaveTransfer';
 import QuickHeroes from './QuickHeroes';
 import HeroRoster from './HeroRoster';
-import {scheduleCloudSave} from './cloudRules';
 import {CloudSaveSettings} from './CloudSaveSettings';
 import {AccountSettings} from './AccountSettings';
 import {accountState,bootstrapAccount,accountsRequired,accountsNeeded,accountsOffered} from './accountRules';
 import {currentProfile,subscribeProfile} from './playerStorage';
-import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry,layToRest} from './rosterRules';
 import {deathIsFinal} from './deathRules';
 import {carriedBase,joinRegion,canContinueRegion} from './sequelRules';
 import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
 import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
-import {noteProblem,recentProblems} from './problemLog';
+import {recentProblems} from './problemLog';
 import {audioHealth} from './audio';
 import {perfHealth,startPerfWatch,setCovered} from './perfWatch';
 import {currentTheme} from './theme';
@@ -112,18 +111,6 @@ function QuestboundApp() {
   const storyLock=useRef(false);
   const [selectedIntro,setSelectedIntro]=useState('easy'),[showReady,setShowReady]=useState(false),[idea,setIdea]=useState('');
   const [screen, setScreenState] = useState('Home');
-  const [form, setForm] = useState(blankBuild);
-  const [hero, setHero] = useState(null);
-  const [health, setHealth] = useState(null);
-  const [game, setGame] = useState(newAdventure);
-  // The hero as the adventure has them (Aid raises the hit point maximum while it lasts).
-  const heroStats = hero ? combatBasics(gearedHero(hero, game)) : null;
-  const [characterChosen, setCharacterChosen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [storageError, setStorageError] = useState('');
-  const [adventureBlocked,setAdventureBlocked] = useState(false);
-  const [saveStatus,setSaveStatus] = useState('');
   // Whether the player is signed in to an account (their adventure is then also kept on the host's PC). While accounts
   // are not offered (accountsOffered in accountRules.js: the beta) nothing about accounts is shown and saves stay local.
   const [account,setAccount]=useState(null);
@@ -133,62 +120,15 @@ function QuestboundApp() {
   useEffect(()=>{accountState().then(a=>{setAccount(a);if(a?.hold&&accountsOffered())setScreenState('Settings');}).catch(()=>{});},[]);
   // The read-aloud narrator sounds like the chosen narrator (storyPreferences.js narrators).
   useEffect(()=>{const apply=p=>setNarratorStyle(narratorOf(p.narrator).voice);apply(storyPreferences());return subscribeStoryPreferences(apply);},[]);
-  const [saveRetry,setSaveRetry] = useState(0);
-  // Heroes set aside on this device and the fallen; a new story can carry on in the same region.
-  const [roster,setRoster]=useState([]),[graves,setGraves]=useState([]),[editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
-  useEffect(()=>{Promise.all([loadRoster(),loadGraveyard()]).then(([r,g])=>{setRoster(r);setGraves(g);}).catch(()=>{});},[]);
-  // A hero laid to rest (below): who it was, so nothing saves them again.
-  const restingRef=useRef(null),[restingKey,setRestingKey]=useState(null);
-  useEffect(() => {
-    loadCharacter().then(async saved => {
-      if (saved) {
-        setHero(saved);
-        setForm({...blankBuild(), ...saved, species: saved.species ?? saved.race});
-        try {
-          const adventure = await loadAdventure(saved);
-          if(adventure){setGame(adventure.game);setHealth(adventure.health);setCharacterChosen(adventure.chosen);}
-        } catch {setAdventureBlocked(true);setSaveStatus('Your adventure could not be loaded. Reopen the app to retry. Its saved progress has been protected.');}
-      }
-    }).catch(() => setStorageError('Your saved character could not be loaded. Reopen the app to retry. Saving is disabled to protect the existing save.'))
-      .finally(() => setLoading(false));
-  }, []);
-  useEffect(() => {
-    if(loading || !hero || storageError || adventureBlocked || restingRef.current===JSON.stringify(hero)) return;
-    let current=true;
-    setSaveStatus('Saving adventure...');
-    const snapshot=adventureSnapshot(hero,game,health,characterChosen);
-    saveAdventure(snapshot,hero)
-      .then(()=>{scheduleCloudSave(snapshot);if(current)setSaveStatus('Adventure saved on this device.');})
-      .catch(error=>{noteProblem({kind:'save',error:'Adventure not saved'+(error?.message?': '+error.message:''),stage:game?.stage});if(current)setSaveStatus('Adventure not saved. Your progress is still open; retry before closing the app.');});
-    return ()=>{current=false;};
-  },[loading,hero,game,health,characterChosen,storageError,adventureBlocked,saveRetry]);
+  // A hero being edited, and whether a new story carries on in the same region.
+  const [editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
+  // The hero, their adventure and this device's saves (useHeroSaves.js).
+  const saves=useHeroSaves({transition,setNewStoryRequested}),{form,setForm,hero,setHero,health,setHealth,game,setGame,characterChosen,setCharacterChosen,loading,saving,setSaving,storageError,adventureBlocked,saveStatus,setSaveRetry,roster,graves,restingKey,applyRemote}=saves;
+  // The hero as the adventure has them (Aid raises the hit point maximum while it lasts).
+  const heroStats = hero ? combatBasics(gearedHero(hero, game)) : null;
   const [error, setError] = useState('');
-  // The shared table's adventure replaces this device's only after it passes the same checks as a local save.
-  async function applyRemote(snapshot,isCurrent=()=>true){
-    await transition.prepare(sceneArtSubjects(snapshot.game));
-    // A party: this device plays its own hero, joining with it the first time (partyRules.js).
-    if(isPartyGame(snapshot?.game)){
-      let view=partyView(snapshot,snapshot.game.party.lead); // the server sends each player the table with their own seat in the lead
-      if(!view)throw Error((accountsOffered()?'This account':'This browser')+' has no hero in the campaign. Join with its campaign invite.');
-      let mine;try{mine=JSON.parse(view.character);}catch{throw Error('The party could not be read.');}
-      if(!isValidCharacter(mine)||!validAdventure(view,mine))throw Error('The party did not pass validation. This device kept its own save.');
-      if(!isCurrent())return;
-      backupLocalSave();
-      if(view.character!==JSON.stringify(hero))await saveCharacter(mine);
-      if(!isCurrent())return;
-      setHero(mine);setForm({...blankBuild(),...mine,species:mine.species??mine.race});setGame(view.game);setHealth(view.health);setCharacterChosen(true);setNewStoryRequested(false);
-      return;
-    }
-    let remoteHero;try{remoteHero=JSON.parse(snapshot.character);}catch{throw Error('The shared adventure could not be read.');}
-    if(!isValidCharacter(remoteHero)||!validAdventure(snapshot,remoteHero))throw Error('The shared adventure did not pass validation. This device kept its own save.');
-    if(!isCurrent())return;
-    backupLocalSave();
-    await saveCharacter(remoteHero);
-    if(!isCurrent())return;
-    setHero(remoteHero);setForm({...blankBuild(),...remoteHero,species:remoteHero.species??remoteHero.race});
-    setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(false);
-  }
   const table=useSharedTable({ready:!loading&&!storageError&&!adventureBlocked,hero,game,health,characterChosen,applyRemote});
+  const {setCurrentAside,playFromRoster,restoreFromCloud,retireFromRoster,layHeroToRest}=heroSaveActions({...saves,setError,creatingStory,setNewStoryRequested,setScreenState,table});
   // Play needs a signed-in, verified account only once accounts are required (accountsRequired in accountRules.js);
   // until then a browser plays as a guest and an account stays an offer in Settings.
   const mustSignIn=accountsNeeded()&&!account?.verified;
@@ -221,54 +161,12 @@ function QuestboundApp() {
   // never be continued, set aside or chosen again. The epitaph stays on screen until the player leaves the play
   // screen; then the way on is a new hero. Never at a shared table: the table keeps the seat (partyRules.js).
   const finalDeath=!loading&&!storageError&&!adventureBlocked&&!!hero&&characterChosen&&!table.joined&&deathIsFinal(game,hero);
-  async function layHeroToRest(){
-    if(!hero||game.stage!=='dead'||table.joined)return;
-    const key=JSON.stringify(hero);if(restingRef.current===key)return;
-    restingRef.current=key;setRestingKey(key);
-    try{
-      const [savedRoster,savedGraves]=await Promise.all([loadRoster(),loadGraveyard()]);
-      const next=layToRest(savedRoster,savedGraves,hero,game);
-      await saveLists(next);setRoster(next.roster);setGraves(next.graves);
-      await forgetAdventure();await forgetCharacter();
-    }catch{setError('Your fallen hero could not be laid to rest on this device. Reopen the game to try again.');}
-  }
   useEffect(()=>{if(finalDeath)layHeroToRest();},[finalDeath]);
   // Once the player leaves the play screen, the hero laid to rest is gone from memory too.
   useEffect(()=>{
     if(!restingKey||!hero||JSON.stringify(hero)!==restingKey||!['Home','Character Selection','Character Creation','Adventure Opening','Multiplayer'].includes(screen))return;
     setHero(null);setGame(newAdventure());setHealth(null);setCharacterChosen(false);setNewStoryRequested(true);setForm(blankBuild());setEditingHero(false);setShowReady(false);
   },[screen,hero,restingKey]);
-  // Before another hero takes this one's place: the living wait in the roster, the dead go to the graveyard.
-  async function setCurrentAside(){
-    if(!hero)return true;
-    const next=setAside(roster,graves,hero,game,health,characterChosen);
-    if(next.error){setError(next.error);return false;}
-    await saveLists(next);setRoster(next.roster);setGraves(next.graves);return true;
-  }
-  async function playFromRoster(entry){
-    if(saving||loading||storageError||creatingStory)return;
-    setSaving(true);setError('');
-    try{
-      const restored=restoreEntry(entry),aside=setAside(roster.filter(e=>e.id!==entry.id),graves,hero,game,health,characterChosen);
-      if(aside.error)throw Error(aside.error);
-      // The current hero is set aside first and the chosen one leaves the roster last, so nobody is lost midway.
-      await saveLists({roster:[...aside.roster,entry],graves:aside.graves});
-      await saveCharacter(restored.hero);await saveAdventure(restored.adventure,restored.hero);
-      await saveLists(aside);setRoster(aside.roster);setGraves(aside.graves);
-      setHero(restored.hero);setForm({...blankBuild(),...restored.hero,species:restored.hero.species??restored.hero.race});setGame(restored.game);setHealth(restored.health);setCharacterChosen(restored.chosen);setNewStoryRequested(!restored.chosen);setAdventureBlocked(false);
-      setScreenState('Home');
-    }catch(e){setError(e.message||'Could not switch heroes. Your current hero is unchanged.');}
-    finally{setSaving(false);}
-  }
-  // A hero brought over from another device by its recovery code; the current one is set aside first.
-  async function restoreFromCloud(snapshot){
-    if(table.joined)throw Error('Leave the shared table before importing a different save.');
-    let restored;try{restored=JSON.parse(snapshot?.character);}catch{throw Error('That save could not be read. Nothing was changed.');}
-    if(!isValidCharacter(restored)||!validAdventure(snapshot,restored))throw Error('That save did not pass the game\'s checks. Nothing was changed.');
-    if(hero&&JSON.stringify(hero)!==snapshot.character&&!await setCurrentAside())throw Error('Your company is full. Retire a hero under Heroes first.');
-    await saveCharacter(restored);await saveAdventure(snapshot,restored);
-    setHero(restored);setForm({...blankBuild(),...restored,species:restored.species??restored.race});setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(!snapshot.chosen);setAdventureBlocked(false);
-  }
   // A new portrait for the hero (HeroFacePicker.js on the Character Sheet): saved on the hero, and the adventure follows
   // (the save effect above); at a shared table it is the campaign's `portrait` edit, so every player sees it.
   async function choosePortrait(portrait){
@@ -277,10 +175,6 @@ function QuestboundApp() {
     if(!isValidCharacter(next)){setError('That portrait could not be kept.');return;}
     if(table.joined){try{await table.edit({kind:'portrait',portrait:portrait??null});}catch(e){setError(e.message);}return;}
     try{await saveCharacter(next);setHero(next);setForm(f=>({...f,portrait}));}catch{setError('Your new portrait could not be saved. Try again.');}
-  }
-  async function retireFromRoster(entry){
-    const next={roster:roster.filter(e=>e.id!==entry.id),graves};
-    try{await saveLists(next);setRoster(next.roster);}catch{setError('Could not update your roster. Try again.');}
   }
   async function playCharacter(begin=false){
     if(storyLock.current||loading||storageError||adventureBlocked||!hero||heroFallen)return;
