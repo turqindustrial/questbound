@@ -10,7 +10,6 @@ import {skirmishHint} from './skirmishGuide';
 import {attitudeLabel} from './relationshipRules';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
-import {IconButton} from './ui';
 import {chipLayout} from './fitRules';
 import {shortcutsBlocked} from './keyboard';
 import {View,Text as PlainText,TextInput,Pressable,useWindowDimensions} from 'react-native';
@@ -25,6 +24,7 @@ import {openFeedback} from './Feedback';
 import {useDmTurn} from './useDmTurn';
 import {s} from './dmStyles';
 import SuggestionsBar,{ideaChipsFor} from './DmSuggestions';
+import DmHeader from './DmHeader';
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
 const panelKey='questbound.suggestions.v1';
 const loadPanel=()=>{try{const v=JSON.parse(globalThis.localStorage?.getItem(panelKey)??'null');return {open:v?.open===true,tab:['say','speak','actions'].includes(v?.tab)?v.tab:'say'};}catch{return {open:false,tab:'say'};}};
@@ -158,16 +158,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting||turnWait&&!direct?'Waiting…':direct?'Ask':'Send';
   const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary',keepfocus:'true'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color={tint('#ffeef0')}/>:<Icon name="send" size={20} color={tint('#ffeef0')} strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color={tint('#ffeef0')} strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>
-    {person?<View style={[s.fillHeader,typing&&short&&{display:'none'}]}>
-      <IconButton icon="back" label="Back to adventure" size={36} disabled={busy||playing} onPress={()=>setConversationId(null)}/>
-      <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
-      <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}{person.trainedAs?' · Level '+person.trainedAs.level+' '+person.trainedAs.class:''}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
-      {aloneSwitch}
-    </View>:!short&&!compact&&!snug&&<View style={s.fillHeader}>
-      <View style={s.dmMark}><Icon name={teller.icon} size={compact?17:19} color={colors.goldBright}/></View>
-      <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>{teller.name}</Text></View>
-      {statusPill}
-    </View>}
+    <DmHeader {...{person,typing,short,busy,playing,setConversationId,game,compact,attitude,aloneSwitch,snug,teller,statusPill}}/>
     {!connected&&checked&&<View accessibilityLiveRegion="polite" style={[s.notice,unpaired&&{borderColor:tint('rgba(224,74,92,.55)')}]}>
       <Icon name={unpaired?'key':'wait'} size={16} color={unpaired?colors.gold:colors.muted}/>
       <View style={{flex:1,minWidth:0,gap:8}}>
