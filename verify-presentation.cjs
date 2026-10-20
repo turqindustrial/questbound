@@ -37,7 +37,7 @@ for(const file of ['public/index.html','public/fonts/fonts-v2.css'].filter(f=>fs
 assert.deepEqual(sideways,[],'something scrolls sideways');
 const web=read('webTheme.js');assert.ok(!web.includes('actions-scroll'),'no swipe-for-more fade');
 assert.ok(!read('webLayout.js').includes("addEventListener('wheel'"),'no wheel-to-sideways handler');
-const ui=read('ui.js'),dm=read('DungeonMaster.js'),map=read('AdventureMap.js'),party=read('PartyPanel.js');
+const ui=read('ui.js'),dm=['DungeonMaster.js','dmStyles.js'].map(read).join(' '),map=read('AdventureMap.js'),party=read('PartyPanel.js');
 assert.ok(ui.includes('export function WrapRow(')&&ui.includes('wrapLimit(rows,rowHeight,gap)')&&ui.includes("accessibilityLabel={open?'Show fewer':'Show all'}")&&ui.includes('useEffect(()=>{setOpen(false);},[resetKey]);'));
 assert.ok(/wrapCell:\{maxWidth:'100%'/.test(ui),'a chip wider than the row is cut to it');
 assert.ok(dm.includes('<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH}')&&!dm.includes('ScrollView')&&!dm.includes('actionScroll'),'the action rows wrap');
