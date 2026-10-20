@@ -3,7 +3,8 @@
 // out on the creature's turn.
 import {spellLibrary} from "./spellOptions";
 import {markOf,withMark,boonOn,ownBoonKey,heroIdOf} from "./masteryRules";
-import {endBoons,spellName} from "./spellRules";
+import {spellName} from "./spellRules";
+import {endBoons} from "./spellBuffRules";
 const conditionLines={
   drowsy:'grows heavy-eyed and does nothing until the end of its next turn, when it must save again or fall asleep. Harm rouses it.',
   asleep:'falls into a magical sleep: it does nothing until it wakes, and wakes if it is hurt.',

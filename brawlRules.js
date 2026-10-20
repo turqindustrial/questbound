@@ -2,7 +2,7 @@
 // the hero's moves in it, and the people's turns (runNpcTurns); a held spell used again on a person (moved from
 // adventureRules.js).
 import {npcScene,npcProfile,npcMaxHP,npcIdsOf,npcCombatParticipants} from "./npcRules";
-import {spellAgain,moveMark,lastingTurn,spellDefense,shieldReaction,concentrationAfterDamage} from "./spellRules";
+import {spellAgain,moveMark,lastingTurn,concentrationAfterDamage} from "./spellRules";
 import {appendJournal} from "./journalRules";
 import {worldPlace,travelTo} from "./mapRules";
 import {resolveClassAction} from "./classActions";
@@ -19,6 +19,7 @@ import {inHand,adventureStepCore,stepLogEntries,tickHeroSpells,overflowOf,fall} 
 import {drinkDraught} from "./recoveryRules";
 import {attackBoost,helpless,spendGuidance,spellTurnStarts,spellTurnEnds,charmedBy} from "./spellConditionRules";
 import {personDefenses,riderDamage,harmCreature} from "./spellDamageRules";
+import {spellDefense,shieldReaction} from "./spellBuffRules";
 // A blow (or a grapple, a shove, the subclass's own action) at a person; it may begin a brawl.
 export function attackPerson(step) {
   const {game, health, hero, action, random, stats, hp, entries} = step;

@@ -8,8 +8,9 @@ import {npcScene,npcIdsOf,npcLore,mentionsName} from './npcRules';
 import {standingOffers} from './followerRules';
 import {livingAllies} from './encounterRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError,lastingSpells,againError,sustainTargets,allySpell,alliesNamed,defaultAllies} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,inspectSpellCast,fightTimingError,lastingSpells,againError,sustainTargets} from './spellRules';
 import {turnCost} from './classActions';
+import {allySpell,alliesNamed,defaultAllies} from "./spellBuffRules";
 // Any of these starts an attack. The weapon is whatever the player names, else their main weapon; fists and
 // feet (or no weapon at all) make an Unarmed Strike, and "shoot" reaches for a bow.
 const VERBS='attack|strike|stab|slash|hit|punch|kick|swing at|smash|bash|cut down|cut|hack at|hack|chop at|chop|lunge at|charge at|charge|shoot at|shoot|headbutt|kill|slay|murder|finish off|cleave|club|bludgeon|thrust at|jab|knock out';

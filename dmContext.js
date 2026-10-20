@@ -5,7 +5,7 @@ import {npcScene,npcServiceError,npcLore,npcIdsOf,npcProfile,npcMaxHP,metPerson}
 import {modifier,proficiencyBonus,currentSubclass,heroSpecies,speciesProfile} from './characterRules';
 import {concentrationAfterDamage} from './spellRules';
 import {dungeonChoices,dungeonRooms} from './dungeonRules';
-import {knownSpells,spellCostOptions,automaticEffects,spellAbility,guidanceBonus,sustainOptions} from './spellRules';
+import {knownSpells,spellCostOptions,automaticEffects,spellAbility,sustainOptions} from './spellRules';
 import {dmCommand} from './dmCommands';
 import {adventureStep,encounterFoe} from './adventureRules';
 import {appendJournal,journalForGame} from './journalRules';
@@ -28,6 +28,7 @@ const spoilSpecies=key=>foeTemplate(key)?.species??null;
 import {combatBasics} from './combatRules';
 import {heroXp,xpForLevel} from './experienceRules';
 import {spellDamageMax} from "./spellDamageRules";
+import {guidanceBonus} from "./spellBuffRules";
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
 const attackChoices=hero=>{const all=attackOptions(hero);return [...all.filter(w=>!w.unarmed).slice(0,3),...all.filter(w=>w.unarmed)];};
 // Weapons the hero can throw right now (a dagger, handaxe, javelin or spear still in hand).

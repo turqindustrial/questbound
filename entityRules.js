@@ -1,10 +1,10 @@
 import {npcScene,npcLore,classScores} from './npcRules';
 import {combatBasics} from './combatRules';
 import {encounterFoe} from './adventureRules';
-import {spellDefense} from './spellRules';
 import {dungeonRooms} from './dungeonRules';
 import {npcArtSubject,creatureArtSubject} from './worldArtRules';
 import {heroSpecies} from './characterRules';
+import {spellDefense} from "./spellBuffRules";
 const scoreNames=['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
 // Only trained people have a class and level; everyone else is shown by who they are (their role).
 function entityNote(game,n){

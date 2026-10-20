@@ -5,7 +5,6 @@ import {campaignState} from './campaignRules';
 import {packOf,gearedHero} from './inventoryRules';
 import {masteryCount,masteredWeapons,masteryText} from './masteryRules';
 import {weapons} from './weaponRules';
-import {spellDefense} from './spellRules';
 import {experienceView} from './experienceRules';
 import FeaturePanel from './FeaturePanel';
 import React, {useState} from 'react';
@@ -20,6 +19,7 @@ import {classIcons} from './iconPaths';
 import HeroPortrait from './HeroPortrait';
 import HeroFacePicker from './HeroFacePicker';
 import {fonts,colors,type,tint} from './theme';
+import {spellDefense} from "./spellBuffRules";
 
 export default function CharacterSheet({hero, game, onBack, health, setHealth, healthLocked, setGame, onPortrait}) {
   const [tab,setTab]=useState('Overview');

@@ -2,7 +2,7 @@
 // the crossroads wisp. creatureCombatStep starts the fight with the opening attack and initiative; creatureRound plays a
 // round (the hero's move, the companions' blows, the creature's answer). A wild fight starts on arrival or by the
 // Dungeon Master's ambush, and ends back at its place (moved from adventureRules.js).
-import {automaticEffects,spellDefense,lastingTurn,wardEdge,shieldReaction,resistedDamage,concentrationAfterDamage,heroTurnBegins} from "./spellRules";
+import {automaticEffects,lastingTurn,concentrationAfterDamage} from "./spellRules";
 import {placeName,timePasses,travelRoute,worldPlace,mapState,mapLocation} from "./mapRules";
 import {resolveClassAction,surgeReady,bonusOptions} from "./classActions";
 import {combatBasics} from "./combatRules";
@@ -19,6 +19,7 @@ import {fall,inHand,foeStanding,tickHeroSpells,overflowOf,finishStep,adventureSt
 import {givePotion,drinkDraught} from "./recoveryRules";
 import {attackBoost,helpless,spendGuidance,wokenByHarm,spellTurnStarts,charmedBy,banedAttack,spellTurnEnds} from "./spellConditionRules";
 import {withDefenses,defended,riderDamage} from "./spellDamageRules";
+import {spellDefense,wardEdge,shieldReaction,resistedDamage,heroTurnBegins} from "./spellBuffRules";
 // A fight at a found place is over (won, fled or fallen): the step's lines and the game are told and left as it ends.
 export function wildFightEnds(game, result) {
   const w = game.wildFight, outcome = result.game.stage === 'victory' ? 'won' : result.game.stage === 'escaped' ? 'fled' : 'fell';
