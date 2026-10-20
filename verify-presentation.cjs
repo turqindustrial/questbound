@@ -37,7 +37,7 @@ for(const file of ['public/index.html','public/fonts/fonts-v2.css'].filter(f=>fs
 assert.deepEqual(sideways,[],'something scrolls sideways');
 const web=read('webTheme.js');assert.ok(!web.includes('actions-scroll'),'no swipe-for-more fade');
 assert.ok(!read('webLayout.js').includes("addEventListener('wheel'"),'no wheel-to-sideways handler');
-const ui=read('ui.js'),dm=['DungeonMaster.js','dmStyles.js'].map(read).join(' '),map=read('AdventureMap.js'),party=read('PartyPanel.js');
+const ui=read('ui.js'),dm=['DungeonMaster.js','DmSuggestions.js','dmStyles.js'].map(read).join(' '),bar=read('DmSuggestions.js'),map=read('AdventureMap.js'),party=read('PartyPanel.js');
 assert.ok(ui.includes('export function WrapRow(')&&ui.includes('wrapLimit(rows,rowHeight,gap)')&&ui.includes("accessibilityLabel={open?'Show fewer':'Show all'}")&&ui.includes('useEffect(()=>{setOpen(false);},[resetKey]);'));
 assert.ok(/wrapCell:\{maxWidth:'100%'/.test(ui),'a chip wider than the row is cut to it');
 assert.ok(dm.includes('<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH}')&&!dm.includes('ScrollView')&&!dm.includes('actionScroll'),'the action rows wrap');
@@ -45,15 +45,15 @@ assert.ok(dm.includes("resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen+':'+ca
 // Out of battle (2026-10-11) everything folds into Suggestions above the message box: one switch, then Say, Speak and
 // Actions. On a short screen the switch and the sub-tabs sit in the cell before the one row of chips, so it stays one
 // row; elsewhere a slim tab row over the chips. Every chip row is a WrapRow (the Say lines wrap in a plain row).
-{const calm=dm.slice(dm.indexOf('const calmContent='),dm.indexOf('const actionBar='));
+{const calm=bar.slice(bar.indexOf('const calmContent='),bar.indexOf('const actionBar='));
  assert.ok(calm.includes("short?<View style={s.switchRow}><View accessibilityRole=\"tablist\" style={[s.switchCell,s.subTabs]}>{suggestToggle}{panel.open&&!(picker&&shownTab==='actions')&&calmTabs.map(subTab)}</View>"),'on a short screen Suggestions is one row (the sub-tabs step aside for an open picker)');
  assert.ok(calm.includes("row([...peopleChips,...speakQuick.map(actionChip)],chipRows,'speak')")&&calm.includes("row([...actionChips,...effectChips],chipRows,'actions')")&&calm.includes("short?row(ideaChips,chipRows,'say'):ideaRow"),'Speak, Actions and (on a short screen) Say are WrapRows');}
 // In battle, a phone on its side (one row of chips; checked headless at 812x375 and 667x375): the Say lines sit in the
 // same height-limited row as the actions, so a conversation never pushes the message box off the screen, and the
 // Actions/Say tabs become one small switch beside the row, so the first action is on it.
-{const bar=dm.slice(dm.indexOf('const shortRow='),dm.indexOf('// One on one or everyone here'));
- assert.ok(/const shortRow=showIdeas\?row\(\[\.\.\.ideaChips,\.\.\.extraChips\],chipRows,'ideas'\):row\(\[\.\.\.actionChips,\.\.\.extraChips\],chipRows,'all'\)/.test(bar),'on a short screen the suggestions are in a WrapRow too');
- assert.ok(bar.includes('<View style={s.switchCell}>{tabSwitch}</View>')&&!/row\(\[\.\.\.tabButtons/.test(dm)&&!/\{tabButtons\}\{ideaChips\}/.test(dm),'the tabs do not take the one row of chips');
+{const row=bar.slice(bar.indexOf('const shortRow='),bar.indexOf('const actionBar='));
+ assert.ok(/const shortRow=showIdeas\?row\(\[\.\.\.ideaChips,\.\.\.extraChips\],chipRows,'ideas'\):row\(\[\.\.\.actionChips,\.\.\.extraChips\],chipRows,'all'\)/.test(row),'on a short screen the suggestions are in a WrapRow too');
+ assert.ok(row.includes('<View style={s.switchCell}>{tabSwitch}</View>')&&!/row\(\[\.\.\.tabButtons/.test(dm)&&!/\{tabButtons\}\{ideaChips\}/.test(dm),'the tabs do not take the one row of chips');
  assert.ok(/short&&\{minHeight:0,height:chipH/.test(dm)&&dm.includes('numberOfLines={short?1:2}'),'a suggestion is one chip high on a short screen');}
 assert.ok(/actionTight:\{[^}]*maxWidth:'100%'/.test(dm),'a long story chip takes a row at most on a phone');
 assert.ok(map.includes('<WrapRow rows={1} openRows={4} rowHeight={34}')&&/regionTab:\{[^}]*height:34/.test(map),'the row of lands is one line with More (opened, four lines that scroll)');
