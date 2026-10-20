@@ -130,7 +130,7 @@ assert.ok(!/survivalOdds|sparedBlow/.test(readText('fightLines.js')),'the hidden
  assert.ok(calls<=12,'at the table the Dungeon Master tells at most half of a long fight ('+calls+' of 24)');assert.ok(calls>=4,'and still tells some of it ('+calls+')');
 
  // ---- 9. A device: the cast path asks for a telling before it would ask the Dungeon Master ----
- const dm=readText('DungeonMaster.js'),branch=dm.slice(dm.indexOf("else {let body={narration:narration??command.narration"));
+ const dm=['DungeonMaster.js','dmTurnRules.js'].map(readText).join(' '),branch=dm.slice(dm.indexOf("else {let body={narration:narration??command.narration"));
  assert.ok(/import \{routineTelling\} from '\.\/fightLines';/.test(dm),'DungeonMaster.js uses the shared rule');
  assert.ok(branch.indexOf('routineTelling(')>=0&&branch.indexOf('routineTelling(')<branch.indexOf('await request('),'a routine move is told before any request');
  assert.ok(/else if\(connected&&protocol>=3\)body=await request\(/.test(branch),'and only a move that is not routine asks the Dungeon Master');

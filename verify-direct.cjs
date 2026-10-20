@@ -4,8 +4,8 @@ const {rulesSource}=require('./rules-files.cjs');
 // Speaking to the Dungeon Master directly (out of character): the DM answers as a DM, changes nothing in the game,
 // and may take the player's last turn back when it went wrong. The state before each turn is remembered for that.
 const {generate}=require(process.env.QB_DM??'./dm-server.cjs');
-const source=rulesSource({extra:['worldArtRules.js','turnMemory.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,dmContext,commitDmTurn,recordedTurn,validAdventure,adventureSnapshot,conversationPeople,rememberTurn,turnToRewind,forgetTurn,toDungeonMaster,withoutAddress})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const source=rulesSource({extra:['worldArtRules.js','turnMemory.js','dmTurnRules.js']});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,dmContext,commitDmTurn,recordedTurn,validAdventure,adventureSnapshot,conversationPeople,rememberTurn,turnToRewind,forgetTurn,toDungeonMaster,withoutAddress,turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=(g,h)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
 // ---- What counts as speaking to the DM ----
@@ -24,6 +24,15 @@ const asked=play(swing.game,swing.health,null,{question:'To the Dungeon Master: 
 assert.equal(asked.game.enemyHP,swing.game.enemyHP);assert.equal(asked.game.playback.at(-1).events[0].text,'To the Dungeon Master: why did the bandit go first?');assert.equal(asked.game.playback.at(-1).events.at(-1).kind,'narration');
 assert.ok(asked.game.journal.entries.at(-1).text.includes('It rolled higher initiative'));assert.ok(valid(asked.game,asked.health));
 assert.ok(r.turnToRewind(asked.game),'Still the last turn');
+// ---- The device's pure pieces of a turn (dmTurnRules.js, played by useDmTurn.js) ----
+{const ooc=r.outOfCharacterContext(back,swing.game.playback.at(-1));assert.equal(ooc.canRewind,true);assert.equal(ooc.lastTurn.said,'I hit the bandit.');assert.ok(ooc.lastTurn.resolved.length>0&&ooc.lastTurn.resolved.length<=30,'what the last turn resolved');
+ assert.equal(JSON.stringify(r.outOfCharacterContext(null,undefined)),'{"canRewind":false,"lastTurn":null}');
+ assert.equal(r.dmReplyError(false,{error:'busy'}),'busy');assert.equal(r.dmReplyError(false,{}),'The DM could not respond.');assert.equal(r.dmReplyError(true,{narration:' '}),'Invalid DM reply. Nothing was applied.');assert.equal(r.dmReplyError(true,{narration:'x'.repeat(1801)}),'Invalid DM reply. Nothing was applied.');assert.equal(r.dmReplyError(true,{narration:'Steel bites.'}),null);
+ const told=r.turnRecord('I hit it.',{narration:'Hit.',told:'game',fightRound:3},'I hit it.','n1');assert.equal(told.told,'game');assert.equal(told.fightRound,3);assert.equal(told.introduce,null);assert.equal(told.npcId,'n1');assert.equal(r.turnRecord('x',{narration:'y'}).told,undefined,'only a game-told turn says so');
+ assert.equal(r.toldReply({narration:'a',worldEvent:'w'}).worldEvent,null);assert.equal(JSON.stringify(r.engineLines(start,['One.','Two.'])),'["One.","Two."]');assert.equal(r.engineLines(start,undefined).length,0);
+ assert.equal(JSON.stringify(r.suggestionLines({suggestions:['One',' ',2,'Two','Three','Four']})),'["One","Two","Three"]');assert.equal(r.suggestionLines(null).length,0);
+ assert.equal(r.turnFailureMessage(start,Object.assign(Error('x'),{name:'TimeoutError'})),'The DM took too long. Nothing was applied.');assert.ok(r.benignTurnFailure('The scene changed while the DM was thinking.'));assert.ok(!r.benignTurnFailure('No slot left.'));
+ const c=r.turnRequestContext({hero:kara,scene:swing.game,hp:swing.health,input:'I look around.',health:hp,preferences:{narrator:'bard'},talkingTo:null,alone:true,extra:{recruitmentTargets:[]}});assert.equal(c.turnStart.hp,12);assert.equal(c.storyPreferences.narrator,'bard');assert.equal(c.conversationWith,null);assert.ok(Array.isArray(c.conversationParticipants)&&Array.isArray(c.recruitmentTargets)&&c.player,'the scene, the hero and the extras');}
 // Taken back: the state before the swing, plus the exchange. Then there is nothing more to take back.
 const undone=play(asked.game,asked.health,null,{question:'To the Dungeon Master: I meant to dodge.',narration:'My mistake. Your last turn has been taken back.',dialogue:[],direct:true},r.turnToRewind(asked.game));
 r.forgetTurn();

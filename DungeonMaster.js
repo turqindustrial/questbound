@@ -6,9 +6,8 @@ import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
 import {npcArtSubject,creatureArtSubject,placeArtSubject,locationArtSubject} from './worldArtRules';
 import {subscribeArt,artIdentity} from './artClient';
-import {storyText} from './storyRules';
 import TurnPlayback from './TurnPlayback';
-import {conversationPeople,speakingPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
+import {conversationPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
 import {adventureStep} from './adventureRules';
 import {dmCommand,withAttackIntent} from './dmCommands';
 import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
@@ -20,7 +19,7 @@ import {KeyHint,IconButton,WrapRow} from './ui';
 import {chipLayout} from './fitRules';
 import {shortcutsBlocked} from './keyboard';
 import {View,Text as PlainText,TextInput,Pressable,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
-import {dmContext,dmChoices,commitDmTurn,mapMoves} from './dmContext';
+import {dmChoices,commitDmTurn,mapMoves} from './dmContext';
 import {fonts,colors,type,tint} from './theme';
 import {playSound} from './audio';
 import {speakTurn,stopNarrator} from './narrator';
@@ -37,6 +36,7 @@ import {cue} from './cinematics';
 import {openFeedback} from './Feedback';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
+import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure} from './dmTurnRules';
 const endpoints=dmEndpoints();
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
 const panelKey='questbound.suggestions.v1';
@@ -72,7 +72,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // Things the player might say next (the Suggestions tab), as the Dungeon Master wrote them for the latest turn. Only
   // this device's memory holds them: they are never saved or shared with the table.
   const [ideas,setIdeas]=useState(null);
-  const keepIdeas=(turn,personId,body)=>setIdeas({turn:turn??null,person:personId??null,lines:(Array.isArray(body?.suggestions)?body.suggestions:[]).filter(t=>typeof t==='string'&&t.trim()).slice(0,3)});
+  const keepIdeas=(turn,personId,body)=>setIdeas({turn:turn??null,person:personId??null,lines:suggestionLines(body)});
   const [endpoint,setEndpoint]=useState(lastReady??endpoints[0]);
   const [connected,setConnected]=useState(false),[protocol,setProtocol]=useState(0),[checked,setChecked]=useState(false),[unpaired,setUnpaired]=useState(false);
   const inputRef=useRef(null);
@@ -83,8 +83,8 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const refusal=message=>Object.assign(Error(message),{refused:true});
   const fail=(e,{said=null,action=null}={})=>{
     if(!alive.current)return;
-    const message=e?.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,String(e?.message??e));
-    const benign=/scene changed|adventure was closed/i.test(message);
+    const message=turnFailureMessage(game,e);
+    const benign=benignTurnFailure(message);
     const entry=benign?null:noteProblem({kind:e?.refused?'refused':'dm',said,error:message,stage:game.stage,action:action?.type??null,spell:action?.spell??action?.request?.spell??null});
     setErrorProblem(entry);setError(message);
   };
@@ -106,7 +106,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
   const [draft,setDraft]=useState('');
   // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
-  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(gearedHero(hero,scene)).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp,input),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:turnRequestContext({hero,scene,hp,input,health,preferences:storyPreferences(),talkingTo,alone,extra})},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);const problem=dmReplyError(ok,body);if(problem)throw Error(problem);return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(table?.joined||!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -207,7 +207,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       try{
         if(!connected)throw Error(offline());
         const said=withoutAddress(question)||question,back=table?.joined?null:turnToRewind(game),last=game.playback?.at(-1);
-        const body=await post(said,game,health,null,{recruitmentTargets:[],outOfCharacter:{canRewind:!!back,lastTurn:last?{said:last.events.find(e=>e.kind==='player')?.text??null,resolved:last.events.filter(e=>['initiative','roll','action','effect'].includes(e.kind)).map(e=>e.text).slice(0,30)}:null}});
+        const body=await post(said,game,health,null,{recruitmentTargets:[],outOfCharacter:outOfCharacterContext(back,last)});
         if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');
         if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Ask again.');
         const rewound=body.rewind===true&&!!back;
@@ -226,7 +226,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,...(body.told==='game'?{told:'game',fightRound:body.fightRound}:{})},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,turnRecord(question,body,normalizedCommand,target),random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
       const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw refusal(preview.error);
@@ -236,7 +236,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         const resolved=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:normalized},()=>{const value=Math.random();dice.push(value);return value;});
         if(resolved.error)throw refusal(resolved.error);
         if(body.ruling.decision==='cast'){
-          const reaction=await request(resolved.game,resolved.health,{engineResolved:(resolved.events??[]).map(t=>storyText(resolved.game,t)).slice(0,40)});
+          const reaction=await request(resolved.game,resolved.health,{engineResolved:engineLines(resolved.game,resolved.events)});
           body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.remember=reaction.remember;body.loot=reaction.loot;body.introduce=reaction.introduce;body.suggestions=reaction.suggestions;
         }
         let index=0;await finish(action,body,normalized,()=>dice[index++]??0.5);
@@ -246,7 +246,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         // to the Dungeon Master; a fight's start, kills, critical hits and every few rounds still go to it (fightLines.js).
         const told=narration===undefined?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences()}):null;
         if(told)body=told;
-        else if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
+        else if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
         let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
       }
     };
@@ -265,14 +265,14 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw refusal(preview.error);
         const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,remember:resolved.remember,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
+        let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
         const action={type:'ai-check',check:body.check},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw refusal(preview.error);
-        const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,remember:resolved.remember,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
+        const resolved=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
+        let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}
       // A place the DM revealed: added to the map, and walked to when the player set out for it.
