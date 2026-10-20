@@ -144,7 +144,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-hero-face-'));
   console.log('Carried: save codes, the roster and the shared table (the portrait edit; every player sees each hero\'s own choice).');
 
   // ---------- The screens ----------
-  const picker=readText('HeroFacePicker.js'),builder=readText('CharacterBuilder.js'),sheet=readText('CharacterSheet.js'),app=readText('App.js'),party=readText('PartyPanel.js'),portrait=readText('HeroPortrait.js');
+  const picker=readText('HeroFacePicker.js'),builder=readText('CharacterBuilder.js'),sheet=readText('CharacterSheet.js'),app=['App.js','MenuScreens.js'].map(readText).join(' '),party=readText('PartyPanel.js'),portrait=readText('HeroPortrait.js');
   assert.match(builder,/<HeroFacePicker hero=\{form\} value=\{form\.portrait\} onChange=\{portrait => change\(\{portrait\}\)\} auto/,'the builder\'s review offers the face');
   assert.match(sheet,/<HeroFacePicker hero=\{hero\} game=\{game\} value=\{hero\.portrait\} onChange=\{onPortrait\}\/>/,'and the Character Sheet');
   assert.match(app,/onPortrait=\{choosePortrait\}/);assert.match(app,/table\.edit\(\{kind:'portrait',portrait:portrait\?\?null\}\)/,'at a table the change is the campaign\'s edit');

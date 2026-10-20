@@ -66,7 +66,7 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
  assert.equal(fs.readdirSync(dir).filter(f=>f.includes('.save.')).length,0);assert.equal(accounts.count(),2);assert.equal(await accounts.removeByEmail('two@questbound.test'),true);assert.equal(accounts.count(),1);
  // Verified HTTP sessions and gateway flow are covered by verify-identity-campaigns and verify-hosted.
  // ---- The game's side ----
- const rules=fs.readFileSync('accountClient.js','utf8'),panel=fs.readFileSync('AccountSettings.js','utf8'),app=fs.readFileSync('App.js','utf8'),cloud=fs.readFileSync('cloudRules.js','utf8');
+ const rules=fs.readFileSync('accountClient.js','utf8'),panel=fs.readFileSync('AccountSettings.js','utf8'),app=['App.js','MenuScreens.js'].map(f=>fs.readFileSync(f,'utf8')).join(' '),cloud=fs.readFileSync('cloudRules.js','utf8');
  assert.ok(!/password[^;\n]{0,60}(AsyncStorage|localStorage)\.setItem|setItem\([^)]*password/i.test(rules),'the password is never stored on the device');
  assert.ok(rules.includes('hold:!!result.savedAt')&&rules.includes('s.hold)return null'),'an account that already holds an adventure is not overwritten before the player chooses');
  assert.ok(cloud.includes('saveToAccount(s.snapshot).catch')&&cloud.includes('noteSnapshot(snapshot)'),'saves go to the account as well');
@@ -122,7 +122,7 @@ const fails=async(promise,status,words)=>{await assert.rejects(promise,e=>{asser
   const home=fs.readFileSync('HomeScreen.js','utf8'),dev=fs.readFileSync('DeveloperDiagnostics.js','utf8');
   assert.ok(app.includes("{screen === 'Settings' && accountsOffered() && <AccountSettings ")&&app.includes("{screen === 'Settings' && accountsOffered() && <CloudSaveSettings "),'Settings: account and recovery code only while offered');
   assert.equal((app.match(/<AccountSettings /g)??[]).length,1);assert.equal((app.match(/<CloudSaveSettings /g)??[]).length,1);
-  for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f)&&!['App.js','AccountSettings.js','CloudSaveSettings.js'].includes(f)))assert.ok(!/<(AccountSettings|CloudSaveSettings)\b/.test(fs.readFileSync(file,'utf8')),file+' renders no account panel');
+  for(const file of fs.readdirSync('.').filter(f=>/\.js$/.test(f)&&!['App.js','MenuScreens.js','AccountSettings.js','CloudSaveSettings.js'].includes(f)))assert.ok(!/<(AccountSettings|CloudSaveSettings)\b/.test(fs.readFileSync(file,'utf8')),file+' renders no account panel');
   assert.ok(app.includes('unprotected={saved&&!account&&accountsOffered()}')&&/const protect=unprotected&&/.test(home),'the title asks for an account only while offered');
   assert.ok(app.includes("if(a?.hold&&accountsOffered())setScreenState('Settings')")&&app.includes("accountsRequired?'Opening your account…':'Opening Questbound…'"),'nothing opens on an account');
   assert.ok(dev.includes("{accountsOffered()&&<GameButton label=\"Check account and local save owner\"")&&dev.includes("{accountsOffered()&&<><GameButton label=\"Read host security alerts\""),'developer checks ask for no account in the beta');

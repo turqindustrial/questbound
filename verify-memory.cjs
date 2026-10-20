@@ -171,7 +171,7 @@ assert.ok(block.earlierTales.some(t=>/^Before that, oldest first: The First Road
   assert.ok(told.openFacts.length>=6&&!told.openFacts.some(f=>/^f\d/.test(f)),'with the threads still open, without their ids');
   assert.ok(size<=r.memoryLimits.budget+400,'within the memory budget: '+size);
   assert.equal(r.storySoFarForWriter(r.newAdventure(hero)),null,'a new hero has no story so far');
-  const app=fs.readFileSync('App.js','utf8');assert.ok(app.includes('storySoFarForWriter(game):null;return lived?{storySoFar:lived}:{}')&&app.includes('!journeyId&&characterChosen&&game.story'),'the game sends it with a tale written for its hero, never with a ready journey');
+  const app=['App.js','startTale.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');assert.ok(app.includes('storySoFarForWriter(game):null;return lived?{storySoFar:lived}:{}')&&app.includes('!journeyId&&characterChosen&&game.story'),'the game sends it with a tale written for its hero, never with a ready journey');
   const {generateAdventure,tidyStorySoFar}=require('./adventure-generator.cjs'),{journeyStory}=require('./journey-fixtures.cjs'),asked=[];
   const writer=async(url,options)=>{asked.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(journeyStory(1))}]}]})};};
   await generateAdventure({input:'Create the next chapter.',context:{mode:'adventure',introId:'surprise',continuing:{previousTitle:'Tale number 130',newStartBearing:'north'},storySoFar:told,choices:[]}},{apiKey:'k',model:'m',fetchImpl:writer});

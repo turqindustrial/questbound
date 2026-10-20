@@ -92,7 +92,7 @@ const calm={...r.freshStoryGame(wiz,story,r.newAdventure(wiz)),spellSlotsUsed:[1
  assert.ok(fs.readFileSync('server-turn.cjs','utf8').includes('...r.spellActions(ruled,game).flatMap(c=>[c,...(c.casts??[])])'),'the campaign server accepts a chosen slot');}
 
 // ---- The screen (DungeonMaster.js) ----
-{const dm=fs.readFileSync('DungeonMaster.js','utf8'),guide=fs.readFileSync('ActionGuide.js','utf8');
+{const dm=['DungeonMaster.js','DmSuggestions.js'].map(f=>fs.readFileSync(f,'utf8')).join(' '),guide=fs.readFileSync('ActionGuide.js','utf8');
  assert.ok(dm.includes("const panelKey='questbound.suggestions.v1'")&&dm.includes('return {open:v?.open===true,')&&dm.includes('const [panel,setPanel]=useState(loadPanel)'),'Suggestions starts closed and is remembered per device');
  assert.ok(dm.includes('const battle=inBattle(game)||!!turnsNow;')&&dm.includes('const actionBar=battle?battleBar:calmBar;'),'buttons in battle, Suggestions otherwise');
  assert.ok(/dataSet=\{\{qb:panel\.open\?'seg-on':'chip',keepfocus:'true',suggest:'toggle'\}\}/.test(dm)&&/keepfocus:'true',suggest:id\}\}/.test(dm),'the switch and the sub-tabs keep the keyboard up');

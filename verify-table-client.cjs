@@ -35,7 +35,7 @@ function fixture(){
  assert.equal(turns.at(-1).body.oneOnOne,undefined);assert.equal(turns.at(-1).body.autoShield,undefined);assert.equal(turns.at(-1).body.greet,undefined);
  // The Speak chip at a table asks the server for the person's greeting (server-turn.cjs) instead of skipping it.
  await table.turn('You turn to Mara.',{npcId:'mara',greet:true});assert.equal(f.calls.filter(c=>c.route==='campaign-turn').at(-1).body.greet,true);
- {const dm=fs.readFileSync('DungeonMaster.js','utf8'),engage=dm.slice(dm.indexOf('const engage='),dm.indexOf('// Turns that arrive from other players'));
+ {const dm=['DungeonMaster.js','useDmTurn.js'].map(f=>fs.readFileSync(f,'utf8')).join(' '),engage=dm.slice(dm.indexOf('const engage='),dm.indexOf('// Turns that arrive from other players'));
   assert.ok(/table\.turn\(opening\.scene,\{npcId:id,greet:true/.test(engage)&&!/table\?\.joined\|\|waiting/.test(engage),'Speak at a table sends the greeting to the campaign server');}
  const leaving=f.delayPoll(),old=f.poll();await settle();await table.leave();leaving.resolve();await old;assert.equal(f.applied.at(-1),7);
  // Account-local storage captures the owner before delayed writes.

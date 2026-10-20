@@ -71,12 +71,30 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  assert.equal(aheadEasy.story.residents[0].regard,undefined,'written ahead, what the residents think of the hero\'s kind is left to the game');assert.deepEqual(aheadEasy.story.openingDialogue.map(l=>l.speakerId),['resident1','keeper'],'only known voices');
 
  // ---- The New Adventure screen and the game ----
- const screen=fs.readFileSync('AdventureIntros.js','utf8'),app=fs.readFileSync('App.js','utf8');
+ const screen=fs.readFileSync('AdventureIntros.js','utf8'),app=['App.js','startTale.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');
  assert.ok(screen.includes('function IdeaBox')&&screen.includes('ideaReady(idea)')&&screen.includes('<NarratorChoice compact/>'),'the idea box, its gate and the narrator choice');
  assert.ok(app.includes("...(wish?{idea:wish}:{})")&&app.includes("selectedIntro==='idea'&&!wish"),'the idea reaches the story writer');
  // Easy start: a per-device switch on the New Adventure and next-tale screens, on unless turned off, hidden for the Skirmish.
  assert.ok(screen.includes('function EasyStart')&&screen.includes("label=\"Easy start\"")&&(screen.match(/<EasyStart /g)??[]).length===2&&screen.includes("selected!=='hostile'"),'the Easy start switch on both screens, not for the Skirmish');
- assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart})")&&app.includes("introId=journeyId?'easy':start.introId")&&app.includes("...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId},base)"),'the game sends the easy start and keeps the opening it asked for');
+ assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart})")&&app.includes("taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer})")&&app.includes("introId=journeyId?'easy':start.introId")&&app.includes("...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId},base)"),'the game sends the easy start and keeps the opening it asked for');
+ // startTale.js builds the story writer's request from the choice (App.playCharacter only sends it): run here with the
+ // rules, storyPreferences.js's taleStart and journeyLibrary.js's fateJourney beside it.
+ {const {rulesSource}=require('./rules-files.cjs'),strip=f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'');
+  const r=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,regionSummary,sequelBearings,storySoFarForWriter,heroSpecies})',{AsyncStorage:{}});
+  const prefs=vm.runInNewContext(strip('storyPreferences.js')+'\n({taleStart})',{}),fate=vm.runInNewContext(fs.readFileSync('journeyLibrary.js','utf8').match(/export const fateJourney=.*$/m)[0].replace('export ','')+'\nfateJourney',{});
+  const st=vm.runInNewContext(strip('startTale.js')+'\n({sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory})',{taleStart:prefs.taleStart,fateJourney:fate,regionSummary:r.regionSummary,sequelBearings:r.sequelBearings,storySoFarForWriter:r.storySoFarForWriter,heroSpecies:r.heroSpecies,Math,Date});
+  const kara=r.readyHero('fighter'),fresh=r.newAdventure(kara),offer=[{id:'0f8fad5b-d9cb-469f-a165-70867728950e'}];
+  const place=st.sequelPlacement();assert.ok(r.sequelBearings.includes(place.bearing)&&place.miles>=4&&place.miles<=7,'a next tale lies a few miles off');
+  assert.throws(()=>st.taleChoice({selectedIntro:'idea',continuing:false,idea:'  ',easyStart:true,journeysOnOffer:null}),/Write your idea/);
+  const own=st.taleChoice({selectedIntro:'idea',continuing:false,idea:' A heist on a frozen river. ',easyStart:false,journeysOnOffer:offer});assert.equal(own.wish,'A heist on a frozen river.');assert.equal(own.journeyId,null);
+  const ready=st.taleChoice({selectedIntro:'journey:'+offer[0].id,continuing:false,idea:'',easyStart:false,journeysOnOffer:offer});assert.equal(ready.journeyId,offer[0].id);assert.equal(ready.introId,'easy','a journey is asked for as Easy to get into');
+  assert.equal(st.taleChoice({selectedIntro:'surprise',continuing:false,idea:'',easyStart:true,journeysOnOffer:offer}).journeyId,offer[0].id,'Let fate decide takes a journey on offer');
+  assert.equal(st.taleChoice({selectedIntro:'journey:'+offer[0].id,continuing:true,idea:'',easyStart:true,journeysOnOffer:offer}).journeyId,null,'never a journey for the next tale');
+  const asked=st.taleRequest({hero:kara,game:fresh,characterChosen:false,continuing:false,bearing:'N',...ready});
+  assert.equal(asked.input,'Create a fresh adventure for my character.');assert.equal(asked.context.journey,offer[0].id);assert.equal(asked.context.easyStart,true);assert.equal(asked.context.introId,'easy');assert.equal(asked.context.storySoFar,undefined,'no story so far with a ready journey');assert.equal(asked.context.player.name,kara.name);
+  const lived={...fresh,story:{title:'The Reed Crown'},storyHistory:['Old Tale']};
+  assert.ok(st.taleRepeats(lived,{story:{title:'the reed crown'}})&&!st.taleRepeats(lived,{story:{title:'New Tale'}}),'a tale already lived is caught, whatever its case');
+  assert.equal(JSON.stringify(st.taleHistory(lived,{story:{title:'New Tale'}})),'["Old Tale","The Reed Crown","New Tale"]');}
 
  // ---- Narrators ----
  const prefs=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+'\n({narrators,narratorOf,storyPreferences,setStoryPreferences})',{globalThis:{localStorage:{store:{},getItem(k){return this.store[k]??null;},setItem(k,v){this.store[k]=v;}}},JSON,Set});
@@ -96,7 +114,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
   assert.equal(map({selected:'surprise',continuing:true,easyStart:false}),JSON.stringify({introId:'surprise',easyStart:false}));}
  {const saved=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+';({storyPreferences})',{globalThis:{localStorage:{getItem:()=>JSON.stringify({easyStart:false}),setItem(){}}},JSON,Set});assert.equal(saved.storyPreferences().easyStart,false,'a saved choice is read back');}
  const dm=fs.readFileSync(require.resolve('./dm-server.cjs'),'utf8')+fs.readFileSync(require.resolve('./dm-instructions.cjs'),'utf8');assert.ok(/NARRATOR: context\.storyPreferences\.narrator/.test(dm)&&dm.includes('standingPrompt=instructions+narratorInstructions+')&&dm.includes('instructions:standingPrompt,')&&/never changes the rules/.test(dm)&&dm.includes('phaseInstructions+note+narratorVoice(body)')&&/NARRATOR THIS TURN: Wick the Lamplighter/.test(dm)&&/NARRATOR THIS TURN: Sable the Bard/.test(dm),'the Dungeon Master is told who narrates, in its standing instructions and, concretely, last in each turn');
- const header=fs.readFileSync('DungeonMaster.js','utf8');assert.ok(header.includes('{teller.name}')&&header.includes('name={teller.icon}'),'the narrator heads the story');
+ const header=['DungeonMaster.js','DmHeader.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');assert.ok(header.includes('{teller.name}')&&header.includes('name={teller.icon}'),'the narrator heads the story');
  fs.rmSync(tmp,{recursive:true,force:true});
  console.log("Tales ahead, your own idea and narrators: a ready journey starts at once (the library itself: verify-journeys.cjs), written openings, the next tale and the player's own idea are written fresh, the idea cleaned and kept to Questbound's own world, Easy start on every opening, and three narrators of our own.");
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

@@ -91,7 +91,7 @@ assert.ok(web.includes('const css=tint(`')&&web.includes('themedText(flourishMar
 const themeSource=fs.readFileSync('theme.js','utf8');
 assert.ok(themeSource.includes("const KEY='questbound.theme.v1'")&&themeSource.includes('export function setTheme')&&themeSource.includes("coin:tint('#e8c77b')"));
 // The Theme section is in Settings.
-const app=fs.readFileSync('App.js','utf8');assert.ok(app.includes("{screen === 'Settings' && <ThemeSettings/>}")&&app.includes("import {ThemeSettings} from './ThemeControls';"));
+const app=['App.js','MenuScreens.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');assert.ok(app.includes("{screen === 'Settings' && <ThemeSettings/>}")&&app.includes("import {ThemeSettings} from './ThemeControls';"));
 const controls=fs.readFileSync('ThemeControls.js','utf8');assert.ok(controls.includes('themeChoices.map')&&controls.includes('setTheme(choice.id)')&&controls.includes('accessibilityRole="radio"'));
 // Body text and principal labels remain readable on each light page surface.
 const lightLuminance=hex=>{const rgb=hex.slice(1).match(/../g).map(h=>parseInt(h,16)/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};

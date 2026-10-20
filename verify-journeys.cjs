@@ -164,7 +164,7 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   same(await c.playedJourneys(store),[]);await c.rememberJourney(clean[0].id,store);await c.rememberJourney(clean[0].id,store);await c.rememberJourney('nope',store);same(await c.playedJourneys(store),[clean[0].id],'remembered once, ids only');
   assert.equal(c.journeyKey,'questbound.journeys.v1');}
  // ---- The screen and the game ----
- {const screen=fs.readFileSync('AdventureIntros.js','utf8'),app=fs.readFileSync('App.js','utf8');
+ {const screen=fs.readFileSync('AdventureIntros.js','utf8'),app=['App.js','startTale.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');
   assert.ok(screen.includes('function JourneyShelf')&&screen.includes('function JourneyCard')&&screen.includes("label={busy?'One moment…':'Begin this journey'}")&&screen.includes('READY NOW')&&screen.includes("i.idea||i.id==='surprise'||i.local"),'the journeys as cards between Your own tale and Let fate decide');
   assert.ok(screen.includes('<DynamicArt subject={j.cover} quiet')&&screen.includes("flexWrap:'wrap'")&&!/horizontal|overflowX/.test(screen),'covers, and cards that wrap, never sideways');
   assert.ok(screen.includes("Every ready journey begins this way")&&screen.includes('journey={ready}'),'Easy start shows on, locked, for a journey');

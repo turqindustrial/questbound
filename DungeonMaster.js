@@ -1,48 +1,33 @@
-import {useSceneTransition} from './SceneTransition';
-import {dmEndpoints,askDm} from './dmConnection';
 import {castMenu,attackActions,inBattle,speakAction} from './quickActions';
-import {recruitmentTargets} from './followerRules';
 import {EntityText as Text} from './EncounterOverlay';
 import DynamicArt from './DynamicArt';
 import {npcArtSubject,creatureArtSubject,placeArtSubject,locationArtSubject} from './worldArtRules';
 import {subscribeArt,artIdentity} from './artClient';
-import {storyText} from './storyRules';
 import TurnPlayback from './TurnPlayback';
-import {conversationPeople,speakingPeople,conversationTarget,activeEffectLines,visibleTurn} from './playbackRules';
-import {adventureStep} from './adventureRules';
-import {dmCommand,withAttackIntent} from './dmCommands';
+import {activeEffectLines,visibleTurn} from './playbackRules';
 import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
 import {skirmishHint} from './skirmishGuide';
 import {attitudeLabel} from './relationshipRules';
 import React,{useState,useEffect,useRef,useMemo} from 'react';
 import Icon from './Icon';
-import {KeyHint,IconButton,WrapRow} from './ui';
 import {chipLayout} from './fitRules';
 import {shortcutsBlocked} from './keyboard';
-import {View,Text as PlainText,TextInput,Pressable,StyleSheet,useWindowDimensions,Keyboard} from 'react-native';
-import {dmContext,dmChoices,commitDmTurn,mapMoves} from './dmContext';
-import {fonts,colors,type,tint} from './theme';
+import {View,Text as PlainText,TextInput,Pressable,useWindowDimensions} from 'react-native';
+import {colors,tint} from './theme';
 import {playSound} from './audio';
-import {speakTurn,stopNarrator} from './narrator';
-import {turnToRewind,forgetTurn,toDungeonMaster,withoutAddress} from './turnMemory';
 import {touchKeyboard} from './webLayout';
 import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
-import {greeting,shouldGreet,replyIdeas} from './greetings';
-import {turnOrderView} from './encounterRules';
-import {noteProblem} from './problemLog';
-import {deedById} from './deedRules';
-import {cue} from './cinematics';
+import {replyIdeas} from './greetings';
 import {openFeedback} from './Feedback';
-import {countTurn,noteTalking} from './playMetrics';
-import {routineTelling} from './fightLines';
-const endpoints=dmEndpoints();
+import {useDmTurn} from './useDmTurn';
+import {s} from './dmStyles';
+import SuggestionsBar,{ideaChipsFor} from './DmSuggestions';
+import DmHeader from './DmHeader';
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
 const panelKey='questbound.suggestions.v1';
 const loadPanel=()=>{try{const v=JSON.parse(globalThis.localStorage?.getItem(panelKey)??'null');return {open:v?.open===true,tab:['say','speak','actions'].includes(v?.tab)?v.tab:'say'};}catch{return {open:false,tab:'say'};}};
-// The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
-let lastReady=null;
 export default function DungeonMaster({hero,game,health,act,onConversationChange,table,fill=false,quick=[],sendRef,onTyping}) {
   const {width:viewWidth,height:viewHeight}=useWindowDimensions(),compact=viewWidth<600,short=viewHeight<520;
   // Typing on a phone: while the message box has the keyboard, the story keeps the screen and the action row,
@@ -52,107 +37,14 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>()=>clearTimeout(blurTimer.current),[]);
   const typing=fill&&focused&&touchKeyboard();
   useEffect(()=>{onTyping?.(typing);return()=>onTyping?.(false);},[typing]);
-  // When the Dungeon Master cannot be reached: the host is told what to start, a guest only that it is not answering.
-  const offline=()=>dmEndpoints()[0]==='/api'?'The host\'s Dungeon Master is not answering right now. Your words are kept here; try again in a moment.':'The Dungeon Master service is not running on this PC. Start it with Questbound.cmd, then try again; your words are kept here.';
-  // Out of character: the next message goes to the Dungeon Master as a player, not into the story.
-  const [direct,setDirect]=useState(false);
  // The narrator's name heads the story (Settings → Story or the New Adventure screen choose who tells it).
  const [teller,setTeller]=useState(()=>narratorOf(storyPreferences().narrator));
  useEffect(()=>subscribeStoryPreferences(p=>setTeller(narratorOf(p.narrator))),[]);
-  const transition=useSceneTransition();
-  const openConversation=async id=>{try{await transition.prepare(conversationPeople(game).map(n=>npcArtSubject(game,n.id)));setConversationId(id);setError('');return true;}catch(e){setError(e.message);return false;}};
   const creature=creatureArtSubject(game),creatureKey=creature?artIdentity(creature):null;
   useEffect(()=>creature?subscribeArt(creature,()=>{}):undefined,[creatureKey]);
-  const [conversationId,setConversationId]=useState(null),[animateId,setAnimateId]=useState(null),[playing,setPlaying]=useState(false);
-  const people=conversationPeople(game),person=people.find(n=>n.id===conversationId);
-  useEffect(()=>{if(conversationId&&!person)setConversationId(null);onConversationChange(!!person);noteTalking(!!person);},[conversationId,!!person,onConversationChange]);
-  // Just you two: with others about, the one turned to answers alone unless the player opens the talk to everyone here.
-  const [alone,setAlone]=useState(true);
-  useEffect(()=>{setAlone(true);},[conversationId]);
-  // Things the player might say next (the Suggestions tab), as the Dungeon Master wrote them for the latest turn. Only
-  // this device's memory holds them: they are never saved or shared with the table.
-  const [ideas,setIdeas]=useState(null);
-  const keepIdeas=(turn,personId,body)=>setIdeas({turn:turn??null,person:personId??null,lines:(Array.isArray(body?.suggestions)?body.suggestions:[]).filter(t=>typeof t==='string'&&t.trim()).slice(0,3)});
-  const [endpoint,setEndpoint]=useState(lastReady??endpoints[0]);
-  const [connected,setConnected]=useState(false),[protocol,setProtocol]=useState(0),[checked,setChecked]=useState(false),[unpaired,setUnpaired]=useState(false);
-  const inputRef=useRef(null);
-  const [input,setInput]=useState(''),[reply,setReply]=useState(null),[busy,setBusy]=useState(false),[status,setStatus]=useState('Checking AI connection…'),[error,setError]=useState(''),[errorProblem,setErrorProblem]=useState(null);
-  // A failed turn is shown in the error row and kept in the problem log (problemLog.js), so a playtest note can say
-  // what was tried and what went wrong; the Report chip beside the error opens one. A scene that moved on, or an
-  // adventure that was closed, is not a problem.
-  const refusal=message=>Object.assign(Error(message),{refused:true});
-  const fail=(e,{said=null,action=null}={})=>{
-    if(!alive.current)return;
-    const message=e?.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,String(e?.message??e));
-    const benign=/scene changed|adventure was closed/i.test(message);
-    const entry=benign?null:noteProblem({kind:e?.refused?'refused':'dm',said,error:message,stage:game.stage,action:action?.type??null,spell:action?.spell??action?.request?.spell??null});
-    setErrorProblem(entry);setError(message);
-  };
-  // Worked out once per change of the game, not on every streamed line of narration.
-  const fingerprint=useMemo(()=>JSON.stringify({hero,game,health}),[hero,game,health]),latest=useRef(fingerprint),lock=useRef(false),alive=useRef(true),triedCue=useRef(null);latest.current=fingerprint;
-  useEffect(()=>{
-    alive.current=true;let checking=false,known=lastReady;
-    // Once a ready service answers, only it is polled; the full list is scanned again if it stops answering.
-    // A shared-link gateway answers 401 when this browser's invite has lapsed (or the host restarted sharing).
-    const probe=async list=>(await Promise.all(list.map(async url=>{try{const response=await fetch(url+'/health',{signal:AbortSignal.timeout(3000)});return response.status===401?{url,state:{ready:false,unpaired:true}}:response.ok?{url,state:await response.json()}:null;}catch{return null;}}))).filter(Boolean).sort((a,b)=>Number(b.state.ready)-Number(a.state.ready)||(b.state.actionProtocol??0)-(a.state.actionProtocol??0))[0];
-    const check=async()=>{if(checking)return;checking=true;try{
-      let found=known?await probe([known]):null;if(!found?.state.ready)found=await probe(endpoints);
-      lastReady=known=found?.state.ready?found.url:null;if(!found)throw Error('Unavailable');
-      if(alive.current)setUnpaired(!!found.state.unpaired);
-      if(alive.current){setEndpoint(found.url);setConnected(!!found.state.ready);setProtocol(found.state.actionProtocol??0);setStatus(found.state.unpaired?'Your invite has lapsed or the host restarted sharing. Reload the page and enter the invite code to continue; your hero is safe in this browser.':!found.state.ready?'The Dungeon Master is not set up yet on the host’s PC.':found.state.actionProtocol>=3?'AI DM connected · rulings enabled':found.state.actionProtocol===2?'AI DM connected · actions enabled':'AI DM connected · private service upgrade needed for rulings');}
-    }catch{if(alive.current){setConnected(false);setProtocol(0);setStatus('The Dungeon Master is not answering. Reconnecting automatically…');}}finally{checking=false;if(alive.current)setChecked(true);}};
-    check();const timer=setInterval(check,5000);return()=>{alive.current=false;clearInterval(timer);};
-  },[]);
-  // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
-  const [draft,setDraft]=useState('');
-  // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
-  const post=async(input,scene,hp,talkingTo,extra)=>{const most=combatBasics(gearedHero(hero,scene)).hp,{ok,status:code,body}=await askDm(endpoint,{input,context:{...dmContext(hero,scene,hp,input),turnStart:{hp:health?.current??most,max:most},storyPreferences:storyPreferences(),conversationWith:talkingTo?{id:talkingTo.id,name:talkingTo.name,role:talkingTo.role,oneOnOne:alone&&conversationPeople(scene).length>1}:null,conversationParticipants:speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),...extra}},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);if(!ok)throw Error(body.error||'The DM could not respond.');if(typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw Error('Invalid DM reply. Nothing was applied.');return body;};
-  // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
-  useEffect(()=>{
-    const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(table?.joined||!cue||busy||playing||lock.current||triedCue.current===attempt)return;
-    // At a shared table only the device whose action caused the moment asks the NPCs to speak.
-    if(cue.origin&&table?.joined&&cue.origin!==table.deviceId)return;
-    const speaker=people.find(n=>n.id===cue.speakerId)??people[0],snapshot=fingerprint;triedCue.current=attempt;
-    lock.current=true;setBusy(true);setError('');
-    (async()=>{
-      let narration=cue.scene,dialogue=speaker?[{speakerId:speaker.id,text:cue.fallback}]:[],said=null;
-      if(connected&&speaker)try{const body=await post(cue.scene,game,health,speaker,{sceneTrigger:{id:cue.id,cue:cue.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>people.some(n=>n.id===l.speakerId));if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
-      if(!alive.current||latest.current!==snapshot)return;
-      const result=await act(null,{question:cue.scene,narration,dialogue,trigger:true,npcId:speaker?.id??null});
-      if(!result.error){setAnimateId(result.turn?.id??null);const talking=!!speaker&&conversationPeople(result.game).some(n=>n.id===speaker.id);if(talking)setConversationId(speaker.id);keepIdeas(result.turn?.id,talking?speaker.id:conversationId,said);}
-    })().catch(e=>fail(e)).finally(()=>{lock.current=false;if(alive.current)setBusy(false);});
-  },[game.sceneCue?.id,busy,playing]);
-  // Turning to someone (the Speak chip): the conversation opens and they speak first, in their own voice and true to
-  // how they feel about the hero. The Dungeon Master writes the line; a stand-in is used when it cannot be reached.
-  // Someone who has only just spoken is not made to greet again.
-  const engage=async id=>{
-    if(lock.current||busy||playing)return;
-    if(!await openConversation(id))return;
-    const speaker=conversationPeople(game).find(n=>n.id===id);
-    if(!speaker||waiting||tableSyncing||turnWait||!shouldGreet(game,id))return;
-    const opening=greeting(game,id,hero),snapshot=fingerprint;
-    lock.current=true;setBusy(true);setError('');setDraft('');
-    // At a shared table the campaign server works out the greeting and plays it as a turn (server-turn.cjs, greet).
-    if(table?.joined){
-      try{const prefs=storyPreferences(),result=await table.turn(opening.scene,{npcId:id,greet:true,oneOnOne:alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
-       if(!alive.current)return;
-       const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,result);setAnimateId(result.turn?.id??null);}
-      catch(e){fail(e);}
-      finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
-      return;
-    }
-    try{
-      let narration=opening.aside,dialogue=[{speakerId:id,text:opening.fallback}],said=null;
-      if(connected)try{const body=await post(opening.scene,game,health,speaker,{sceneTrigger:{id:'greet:'+id,cue:opening.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>l.speakerId===id).slice(0,2);if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
-      if(!alive.current||latest.current!==snapshot)return;
-      const result=await act(null,{question:opening.scene,narration,dialogue,trigger:true,npcId:id});
-      if(!result.error){setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,said);}
-    }catch(e){fail(e);}
-    finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
-  };
-  // Turns that arrive from other players at the table play out here too.
-  const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
-  useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined){setAnimateId(lastTurnId);try{speakTurn(game.playback.at(-1));}catch{}}seenTurn.current=lastTurnId;},[lastTurnId]);
+  // The turn with the Dungeon Master (useDmTurn.js): the connection, the words sent, the reply applied, people who speak
+  // first, and the state the screen shows while it happens.
+  const {direct,setDirect,openConversation,conversationId,setConversationId,animateId,playing,setPlaying,people,person,alone,setAlone,ideas,connected,checked,unpaired,status,inputRef,input,setInput,reply,busy,error,errorProblem,fingerprint,draft,engage,lastTurnId,waiting,tableSyncing,turnsNow,turnWait,ask}=useDmTurn({hero,game,health,act,onConversationChange,table,compact});
   // Each new turn brings the action row back to its first (main) action.
   const [spellsOpen,setSpellsOpen]=useState(false),[guide,setGuide]=useState(false),[castSpell,setCastSpell]=useState(null);
   // The Attack… picker, and the target chosen in it (null: the foe, or nobody yet when only people are here).
@@ -168,10 +60,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>{setSpellsOpen(false);setCastSpell(null);closeAttack();},[lastTurnId]);
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
-  const waiting=table?.joined?table.otherActing:null; const tableSyncing=!!table?.joined&&!table.synchronized;
   // A party's fight goes in turns (adventureRules.js): on someone else's turn this device waits; after a minute and a
   // half (or at once when their player has left the table) it may pass that turn.
-  const turnsNow=turnOrderView(game),turnWait=turnsNow&&!turnsNow.mine?turnsNow.current:null,turnKey=turnWait?turnsNow.round+':'+turnWait.id:'';
+  const turnKey=turnWait?turnsNow.round+':'+turnWait.id:'';
   const [patience,setPatience]=useState('');
   useEffect(()=>{if(!turnKey)return;const timer=setTimeout(()=>setPatience(turnKey),90000);return()=>clearTimeout(timer);},[turnKey]);
   const awayFromTable=turnWait?.kind==='hero'&&!!table?.joined&&!(table.players??[]).some(p=>p.id===turnWait.id);
@@ -179,113 +70,6 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // The turn has come round to this player: a sound, once a turn.
   const myTurnKey=turnsNow?.mine?turnsNow.round+':'+turnsNow.current?.id:'';
   useEffect(()=>{if(myTurnKey&&turnsNow.entries.filter(e=>e.kind==='hero').length>1)playSound('select');},[myTurnKey]);
-  // A quick action arrives as {question, action}: the sentence the DM hears and the engine action it resolves.
-  async function ask(preset){
-    // A preset with `parse` is a complete typed sentence (a spell from the Cast… picker) read by the normal parser.
-    preset=preset?.question&&(preset.action||preset.parse)?preset:null;
-    const question=preset?.question??input.trim();
-    const toDm=!preset&&(direct||toDungeonMaster(question));
-    if(lock.current||playing||!question||waiting||tableSyncing||(game.stage==='dead'&&!toDm)||(turnWait&&!toDm&&preset?.action?.type!=='party-pass'))return;const priorReply=reply,snapshot=fingerprint;if(compact||touchKeyboard()){inputRef.current?.blur?.();Keyboard.dismiss();}lock.current=true;setBusy(true);setError('');setDraft('');playSound('send');countTurn();
-    if(table?.joined){
-      try{stopNarrator();}catch{}
-      // The campaign server resolves the turn with its own dice through the same rules (server-turn.cjs); this device
-      // sends its words, its view of the scene (just you two) and its own settings, and shows what comes back.
-      try{const target=conversationTarget(game,question,conversationId),prefs=storyPreferences(),said=toDm?withoutAddress(question)||question:question;
-       const result=await table.turn(question,{npcId:target,direct:toDm,...(preset?.action?{action:preset.action}:{}),oneOnOne:!!target&&target===conversationId&&alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
-       if(!alive.current)return;
-       const talking=!!target&&conversationPeople(result.game).some(n=>n.id===target);
-       keepIdeas(result.turn?.id,talking?target:null,result);
-       const fault=toDm&&result.fault?noteProblem({kind:'reported',said,answer:result.narration,stage:game.stage}):null;
-       setReply({narration:result.narration,fault:fault?{problem:fault,said}:null});setAnimateId(result.turn?.id??null);setConversationId(target);setInput('');setDirect(false);
-       (result.deeds??[]).forEach((id,i)=>setTimeout(()=>{const deed=deedById(id);if(deed)cue('deed',{deed});},1400+i*4400));}
-      catch(e){fail(e,{said:question,action:preset?.action??null});}
-      finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}return;
-    }
-    // Speaking to the Dungeon Master directly: an answer out of character, and the last turn taken back when the
-    // DM agrees it went wrong. Nothing else about the game changes.
-    if(toDm){
-      try{
-        if(!connected)throw Error(offline());
-        const said=withoutAddress(question)||question,back=table?.joined?null:turnToRewind(game),last=game.playback?.at(-1);
-        const body=await post(said,game,health,null,{recruitmentTargets:[],outOfCharacter:{canRewind:!!back,lastTurn:last?{said:last.events.find(e=>e.kind==='player')?.text??null,resolved:last.events.filter(e=>['initiative','roll','action','effect'].includes(e.kind)).map(e=>e.text).slice(0,30)}:null}});
-        if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');
-        if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Ask again.');
-        const rewound=body.rewind===true&&!!back;
-        const result=await act(null,{question:('To the Dungeon Master: '+said).slice(0,1000),narration:body.narration.slice(0,1700)+(rewound?'\n\nYour last turn has been taken back. Say what you meant to do.':''),dialogue:[],direct:true,npcId:null},undefined,rewound?{from:back}:undefined);
-        if(result.error)throw refusal(result.error);
-        if(rewound)forgetTurn();
-        // The Dungeon Master agreed something went wrong: kept as a problem, with a chip to tell the host.
-        const fault=body.fault===true?noteProblem({kind:'reported',said,answer:body.narration,stage:game.stage}):null;
-        setReply({narration:body.narration,fault:fault?{problem:fault,said}:null});setAnimateId(result.turn?.id??null);setInput('');setDirect(false);
-      }catch(e){fail(e,{said:question});}
-      finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
-      return;
-    }
-    const target=preset?null:conversationTarget(game,question,conversationId);
-    if(target&&!await openConversation(target)){lock.current=false;setBusy(false);return;}
-    const talkingTo=people.find(n=>n.id===target);
-    const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
-    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,...(body.told==='game'?{told:'game',fightRound:body.fightRound}:{})},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
-    const cast=async(command,normalized,narration)=>{
-      // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
-      const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw refusal(preview.error);
-      if(preview.waiting&&protocol>=3){
-        const body=await request(preview.game,preview.health);if(!body.ruling)throw Error('The DM did not resolve this spell. Nothing was spent; try again with more detail.');
-        const action={type:'ai-spell',request:command.action.request,ruling:body.ruling},dice=[];
-        const resolved=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:normalized},()=>{const value=Math.random();dice.push(value);return value;});
-        if(resolved.error)throw refusal(resolved.error);
-        if(body.ruling.decision==='cast'){
-          const reaction=await request(resolved.game,resolved.health,{engineResolved:(resolved.events??[]).map(t=>storyText(resolved.game,t)).slice(0,40)});
-          body.narration=reaction.narration;body.dialogue=reaction.dialogue;body.relationships=reaction.relationships;body.remember=reaction.remember;body.loot=reaction.loot;body.introduce=reaction.introduce;body.suggestions=reaction.suggestions;
-        }
-        let index=0;await finish(action,body,normalized,()=>dice[index++]??0.5);
-      }
-      else {let body={narration:narration??command.narration??'Your action is resolved below.'};
-        // A routine fight move (a plain attack, Dodge, End turn, a draught...) is told by the game itself, with no request
-        // to the Dungeon Master; a fight's start, kills, critical hits and every few rounds still go to it (fightLines.js).
-        const told=narration===undefined?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences()}):null;
-        if(told)body=told;
-        else if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
-      }
-    };
-    let attempted=preset?.action??null;
-    try{
-      const command=preset?.action?{action:preset.action}:dmCommand(hero,game,question,health,preset?null:conversationId);attempted=command?.action??attempted;
-      if(command?.action){await cast(command,command.normalizedCommand??question);return;}
-      if(/^confirm action[.!]?$/i.test(question)){if(!priorReply?.pending||priorReply.snapshot!==snapshot)throw Error('There is no current action to confirm.');await finish(priorReply.pending.action,{narration:'Your action is resolved below.'});return;}
-      // A rule's refusal (no slot, not in a fight, already concentrating...) is shown as it is; only a cast the game could
-      // not read goes to the Dungeon Master, who may work out what was meant (context.castingIssue).
-      if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw refusal(command.error);
-      const body=await request(game,health,command?.error?{castingIssue:command.error}:{});
-      if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration);return;}
-      if(protocol>=3&&body.recruitment?.length){
-        const action={type:'recruitment',plans:body.recruitment},dice=[];
-        const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
-        if(preview.error)throw refusal(preview.error);
-        const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,remember:resolved.remember,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
-      }
-      if(protocol>=3&&body.check){
-        const action={type:'ai-check',check:body.check},dice=[];
-        const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
-        if(preview.error)throw refusal(preview.error);
-        const resolved=await request(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>storyText(preview.game,t)).slice(0,40)});
-        let index=0;await finish(action,{narration:resolved.narration,dialogue:resolved.dialogue,worldEvent:null,relationships:resolved.relationships,remember:resolved.remember,loot:resolved.loot,introduce:resolved.introduce,suggestions:resolved.suggestions},undefined,()=>dice[index++]??0.5);return;
-      }
-      if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}
-      // A place the DM revealed: added to the map, and walked to when the player set out for it.
-      if(protocol>=3&&body.discovery){const {travel,...place}=body.discovery;await finish({type:'discover',place,travel},body);return;}
-      // A creature the DM sprang on the player out in the wilds: the fight starts, and the player moves first.
-      if(protocol>=3&&body.ambush){await finish({type:'ambush',foe:body.ambush},body);return;}
-      const choice=body.actionId===null?null:[...dmChoices(hero,game,health),...mapMoves(game)].find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
-      if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration);return;}
-      const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
-      if(protocol<2&&choice)setReply({narration:body.narration,pending:choice,snapshot:JSON.stringify({hero,game:result.game,health:result.health})});
-    }catch(e){fail(e,{said:question,action:attempted});}
-    finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
-  }
   // After the Dungeon Master admits out of character that something went wrong: one tap tells the host, with the
   // player's own words already in the note.
   const faultChip=reply?.fault?<View style={s.faultRow}><PlainText style={s.faultText}>The Dungeon Master agrees this went wrong.</PlainText><Pressable accessibilityRole="button" accessibilityLabel="Tell the host about this" onPress={()=>{playSound('open');openFeedback({problem:reply.fault.problem,prefill:reply.fault.said});}} dataSet={{qb:'chip',keepfocus:'true'}} style={s.reportChip}><Icon name="feedback" size={13} color={colors.gold}/><PlainText style={s.reportText}>Tell the host about this</PlainText></Pressable></View>:null;
@@ -364,58 +148,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);
   },[]);
   const pressable=actions.filter(a=>!a.heading);
-  const hintOf=a=>{const i=visible.indexOf(a);return !compact&&i>=0&&i<9?i+1:null;};
-  const actionChip=a=>{
-    // A heading in the Attack… or Cast… picker (Melee, Ranged, Cantrips, Level 2): a small label, not a button.
-    if(a.heading)return <View key={a.key} dataSet={{qb:'action-heading'}} style={[s.actionHeading,{height:chipH}]}><PlainText style={[s.actionHeadingText,a.quiet&&{color:colors.faint},a.strong&&s.actionHeadingStrong]}>{a.heading}</PlainText></View>;
-    const i=pressable.indexOf(a),lead=a.primary&&!a.prefill,hint=hintOf(a);return <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.casts?.length>1?a.label+': choose a slot':a.key==='cast-back'?'Back to your spells (choosing a slot for '+a.label+')':a.key==='cast'?'Cast a spell: start typing it':a.prefill?a.label+': start the sentence, then name the target':a.question??a.label} accessibilityState={{disabled:actionsDisabled}} disabled={actionsDisabled} onPress={()=>runAction(a)} onHoverIn={()=>!actionsDisabled&&playSound('tick')} dataSet={{qb:lead?'btn-primary':'chip',pulse:lead&&i===0&&game.stage==='combat'&&!actionsDisabled&&!spellsOpen&&!attackOpen?'on':'off'}} style={[s.action,tight&&s.actionTight,lead&&s.actionPrimary,actionsDisabled&&{opacity:.45}]}>
-    <Icon name={a.icon??'star'} size={tight?14:16} color={lead?tint('#ffeef0'):colors.gold}/>
-    <PlainText numberOfLines={1} style={[s.actionText,tight&&s.actionTextTight,lead&&s.actionPrimaryText]}>{a.label}</PlainText>
-    {!!a.detail&&<PlainText numberOfLines={1} style={[s.actionDetail,{flexShrink:0}]}>{a.detail}</PlainText>}
-    {a.casts?.length>1&&<Icon name="forward" size={12} color={colors.goldMid}/>}
-    {!!hint&&<KeyHint dark={lead}>{hint}</KeyHint>}
-  </Pressable>;};
-  const actionChips=actions.map(actionChip);
-  // The guide: what every action (or spell) in the row does, one tap away.
-  if(actions.length)actionChips.push(<Pressable key="guide" accessibilityRole="button" accessibilityLabel={spellsOpen?'What these spells do':'What these actions do'} onPress={()=>{playSound('open');setGuide(true);}} dataSet={{qb:'chip'}} style={[s.action,tight&&s.actionTight,{paddingHorizontal:11}]}><Icon name="info" size={tight?14:16} color={colors.gold}/></Pressable>);
-  const effectChips=effects.map(line=><View key={'effect:'+line} style={[s.effectChip,{height:chipH-4}]}><Icon name="spell" size={13} color={colors.arcane}/><Text numberOfLines={1} style={s.effectChipText}>{line}</Text></View>);
-  const personChip=n=>{const a=speakList.find(x=>x.person===n.id),hint=a?hintOf(a):null;return <Pressable key={'person:'+n.id} accessibilityRole="button" accessibilityLabel={(person?'Address ':'Speak with ')+n.name} disabled={busy||playing} onPress={()=>engage(n.id)} dataSet={{qb:'chip'}} style={[s.personChip,{height:chipH}]}><DynamicArt dataSet={{qb:'avatar'}} subject={npcArtSubject(game,n.id)} style={[s.chipAvatar,tight&&s.chipAvatarTight]} compact/><PlainText numberOfLines={1} style={[s.chipName,tight&&{fontSize:13}]}>{n.name}</PlainText><View style={s.chipSpeak}><Icon name="speak" size={13} color={colors.gold}/>{!tight&&<PlainText style={s.chipAction}>{person?'Address':'Speak'}</PlainText>}</View>{!!hint&&<KeyHint>{hint}</KeyHint>}</Pressable>;};
-  const peopleChips=(dead?[]:people.filter(n=>n.id!==person?.id)).map(personChip);
-  const extraChips=[...effectChips,...(battle?peopleChips:[])];
-  const picker=spellsOpen||attackOpen||!!waitRow;
-  const {rows:chipRows,openRows}=chipLayout(viewWidth,viewHeight,{picker});
-  const row=(chips,rows,key)=>chips.length>0&&<WrapRow key={key} rows={rows} openRows={openRows} rowHeight={chipH} gap={fit.gap} resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen+':'+castSpell+':'+shownTab} label={key==='say'||key==='ideas'?'Suggestions':'Quick actions'} dataSet={{qb:'actions'}} style={s.actionBar}>{chips}</WrapRow>;
-  // A suggestion is a short thing to say in the hero's own voice; a tap writes it into the box (it never sends). The
-  // suggestions wrap onto a second line rather than scrolling sideways.
-  const ideaChips=ideaLines.map((text,i)=><Pressable key={'idea:'+text} accessibilityRole="button" accessibilityLabel={'Suggestion: '+text} accessibilityState={{disabled:ideasDisabled}} disabled={ideasDisabled} onPress={()=>fillIdea(text)} onHoverIn={()=>!ideasDisabled&&playSound('tick')} dataSet={{qb:'chip',keepfocus:'true'}} style={[s.ideaChip,short&&{minHeight:0,height:chipH,paddingVertical:0},ideasDisabled&&{opacity:.45}]}><Icon name="quill" size={13} color={colors.goldMid}/><PlainText numberOfLines={short?1:2} style={[s.ideaText,short&&{fontSize:14}]}>{text}</PlainText>{!compact&&showIdeas&&i<9&&<KeyHint>{i+1}</KeyHint>}</Pressable>);
-  const ideaRow=<View dataSet={{qb:'actions'}} accessibilityLabel="Suggestions" style={[s.actionBar,s.ideaWrap]}>{ideaChips}</View>;
-  // In battle: Actions | Say. A short screen (a phone on its side) has one row of chips: the two tabs would fill it, so
-  // a single small switch (a quill and the count, or the way back to the actions) stands before the row, and the
-  // suggestions sit in the same height-limited row as the actions (one line each, the rest behind More), so the
-  // message box always stays in view. The switch is outside the row so the first chip leads its own line.
-  const tabButton=(id,label,count)=>{const on=id==='say'?showIdeas:!showIdeas;return <Pressable key={'tab:'+id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:on}} onPress={()=>{if(on)return;playSound('click');setTab(id);}} dataSet={{qb:on?'seg-on':'chip',keepfocus:'true'}} style={[s.tab,on&&s.tabOn]}><PlainText style={[s.tabText,on&&s.tabTextOn]}>{label}</PlainText>{!on&&count>0&&<View style={s.tabCount}><PlainText style={s.tabCountText}>{count}</PlainText></View>}</Pressable>;};
-  const tabButtons=ideaLines.length>0?[...(actions.length?[tabButton('actions','Actions',0)]:[]),tabButton('say','Say',ideaLines.length)]:[];
-  const tabStrip=tabButtons.length>0&&<View accessibilityRole="tablist" style={s.tabs}>{tabButtons}</View>;
-  const tabSwitch=tabButtons.length>1?[<Pressable key="tab:switch" accessibilityRole="tab" accessibilityLabel={showIdeas?'Actions':'Say ('+ideaLines.length+')'} accessibilityState={{selected:showIdeas}} onPress={()=>{playSound('click');setTab(showIdeas?'actions':'say');}} dataSet={{qb:showIdeas?'seg-on':'chip',keepfocus:'true',tab:'switch'}} style={[s.tab,{height:chipH,paddingHorizontal:9},showIdeas&&s.tabOn]}>{showIdeas?<><Icon name="back" size={13} color={colors.goldBright}/><PlainText style={[s.tabText,s.tabTextOn]}>Actions</PlainText></>:<><Icon name="quill" size={14} color={colors.goldMid}/><View style={s.tabCount}><PlainText style={s.tabCountText}>{ideaLines.length}</PlainText></View></>}</Pressable>]:[];
-  const shortRow=showIdeas?row([...ideaChips,...extraChips],chipRows,'ideas'):row([...actionChips,...extraChips],chipRows,'all');
-  const battleBar=short?(tabSwitch.length?<View style={s.switchRow}><View style={s.switchCell}>{tabSwitch}</View><View style={{flex:1,minWidth:0}}>{shortRow}</View></View>:shortRow):<>{row(extraChips,1,'extra')}{tabStrip}{showIdeas?ideaRow:row(actionChips,chipRows,'actions')}</>;
-  // Out of battle: one Suggestions switch above the message box (closed unless the player keeps it open) that opens
-  // onto Say, Speak and Actions. A dot on the closed switch says something new waits there (loot, an offer, a level).
-  const fresh=!panel.open&&(speakQuick.length>0||calmQuick.some(a=>a.primary));
-  const suggestToggle=<Pressable key="suggest" accessibilityRole="button" accessibilityState={{expanded:panel.open}} accessibilityLabel={panel.open?'Hide suggestions':'Suggestions: things to say, people to speak with, and actions'+(fresh?' (something new)':'')} onPress={()=>{playSound('click');savePanel({...panel,open:!panel.open});}} dataSet={{qb:panel.open?'seg-on':'chip',keepfocus:'true',suggest:'toggle'}} style={[s.tab,short&&{height:chipH,minHeight:0},panel.open&&s.tabOn]}>
-    {panel.open&&(compact||short)?<Icon name="close" size={14} color={colors.goldBright}/>:<><Icon name="star" size={14} color={panel.open?colors.goldBright:colors.goldMid}/><PlainText style={[s.tabText,panel.open&&s.tabTextOn]}>Suggestions</PlainText>{panel.open&&<Icon name="close" size={12} color={colors.goldBright}/>}</>}
-    {fresh&&<View dataSet={{qb:'fresh'}} style={s.freshDot}/>}
-  </Pressable>;
-  // The narrowest phones (under 360 wide) leave the counts off so the switch and the three tabs keep to one line.
-  const narrowTabs=viewWidth<360;
-  const subTab=([id,label,count])=>{const on=id===shownTab;return <Pressable key={'sub:'+id} accessibilityRole="tab" accessibilityLabel={label+(count?' ('+count+')':'')} accessibilityState={{selected:on}} onPress={()=>{if(on)return;playSound('click');savePanel({...panel,tab:id});}} dataSet={{qb:on?'seg-on':'chip',keepfocus:'true',suggest:id}} style={[s.tab,short&&{height:chipH,minHeight:0,paddingHorizontal:9},narrowTabs&&{paddingHorizontal:10},on&&s.tabOn]}>{short?<Icon name={{say:'quill',speak:'speak',actions:'compass'}[id]} size={15} color={on?colors.goldBright:colors.gold}/>:<PlainText style={[s.tabText,on&&s.tabTextOn]}>{label}</PlainText>}{!on&&!short&&!narrowTabs&&count>0&&<View style={s.tabCount}><PlainText style={s.tabCountText}>{count}</PlainText></View>}</Pressable>;};
-  const quiet=text=><View key="quiet" style={[s.quietRow,short&&{height:chipH,minHeight:0}]}><PlainText numberOfLines={short?1:2} style={s.quietText}>{text}</PlainText></View>;
-  const calmContent=!panel.open?null:shownTab==='say'?(ideaLines.length?(short?row(ideaChips,chipRows,'say'):ideaRow):quiet(direct?'Out of character: say what you need to the Dungeon Master.':'Nothing to suggest just now. Type what you say or do, in your own words.'))
-    :shownTab==='speak'?(speakList.length?row([...peopleChips,...speakQuick.map(actionChip)],chipRows,'speak'):quiet('No one here to speak with. Type what you do, or travel somewhere new.'))
-    :(actionChips.length||effectChips.length?row([...actionChips,...effectChips],chipRows,'actions'):quiet('Nothing to tap just now. Type what you do.'));
-  const calmBar=calmTabs.every(t=>!t[2])&&!panel.open&&!effects.length?null:short?<View style={s.switchRow}><View accessibilityRole="tablist" style={[s.switchCell,s.subTabs]}>{suggestToggle}{panel.open&&!(picker&&shownTab==='actions')&&calmTabs.map(subTab)}</View><View style={{flex:1,minWidth:0}}>{calmContent}</View></View>
-    :<View style={s.suggestPanel}><View accessibilityRole="tablist" style={s.tabs}>{suggestToggle}{panel.open&&calmTabs.map(subTab)}</View>{calmContent}</View>;
-  const actionBar=battle?battleBar:calmBar;
+  const actionBar=<SuggestionsBar {...{visible,compact,chipH,pressable,actionsDisabled,runAction,game,spellsOpen,attackOpen,tight,actions,setGuide,effects,speakList,person,busy,playing,engage,dead,people,battle,waitRow,viewWidth,viewHeight,fit,lastTurnId,castSpell,shownTab,ideaLines,ideasDisabled,fillIdea,short,showIdeas,setTab,panel,speakQuick,calmQuick,savePanel,direct,calmTabs}}/>;
   // One on one or everyone here: who may answer when others are about.
   const aloneSwitch=people.length>1&&!!person&&<Pressable accessibilityRole="switch" accessibilityState={{checked:alone,disabled:busy||playing}} accessibilityLabel={alone?'Just you two: only '+person.name+' answers. Tap to let everyone here join in':'Everyone here may join in. Tap to speak with '+person.name+' alone'} disabled={busy||playing} onPress={()=>{playSound('click');setAlone(value=>!value);}} dataSet={{qb:alone?'seg-on':'chip',keepfocus:'true'}} style={[s.aloneSwitch,alone&&s.aloneOn,(busy||playing)&&{opacity:.45}]}><Icon name={alone?'speak':'people'} size={14} color={alone?colors.goldBright:colors.gold}/><PlainText numberOfLines={1} style={[s.aloneText,alone&&{color:colors.goldBright}]}>{alone?(compact?'You two':'Just you two'):(compact?'Everyone':'Everyone here')}</PlainText></Pressable>;
   const statusPill=<View style={s.status}><View style={[s.dot,{backgroundColor:statusColor}]}/><Text accessibilityLiveRegion="polite" style={[s.connection,{color:statusColor}]}>{statusText}</Text></View>;
@@ -425,16 +158,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const sendLabel=tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing…':waiting||turnWait&&!direct?'Waiting…':direct?'Ask':'Send';
   const sendButton=<Pressable accessibilityRole="button" accessibilityLabel="Send to the Dungeon Master" accessibilityState={{disabled:sendDisabled}} disabled={sendDisabled} onPress={()=>ask()} dataSet={{qb:'btn-primary',keepfocus:'true'}} style={[s.button,fill&&s.fillSend,fill&&short&&{minHeight:42,paddingVertical:8},fill&&compact&&{paddingHorizontal:14,minWidth:52},sendDisabled&&{opacity:0.45}]}><View style={s.sendRow}>{fill&&compact?(busy||playing?<Icon name="dots" size={20} color={tint('#ffeef0')}/>:<Icon name="send" size={20} color={tint('#ffeef0')} strokeWidth={2}/>):<><PlainText style={s.buttonText}>{sendLabel}</PlainText>{!busy&&!playing&&!waiting&&!tableSyncing&&<Icon name="send" size={16} color={tint('#ffeef0')} strokeWidth={2}/>}</>}</View></Pressable>;
   if(fill)return <View dataSet={{qb:'plate'}} style={[s.panel,s.fill,person&&s.conversation,(compact||short)&&s.fillCompact]}>
-    {person?<View style={[s.fillHeader,typing&&short&&{display:'none'}]}>
-      <IconButton icon="back" label="Back to adventure" size={36} disabled={busy||playing} onPress={()=>setConversationId(null)}/>
-      <DynamicArt dataSet={{qb:'portrait'}} subject={npcArtSubject(game,person.id)} style={[s.fillPortrait,compact&&{width:44,height:52},short&&{width:34,height:40}]}/>
-      <View style={{flex:1,minWidth:0}}><PlainText numberOfLines={1} style={[s.personName,s.fillName,short&&{fontSize:16}]}>{person.name}</PlainText>{!short&&<PlainText numberOfLines={1} style={s.fillRole}>{person.role}{person.trainedAs?' · Level '+person.trainedAs.level+' '+person.trainedAs.class:''}</PlainText>}<View style={s.attitude}><View style={[s.dot,{backgroundColor:attitude.color}]}/><PlainText style={[s.attitudeText,{color:attitude.color}]}>{attitude.label}</PlainText></View></View>
-      {aloneSwitch}
-    </View>:!short&&!compact&&!snug&&<View style={s.fillHeader}>
-      <View style={s.dmMark}><Icon name={teller.icon} size={compact?17:19} color={colors.goldBright}/></View>
-      <View style={{flex:1,minWidth:0}}><Text style={s.overline}>YOUR NARRATOR</Text><Text numberOfLines={1} style={[s.heading,s.fillHeading,compact&&{fontSize:16}]}>{teller.name}</Text></View>
-      {statusPill}
-    </View>}
+    <DmHeader {...{person,typing,short,busy,playing,setConversationId,game,compact,attitude,aloneSwitch,snug,teller,statusPill}}/>
     {!connected&&checked&&<View accessibilityLiveRegion="polite" style={[s.notice,unpaired&&{borderColor:tint('rgba(224,74,92,.55)')}]}>
       <Icon name={unpaired?'key':'wait'} size={16} color={unpaired?colors.gold:colors.muted}/>
       <View style={{flex:1,minWidth:0,gap:8}}>
@@ -469,7 +193,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {!connected&&<Text style={s.caption}>{status}</Text>}
     <TurnPlayback me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     <Text style={s.prompt}>{person?'What do you say?':'What do you do?'}</Text>
-    {ideaLines.length>0&&<View accessibilityLabel="Suggestions" style={[s.ideaWrap,{marginBottom:10}]}>{ideaChips}</View>}
+    {ideaLines.length>0&&<View accessibilityLabel="Suggestions" style={[s.ideaWrap,{marginBottom:10}]}>{ideaChipsFor({ideaLines,ideasDisabled,fillIdea,short,chipH,compact,showIdeas})}</View>}
     <TextInput dataSet={{qb:'input'}} accessibilityLabel="Action for the Dungeon Master" value={input} onChangeText={setInput} maxLength={1000} multiline onKeyPress={event=>{if(event.nativeEvent.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault?.();ask();}}} placeholder={person?'Speak to '+person.name+'…':'Describe your next move…'} placeholderTextColor={tint('#938890')} style={s.input}/>
     <View style={s.toolbar}><Text style={[s.hint,!!waiting&&{color:colors.gold}]}>{tableSyncing?'Catching up with the shared table…':waiting?'⏳ '+waiting+' is taking a turn. Wait for the table.':compact?'Tap Send to DM':'Enter to send · Shift+Enter for a new line'}</Text><Pressable accessibilityRole="button" accessibilityState={{disabled:busy||playing||!input.trim()||!!waiting||tableSyncing}} disabled={busy||playing||!input.trim()||!!waiting||tableSyncing} onPress={()=>ask()}dataSet={{qb:'btn-primary'}} style={[s.button,(busy||playing||!input.trim()||!!waiting||tableSyncing)&&{opacity:0.45}]}><Text style={s.buttonText}>{tableSyncing?'Catching up…':busy?'Resolving…':playing?'Playing turn…':waiting?'Waiting…':'Send to DM  ➤'}</Text></Pressable></View>
     {effects.length>0&&<View style={s.effects}><Text style={[s.overline,{color:colors.arcane}]}>✧ ONGOING EFFECTS</Text>{effects.map(line=><Text key={line} style={s.effectText}>{line}</Text>)}</View>}
@@ -480,64 +204,3 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {reply?.pending&&reply.snapshot!==fingerprint&&<Text style={s.caption}>The scene changed. Send a new message for a current suggestion.</Text>}
   </View>;
 }
-const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:14},groupMember:{maxWidth:'100%',flexDirection:'row',alignItems:'center',gap:10,paddingVertical:7,paddingHorizontal:10,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),borderRadius:3,backgroundColor:tint('rgba(31,24,32,.9)')},groupActive:{borderColor:colors.gold},
- conversation:{borderColor:tint('rgba(224,74,92,.6)')},back:{paddingVertical:10,marginBottom:10,minHeight:44,alignSelf:'flex-start'},backText:{fontFamily:fonts.display,letterSpacing:1.4,color:colors.gold,fontSize:12,fontWeight:'700',textTransform:'uppercase'},
- portraitRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:22,marginBottom:22},portrait:{width:168,height:200,borderRadius:3},
- personName:{fontFamily:fonts.display,fontWeight:'700',color:colors.parchment,fontSize:30,letterSpacing:1,marginBottom:6},role:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#c2b1ab'),fontSize:17,lineHeight:24,marginBottom:10},
- attitude:{flexDirection:'row',alignItems:'center',gap:8},attitudeText:{fontFamily:fonts.ui,fontSize:12,fontWeight:'600',letterSpacing:.4},
- dot:{width:8,height:8,borderRadius:4,boxShadow:'0 0 8px currentColor'},
- overline:{...type.label,marginBottom:6},
- effects:{padding:14,borderRadius:3,borderWidth:1,borderColor:tint('rgba(111,208,196,.35)'),backgroundColor:tint('rgba(16,40,40,.55)'),marginTop:14,marginBottom:6},effectText:{fontFamily:fonts.ui,color:tint('#bfe6de'),fontSize:13,lineHeight:21},
- people:{gap:8,marginTop:18},personButton:{flexDirection:'row',gap:12,alignItems:'center',paddingVertical:8,paddingHorizontal:10,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(31,24,32,.9)')},
- avatar:{width:40,height:40,borderRadius:20},chipText:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:13},
- chipName:{fontFamily:fonts.display,fontWeight:'700',letterSpacing:.8,color:colors.parchment,fontSize:14},chipRole:{fontFamily:fonts.ui,color:colors.muted,fontSize:11.5,marginTop:2},chipAction:{flexShrink:0,fontFamily:fonts.display,color:colors.gold,fontSize:11,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
- panel:{padding:22,marginVertical:12,backgroundColor:tint('rgba(20,15,21,.8)'),borderRadius:4,borderWidth:1,borderColor:colors.goldLine},
- // Fill mode: the panel takes the whole play area; the feed grows and the composer stays pinned to the bottom.
- fill:{flex:1,minHeight:0,marginVertical:0,padding:16,paddingBottom:12},fillCompact:{padding:10,paddingBottom:8,borderLeftWidth:0,borderRightWidth:0,borderRadius:0},
- fillHeader:{flexDirection:'row',alignItems:'center',gap:12,paddingBottom:10,marginBottom:6,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.22)')},
- fillHeading:{fontSize:18},fillBack:{minWidth:36,minHeight:44,justifyContent:'center',alignItems:'center'},
- fillPortrait:{width:56,height:66,borderRadius:3},fillName:{fontSize:20,marginBottom:2},fillRole:{fontFamily:fonts.story,fontStyle:'italic',color:tint('#c2b1ab'),fontSize:14,marginBottom:3},
- effectChip:{flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:tint('rgba(111,208,196,.4)'),backgroundColor:tint('rgba(16,40,40,.7)'),maxWidth:320},effectChipText:{fontFamily:fonts.ui,color:tint('#bfe6de'),fontSize:12,flexShrink:1},
- lesson:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:6,paddingHorizontal:4},lessonText:{flex:1,fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:tint('#c9bfc6')},
- ideaChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,maxWidth:'100%',paddingHorizontal:12,paddingVertical:6,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:tint('rgba(176,140,245,.5)'),backgroundColor:tint('rgba(20,15,21,.7)')},ideaText:{flexShrink:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:15,lineHeight:20,color:tint('#e2dde1')},
- ideaWrap:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},
- tabs:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8},tab:{flexDirection:'row',alignItems:'center',gap:6,minHeight:32,paddingHorizontal:12,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(23,17,24,.85)')},tabOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
- suggestPanel:{flexGrow:0,flexShrink:0},subTabs:{flexDirection:'row',alignItems:'center',gap:4},
- freshDot:{width:8,height:8,borderRadius:4,marginLeft:2,backgroundColor:tint('#f06e80')},
- quietRow:{minHeight:40,justifyContent:'center',paddingHorizontal:4,marginTop:8},quietText:{fontFamily:fonts.ui,fontSize:12.5,lineHeight:18,color:colors.muted,fontStyle:'italic'},
- tabText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:colors.gold,textTransform:'uppercase'},tabTextOn:{color:colors.goldBright},tabCount:{minWidth:18,height:18,borderRadius:9,paddingHorizontal:5,alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(176,140,245,.28)')},tabCountText:{fontFamily:fonts.ui,fontSize:10.5,fontWeight:'700',color:tint('#e2dde1')},
- aloneSwitch:{flexDirection:'row',alignItems:'center',gap:5,minHeight:36,paddingHorizontal:10,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.92)'),flexShrink:0},aloneOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},aloneText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'800',letterSpacing:1,color:colors.gold,textTransform:'uppercase'},
- notice:{flexDirection:'row',alignItems:'flex-start',gap:10,padding:12,marginBottom:8,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},noticeText:{fontFamily:fonts.ui,fontSize:13,lineHeight:20,color:colors.muted},
- reportChip:{flexDirection:'row',alignItems:'center',gap:5,minHeight:30,paddingHorizontal:10,borderRadius:15,borderWidth:1,borderColor:colors.goldLine,backgroundColor:tint('rgba(20,15,21,.8)'),alignSelf:'center'},reportText:{fontFamily:fonts.ui,color:colors.gold,fontSize:12.5,fontWeight:'700',letterSpacing:.4},
- faultRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginTop:8},faultText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12.5,lineHeight:18,flexShrink:1},
- errorRow:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingVertical:8,paddingHorizontal:10,borderRadius:6,borderWidth:1,borderColor:tint('rgba(240,106,79,.35)'),backgroundColor:tint('rgba(60,18,14,.5)')},
- sendRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},chipSpeak:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:4},
- dmMark:{width:38,height:38,borderRadius:19,borderWidth:1,borderColor:tint('rgba(224,74,92,.6)'),alignItems:'center',justifyContent:'center',backgroundColor:tint('rgba(48,26,78,.45)')},
- tipsHead:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:4},tipRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:4},
- personChip:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:4,paddingLeft:4,paddingRight:10,borderRadius:22,borderWidth:1,borderColor:tint('rgba(178,34,58,.35)'),backgroundColor:tint('rgba(31,24,32,.92)')},chipAvatar:{width:30,height:30,borderRadius:15},
- composer:{flexDirection:'row',alignItems:'flex-end',gap:8,marginTop:8},
- dmSwitch:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5,minHeight:48,paddingHorizontal:11,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.92)')},dmSwitchOn:{borderColor:colors.goldBright,backgroundColor:tint('rgba(48,26,78,.92)')},
- dmSwitchText:{fontFamily:fonts.display,fontSize:11,fontWeight:'800',letterSpacing:1.2,color:colors.gold},
- inputDirect:{borderColor:colors.goldBright,backgroundColor:tint('rgba(34,18,52,.8)')},
- directNote:{flexDirection:'row',alignItems:'flex-start',gap:8,marginTop:8,paddingHorizontal:2},directText:{flex:1,fontFamily:fonts.ui,fontSize:12,lineHeight:17,color:tint('#d9808c')},
- draft:{flexDirection:'row',gap:10,alignItems:'flex-start',marginTop:8,paddingVertical:10,paddingHorizontal:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(178,34,58,.3)'),backgroundColor:tint('rgba(23,17,24,.85)')},draftText:{flex:1,fontFamily:fonts.story,fontStyle:'italic',fontSize:16,lineHeight:23,color:tint('#ded1cb')},
- actionBar:{flexGrow:0,flexShrink:0,marginTop:8},switchRow:{flexDirection:'row',alignItems:'flex-start',gap:6,flexGrow:0,flexShrink:0},switchCell:{marginTop:8,flexShrink:0},
- action:{flexDirection:'row',alignItems:'center',gap:7,minHeight:40,paddingHorizontal:14,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(31,24,32,.92)'),maxWidth:340},
- actionTight:{minHeight:0,height:36,paddingHorizontal:10,gap:5,maxWidth:'100%'},actionTextTight:{fontSize:11,letterSpacing:.6},chipAvatarTight:{width:26,height:26,borderRadius:13},
- tips:{padding:14,paddingBottom:10,marginTop:4,marginBottom:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(224,74,92,.45)'),gap:2},tipsTitle:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
- tipsText:{flex:1,fontFamily:fonts.ui,color:tint('#dfd9dd'),fontSize:13,lineHeight:20},tipsButton:{alignSelf:'flex-end',flexDirection:'row',alignItems:'center',gap:6,minHeight:36,paddingHorizontal:14,marginTop:8,borderRadius:18,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),justifyContent:'center'},tipsButtonText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
- actionPrimary:{backgroundColor:tint('#9e1b32'),borderColor:tint('#f06e80')},actionHeading:{minHeight:40,justifyContent:'center',paddingLeft:6,paddingRight:2},actionHeadingText:{fontFamily:fonts.display,fontSize:10.5,fontWeight:'700',letterSpacing:2,color:colors.goldMid,textTransform:'uppercase'},actionHeadingStrong:{fontSize:12.5,color:colors.goldBright,letterSpacing:1.6},actionDetail:{fontFamily:fonts.ui,fontSize:10.5,color:colors.muted,letterSpacing:.3},actionGlyph:{fontSize:14,color:colors.gold},
- actionText:{fontFamily:fonts.display,fontSize:12,fontWeight:'700',letterSpacing:1.1,color:tint('#dfcdc5'),textTransform:'uppercase',flexShrink:1},actionPrimaryText:{color:tint('#ffeef0')},
- fillInput:{flex:1,minHeight:48,maxHeight:130,paddingVertical:12,fontSize:17,lineHeight:24},
- fillSend:{minHeight:48,paddingHorizontal:18,justifyContent:'center',alignItems:'center'},
- header:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-end',gap:8,flexWrap:'wrap',marginBottom:14,paddingBottom:14,borderBottomWidth:1,borderBottomColor:tint('rgba(178,34,58,.22)')},
- heading:{fontFamily:fonts.display,color:colors.parchment,fontSize:22,fontWeight:'700',letterSpacing:1.2},
- status:{flexDirection:'row',alignItems:'center',gap:7,paddingVertical:5,paddingHorizontal:10,borderRadius:20,backgroundColor:tint('rgba(0,0,0,.35)'),borderWidth:1,borderColor:tint('rgba(255,255,255,.06)')},
- connection:{fontFamily:fonts.ui,fontSize:11.5,fontWeight:'600',letterSpacing:.4},
- caption:{fontFamily:fonts.ui,color:colors.muted,fontSize:13,lineHeight:20,marginBottom:12},
- prompt:{fontFamily:fonts.display,color:colors.gold,fontSize:13,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:6,marginBottom:10},
- input:{fontFamily:fonts.story,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:3,padding:16,minHeight:92,textAlignVertical:'top',fontSize:18,lineHeight:26},
- toolbar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10,marginTop:12},hint:{fontFamily:fonts.ui,color:colors.faint,fontSize:11.5,flexShrink:1},
- button:{paddingVertical:13,paddingHorizontal:24,backgroundColor:tint('#9e1b32'),borderRadius:3,borderWidth:1,borderColor:tint('#f06e80'),minHeight:46,justifyContent:'center'},buttonText:{fontFamily:fonts.display,color:tint('#ffeef0'),fontSize:13,fontWeight:'800',letterSpacing:1.8,textTransform:'uppercase'},
- error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:22,marginTop:12}
-});

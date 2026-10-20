@@ -1,62 +1,50 @@
-import AdventureIntros from './AdventureIntros';
 import {findDmEndpoint,writeStory} from './dmConnection';
-import {loadJourneys,playedJourneys,journeysToOffer,fateJourney,rememberJourney} from './journeyLibrary';
-import Followers from './Followers';
-import DiceRoller from './DiceRoller';
+import {loadJourneys,playedJourneys,journeysToOffer,rememberJourney} from './journeyLibrary';
+import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory} from './startTale';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
 import {sceneArtSubjects,npcArtSubject} from './worldArtRules';
 import {usePageWheel} from './usePageWheel';
 import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
-import EncounterProvider,{CombatHealthButton,EntityText} from './EncounterOverlay';
+import EncounterProvider from './EncounterOverlay';
 import {freshStoryGame,levelUpReady,foeForLevel} from './storyRules';
 import {advancedInPlace,experienceView} from './experienceRules';
 import {hostileEncounterGame} from './hostileEncounter';
-import CampaignJournal from './CampaignJournal';
-import {addJournalNote,appendJournal,appendStoryLog} from './journalRules';
-import Advancement from './Advancement';
+import {appendJournal,appendStoryLog} from './journalRules';
 import {spellSelectionError} from './spellOptions';
-import {loadAdventure, saveAdventure, adventureSnapshot, validAdventure, forgetAdventure} from './adventureStorage';
+import {saveAdventure, adventureSnapshot} from './adventureStorage';
 import {useSharedTable} from './useSharedTable';
+import {useHeroSaves,heroSaveActions} from './useHeroSaves';
+import {s} from './appStyles';
+import MenuScreens from './MenuScreens';
 import {backupLocalSave,tableMembership} from './tableClient';
-import {isPartyGame,partyView,joinParty,soloFromParty,partyMembers} from './partyRules';
+import {isPartyGame,joinParty,soloFromParty,partyMembers} from './partyRules';
 import PartyPanel from './PartyPanel';
 import MemberActions,{useMutedMembers} from './TableMemberActions';
-import SharedTable from './SharedTable';
 import Adventure from './Adventure';
 import {newAdventure} from './adventureRules';
-import {storySoFarForWriter} from './memoryRules';
-import CharacterSheet from './CharacterSheet';
 import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
-import CharacterBuilder from './CharacterBuilder';
-import { blankBuild, buildError, makeCharacter, abilities, modifier, heroSpecies } from './characterRules';
+import { blankBuild, buildError, makeCharacter, abilities, modifier } from './characterRules';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { loadCharacter, saveCharacter, isValidCharacter, forgetCharacter } from './characterStorage';
+import { saveCharacter, isValidCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, Platform, useWindowDimensions } from 'react-native';
-import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
-import {fonts,colors,type,tint} from './theme';
+import {GameButton,Ornament,Crest} from './ui';
+import {colors,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
 import {setNarratorStyle} from './narrator';
-import {storyPreferences,subscribeStoryPreferences,narratorOf,taleStart} from './storyPreferences';
+import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
 import HomeScreen,{homeLayout} from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
-import HeroPortrait from './HeroPortrait';
 import CinematicLayer from './CinematicLayer';
 import StoryLoading from './StoryLoading';
 import {shortcutsBlocked} from './keyboard';
 import {cue,useCue} from './cinematics';
 import {withDeeds,deedById} from './deedRules';
-// Page headings: overline, title and icon for the screens that have one.
-const titles={'Legal':['Questbound','Privacy and terms','info'],'Character Selection':['Heroes','Choose your hero','sheet'],'Dice Roller':['Tabletop','Roll the dice','d20'],'Settings':['Options','Settings','settings'],'Level Up':['A level earned','Level up','star']};
-import {AudioToggle,AudioSettings} from './AudioControls';
-import {FullscreenToggle,DisplaySettings} from './DisplayControls';
-import {StorySettings} from './StoryControls';
-import {ThemeSettings} from './ThemeControls';
-import DeveloperDiagnostics from './DeveloperDiagnostics';
-import Legal from './Legal';
+import {AudioToggle} from './AudioControls';
+import {FullscreenToggle} from './DisplayControls';
 import {placeName,mapLocation} from './mapRules';
 import {displayState} from './fullscreen';
 import GameHud from './GameHud';
@@ -64,21 +52,14 @@ import LaunchScreen from './LaunchScreen';
 import {EmblemMark} from './TitleEmblem';
 import Agreement from './Agreement';
 import {agreementStatus,acceptAgreement} from './agreementRules';
-import SaveTransfer from './SaveTransfer';
-import QuickHeroes from './QuickHeroes';
-import HeroRoster from './HeroRoster';
-import {scheduleCloudSave} from './cloudRules';
-import {CloudSaveSettings} from './CloudSaveSettings';
-import {AccountSettings} from './AccountSettings';
 import {accountState,bootstrapAccount,accountsRequired,accountsNeeded,accountsOffered} from './accountRules';
 import {currentProfile,subscribeProfile} from './playerStorage';
-import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry,layToRest} from './rosterRules';
 import {deathIsFinal} from './deathRules';
-import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
+import {carriedBase,joinRegion,canContinueRegion} from './sequelRules';
 import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
 import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
-import {noteProblem,recentProblems} from './problemLog';
+import {recentProblems} from './problemLog';
 import {audioHealth} from './audio';
 import {perfHealth,startPerfWatch,setCovered} from './perfWatch';
 import {currentTheme} from './theme';
@@ -86,7 +67,6 @@ import {questState} from './storyRules';
 import {turnOrderView} from './encounterRules';
 import {useVisualViewport} from './webLayout';
 import SessionRating from './SessionRating';
-import {InsightSettings} from './InsightControls';
 import {startPlayMetrics,notePlace,noteTale,noteStoryWait,placeOf,talking,readInsight,noteRatingShown,sessionSeconds,deviceSeconds,subscribeInsight} from './playMetrics';
 import {ratingMomentOf,mayAskRating} from './ratingRules';
 // The title painting: a valley at dusk, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
@@ -112,18 +92,6 @@ function QuestboundApp() {
   const storyLock=useRef(false);
   const [selectedIntro,setSelectedIntro]=useState('easy'),[showReady,setShowReady]=useState(false),[idea,setIdea]=useState('');
   const [screen, setScreenState] = useState('Home');
-  const [form, setForm] = useState(blankBuild);
-  const [hero, setHero] = useState(null);
-  const [health, setHealth] = useState(null);
-  const [game, setGame] = useState(newAdventure);
-  // The hero as the adventure has them (Aid raises the hit point maximum while it lasts).
-  const heroStats = hero ? combatBasics(gearedHero(hero, game)) : null;
-  const [characterChosen, setCharacterChosen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [storageError, setStorageError] = useState('');
-  const [adventureBlocked,setAdventureBlocked] = useState(false);
-  const [saveStatus,setSaveStatus] = useState('');
   // Whether the player is signed in to an account (their adventure is then also kept on the host's PC). While accounts
   // are not offered (accountsOffered in accountRules.js: the beta) nothing about accounts is shown and saves stay local.
   const [account,setAccount]=useState(null);
@@ -133,62 +101,15 @@ function QuestboundApp() {
   useEffect(()=>{accountState().then(a=>{setAccount(a);if(a?.hold&&accountsOffered())setScreenState('Settings');}).catch(()=>{});},[]);
   // The read-aloud narrator sounds like the chosen narrator (storyPreferences.js narrators).
   useEffect(()=>{const apply=p=>setNarratorStyle(narratorOf(p.narrator).voice);apply(storyPreferences());return subscribeStoryPreferences(apply);},[]);
-  const [saveRetry,setSaveRetry] = useState(0);
-  // Heroes set aside on this device and the fallen; a new story can carry on in the same region.
-  const [roster,setRoster]=useState([]),[graves,setGraves]=useState([]),[editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
-  useEffect(()=>{Promise.all([loadRoster(),loadGraveyard()]).then(([r,g])=>{setRoster(r);setGraves(g);}).catch(()=>{});},[]);
-  // A hero laid to rest (below): who it was, so nothing saves them again.
-  const restingRef=useRef(null),[restingKey,setRestingKey]=useState(null);
-  useEffect(() => {
-    loadCharacter().then(async saved => {
-      if (saved) {
-        setHero(saved);
-        setForm({...blankBuild(), ...saved, species: saved.species ?? saved.race});
-        try {
-          const adventure = await loadAdventure(saved);
-          if(adventure){setGame(adventure.game);setHealth(adventure.health);setCharacterChosen(adventure.chosen);}
-        } catch {setAdventureBlocked(true);setSaveStatus('Your adventure could not be loaded. Reopen the app to retry. Its saved progress has been protected.');}
-      }
-    }).catch(() => setStorageError('Your saved character could not be loaded. Reopen the app to retry. Saving is disabled to protect the existing save.'))
-      .finally(() => setLoading(false));
-  }, []);
-  useEffect(() => {
-    if(loading || !hero || storageError || adventureBlocked || restingRef.current===JSON.stringify(hero)) return;
-    let current=true;
-    setSaveStatus('Saving adventure...');
-    const snapshot=adventureSnapshot(hero,game,health,characterChosen);
-    saveAdventure(snapshot,hero)
-      .then(()=>{scheduleCloudSave(snapshot);if(current)setSaveStatus('Adventure saved on this device.');})
-      .catch(error=>{noteProblem({kind:'save',error:'Adventure not saved'+(error?.message?': '+error.message:''),stage:game?.stage});if(current)setSaveStatus('Adventure not saved. Your progress is still open; retry before closing the app.');});
-    return ()=>{current=false;};
-  },[loading,hero,game,health,characterChosen,storageError,adventureBlocked,saveRetry]);
+  // A hero being edited, and whether a new story carries on in the same region.
+  const [editingHero,setEditingHero]=useState(false),[continueRegion,setContinueRegion]=useState(true);
+  // The hero, their adventure and this device's saves (useHeroSaves.js).
+  const saves=useHeroSaves({transition,setNewStoryRequested}),{form,setForm,hero,setHero,health,setHealth,game,setGame,characterChosen,setCharacterChosen,loading,saving,setSaving,storageError,adventureBlocked,saveStatus,setSaveRetry,roster,graves,restingKey,applyRemote}=saves;
+  // The hero as the adventure has them (Aid raises the hit point maximum while it lasts).
+  const heroStats = hero ? combatBasics(gearedHero(hero, game)) : null;
   const [error, setError] = useState('');
-  // The shared table's adventure replaces this device's only after it passes the same checks as a local save.
-  async function applyRemote(snapshot,isCurrent=()=>true){
-    await transition.prepare(sceneArtSubjects(snapshot.game));
-    // A party: this device plays its own hero, joining with it the first time (partyRules.js).
-    if(isPartyGame(snapshot?.game)){
-      let view=partyView(snapshot,snapshot.game.party.lead); // the server sends each player the table with their own seat in the lead
-      if(!view)throw Error((accountsOffered()?'This account':'This browser')+' has no hero in the campaign. Join with its campaign invite.');
-      let mine;try{mine=JSON.parse(view.character);}catch{throw Error('The party could not be read.');}
-      if(!isValidCharacter(mine)||!validAdventure(view,mine))throw Error('The party did not pass validation. This device kept its own save.');
-      if(!isCurrent())return;
-      backupLocalSave();
-      if(view.character!==JSON.stringify(hero))await saveCharacter(mine);
-      if(!isCurrent())return;
-      setHero(mine);setForm({...blankBuild(),...mine,species:mine.species??mine.race});setGame(view.game);setHealth(view.health);setCharacterChosen(true);setNewStoryRequested(false);
-      return;
-    }
-    let remoteHero;try{remoteHero=JSON.parse(snapshot.character);}catch{throw Error('The shared adventure could not be read.');}
-    if(!isValidCharacter(remoteHero)||!validAdventure(snapshot,remoteHero))throw Error('The shared adventure did not pass validation. This device kept its own save.');
-    if(!isCurrent())return;
-    backupLocalSave();
-    await saveCharacter(remoteHero);
-    if(!isCurrent())return;
-    setHero(remoteHero);setForm({...blankBuild(),...remoteHero,species:remoteHero.species??remoteHero.race});
-    setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(false);
-  }
   const table=useSharedTable({ready:!loading&&!storageError&&!adventureBlocked,hero,game,health,characterChosen,applyRemote});
+  const {setCurrentAside,playFromRoster,restoreFromCloud,retireFromRoster,layHeroToRest}=heroSaveActions({...saves,setError,creatingStory,setNewStoryRequested,setScreenState,table});
   // Play needs a signed-in, verified account only once accounts are required (accountsRequired in accountRules.js);
   // until then a browser plays as a guest and an account stays an offer in Settings.
   const mustSignIn=accountsNeeded()&&!account?.verified;
@@ -221,54 +142,12 @@ function QuestboundApp() {
   // never be continued, set aside or chosen again. The epitaph stays on screen until the player leaves the play
   // screen; then the way on is a new hero. Never at a shared table: the table keeps the seat (partyRules.js).
   const finalDeath=!loading&&!storageError&&!adventureBlocked&&!!hero&&characterChosen&&!table.joined&&deathIsFinal(game,hero);
-  async function layHeroToRest(){
-    if(!hero||game.stage!=='dead'||table.joined)return;
-    const key=JSON.stringify(hero);if(restingRef.current===key)return;
-    restingRef.current=key;setRestingKey(key);
-    try{
-      const [savedRoster,savedGraves]=await Promise.all([loadRoster(),loadGraveyard()]);
-      const next=layToRest(savedRoster,savedGraves,hero,game);
-      await saveLists(next);setRoster(next.roster);setGraves(next.graves);
-      await forgetAdventure();await forgetCharacter();
-    }catch{setError('Your fallen hero could not be laid to rest on this device. Reopen the game to try again.');}
-  }
   useEffect(()=>{if(finalDeath)layHeroToRest();},[finalDeath]);
   // Once the player leaves the play screen, the hero laid to rest is gone from memory too.
   useEffect(()=>{
     if(!restingKey||!hero||JSON.stringify(hero)!==restingKey||!['Home','Character Selection','Character Creation','Adventure Opening','Multiplayer'].includes(screen))return;
     setHero(null);setGame(newAdventure());setHealth(null);setCharacterChosen(false);setNewStoryRequested(true);setForm(blankBuild());setEditingHero(false);setShowReady(false);
   },[screen,hero,restingKey]);
-  // Before another hero takes this one's place: the living wait in the roster, the dead go to the graveyard.
-  async function setCurrentAside(){
-    if(!hero)return true;
-    const next=setAside(roster,graves,hero,game,health,characterChosen);
-    if(next.error){setError(next.error);return false;}
-    await saveLists(next);setRoster(next.roster);setGraves(next.graves);return true;
-  }
-  async function playFromRoster(entry){
-    if(saving||loading||storageError||creatingStory)return;
-    setSaving(true);setError('');
-    try{
-      const restored=restoreEntry(entry),aside=setAside(roster.filter(e=>e.id!==entry.id),graves,hero,game,health,characterChosen);
-      if(aside.error)throw Error(aside.error);
-      // The current hero is set aside first and the chosen one leaves the roster last, so nobody is lost midway.
-      await saveLists({roster:[...aside.roster,entry],graves:aside.graves});
-      await saveCharacter(restored.hero);await saveAdventure(restored.adventure,restored.hero);
-      await saveLists(aside);setRoster(aside.roster);setGraves(aside.graves);
-      setHero(restored.hero);setForm({...blankBuild(),...restored.hero,species:restored.hero.species??restored.hero.race});setGame(restored.game);setHealth(restored.health);setCharacterChosen(restored.chosen);setNewStoryRequested(!restored.chosen);setAdventureBlocked(false);
-      setScreenState('Home');
-    }catch(e){setError(e.message||'Could not switch heroes. Your current hero is unchanged.');}
-    finally{setSaving(false);}
-  }
-  // A hero brought over from another device by its recovery code; the current one is set aside first.
-  async function restoreFromCloud(snapshot){
-    if(table.joined)throw Error('Leave the shared table before importing a different save.');
-    let restored;try{restored=JSON.parse(snapshot?.character);}catch{throw Error('That save could not be read. Nothing was changed.');}
-    if(!isValidCharacter(restored)||!validAdventure(snapshot,restored))throw Error('That save did not pass the game\'s checks. Nothing was changed.');
-    if(hero&&JSON.stringify(hero)!==snapshot.character&&!await setCurrentAside())throw Error('Your company is full. Retire a hero under Heroes first.');
-    await saveCharacter(restored);await saveAdventure(snapshot,restored);
-    setHero(restored);setForm({...blankBuild(),...restored,species:restored.species??restored.race});setGame(snapshot.game);setHealth(snapshot.health);setCharacterChosen(snapshot.chosen);setNewStoryRequested(!snapshot.chosen);setAdventureBlocked(false);
-  }
   // A new portrait for the hero (HeroFacePicker.js on the Character Sheet): saved on the hero, and the adventure follows
   // (the save effect above); at a shared table it is the campaign's `portrait` edit, so every player sees it.
   async function choosePortrait(portrait){
@@ -277,10 +156,6 @@ function QuestboundApp() {
     if(!isValidCharacter(next)){setError('That portrait could not be kept.');return;}
     if(table.joined){try{await table.edit({kind:'portrait',portrait:portrait??null});}catch(e){setError(e.message);}return;}
     try{await saveCharacter(next);setHero(next);setForm(f=>({...f,portrait}));}catch{setError('Your new portrait could not be saved. Try again.');}
-  }
-  async function retireFromRoster(entry){
-    const next={roster:roster.filter(e=>e.id!==entry.id),graves};
-    try{await saveLists(next);setRoster(next.roster);}catch{setError('Could not update your roster. Try again.');}
   }
   async function playCharacter(begin=false){
     if(storyLock.current||loading||storageError||adventureBlocked||!hero||heroFallen)return;
@@ -292,28 +167,22 @@ function QuestboundApp() {
       let next;
       // The next chapter in the same region: the story writer is told what the hero leaves behind, and the old
       // region joins the new map a few miles away.
-      const continuing=continuingNow,bearing=sequelBearings[Math.floor(Math.random()*sequelBearings.length)],miles=4+Math.round(Math.random()*30)/10;
+      const continuing=continuingNow,{bearing,miles}=sequelPlacement();
       const base=newAdventure(hero,characterChosen?carriedBase(game):undefined);
       if(selectedIntro==='hostile'&&!continuing){noteTale('hostile',null);next=hostileEncounterGame(hero,base);}
       else{
-      // The player's own idea: the whole brief for Your own tale, an optional wish for the next tale in a region.
-      const wish=(continuing||selectedIntro==='idea')&&idea.trim()?idea.trim().slice(0,300):null;
-      if(!continuing&&selectedIntro==='idea'&&!wish)throw Error('Write your idea for the tale first.');
-      // Easy start (on unless the player turned it off): orders in hand for any opening; Let fate decide becomes Easy to get into.
-      const start=taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart});
-      // A ready journey (the one chosen, or one by chance for Let fate decide) starts at once: the player's own copy,
-      // with its orders in hand (asked for as Easy to get into).
-      const offered=journeysOnOffer??[],journeyId=continuing?null:String(selectedIntro).startsWith('journey:')?String(selectedIntro).slice(8):selectedIntro==='surprise'&&offered.length?fateJourney(offered).id:null,introId=journeyId?'easy':start.introId;
+      // The opening, the player's idea and any ready journey (startTale.js).
+      const {wish,start,journeyId,introId}=taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer});
       noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
       const endpoint=await findDmEndpoint();
-      const {ok,status,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId,...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),...(()=>{const lived=!journeyId&&characterChosen&&game.story?storySoFarForWriter(game):null;return lived?{storySoFar:lived}:{};})(),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,status,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen,continuing,bearing,wish,journeyId,introId,start}));
       // A journey that has just left the library: the journeys on offer are asked for again.
       if(!ok){if(journeyId&&status===409)loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});throw Error(body.error||'The story could not be created.');}
       next=freshStoryGame(hero,{...body.story,introId},base);
-      if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
+      if(taleRepeats(game,next))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
       if(characterChosen&&game.story)next=joinRegion(next,game,{sameRegion:continuing,bearing,miles});
-      next.storyHistory=[...new Set([...(game.storyHistory??[]),game.story?.title,next.story.title].filter(Boolean))].slice(-100);
+      next.storyHistory=taleHistory(game,next);
       await transition.prepare(sceneArtSubjects(next));
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
       // A journey played on this device is never offered here again.
@@ -521,92 +390,7 @@ function QuestboundApp() {
   </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,screen==='Adventure Opening'&&journeysOnOffer?.length&&s.journeyContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
     {/* Web scroll events include the browser bringing a focused field above the phone keyboard.
         Dismissing on that scroll immediately blurs the field and closes the keyboard. */}
-    <View key={screen} dataSet={{qb:'enter'}}>
-    <Panel variant={inGame?'glass':'panel'} style={[s.card,compact&&{padding:14}]}>{loading && <Text style={s.note}>Loading saved character…</Text>}{!!storageError && <Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
-      {saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,compact&&{marginBottom:10},{color:tint('#ffd49a')}]}>{saveStatus}</Text>}
-      {saveStatus.startsWith('Adventure not saved') && button('Retry adventure save',()=>setSaveRetry(value=>value+1))}
-        {table.joined && <View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
-      {!!titles[screen]&&<ScreenTitle eyebrow={titles[screen][0]} icon={titles[screen][2]} title={titles[screen][1]}/>}
-      {screen === 'Character Selection' && <>
-        {hero && heroFallen ? <>
-          {/* A hero who died stays dead: their card becomes a memorial, and the way on is a new hero. */}
-          <View dataSet={{qb:'plate'}} style={[s.heroCard,compact&&{padding:14,gap:14},{opacity:.85}]}>
-            <HeroPortrait hero={hero} size={compact?54:68} level={hero.level}/>
-            <View style={{flex:1,minWidth:0}}>
-              <Eyebrow style={{color:colors.bloodBright}}>Fallen</Eyebrow>
-              <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
-              <Text style={s.heroLine}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
-              <Text style={s.heroBackground}>{game.death.cause}{game.death.place?' at '+game.death.place:''}.</Text>
-            </View>
-          </View>
-          <Text style={s.note}>{table.joined?hero.name+' has fallen at the shared table. Leave the table to bring a new hero, then join again with the campaign invite.':hero.name+' can still be brought back: continue their adventure to ask. Or choose a ready-made hero or make a new one, and '+hero.name+' is laid to rest.'}</Text>
-          {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-          <QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/>
-        </> : hero ? <>
-          <View dataSet={{qb:'plate'}} style={[s.heroCard,compact&&{padding:14,gap:14}]}>
-            <HeroPortrait hero={hero} size={compact?54:68} level={hero.level}/>
-            <View style={{flex:1,minWidth:0}}>
-              <Eyebrow>Your hero</Eyebrow>
-              <Text numberOfLines={1} style={[s.heroName,compact&&{fontSize:23}]}>{hero.name}</Text>
-              <Text style={s.heroLine}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
-              {!!hero.background && <Text style={s.heroBackground}>{hero.background}</Text>}
-            </View>
-          </View>
-          {newStoryRequested&&<Text style={s.note}>{characterChosen?'A fresh story will be created for this character. It replaces your current adventure only when it is ready and saved.':'Next, choose where your story begins.'}</Text>}
-          {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-          <GameButton icon="play" label={creatingStory?'Creating your new adventure…':'Play as '+hero.name} onPress={playCharacter} variant="primary" disabled={loading||creatingStory}/>
-          <GameButton icon="quill" label="Edit character" onPress={() => {setEditingHero(true); setForm({...blankBuild(),...hero,species:hero.species ?? hero.race}); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
-        </> : <>
-          <Section icon="spell" title="Quick start" style={{marginTop:0}}/>
-          <Text style={s.body}>Pick a ready-made hero and you'll be choosing your adventure in seconds.</Text>
-          <QuickHeroes onChoose={useReadyHero} disabled={saving||loading}/>
-          {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-          <Section icon="quill" title="Or make your own"/>
-        </>}
-        <GameButton icon="sheet" label="Create new character" onPress={() => {setEditingHero(false); setForm(blankBuild()); setError(''); setScreen('Character Creation');}} disabled={loading||creatingStory}/>
-        {!!hero&&!heroFallen&&(showReady?<><Text style={[s.note,{marginTop:14}]}>Playing a ready-made hero sets {hero.name} aside with their adventure; switch back below any time.</Text><QuickHeroes replacing={hero.name} onChoose={useReadyHero} disabled={saving||loading}/></>:<GameButton icon="spell" label="Try a ready-made hero" onPress={()=>setShowReady(true)} disabled={loading||creatingStory}/>)}
-        <HeroRoster roster={roster} graves={graves} onPlay={playFromRoster} onRetire={retireFromRoster} busy={saving||loading||creatingStory} compact={compact}/>
-      </>}
-      {screen === 'Adventure Opening' && hero && <AdventureIntros selected={selectedIntro} onSelect={setSelectedIntro} idea={idea} onIdea={setIdea} onStart={()=>playCharacter(true)} busy={creatingStory} error={error} journeys={continuingNow?null:journeysOnOffer} continuation={canContinue?{title:game.story.title,place:game.story.locations.inn.name}:null} continuing={continuingNow} onContinuing={setContinueRegion}/>}
-      {screen === 'Character Creation' && !loading && <CharacterBuilder form={form} setForm={setForm} onSave={saveHero} saving={saving} blocked={!!storageError} saveError={error} hasSavedCharacter={!!hero} onPageChange={() => scrollRef.current?.scrollTo({y:0,animated:false})}/>}
-      {screen === 'Level Up' && hero && <Advancement hero={hero} xp={experienceView(game,hero)} onSave={saveAdvancement} onCancel={()=>setScreen('Adventure')} saving={saving} error={error}/>}
-      {screen === 'Character Sheet' && hero && <CharacterSheet onPortrait={choosePortrait} setGame={table.joined?next=>table.edit({kind:'training',training:next.skillTraining}).catch(e=>setError(e.message)):setGame} hero={hero} game={game} health={health} setHealth={setHealth} healthLocked={game.stage !== 'inn'||!!game.npcCombat?.active} onBack={() => {setScreen('Adventure'); scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      {screen === 'Campaign Journal' && hero && <CampaignJournal game={game} blocked={loading || !!storageError || adventureBlocked} onAddNote={text=>table.joined?table.edit({kind:'note',text}).catch(e=>setError(e.message)):setGame(current=>addJournalNote(current,text))} onBack={()=>{setScreen('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      {screen === 'Followers' && hero && <Followers hero={hero} game={game} setGame={setGame} onManage={table.joined?(id,action)=>table.edit(action==='accept'?{kind:'accept-offer',id}:{kind:'follower',id,action}):null} onBack={()=>setScreen('Adventure')}/>}
-      {screen === 'Dice Roller' && <DiceRoller/>}
-      {screen === 'Adventure' && <>
-        {characterChosen && heroStats?.available && <View dataSet={{qb:'plate'}} style={s.hud}>
-          <View style={s.hudIdentity}>
-            <EntityText style={s.hudName}>{hero.name}</EntityText>
-            <Text style={s.hudClass}>Level {hero.level} · {heroSpecies(hero)} · {hero.class}</Text>
-          </View>
-          <View style={s.hudVitals}>
-            <View style={s.hudRow}><Text style={s.hudLabel}>HIT POINTS</Text><Text style={s.hudValue}>{health?.current ?? heroStats.hp}<Text style={s.hudMax}> / {heroStats.hp}</Text>{(health?.temp??0)>0?<Text style={s.hudTemp}>  +{health.temp} temp</Text>:null}</Text></View>
-            <StatBar value={health?.current ?? heroStats.hp} maximum={heroStats.hp} height={9}/>
-          </View>
-        </View>}
-        {characterChosen && hero && <View style={s.quickTabs}>{[['Journal','Campaign Journal','❦'],['Character Sheet','Character Sheet','⚔'],['Followers','Followers','♞']].map(([label,target,glyph])=><Pressable key={target} accessibilityRole="button" accessibilityLabel={'Open '+label.toLowerCase()} dataSet={{qb:'chip'}} onPress={()=>{setScreen(target);scrollRef.current?.scrollTo({y:0,animated:false});}} style={s.quickTab}><Text style={s.quickTabText}><Text style={s.quickGlyph}>{glyph}</Text>  {label}</Text></Pressable>)}<CombatHealthButton/></View>}
-        {characterChosen && hero && levelUpReady(game,hero) && button('✦ Review earned level-up',()=>{setError('');setScreen('Level Up');scrollRef.current?.scrollTo({y:0,animated:false});},'primary')}
-
-        {characterChosen && hero && <Adventure table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);scrollRef.current?.scrollTo({y:0,animated:false});}}/>}
-      </>}
-      {screen === 'Multiplayer' && <SharedTable table={table} hero={hero} characterChosen={characterChosen} onPlay={()=>{setNewStoryRequested(false);setScreen(characterChosen?'Adventure':'Character Selection');}}/>}
-      {screen === 'Legal' && <Legal tab={legalTab} onTab={setLegalTab}/>}
-      {screen === 'Settings' && accountsOffered() && <AccountSettings onRestore={restoreFromCloud} busy={saving||loading} onChange={setAccount} onLegal={tab=>openLegal(tab,'Settings')}/>}
-      {screen === 'Settings' && <StorySettings/>}
-      {screen === 'Settings' && <ThemeSettings/>}
-      {screen === 'Settings' && <DeveloperDiagnostics/>}
-      {screen === 'Settings' && <DisplaySettings/>}
-      {screen === 'Settings' && <AudioSettings/>}
-      {screen === 'Settings' && accountsOffered() && <CloudSaveSettings onRestore={restoreFromCloud} busy={saving||loading}/>}
-      {screen === 'Settings' && <InsightSettings/>}
-      {screen === 'Settings' && <SaveTransfer/>}
-      {screen === 'Settings' && <View style={s.about}><Section icon="info" title="About" style={{marginTop:0}}/><Text style={s.aboutText}>Questbound Early Access 0.1. Your character, adventure progress, HP and supplies are saved on this device; Continue resumes your quest. The Dungeon Master runs on your privately configured AI service.</Text><Text style={s.aboutText}>Questbound is an independent production, compatible with fifth edition, and is not affiliated with Wizards of the Coast. Its rules text includes material from the System Reference Documents 5.2 and 5.1 by Wizards of the Coast LLC under the Creative Commons Attribution 4.0 International License (see Licences and credits).</Text>
-        <View style={s.legalRow}>{[['privacy','Privacy policy','key'],['terms','Terms of use','scroll'],['permissions','Permissions agreement','check'],['licences','Licences and credits','book']].map(([tab,label,icon])=><GameButton key={tab} icon={icon} label={label} onPress={()=>openLegal(tab,'Settings')} style={s.legalButton}/>)}</View></View>}
-      {/* Screens inside the adventure have their own way back; Settings opened from the game returns there. */}
-      {screen === 'Character Creation' ? <GameButton icon="back" label="Back to heroes" onPress={() => setScreen('Character Selection')} disabled={loading||creatingStory}/> : screen==='Legal' ? <GameButton icon="back" label={legalFrom==='Settings'?'Back to settings':'Main menu'} onPress={()=>setScreen(legalFrom==='Settings'?'Settings':'Home')}/> : screen==='Settings'&&returnToGame&&saved ? <GameButton icon="back" label="Back to the adventure" onPress={backToGame} variant="primary"/> : screen !== 'Home' && !(gameScreen&&screen!=='Adventure') && screen!=='Level Up' && <GameButton icon="back" label="Main menu" onPress={() => setScreen('Home')} disabled={loading||creatingStory}/>}
-    </Panel>
-    </View>
+    <MenuScreens {...{screen,inGame,compact,loading,storageError,saveProblem,saveStatus,button,setSaveRetry,table,party,game,health,heroStats,hero,heroFallen,error,useReadyHero,saving,newStoryRequested,characterChosen,creatingStory,playCharacter,setEditingHero,setForm,setError,setScreen,showReady,setShowReady,roster,graves,playFromRoster,retireFromRoster,selectedIntro,setSelectedIntro,idea,setIdea,continuingNow,journeysOnOffer,canContinue,setContinueRegion,form,saveHero,scrollRef,saveAdvancement,choosePortrait,setGame,setHealth,adventureBlocked,setNewStoryRequested,legalTab,setLegalTab,restoreFromCloud,setAccount,openLegal,legalFrom,returnToGame,saved,backToGame,gameScreen}}/>
   </ScrollView>}</View>}
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
@@ -617,64 +401,6 @@ function QuestboundApp() {
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
   </View>;
 }
-const s = StyleSheet.create({
-  root:{flex:1,backgroundColor:colors.ink,overflow:'hidden'},
-  // An image from a file brings its own pixel size as its style; the backdrop must say it fills the screen instead
-  // (without this the picture stopped at its own width and wide windows showed black on the right).
-  backdrop:{position:'absolute',left:0,top:0,right:0,bottom:0,width:'100%',height:'100%'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},journeyContent:{maxWidth:1080},
-  topBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,minHeight:52,paddingHorizontal:20,paddingVertical:8},
-  shell:{flex:1,minHeight:0},play:{flex:1,minHeight:0,paddingHorizontal:0,paddingTop:6},playWide:{paddingHorizontal:16,paddingTop:14,paddingBottom:14,width:'100%',maxWidth:1500,alignSelf:'center'},
-  notices:{paddingHorizontal:16,paddingTop:6,gap:6},centred:{flexGrow:1,justifyContent:'center'},
-  homeRow:{flexDirection:'row',alignItems:'center',gap:32},
-  denseButton:{minHeight:42,paddingVertical:9,marginTop:6},denseCell:{minHeight:40,paddingVertical:8},
-  page:{flex:1,backgroundColor:'transparent'},
-  content:{padding:24,paddingTop:18,paddingBottom:48,width:'100%',maxWidth:760,alignSelf:'center'},
-  hero:{alignItems:'center',paddingTop:28,paddingBottom:34},
-  heroEyebrow:{marginBottom:18,textAlign:'center'},
-  logo:{fontFamily:fonts.logo,fontSize:76,fontWeight:'900',letterSpacing:6,color:colors.gold,textAlign:'center',lineHeight:92},
-  heroRule:{width:'72%',maxWidth:380,alignSelf:'center',marginVertical:12},
-  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:tint('#decfc8'),textAlign:'center',letterSpacing:.5},
-  header:{alignItems:'center',marginBottom:22},
-    logoMedium:{fontFamily:fonts.logo,fontSize:40,fontWeight:'900',letterSpacing:4,color:colors.gold,textAlign:'center'},
-  logoSmall:{fontFamily:fonts.logo,fontSize:24,fontWeight:'900',letterSpacing:3,color:colors.gold},
-  headerRule:{width:'60%',maxWidth:300,alignSelf:'center',marginVertical:8},
-  card:{padding:28},
-  heading:{...type.heading,fontSize:26,marginBottom:16},
-  homeHeading:{textAlign:'center',fontSize:22,letterSpacing:3,textTransform:'uppercase',color:colors.gold},
-  center:{textAlign:'center'},
-  body:{...type.body,fontSize:16,lineHeight:26,marginBottom:18},
-  menuGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
-  menuCell:{flexGrow:1,flexBasis:'45%',marginTop:0,minHeight:48},
-  menuCellText:{fontSize:12,letterSpacing:1.6},
-  heroCard:{flexDirection:'row',alignItems:'center',gap:20,padding:20,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,marginBottom:16},
-  heroName:{fontFamily:fonts.display,fontSize:28,fontWeight:'700',color:colors.parchment,letterSpacing:1,marginTop:4},
-  heroLine:{fontFamily:fonts.ui,fontSize:14,color:colors.gold,letterSpacing:.5},
-  heroBackground:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,color:colors.muted,marginTop:4},
-  hud:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:18,padding:16,borderWidth:1,borderColor:colors.goldLine,borderRadius:4,marginBottom:12},
-  hudIdentity:{flexGrow:1,flexShrink:1,minWidth:170},
-  hudName:{fontFamily:fonts.display,fontSize:22,fontWeight:'700',color:colors.parchment,letterSpacing:1},
-  hudClass:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.6,marginTop:3},
-  hudVitals:{flexGrow:2,flexBasis:220,gap:6},
-  hudRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'},
-  hudLabel:{...type.label},
-  hudValue:{fontFamily:fonts.display,fontSize:18,fontWeight:'700',color:colors.parchment},
-  hudMax:{fontSize:13,color:colors.muted,fontWeight:'400'},
-  hudTemp:{fontSize:12,color:colors.arcane},
-  quickTabs:{flexDirection:'row',gap:8,marginBottom:8,flexWrap:'wrap'},
-  quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.9)'),justifyContent:'center'},
-  quickTabText:{fontFamily:fonts.display,color:tint('#dfcdc5'),fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
-  quickGlyph:{color:colors.gold},
-  tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(111,208,196,.35)'),marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:tint('#9fe3d8'),fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:tint('#ffd49a'),fontSize:13,lineHeight:19},
-  saveStatus:{fontFamily:fonts.ui,color:colors.goldMid,fontSize:12,letterSpacing:.4,marginBottom:16},
-  error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
-  note:{fontFamily:fonts.ui,color:tint('#c9aab2'),fontSize:13,lineHeight:20,marginBottom:18},
-  footer:{fontFamily:fonts.display,color:tint('rgba(178,34,58,.55)'),fontSize:10,letterSpacing:2.4,textAlign:'center',marginTop:30},
-  quickEyebrow:{marginTop:4,marginBottom:10},
-  feedbackLink:{alignSelf:'center',marginTop:12,minHeight:44,paddingHorizontal:12,justifyContent:'center'},feedbackText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
-  about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.2)')},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},legalRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:4},legalButton:{flexGrow:1,flexBasis:160,marginTop:0},
-  backChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,paddingLeft:10,paddingRight:16,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(20,15,21,.8)'),justifyContent:'center'},
-  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
-});
 
 
 
