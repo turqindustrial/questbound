@@ -6,7 +6,8 @@ import {combatBasics} from "./combatRules";
 import {gearedHero} from "./inventoryRules";
 import {isPartyGame,settleParty,partyView} from "./partyRules";
 import {withMark,fightOver} from "./masteryRules";
-import {encounterFoe,heroStep,dyingStep,adventureStepCore,runNpcTurns,stepLogEntries,toldInStory} from "./adventureRules";
+import {encounterFoe,heroStep,dyingStep,adventureStepCore,stepLogEntries,toldInStory} from "./adventureRules";
+import {runNpcTurns} from "./brawlRules";
 // ---------- A party's fight: turns in initiative order ----------
 // At the shared table (partyRules.js) each device plays its own hero. The first move of a fight (the opening attack)
 // is anyone's; then every standing hero and the foe (or each person in a brawl) roll initiative, and the order is kept
