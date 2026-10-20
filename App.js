@@ -1,6 +1,7 @@
 import AdventureIntros from './AdventureIntros';
 import {findDmEndpoint,writeStory} from './dmConnection';
-import {loadJourneys,playedJourneys,journeysToOffer,fateJourney,rememberJourney} from './journeyLibrary';
+import {loadJourneys,playedJourneys,journeysToOffer,rememberJourney} from './journeyLibrary';
+import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory} from './startTale';
 import Followers from './Followers';
 import DiceRoller from './DiceRoller';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
@@ -25,7 +26,6 @@ import MemberActions,{useMutedMembers} from './TableMemberActions';
 import SharedTable from './SharedTable';
 import Adventure from './Adventure';
 import {newAdventure} from './adventureRules';
-import {storySoFarForWriter} from './memoryRules';
 import CharacterSheet from './CharacterSheet';
 import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
@@ -39,7 +39,7 @@ import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} fro
 import {fonts,colors,type,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
 import {setNarratorStyle} from './narrator';
-import {storyPreferences,subscribeStoryPreferences,narratorOf,taleStart} from './storyPreferences';
+import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
 import HomeScreen,{homeLayout} from './HomeScreen';
 import Icon from './Icon';
 import {classIcons} from './iconPaths';
@@ -74,7 +74,7 @@ import {accountState,bootstrapAccount,accountsRequired,accountsNeeded,accountsOf
 import {currentProfile,subscribeProfile} from './playerStorage';
 import {loadRoster,loadGraveyard,setAside,saveLists,restoreEntry,layToRest} from './rosterRules';
 import {deathIsFinal} from './deathRules';
-import {carriedBase,joinRegion,canContinueRegion,regionSummary,sequelBearings} from './sequelRules';
+import {carriedBase,joinRegion,canContinueRegion} from './sequelRules';
 import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
 import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
@@ -292,28 +292,22 @@ function QuestboundApp() {
       let next;
       // The next chapter in the same region: the story writer is told what the hero leaves behind, and the old
       // region joins the new map a few miles away.
-      const continuing=continuingNow,bearing=sequelBearings[Math.floor(Math.random()*sequelBearings.length)],miles=4+Math.round(Math.random()*30)/10;
+      const continuing=continuingNow,{bearing,miles}=sequelPlacement();
       const base=newAdventure(hero,characterChosen?carriedBase(game):undefined);
       if(selectedIntro==='hostile'&&!continuing){noteTale('hostile',null);next=hostileEncounterGame(hero,base);}
       else{
-      // The player's own idea: the whole brief for Your own tale, an optional wish for the next tale in a region.
-      const wish=(continuing||selectedIntro==='idea')&&idea.trim()?idea.trim().slice(0,300):null;
-      if(!continuing&&selectedIntro==='idea'&&!wish)throw Error('Write your idea for the tale first.');
-      // Easy start (on unless the player turned it off): orders in hand for any opening; Let fate decide becomes Easy to get into.
-      const start=taleStart({selected:selectedIntro,continuing,easyStart:storyPreferences().easyStart});
-      // A ready journey (the one chosen, or one by chance for Let fate decide) starts at once: the player's own copy,
-      // with its orders in hand (asked for as Easy to get into).
-      const offered=journeysOnOffer??[],journeyId=continuing?null:String(selectedIntro).startsWith('journey:')?String(selectedIntro).slice(8):selectedIntro==='surprise'&&offered.length?fateJourney(offered).id:null,introId=journeyId?'easy':start.introId;
+      // The opening, the player's idea and any ready journey (startTale.js).
+      const {wish,start,journeyId,introId}=taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer});
       noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
       const endpoint=await findDmEndpoint();
-      const {ok,status,body}=await writeStory(endpoint,{input:continuing?'Create the next chapter of my character\'s journey in the same region.':'Create a fresh adventure for my character.',context:{mode:'adventure',introId,...(journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{}),...(wish?{idea:wish}:{}),...(continuing?{continuing:regionSummary(game,bearing)}:{}),...(()=>{const lived=!journeyId&&characterChosen&&game.story?storySoFarForWriter(game):null;return lived?{storySoFar:lived}:{};})(),choices:[],player:{name:hero.name,species:heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory},previousStory:game.story?{title:game.story.title,premise:game.story.premise}:null,previousTitles:game.storyHistory??[],variation:Date.now()+'-'+Math.random()}});
+      const {ok,status,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen,continuing,bearing,wish,journeyId,introId,start}));
       // A journey that has just left the library: the journeys on offer are asked for again.
       if(!ok){if(journeyId&&status===409)loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});throw Error(body.error||'The story could not be created.');}
       next=freshStoryGame(hero,{...body.story,introId},base);
-      if([...(game.storyHistory??[]),game.story?.title].filter(Boolean).some(title=>title.toLowerCase()===next.story.title.toLowerCase()))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
+      if(taleRepeats(game,next))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
       if(characterChosen&&game.story)next=joinRegion(next,game,{sameRegion:continuing,bearing,miles});
-      next.storyHistory=[...new Set([...(game.storyHistory??[]),game.story?.title,next.story.title].filter(Boolean))].slice(-100);
+      next.storyHistory=taleHistory(game,next);
       await transition.prepare(sceneArtSubjects(next));
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
       // A journey played on this device is never offered here again.
