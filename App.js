@@ -20,6 +20,7 @@ import {spellSelectionError} from './spellOptions';
 import {saveAdventure, adventureSnapshot} from './adventureStorage';
 import {useSharedTable} from './useSharedTable';
 import {useHeroSaves,heroSaveActions} from './useHeroSaves';
+import {s} from './appStyles';
 import {backupLocalSave,tableMembership} from './tableClient';
 import {isPartyGame,joinParty,soloFromParty,partyMembers} from './partyRules';
 import PartyPanel from './PartyPanel';
@@ -37,7 +38,7 @@ import { saveCharacter, isValidCharacter } from './characterStorage';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, TextInput, Pressable, View, Image, Platform, useWindowDimensions } from 'react-native';
 import {Panel,GameButton,Ornament,Eyebrow,StatBar,ScreenTitle,Section,Crest} from './ui';
-import {fonts,colors,type,tint} from './theme';
+import {colors,tint} from './theme';
 import {setMood,setAmbience,setDanger,playSound} from './audio';
 import {setNarratorStyle} from './narrator';
 import {storyPreferences,subscribeStoryPreferences,narratorOf} from './storyPreferences';
@@ -505,64 +506,6 @@ function QuestboundApp() {
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
   </View>;
 }
-const s = StyleSheet.create({
-  root:{flex:1,backgroundColor:colors.ink,overflow:'hidden'},
-  // An image from a file brings its own pixel size as its style; the backdrop must say it fills the screen instead
-  // (without this the picture stopped at its own width and wide windows showed black on the right).
-  backdrop:{position:'absolute',left:0,top:0,right:0,bottom:0,width:'100%',height:'100%'},controls:{flexDirection:'row',gap:8,flexShrink:0},gameContent:{maxWidth:1120},journeyContent:{maxWidth:1080},
-  topBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,minHeight:52,paddingHorizontal:20,paddingVertical:8},
-  shell:{flex:1,minHeight:0},play:{flex:1,minHeight:0,paddingHorizontal:0,paddingTop:6},playWide:{paddingHorizontal:16,paddingTop:14,paddingBottom:14,width:'100%',maxWidth:1500,alignSelf:'center'},
-  notices:{paddingHorizontal:16,paddingTop:6,gap:6},centred:{flexGrow:1,justifyContent:'center'},
-  homeRow:{flexDirection:'row',alignItems:'center',gap:32},
-  denseButton:{minHeight:42,paddingVertical:9,marginTop:6},denseCell:{minHeight:40,paddingVertical:8},
-  page:{flex:1,backgroundColor:'transparent'},
-  content:{padding:24,paddingTop:18,paddingBottom:48,width:'100%',maxWidth:760,alignSelf:'center'},
-  hero:{alignItems:'center',paddingTop:28,paddingBottom:34},
-  heroEyebrow:{marginBottom:18,textAlign:'center'},
-  logo:{fontFamily:fonts.logo,fontSize:76,fontWeight:'900',letterSpacing:6,color:colors.gold,textAlign:'center',lineHeight:92},
-  heroRule:{width:'72%',maxWidth:380,alignSelf:'center',marginVertical:12},
-  tagline:{fontFamily:fonts.story,fontStyle:'italic',fontSize:21,color:tint('#decfc8'),textAlign:'center',letterSpacing:.5},
-  header:{alignItems:'center',marginBottom:22},
-    logoMedium:{fontFamily:fonts.logo,fontSize:40,fontWeight:'900',letterSpacing:4,color:colors.gold,textAlign:'center'},
-  logoSmall:{fontFamily:fonts.logo,fontSize:24,fontWeight:'900',letterSpacing:3,color:colors.gold},
-  headerRule:{width:'60%',maxWidth:300,alignSelf:'center',marginVertical:8},
-  card:{padding:28},
-  heading:{...type.heading,fontSize:26,marginBottom:16},
-  homeHeading:{textAlign:'center',fontSize:22,letterSpacing:3,textTransform:'uppercase',color:colors.gold},
-  center:{textAlign:'center'},
-  body:{...type.body,fontSize:16,lineHeight:26,marginBottom:18},
-  menuGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
-  menuCell:{flexGrow:1,flexBasis:'45%',marginTop:0,minHeight:48},
-  menuCellText:{fontSize:12,letterSpacing:1.6},
-  heroCard:{flexDirection:'row',alignItems:'center',gap:20,padding:20,borderWidth:1,borderColor:colors.goldLine,borderRadius:6,marginBottom:16},
-  heroName:{fontFamily:fonts.display,fontSize:28,fontWeight:'700',color:colors.parchment,letterSpacing:1,marginTop:4},
-  heroLine:{fontFamily:fonts.ui,fontSize:14,color:colors.gold,letterSpacing:.5},
-  heroBackground:{fontFamily:fonts.story,fontStyle:'italic',fontSize:16,color:colors.muted,marginTop:4},
-  hud:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:18,padding:16,borderWidth:1,borderColor:colors.goldLine,borderRadius:4,marginBottom:12},
-  hudIdentity:{flexGrow:1,flexShrink:1,minWidth:170},
-  hudName:{fontFamily:fonts.display,fontSize:22,fontWeight:'700',color:colors.parchment,letterSpacing:1},
-  hudClass:{fontFamily:fonts.ui,fontSize:12,color:colors.gold,letterSpacing:.6,marginTop:3},
-  hudVitals:{flexGrow:2,flexBasis:220,gap:6},
-  hudRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline'},
-  hudLabel:{...type.label},
-  hudValue:{fontFamily:fonts.display,fontSize:18,fontWeight:'700',color:colors.parchment},
-  hudMax:{fontSize:13,color:colors.muted,fontWeight:'400'},
-  hudTemp:{fontSize:12,color:colors.arcane},
-  quickTabs:{flexDirection:'row',gap:8,marginBottom:8,flexWrap:'wrap'},
-  quickTab:{flexGrow:1,alignItems:'center',paddingHorizontal:14,paddingVertical:10,minHeight:44,borderRadius:3,borderWidth:1,borderColor:tint('rgba(178,34,58,.4)'),backgroundColor:tint('rgba(31,24,32,.9)'),justifyContent:'center'},
-  quickTabText:{fontFamily:fonts.display,color:tint('#dfcdc5'),fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
-  quickGlyph:{color:colors.gold},
-  tableRow:{flexDirection:'row',alignItems:'center',gap:8},tableBar:{padding:12,borderRadius:6,borderWidth:1,borderColor:tint('rgba(111,208,196,.35)'),marginBottom:10,gap:6},tableText:{fontFamily:fonts.display,color:tint('#9fe3d8'),fontSize:12,fontWeight:'700',letterSpacing:1.2},tableNotice:{fontFamily:fonts.ui,color:tint('#ffd49a'),fontSize:13,lineHeight:19},
-  saveStatus:{fontFamily:fonts.ui,color:colors.goldMid,fontSize:12,letterSpacing:.4,marginBottom:16},
-  error:{color:colors.danger,marginTop:16,lineHeight:22,fontFamily:fonts.ui},
-  note:{fontFamily:fonts.ui,color:tint('#c9aab2'),fontSize:13,lineHeight:20,marginBottom:18},
-  footer:{fontFamily:fonts.display,color:tint('rgba(178,34,58,.55)'),fontSize:10,letterSpacing:2.4,textAlign:'center',marginTop:30},
-  quickEyebrow:{marginTop:4,marginBottom:10},
-  feedbackLink:{alignSelf:'center',marginTop:12,minHeight:44,paddingHorizontal:12,justifyContent:'center'},feedbackText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase'},
-  about:{gap:8,paddingTop:16,marginBottom:6,borderTopWidth:1,borderTopColor:tint('rgba(178,34,58,.2)')},aboutText:{fontFamily:fonts.ui,color:colors.muted,fontSize:12,lineHeight:19},legalRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:4},legalButton:{flexGrow:1,flexBasis:160,marginTop:0},
-  backChip:{flexDirection:'row',alignItems:'center',gap:6,minHeight:40,paddingLeft:10,paddingRight:16,borderRadius:20,borderWidth:1,borderColor:tint('rgba(178,34,58,.45)'),backgroundColor:tint('rgba(20,15,21,.8)'),justifyContent:'center'},
-  brand:{flexDirection:'row',alignItems:'center',gap:10,minHeight:44},backChipText:{fontFamily:fonts.display,color:colors.gold,fontSize:12,fontWeight:'700',letterSpacing:1.4,textTransform:'uppercase'},
-});
 
 
 
