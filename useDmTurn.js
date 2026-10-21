@@ -9,6 +9,7 @@ import {conversationPeople,conversationTarget} from './playbackRules';
 import {adventureStep} from './adventureRules';
 import {dmCommand,withAttackIntent} from './dmCommands';
 import {storyPreferences} from './storyPreferences';
+import {suggestionsFlag} from './suggestionPanel';
 import {useState,useEffect,useRef,useMemo} from 'react';
 import {Keyboard} from 'react-native';
 import {commitDmTurn} from './dmContext';
@@ -78,7 +79,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
   // While the Dungeon Master writes, the narration so far shows under the story (a streaming service only).
   const [draft,setDraft]=useState('');
   // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
-  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:turnRequestContext({hero,scene,hp,input,health,preferences:storyPreferences(),talkingTo,alone,extra})},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);const problem=dmReplyError(ok,body);if(problem)throw Error(problem);return body;};
+  const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:turnRequestContext({hero,scene,hp,input,health,preferences:storyPreferences(),talkingTo,alone,extra:{...suggestionsFlag(),...extra}})},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);const problem=dmReplyError(ok,body);if(problem)throw Error(problem);return body;};
   // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(table?.joined||!cue||busy||playing||lock.current||triedCue.current===attempt)return;
@@ -106,7 +107,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     lock.current=true;setBusy(true);setError('');setDraft('');
     // At a shared table the campaign server works out the greeting and plays it as a turn (server-turn.cjs, greet).
     if(table?.joined){
-      try{const prefs=storyPreferences(),result=await table.turn(opening.scene,{npcId:id,greet:true,oneOnOne:alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
+      try{const prefs=storyPreferences(),result=await table.turn(opening.scene,{npcId:id,greet:true,...suggestionsFlag(),oneOnOne:alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
        if(!alive.current)return;
        const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,result);setAnimateId(result.turn?.id??null);}
       catch(e){fail(e);}
@@ -140,7 +141,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       // The campaign server resolves the turn with its own dice through the same rules (server-turn.cjs); this device
       // sends its words, its view of the scene (just you two) and its own settings, and shows what comes back.
       try{const target=conversationTarget(game,question,conversationId),prefs=storyPreferences(),said=toDm?withoutAddress(question)||question:question;
-       const result=await table.turn(question,{npcId:target,direct:toDm,...(preset?.action?{action:preset.action}:{}),oneOnOne:!!target&&target===conversationId&&alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
+       const result=await table.turn(question,{npcId:target,...suggestionsFlag(),direct:toDm,...(preset?.action?{action:preset.action}:{}),oneOnOne:!!target&&target===conversationId&&alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
        if(!alive.current)return;
        const talking=!!target&&conversationPeople(result.game).some(n=>n.id===target);
        keepIdeas(result.turn?.id,talking?target:null,result);
@@ -176,7 +177,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
     const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
     const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,turnRecord(question,body,normalizedCommand,target),random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
-    const cast=async(command,normalized,narration)=>{
+    const cast=async(command,normalized,narration,chosen=null)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
       const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw refusal(preview.error);
       if(preview.waiting&&protocol>=3){
@@ -193,7 +194,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       else {let body={narration:narration??command.narration??'Your action is resolved below.'};
         // A routine fight move (a plain attack, Dodge, End turn, a draught...) is told by the game itself, with no request
         // to the Dungeon Master; a fight's start, kills, critical hits and every few rounds still go to it (fightLines.js).
-        const told=narration===undefined?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences()}):null;
+        // A routine calm move the Dungeon Master chose keeps its own reply (calmLines.js chosenTelling): no second request.
+        const told=narration===undefined||chosen?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences(),chosen}):null;
         if(told)body=told;
         else if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
         let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
@@ -213,7 +215,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
         const action={type:'recruitment',plans:body.recruitment},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw refusal(preview.error);
-        const resolved=await request(preview.game,preview.health,{engineResolved:preview.events});
+        // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. Only a check is asked again.
+        const resolved=body.retell||body.recruitment.some(p=>p?.decision==='check')?await request(preview.game,preview.health,{engineResolved:preview.events}):body;
         let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
@@ -229,7 +232,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       // A creature the DM sprang on the player out in the wilds: the fight starts, and the player moves first.
       if(protocol>=3&&body.ambush){await finish({type:'ambush',foe:body.ambush},body);return;}
       const choice=body.actionId===null?null:[...dmChoices(hero,game,health),...mapMoves(game)].find(c=>c.id===body.actionId);if(body.actionId!==null&&!choice)throw Error('That action is no longer available.');
-      if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration);return;}
+      if(protocol>=3&&choice){await cast({action:choice.action},undefined,body.narration,body.retell?null:body);return;}
       const result=await finish(protocol>=2?(choice?.action??null):null,protocol>=3?body:{narration:body.narration});
       if(protocol<2&&choice)setReply({narration:body.narration,pending:choice,snapshot:JSON.stringify({hero,game:result.game,health:result.health})});
     }catch(e){fail(e,{said:question,action:attempted});}
