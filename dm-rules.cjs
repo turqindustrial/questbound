@@ -5,32 +5,27 @@ const spells=require('./spellCatalog.json');
 // (subclasses) is live without a restart.
 delete require.cache[require.resolve('./classFeatureCatalog.json')];
 const features=require('./classFeatureCatalog.json');
+// The shared rules reference in the standing prompt (said briefly on 2026-10-21; attacks, magic, movement and readied
+// actions are covered by the instructions themselves: dm-instructions.cjs ATTACKS, HOW TO ACT and TURNS).
 const actionRules=[
- {name:'Attack',rule:'Use weapon attack rolls versus AC, or the exact Unarmed Strike rules. Extra Attack modifies the Attack action, not arbitrary spells.',implementation:'Only supplied weapon/class action choices. Inn NPC aggression starts an initiative encounter; authored witnesses can defend either side. The engine resolves their turns, attacks, Help and damage.'},
- {name:'Magic',rule:'Use the spell or feature casting time, targets, components, resources and exact effect.',implementation:'castCommand plus spell validation; unimplemented effects need a bounded ruling.'},
- {name:'Dash',rule:'Gain extra movement equal to your Speed for this turn.',implementation:'Tactical speed budgets not implemented; never claim an extra move was recorded.'},
- {name:'Disengage',rule:'Your movement does not provoke Opportunity Attacks for the rest of this turn.',implementation:'Opportunity attacks and tactical movement not implemented.'},
- {name:'Dodge',rule:'Until your next turn, attacks have Disadvantage if you can see the attacker and Dexterity saves have Advantage; ends if Incapacitated or Speed is 0.',implementation:'The Dodge spends the action; attacks on the player have disadvantage until their next turn. The Dexterity-save benefit is not implemented.'},
- {name:'Help',rule:'Assist a qualifying ability check or distract a nearby enemy for a qualifying attack; apply the exact requirements.',implementation:'No persistent Help benefit implemented; do not invent Advantage.'},
- {name:'Hide',rule:'Requires appropriate concealment and a Dexterity (Stealth) check under revised rules.',implementation:'Stealth proficiency, concealment and hidden condition not fully implemented.'},
- {name:'Influence',rule:'Determine whether an NPC is willing, unwilling or hesitant; only uncertainty needs a check. Hostile attitudes impose Disadvantage on influence checks; hostility alone is not compulsory combat. Actual attacks start an inn encounter.',implementation:'Recorded attitudes and witness memories; generic checks use recorded skill modifiers and do not erase hostility.'},
- {name:'Ready',rule:'Choose a perceptible trigger and a response using your Reaction; readied spells have additional concentration and slot requirements.',implementation:'Readied actions and reaction triggers are not fully implemented.'},
- {name:'Search',rule:'Use Wisdom and a relevant skill to notice something uncertain.',implementation:'Use scene-specific choices or a generic ability check; do not invent secrets.'},
- {name:'Study',rule:'Use Intelligence and a relevant skill to recall or analyze information.',implementation:'Use scene-specific choices or a generic ability check.'},
- {name:'Utilize',rule:'Interact with an object when its use calls for an action; magic items use their own rules.',implementation:'Only implemented inventory/scene actions change resources.'},
- {name:'Movement',rule:'Movement spends Speed in combat; terrain, conditions, size, reach and opportunity attacks can matter. Travel pace is a separate exploration rule.',implementation:'Known routes (travel choices) and dungeon rooms change position, with distances and times provided. In a written story a new destination is created with discovery (OPEN WORLD) and travelled to at once. No grid simulation.'}
+ 'Dodge: until your next turn, attacks on you have disadvantage (if you see the attacker) and Dexterity saves advantage. Game: it spends the action and attacks on the player have disadvantage; the save benefit is not played.',
+ 'Help: aids a check or distracts an enemy for an attack. Game: no lasting benefit; never invent advantage.',
+ 'Hide: concealment and a Dexterity (Stealth) check. Game: not fully played.',
+ 'Influence: willing, unwilling or hesitant; only uncertainty needs a check; hostility gives disadvantage but forces no fight. Game: recorded attitudes; a check never erases hostility.',
+ 'Search, Study: Wisdom or Intelligence with a fitting skill when uncertain. Game: scene choices or a check; never invent secrets.',
+ 'Utilize: an object whose use takes an action; magic items by their own rules. Game: only its inventory and scene actions change resources.'
 ];
 const coreRules=[
- 'Use revised 2024 rules. A specific spell or feature exception overrides a general rule. Do not substitute 2014 rules or invent missing feature text.',
- 'Roll only when the outcome is uncertain and failure matters. Ability checks compare d20 plus applicable modifiers to DC; a natural 20 is not automatic success on an ability check. Advantage and disadvantage cancel; neither stacks. The check engine applies the supplied ability and recorded skill training shown in skillChecks, including Expertise, Bard Jack of All Trades and Rogue Reliable Talent when eligible. Do not invent missing proficiencies or additional feature bonuses.',
- 'Cantrips are level 0 and never spend spell slots. They still use their listed casting time and components. A character may expend only one spell slot to cast spells on a turn; this is not a blanket ban on two spells or two cantrips. Reaction spells require their stated trigger and an available reaction.',
- 'A spell must be available to the character. A slot of at least the spell level is required unless an explicit feature or ritual allows otherwise. Upcasting changes only what the spell says. Ritual casting adds 10 minutes and uses no slot; access requirements and class exceptions still apply.',
- 'Check range, target type, clear path, area, components, armor training, conditions and resources before casting. Self can mean the caster or an area originating from the caster: Burning Hands is a 15-foot cone, not self damage. Unknown positions, targets, material ownership or reaction triggers require clarification.',
- 'Verbal components require speech; Somatic components require an available hand. A focus or component pouch replaces only materials without a specified cost and not consumed. Required costly or consumed materials must actually be available. Wearing armor without training prevents spellcasting.',
- 'Concentration allows only one effect at a time. Starting another ends the previous effect. Damage requires a Constitution save with DC 10 or half damage rounded down, whichever is higher, capped at 30. Incapacitation or death ends concentration. Do not claim concentration is automatically retained after damage.',
- 'Spell attacks and saving throws are different. Use the exact spell text for attack type, save ability, damage dice, damage on a successful save, duration and scaling. Use supplied creature defenses, never a similarly named monster from memory. Temporary HP does not stack and is not healing.',
- 'Detect Magic senses the presence of magical effects within 30 feet while concentrating for up to 10 minutes. Seeing an aura requires a subsequent Magic action and a visible creature or object bearing magic; apply the spell text for barriers and school identification. It does not identify every property or automatically reveal invisible creatures.',
- 'Rules reference is not proof that a feature is implemented. Only available engine actions and supported ruling fields commit mechanical changes. Explain unsupported effects honestly; never narrate an inventory, condition, multi-target damage or resource change as applied when the engine cannot record it.'
+ 'Revised 2024 rules: a specific spell or feature beats a general rule; never 2014 rules or invented feature text.',
+ 'Roll only when the outcome is uncertain and failure matters; a natural 20 is not automatic success on an ability check. Advantage and disadvantage cancel, never stack. The engine adds ability, training, Expertise, Jack of All Trades and Reliable Talent; invent no proficiency or bonus.',
+ 'Cantrips are level 0: no spell slot, but their casting time and components apply. Only one spell slot can be spent a turn (two spells or two cantrips are not banned as such). A reaction spell needs its trigger and an unused reaction.',
+ 'A spell must be available to the caster, with a slot of at least its level unless a feature or ritual allows otherwise; upcasting changes only what the spell says; a ritual adds 10 minutes, no slot, same access rules.',
+ 'Before casting check range, target, clear path, area, components, armor training, conditions and resources; self may be an area from the caster (Burning Hands: a 15-foot cone). Unknown positions, targets, materials or triggers need clarification.',
+ 'Verbal components need speech, somatic a free hand; a focus replaces only free, unconsumed materials (costly or consumed ones must be owned); armor without training prevents casting.',
+ 'Concentration: one effect, a new one ends the old; damage forces a Constitution save (DC 10 or half the damage, at most 30); incapacitation or death ends it; never assume it kept.',
+ 'Spell attacks and saves differ: follow the spell text (attack or save, damage, damage on a save, duration, scaling) and the supplied creature defenses, never a monster from memory. Temporary HP does not stack and is not healing.',
+ 'Detect Magic: magic within 30 feet while concentrating (10 minutes); an aura needs a later Magic action and a visible bearer; it identifies no properties and reveals no invisible creatures.',
+ 'Rules text proves nothing implemented: only game actions and ruling fields change state; explain unsupported effects honestly, never narrating an unrecorded item, condition, multi-target damage or resource change.'
 ];
 function rulesFor(body){
  const c=body.context??{},p=c.player??{},input=String(body.input??'').toLowerCase();
@@ -48,7 +43,7 @@ function rulesFor(body){
 }
 // The same reference in three parts, so the provider can cache what never changes (dm-server.cjs, the cache order):
 // the rules every turn shares, the features of this hero, and the spells and features this turn's words name.
-const standingRules={edition:'2024 / SRD 5.2',sources:['https://www.dndbeyond.com/sources/dnd/br-2024/spells','https://www.dndbeyond.com/sources/dnd/br-2024/playing-the-game'],coreRules,actionRules,limits:'This reference grants no new actions, spells or features. Missing rules require clarification, not invented mechanics. Engine results remain authoritative.'};
+const standingRules={edition:'2024 / SRD 5.2',coreRules,actionRules,limits:'Grants nothing; missing rules mean clarifying.'};
 function heroRules(body){const {availableFeatures}=rulesFor(body);return {availableFeatures};}
 function turnRules(body){const {spells,featureDetails}=rulesFor(body);return {spells,featureDetails};}
 function validateGroundedReply(context,reply){

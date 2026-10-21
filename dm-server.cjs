@@ -60,7 +60,7 @@ function sceneFor(body,{canDiscover=false,canAmbush=false}={}){
  if(!ruling&&scene.stage!=='combat'&&!scene.npcCombat?.active)delete scene.npcDefenses;
  // The rules text for the spells and features the player's words name (and a spell awaiting a ruling), read this turn.
  {const named=turnRules(body);if(named.spells.length||named.featureDetails.length)scene.rulesReference=named;}
- leaner(scene,body);
+ leaner(scene,body);compact(scene,body);
  // The player's words come last, after the scene, so the start of the request stays the same from turn to turn.
  return {context:inCacheOrder(lean(scene)),input:body.input};
 }
@@ -124,6 +124,146 @@ function leaner(scene,body){
  if(Array.isArray(scene.conversationParticipants))scene.conversationParticipants=scene.conversationParticipants.map(n=>n&&typeof n==='object'&&social.has(n.id)?{id:n.id,name:n.name}:n);
  // A note in brackets that several choices share (how a grapple is saved against, what lies beyond the map) is given once.
  if(Array.isArray(scene.choices)){const seen=new Set();scene.choices=scene.choices.map(ch=>{if(!ch||typeof ch.label!=='string')return ch;const m=/ (\([^()]{12,}\))$/.exec(ch.label);if(!m)return ch;if(seen.has(m[1]))return {...ch,label:ch.label.slice(0,m.index)};seen.add(m[1]);return ch;});}
+}
+// Said once and briefly (the host, 2026-10-21: "optimize token usage even further we shouldn't need that many per
+// turn"). What the game sends as objects with many keys (places, spells, skills, choices, people's ties, the journal)
+// the model reads as short lines; what another field already tells (a place's own entry beside world.current, the
+// story's people beside the people here, the opening beside the journal, a price list that never changes, a skill no
+// better than its ability) is told once; fixed explanations (weapon masteries, grappling, hands) are in the standing
+// prompt. Only what the model reads changes: every check on the reply still sees the whole context.
+const standardResponses=new Set(['Refuses to help the player and wants nothing to do with them.','Wary and cold toward the player.','No strong feelings about the player.','Warm toward the player and willing to help.','Devoted to the player and eager to help.']);
+const standardPrices='{"Potion of Healing":50,"Arrow":0.05,"Dagger":2,"Handaxe":5,"Javelin":0.5,"Mace":5,"Quarterstaff":0.2,"Sickle":1,"Spear":1,"Greataxe":30,"Greatsword":50,"Flail":10,"Longsword":15,"Battleaxe":10,"Trident":5,"Maul":10,"Glaive":20,"Halberd":20,"Scimitar":25,"Shortsword":10,"Shortbow":25,"Longbow":50}';
+// The game's creature kinds (hostileEncounter.js hostileFoes, as dmContext.js sends them): the same for every player,
+// so the standing prompt names them and a scene that lists exactly these leaves them out (verify-dm-cache checks).
+const standardCreatures='["bandit: Bandit Cutthroat (Human), signature move Dirty Trick","wolf: Starving Dire Wolf (Dire wolf), signature move Knockdown","goblin: Three goblin raiders (Goblin, a pack), signature move Ganging Up","skeleton: Restless Skeleton (Undead skeleton), signature move Shield Wall","boar: Enraged Boar (Boar), signature move Charge","spider: Giant Cave Spider (Giant spider), signature move Web","zombies: Two rotting zombies (Undead zombie, a pack), signature move Undead Fortitude","orc: Orc Marauder (Orc), signature move Savage Blow","wolves: Two grey wolves (Wolf, a pack), signature move Pack Tactics"]';
+const lightWeapon=/^(?:Dagger|Handaxe|Sickle|Scimitar|Shortsword)\b/;
+const abilityShort={Strength:'Str',Dexterity:'Dex',Constitution:'Con',Intelligence:'Int',Wisdom:'Wis',Charisma:'Cha'};
+const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const sameStart=(a,b,n=80)=>typeof a==='string'&&typeof b==='string'&&a.length>=24&&b.length>=24&&a.replace(/…$/,'').slice(0,n)===b.replace(/…$/,'').slice(0,n);
+// A person's ties as one line: whom they are tied to and how, and how they regard the main foe.
+const tiesLine=t=>{if(!isObj(t))return t;const all=Array.isArray(t.all)?t.all:[];const parts=all.length?all.map(x=>(x?.name??x?.id)+' ('+x?.id+'): '+x?.kind):t.other?[t.other+': '+t.toOther]:[];if(t.toFoe)parts.push('the foe: '+t.toFoe);return parts.join('; ')+(t.note&&String(t.note).length>2?'. '+t.note:'');};
+// A known place as one line: "Name [id]: kind, in Land, 3.7 miles S, not visited, lair, threat X (wolf). Feature: …".
+const placeLine=p=>{if(!isObj(p))return p;const bits=[p.kind,p.land?'in '+p.land:null,p.distance&&p.distance!=='0 ft'?p.distance+(p.bearing?' '+p.bearing:''):null,p.visited?'visited':'not visited',p.cleared?'cleared':null,p.danger&&p.danger!=='safe'?p.danger:null,p.threat?'threat '+p.threat.name+' ('+p.threat.template+')':null].filter(Boolean);
+ return p.name+' ['+p.id+']: '+bits.join(', ')+'.'+(p.feature?' Feature: '+p.feature:'')+(p.description?' '+cut(p.description,100):'');};
+// A spell as one line: "Cure Wounds (level 1; Action; Touch; V, S; cast with: slot 1)".
+const spellLine=s=>{if(!isObj(s))return s;const costs=Array.isArray(s.availableCosts)?s.availableCosts:[];const lvl=Number(s.level)||0;
+ const how=lvl===0?null:'cast with: '+(costs.length?costs.map(x=>typeof x==='number'?'slot '+x:x==='species'?'species (free)':x).join(', '):'nothing left');
+ return s.name+' ('+[lvl?'level '+lvl:'cantrip',s.castingTime,s.range,s.components?s.components+(s.material?': '+s.material:''):null,how].filter(Boolean).join('; ')+')';};
+function compact(scene,body){
+ const c=body.context??{},fight=fightingNow(scene),ruling=!!scene.pendingSpell&&!scene.engineResolved;
+ if(isObj(scene.storyPreferences)){const {brutality,narrator}=scene.storyPreferences;scene.storyPreferences={brutality,narrator};}
+ const here=new Set((Array.isArray(c.npcSocialState)?c.npcSocialState:[]).filter(n=>n&&typeof n==='object'&&n.present!==false).map(n=>n.id));
+ const nearIds=new Set((Array.isArray(scene.nearbyNPCs)?scene.nearbyNPCs:[]).map(n=>n?.id).filter(Boolean));
+ // The story: its people's roles and ties are told with the people (nearbyNPCs, npcSocialState) and who they are with the
+ // story, the same wherever the player is (what lasts the tale stays one cacheable part); the starting places are in
+ // world.knownPlaces, the land in world.region, the opening in the journal (in full on the tale's first move); the ids
+ // for the painter and the library go.
+ if(isObj(scene.story)){
+  const s={...scene.story};for(const k of ['id','libraryId','artId','introId'])delete s[k];if(s.status==='active')delete s.status;
+  if(scene.world){delete s.locations;if(isObj(scene.world.region)){delete s.region;delete s.terrain;}}
+  if(!scene.openingTurn||(Array.isArray(c.journal)&&c.journal.some(e=>sameStart(e?.text,s.opening))))delete s.opening;
+  delete s.foeDamageType;
+  if(isObj(s.npcs))s.npcs=Object.fromEntries(Object.entries(s.npcs).map(([id,n])=>{if(!isObj(n))return [id,n];const {role,ties,class:_c,...rest}=n;return [id,rest];}));
+  scene.story=s;
+ }
+ // The hero: scores and species in a line; the spell list once (spellReference); the hit points with their maximum.
+ if(isObj(scene.player)){
+  const p={...scene.player};
+  if(isObj(p.scores)){
+   // Skills: only those better or worse than their ability (training, expertise, an item): the rest are the ability's modifier.
+   if(Array.isArray(scene.skillChecks)&&scene.skillChecks.every(x=>typeof x==='string')){const mod=a=>Math.floor(((Number(p.scores[a])||10)-10)/2);const odd=[];let ok=true;
+    for(const line of scene.skillChecks){const m=/^(.+?): (\w+) ([+-]\d+)(.*)$/.exec(line);if(!m||!(m[2] in abilityShort)){ok=false;break;}if(Number(m[3])!==mod(m[2])||m[4].trim())odd.push(m[1]+' '+m[3]+m[4]);}
+    if(ok)scene.skillChecks=(odd.length?odd.join(', ')+'; ':'')+'any other skill: its ability modifier';}
+   p.scores=Object.entries(p.scores).map(([a,v])=>(abilityShort[a]??a)+' '+v).join(', ');
+  }
+  if(isObj(p.speciesTraits)){const t=p.speciesTraits;p.speciesTraits=[t.size,t.speed?'speed '+t.speed+' ft':null,t.darkvision?'darkvision '+t.darkvision+' ft':'no darkvision'].filter(Boolean).join(', ')+(Array.isArray(t.traits)&&t.traits.length?'. '+t.traits.join(' '):'');}
+  if(Array.isArray(scene.spellReference)&&scene.spellReference.length)delete p.spells;
+  if(isObj(p.health)){const h={current:p.health.current};if(isObj(scene.turnStart)&&Number.isFinite(scene.turnStart.max))h.max=scene.turnStart.max;if(p.health.temp)h.temp=p.health.temp;p.health=h;}
+  scene.player=p;
+ }
+ if(isObj(scene.turnStart)&&Number.isFinite(scene.player?.health?.max)&&(scene.turnStart.hp===scene.player.health.current||!scene.engineResolved))delete scene.turnStart;
+ if(isObj(scene.equipment)&&Array.isArray(scene.equipment.items))scene.equipment=scene.equipment.items.map(i=>i?.name+(i?.quantity>1?' x'+i.quantity:'')).join(', ');
+ if(isObj(scene.loadout)){const l=scene.loadout;scene.loadout=[l.armor?'wears '+l.armor:'no armor',l.shield?'a shield':null,l.focus?'focus: '+l.focus:null,l.ammunition?l.ammunition+' ammunition':null,scene.attackOptions?.mainWeapon?null:l.mainWeapon?'main weapon: '+l.mainWeapon:null].filter(Boolean).join('; ');}
+ if(!(Array.isArray(scene.spellReference)&&scene.spellReference.length)){delete scene.spellSaveDC;delete scene.spellAttackBonus;}
+ if(Array.isArray(scene.spellReference))scene.spellReference=scene.spellReference.map(spellLine);
+ if(isObj(scene.attackOptions)){const a={...scene.attackOptions};
+  if(Array.isArray(a.masteries))a.masteries=a.masteries.map(m=>typeof m==='string'?m.replace(/^([^:]+: [A-Za-z]+): .*$/,'$1'):m);
+  {const dc=/DC (\d+)/.exec(String(a.grappleAndShove??''));if(dc){delete a.grappleAndShove;a.grappleDC=Number(dc[1]);}}
+  if(typeof a.twoWeapons==='string'&&/^After an attack with a light weapon/.test(a.twoWeapons)){delete a.twoWeapons;if((a.carried??[]).some(w=>lightWeapon.test(String(w))))a.twoWeapons=true;}
+  if(typeof a.hands==='string'){const h=a.hands;a.hands=/^The player has put the shield/.test(h)?'shield put away':/^The shield is slung/.test(h)?'shield slung':/^A shield on one arm/.test(h)?'shield on arm':/^No shield/.test(h)?'no shield':h;}
+  if(a.unarmed==='Unarmed Strike')delete a.unarmed;
+  scene.attackOptions=a;}
+ if(isObj(scene.inventory)){const i={...scene.inventory};if(fight||JSON.stringify(i.priceList)===standardPrices)delete i.priceList;if(!i.arrows)delete i.arrows;scene.inventory=i;}
+ // The land: the place the player stands in is world.current (with what its entry adds); every other known place a line.
+ if(isObj(scene.world)){const w={...scene.world};
+  if(Array.isArray(w.knownPlaces)){const at=w.knownPlaces.find(p=>isObj(p)&&p.id===w.current?.id);
+   if(at&&isObj(w.current)){const {danger,feature,threat,cleared}=at;w.current={...w.current,...(danger&&danger!=='safe'?{danger}:{}),...(feature?{feature}:{}),...(threat?{threat:threat.name+' ('+threat.template+')'}:{}),...(cleared?{cleared:true}:{})};}
+   w.knownPlaces=w.knownPlaces.filter(p=>!(at&&p===at)).map(placeLine);}
+  for(const k of ['placesLeft','landsRemembered','peopleMet'])delete w[k];
+  if(JSON.stringify(w.creatureTemplates)===standardCreatures)delete w.creatureTemplates;
+  // Other lands: the nearest as lines (name, road, places known); world.regions then names only the rest.
+  if(Array.isArray(w.farLands)){const named=new Set();
+   w.farLands=w.farLands.map(l=>{if(!isObj(l)||Object.keys(l).some(k=>!['name','road','places','placesKnown'].includes(k)))return l;named.add(l.name);
+    return l.name+': '+[l.road,Array.isArray(l.places)&&l.places.length?'places: '+l.places.join(', '):null,l.placesKnown?l.placesKnown+' places known':null].filter(Boolean).join('; ');});
+   if(Array.isArray(w.regions)){const rest=w.regions.filter(n=>!named.has(n)&&n!==w.region?.name);if(rest.length)w.regions=rest;else delete w.regions;}}
+  scene.world=w;}
+ if(isObj(scene.map)&&scene.world){const {accepted,visited,...m}=scene.map;for(const k of ['clue','peaceful'])if(!m[k])delete m[k];if(!m.minutes)delete m.minutes;scene.map=m;}
+ // The people: nobody away in a fight; ties in a line; what their attitude already says is not said again.
+ if(Array.isArray(scene.npcSocialState)){
+  if(fight)scene.npcSocialState=scene.npcSocialState.filter(n=>!isObj(n)||here.has(n.id));
+  scene.npcSocialState=scene.npcSocialState.map(n=>{if(!isObj(n))return n;const o={...n};
+   if(o.ties)o.ties=tiesLine(o.ties);
+   if(standardResponses.has(o.response))delete o.response;
+   if(Array.isArray(o.knows)&&isObj(n.ties)&&Array.isArray(n.ties.all)&&o.knows.every(k=>n.ties.all.some(t=>t?.id===k)))delete o.knows;
+   if(o.metHero===true)delete o.metHero;
+   if(!fight&&!ruling){delete o.maximumHP;delete o.ac;}else if(isObj(scene.npcDefenses)&&scene.npcDefenses[o.id])delete o.ac;
+   return o;});
+ }
+ // The people here are told once, in nearbyNPCs: who they are and how they stand with the hero (npcSocialState then
+ // holds only those not here, or down). Someone elsewhere is one line unless a grudge, a bond or a fate is to be told.
+ if(Array.isArray(scene.nearbyNPCs)){const story=isObj(c.story?.npcs)?c.story.npcs:{};const social=new Map((Array.isArray(scene.npcSocialState)?scene.npcSocialState:[]).filter(isObj).map(n=>[n.id,n]));
+  scene.nearbyNPCs=scene.nearbyNPCs.map(n=>{if(!isObj(n))return n;const {id:_i,name:_n,present:_p,role:_r,...more}=social.get(n.id)??{};const o={...n,appearance:cut(n.appearance,120),...more};if(isObj(o.trainedAs))o.trainedAs=o.trainedAs.class+' '+o.trainedAs.level;if(o.livesAt&&o.livesAt===scene.world?.current?.name)delete o.livesAt;const told=story[n.id];if(isObj(told)){if(o.voice===told.personality)delete o.voice;if(o.motive===told.motive)delete o.motive;if(o.species===told.species)delete o.species;}return o;});
+  if(Array.isArray(scene.npcSocialState))scene.npcSocialState=scene.npcSocialState.filter(n=>!isObj(n)||!nearIds.has(n.id));}
+ if(Array.isArray(scene.npcSocialState))scene.npcSocialState=scene.npcSocialState.map(n=>{if(!isObj(n)||here.has(n.id)||n.grudge||n.bond||n.forgiveness||n.forgave||n.fate||n.standing||n.trainedAs||(Array.isArray(n.memories)&&n.memories.length)||!n.name)return n;
+  return n.name+' ['+n.id+']: '+[typeof n.role==='string'?n.role.replace(/\.$/,''):null,n.livesAt?'lives at '+n.livesAt+(n.land?' ('+n.land+')':''):null,n.attitude,n.unnoticed?'unnoticed':null,n.metHero===false?'not met':null,n.ties?'ties: '+n.ties:null].filter(Boolean).join('; ');});
+ if(Array.isArray(scene.conversationParticipants))scene.conversationParticipants=scene.conversationParticipants.map(n=>isObj(n)&&nearIds.has(n.id)?n.id:n);
+ if(isObj(scene.npcHP)){const raw=new Map((Array.isArray(c.npcSocialState)?c.npcSocialState:[]).filter(isObj).map(n=>[n.id,n]));
+  scene.npcHP=Object.fromEntries(Object.entries(scene.npcHP).filter(([id,hp])=>(here.has(id)||!!c.followers?.[id])&&(fight||ruling||!Number.isFinite(raw.get(id)?.maximumHP)||hp<raw.get(id).maximumHP)));}
+ if(isObj(scene.npcDefenses))scene.npcDefenses=Object.fromEntries(Object.entries(scene.npcDefenses).filter(([id])=>here.has(id)).map(([id,d])=>[id,isObj(d)&&d.saveModifiers===0?{ac:d.ac}:d]));
+ // The story so far: a fact that only repeats the premise, a journal entry as a line, an event the journal already holds.
+ if(Array.isArray(scene.worldFacts)){const premise=c.story?.premise;scene.worldFacts=scene.worldFacts.filter(f=>!sameStart(f,premise));}
+ const journalTexts=[];
+ if(Array.isArray(scene.journal))scene.journal=scene.journal.map(e=>{if(!isObj(e))return e;journalTexts.push(e.text);return (e.title?e.title+': ':'')+e.text;});
+ if(Array.isArray(scene.recentEvents)&&!scene.engineResolved)scene.recentEvents=scene.recentEvents.filter(t=>!journalTexts.some(j=>sameStart(t,j)));
+ if(Array.isArray(scene.conversationHistory))scene.conversationHistory=scene.conversationHistory.map(e=>isObj(e)&&typeof e.text==='string'?e.text:e);
+ // This turn: nothing spent and nothing earned is not said; the foe's hit points once.
+ if(scene.earnedGold===0)delete scene.earnedGold;
+ if(scene.enemyHP!==0&&(!fight||scene.encounter?.currentHP===scene.enemyHP))delete scene.enemyHP;
+ if(isObj(scene.turnResources)){const t=scene.turnResources,o={};for(const [k,v] of Object.entries(t))if(v===true||(typeof v==='number'&&!(k==='attacksPerAction'&&v===1))||(typeof v==='string'&&v)||(isObj(v)))o[k]=v;scene.turnResources=fight||Object.keys(o).some(k=>k!=='left')?o:{};}
+ if(isObj(scene.encounter)&&!ruling){const e={...scene.encounter};for(const k of ['attackBonus','bonus','count','die','saves','sleepless','wildCreature'])delete e[k];if(e.clearPath===true)delete e.clearPath;scene.encounter=e;}
+ // Choices as lines ("[id] label"); a label that only repeats its id, and the ways beyond the map and the leads seen
+ // through, are told once for all.
+ if(Array.isArray(scene.choices)&&scene.choices.every(ch=>isObj(ch)&&typeof ch.id==='string')){
+  const out=[],beyond=[],leads=[],travel=[],swings=[],people=new Map(),names=new Map((Array.isArray(scene.nearbyNPCs)?scene.nearbyNPCs:[]).filter(isObj).map(n=>[n.id,n.name]));
+  for(const ch of scene.choices){const label=String(ch.label??'');
+   // A blow, a grapple, a shove or a throw at a person here: one line per person, its ids and what each does.
+   const blow=/^npc-(attack|grapple|shove|throw):([^:]+)(?::(.+))?$/.exec(ch.id);
+   if(blow&&names.has(blow[2])){let g=people.get(blow[2]);if(!g){g={ids:[],verbs:[]};people.set(blow[2],g);out.push(g);}g.ids.push('['+ch.id+']');g.verbs.push(blow[1]==='attack'?'attack'+(blow[3]?' with '+blow[3]:''):blow[1]==='throw'?'throw '+(blow[3]??''):blow[1]);continue;}
+   if(/^beyond-[NSEW]{1,2}$/.test(ch.id)){beyond.push(ch);continue;}
+   if(/^lead-done:/.test(ch.id)){leads.push(ch);continue;}
+   {const to=/^travel-/.test(ch.id)&&/^Travel to (.+)$/.exec(label);if(to){if(!travel.length)out.push(travel);travel.push('['+ch.id+'] '+to[1]);continue;}}
+   // The weapons to swing at the creature fought: one line, each id naming its weapon.
+   if(/^attack:/.test(ch.id)&&label==='Attack with '+ch.id.slice(7)){if(!swings.length)out.push(swings);swings.push('['+ch.id+']');continue;}
+   out.push(label.toLowerCase()===ch.id.toLowerCase()||!label?'['+ch.id+']':'['+ch.id+'] '+label);}
+  if(travel.length)out[out.indexOf(travel)]=travel.join('; ')+': travel there.';
+  if(swings.length)out[out.indexOf(swings)]=swings.join(' ')+': attack with that weapon.';
+  for(const [id,g] of people)out[out.indexOf(g)]=g.ids.join(' ')+' '+names.get(id)+': '+g.verbs.join(', ');
+  if(beyond.length)out.push(beyond.map(ch=>'['+ch.id+']').join(' ')+' Go beyond the map that way: days on the road to a land not yet on any map.');
+  if(leads.length)out.push(leads.map(ch=>'['+ch.id+'] '+(/\("[^"]*"\)/.exec(ch.label)?.[0]??ch.label)).join(' ')+': a lead seen through, ONLY when the player has actually resolved it.');
+  scene.choices=out;
+  // context.now names the journeys on offer with their ids; the travel choices above say it already.
+  if(travel.length&&Array.isArray(scene.now))scene.now=scene.now.map(l=>typeof l==='string'&&/^The player may set out at once for any of: /.test(l)?'The player may set out at once on any travel choice offered. Nothing has to happen first.':l);
+ }
 }
 // Empty parts (null, '', [] and {}) are left out of what the model reads: an absent field means the same to it.
 const lean=v=>{if(Array.isArray(v))return v.map(lean);if(!v||typeof v!=='object')return v;const out={};for(const [k,x] of Object.entries(v)){const y=lean(x);if(y===null||y===undefined||y===''||(Array.isArray(y)&&!y.length)||(typeof y==='object'&&!Array.isArray(y)&&!Object.keys(y).length))continue;out[k]=y;}return out;};

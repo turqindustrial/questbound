@@ -136,7 +136,7 @@ const strictProblems=(s,at,out=[])=>{
 
  // ---- 4. Only what the moment needs ----
  {const fq=at('fighter: town');assert.ok(!/spellReference|rulesReference/.test(JSON.stringify(fq.input)),'a fighter\'s request has no spell reference');assert.ok(/spellReference/.test(JSON.stringify(at('wizard: town').input)),'a wizard\'s has theirs');
-  assert.ok(!JSON.parse(fq.input[0].content.slice(fq.input[0].content.indexOf('(reference): ')+13)).some(f=>/spell/i.test(f.automation??'')&&f.class!=='Fighter'),'the hero\'s features are their own');}
+  assert.match(fq.input[0].content,/Second Wind \(level 1\)/);assert.ok(!/Spellcasting/.test(fq.input[0].content),'the hero\'s features are their own, in one line');}
  {const named=requestScene(await (async()=>{let q=null;await generate({input:'Could I cast Fire Bolt here?',context:r.dmContext(fighter,f3.game,null,'x')},{apiKey:'k',model:'m',fetchImpl:async(u,opt)=>{q=JSON.parse(opt.body);return done({});}});return q;})()).context;
   assert.equal(named.rulesReference.spells[0].name,'Fire Bolt');assert.equal(named.rulesReference.spells[0].availableToCharacter,false,'a spell the player names is looked up, marked as not theirs');}
  {const s=sceneOf('long life: fight, words');
@@ -145,15 +145,17 @@ const strictProblems=(s,at,out=[])=>{
   assert.equal(s.peopleElsewhere,undefined,'nobody elsewhere in a fight');assert.ok((s.npcSocialState??[]).every(n=>n.present!==false),'only the people here');
   assert.ok((s.journal??[]).length<=2);
   const calm=sceneOf('long life: town');assert.ok(calm.memory.earlierTales?.length,'out of a fight the memory is told in full');
-  assert.ok(calm.world.farLands.length<=10,'the nearest lands only');assert.ok(calm.world.regions.length>=29,'every land still named');
-  assert.ok(sceneOf('long life: town again').world.farLands.some(l=>l.name==='The Land of 25'),'a land the player names is kept');
+  assert.ok(calm.world.farLands.length<=10,'the nearest lands only');assert.ok(calm.world.farLands.every(l=>typeof l==='string')&&calm.world.regions.length+calm.world.farLands.length>=29&&!calm.world.regions.some(n=>calm.world.farLands.some(l=>l.startsWith(n+': '))),'every land still named, once');
+  assert.ok(sceneOf('long life: town again').world.farLands.some(l=>l.startsWith('The Land of 25: ')),'a land the player names is kept');
   assert.ok(JSON.stringify(s).length<JSON.stringify(calm).length*0.6,'a fight reads far less than a calm turn: '+JSON.stringify(s).length+' of '+JSON.stringify(calm).length);
   // Every check on the reply still sees the whole context: the trims touch only what the model reads.
   const whole=r.dmContext(fighter,lb.game,lb.health,'x');assert.ok(whole.world.farLands.length>10&&whole.peopleElsewhere?.length,'the context itself is whole');}
- {const s=sceneOf('fighter: conversation');const near=(s.nearbyNPCs??[]).find(n=>n.id==='keeper'),social=s.npcSocialState.find(n=>n.id==='keeper');
-  assert.ok(near&&social&&near.attitude===undefined&&social.attitude,'attitude told once, with the standings');assert.ok(near.role&&social.role===undefined,'the role told once, with who is here');
-  assert.deepEqual(Object.keys(s.conversationParticipants[0]).sort(),['id','name']);
-  const labels=sceneOf('fighter: town').choices.map(c=>c.label);assert.equal(labels.filter(l=>/an Unarmed Strike: they save against DC [0-9]+ or are held/.test(l)).length,1,'a note several choices share is given once');assert.equal(labels.filter(l=>/days on the road/.test(l)).length,1);assert.ok(labels.filter(l=>/^Grapple /.test(l)).length>1);}
+ {const s=sceneOf('fighter: conversation');const near=(s.nearbyNPCs??[]).find(n=>n.id==='keeper');
+  assert.ok(near&&near.attitude&&near.role&&!(s.npcSocialState??[]).some(n=>n===near||n?.id==='keeper'||/\[keeper\]/.test(String(n))),'who someone here is and how they stand: told once, with the people here');
+  assert.ok(s.conversationParticipants.every(p=>typeof p==='string'),'participants by id (their names are with the people here)');
+  const lines=sceneOf('fighter: town').choices;assert.ok(lines.every(l=>typeof l==='string'&&/^\[[^\]]+\]/.test(l)),'choices as lines, ids in brackets');
+  assert.equal(lines.filter(l=>/days on the road/.test(l)).length,1,'the ways beyond the map in one line');assert.ok(lines.some(l=>/\[beyond-N\] \[beyond-NE\]/.test(l)));
+  assert.ok(lines.filter(l=>/\[npc-grapple:[^\]]+\]/.test(l)).length>1&&lines.every(l=>(l.match(/\[npc-attack:([^:\]]+)/g)??[]).length<=1),'a line for each person here: the blows at them by id');}
  // What each phase cannot use is left out when the reply is read (the one schema allows it).
  {const told=await generate({input:'',context:{...ctx,engineResolved:['You travel to the mill.']}},{apiKey:'k',model:'m',fetchImpl:async()=>done({narration:'You arrive.',actionId:'travel-inn',worldEvent:'x',recruitment:[{npcId:'keeper',decision:'join',reason:'Why not.',terms:'',dc:null,class:null}]})});
   assert.deepEqual([told.narration,told.actionId,told.worldEvent,told.recruitment],['You arrive.',null,null,[]],'a telling only tells');
@@ -179,6 +181,27 @@ const strictProblems=(s,at,out=[])=>{
   assert.equal(globalThis.__questboundNoCacheKey,undefined);
   assert.equal(promptLayout,3);}
 
+ // ---- 5b. Token budgets (the host, 2026-10-21: "optimize token usage even further we shouldn't need that many per turn") ----
+ // Measured live, the provider caches the instructions and the schema of a turn and none of its scene, so the scene is
+ // paid in full every turn. By this check's rough count (which overshoots the provider's by about a quarter), the
+ // standing prompt, the schema and the scene of a calm turn, a conversation, a fight, a brawl, a party's fight, a
+ // wizard's turn and a long life's turns are held to a budget, so the savings cannot slip back unnoticed. Raise one only
+ // on purpose (and say why in AGENTS.md "The request in parts and a leaner turn").
+ {const fighter2=R.readyHero('fighter'),wizard2=R.readyHero('wizard');
+  let party=r.startParty(r.adventureSnapshot(fighter2,r.hostileEncounterGame(fighter2,r.newAdventure(fighter2),seq(3)),null,true),'A','Al');
+  party=r.joinParty(party,'B',{character:JSON.stringify(wizard2),game:r.newAdventure(wizard2),health:null,name:'Bo'}).snapshot;
+  await play('party: fight, words',r.partyView(party,'A'),{question:'I shout to Bo to watch the left.'});
+  const sceneTokens=q=>q.input.slice(1).filter(m=>m.role==='user').reduce((n,m)=>n+tokens(m.content),0);
+  // Measured on 2026-10-21 (before → after): town 3410 → 1877, conversation 3380 → 1805, fight 2509 → 1322 and
+  // 2544 → 1285, brawl telling 2977 → 1913, party fight 2461 → 1293, wizard 3827 → 2219, a long life 6833 → 4786
+  // and 3283 → 1772; the standing prompt 13618 → 8853 (the schema 2021, unchanged). Budgets leave about 8% of room.
+  const budgets={'fighter: town':2050,'fighter: conversation':2000,'fighter: fight':1450,'fighter: fight, words':1400,'fighter: brawl':2100,'party: fight, words':1400,'wizard: town':2400,'long life: town':5200,'long life: fight, words':1950};
+  const measured={standing:tokens(standingPrompt),schema:tokens(JSON.stringify(replySchemaFor()))};
+  for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
+  if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));
+  assert.ok(measured.standing<=9000,'the standing prompt within 9000 tokens (13618 before 2026-10-21): '+measured.standing);
+  assert.ok(measured.schema<=2100,'the reply schema within 2100 tokens: '+measured.schema);
+  for(const [label,most] of Object.entries(budgets))assert.ok(measured[label]<=most,label+': the scene within '+most+' tokens: '+measured[label]);}
  // ---- 6. What a warm cache can reuse: every leading part a request shares with one sent before it ----
  const U=sent.map(x=>units(x.q)),T=U.map(u=>u.map(tokens));
  const reuse=(i,j)=>{const n=sharedUnits(U[i],U[j]);return T[i].slice(0,n).reduce((a,b)=>a+b,0);};
