@@ -35,7 +35,7 @@ const body=(input,extra={})=>({input,context:{choices:[],story,player:{species:'
  const bare=await generate(meet,{...keys,fetchImpl:success({narration:'She looks you over.',introduce:person})});assert.equal(bare.introduce.gender,'other');assert.equal(bare.introduce.regard,null);
  // What is known of each person nearby reaches the model.
  await generate(body('I greet them.',{nearbyNPCs:[{id:'keeper',name:'Ysolde Fenn',regardsYourKind:{stance:'scornful',reason:'Tieflings burned the salt sheds.'}}]}),{...keys,fetchImpl:success({narration:'She does not smile.'})});
- assert.equal(requestScene(lastRequest).context.nearbyNPCs[0].regardsYourKind.stance,'scornful');
+ assert.match(requestScene(lastRequest).context.nearbyNPCs[0],/view of your kind: scornful: Tieflings burned the salt sheds/,'the people here as lines, their view of the hero\'s kind with its reason');
  // ---- Loot: every item comes with a note ----
  const shop=body('I search the wreck.',{inventory:{gold:20},stage:'wild'});
  const haul=await generate(shop,{...keys,fetchImpl:success({narration:'Under the thwart you find a tin and a ring.',loot:{gold:0,items:[{name:'Tin of pitch',kind:'gear',qty:1,value:0,note:'  Shipwright\'s pitch: seals a leak or a seam.  '},{name:'Silver ring',kind:'treasure',qty:1,value:25,note:'x'.repeat(400)},{name:'Wet rope',kind:'gear',qty:1,value:0}],reason:'Searched the wreck.'}})});

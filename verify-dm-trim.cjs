@@ -21,10 +21,10 @@ const sent=sceneFor(body,{canDiscover:true,canAmbush:false});
 assert.equal(sent.input,body.input);const s=sent.context;
 for(const key of ['actionContract','loadoutGuidance','castingHelp'])assert.equal(s[key],undefined,key+' moved into the instructions');
 for(const text of ['Never invent an action ID','opening strike','attackOptions.mainWeapon','I cast [spell] on [target]','(trained) or (expert)'])assert.ok(server.standingPrompt.includes(text),text);
-assert.ok(typeof s.skillChecks==='string'&&/(^|, )Arcana \+\d+ \(trained\)/.test(s.skillChecks)&&/any other skill: its ability modifier$/.test(s.skillChecks),'skills told in a line, only those that differ from their ability: '+s.skillChecks);
+assert.ok(typeof s.skillChecks==='string'&&/(^|, )Arcana \+\d+ \(trained\)/.test(s.skillChecks)&&!/any other skill/.test(s.skillChecks),'skills told in a line, only those that differ from their ability: '+s.skillChecks);
 {const k=s.story.npcs?.keeper;assert.ok(k?k.appearance===undefined&&k.personality===full.story.npcs.keeper.personality:s.nearbyNPCs.some(n=>n.id==='keeper'&&n.voice===full.story.npcs.keeper.personality),'Portrait text is for the painter; who someone is is told once');}
 assert.equal(s.story.locations,undefined,'Places are described once, in world.knownPlaces');assert.equal(s.story.foeStats,undefined);for(const k of ['id','libraryId','artId','introId'])assert.equal(s.story[k],undefined,k+' is for the game, not the telling');
-assert.ok(!s.journal.some(e=>/^AI DM conversation/.test(e)),'Conversation is kept once');assert.equal(s.conversationHistory.length,6);assert.ok(s.conversationHistory.every(e=>typeof e==='string'&&e.length<=1000&&e.endsWith('…')),'each exchange a line');
+assert.ok(!(s.journal??[]).some(e=>/^AI DM conversation/.test(e)),'Conversation is kept once');assert.equal(s.conversationHistory.length,6);assert.ok(s.conversationHistory.every(e=>typeof e==='string'&&e.length<=1000&&e.endsWith('…')),'each exchange a line');
 assert.equal(s.world.creatureTemplates,undefined,'the creature kinds of the game are in the standing prompt');assert.ok(server.standingPrompt.includes('bandit (a cutthroat), wolf (a dire wolf)'));
 assert.ok(s.world.knownPlaces.every(p=>typeof p==='string'&&!/\[inn\]/.test(p)),'The current place is described in world.current, the others in a line each');assert.ok(s.world.knownPlaces.every(p=>p.length<=420));
 assert.equal(s.travelRoutes,undefined,'Distances are in world.knownPlaces');assert.equal(s.npcDefenses,undefined,'No fight, no defenses');
@@ -86,7 +86,7 @@ const largestWorld=[],memorySent=[];
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
 const narrated=sceneFor({...body,context:{...full,engineResolved:['You rest.']}},{}).context;assert.equal(narrated.choices,undefined,'no choices while telling (an empty list is left out)');assert.deepEqual(narrated.spellReference,quiet.spellReference,'the spells stay while telling, with what lasts the tale, so the parts after them stay cached');assert.equal(narrated.recentEvents.length,Math.min(4,full.recentEvents.length));
 const legacy=sceneFor({input:'x',context:{...r.dmContext(hero,r.newAdventure(hero),hp)}},{}).context;assert.ok(Array.isArray(legacy.travelRoutes),'Without a written story the routes stay');
-assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{context:{now:['No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.']},input:'x'},'A bare context passes through, with what is true now and the player words last (and nothing empty)');
+assert.deepEqual(sceneFor({input:'x',context:{choices:[]}},{}),{context:{now:['No fight here: nothing attacks the player, who is free to act, talk, rest where offered and travel.']},input:'x'},'A bare context passes through, with what is true now and the player words last (and nothing empty)');
 // ---- Repairs instead of refusals ----
 const long=n=>'x'.repeat(n);
 const fixed=repairedDiscovery({name:' Drowned Chapel ',description:'A '+long(400),kind:'ruin',bearing:'N',miles:30,travel:true,danger:'risky',feature:long(250),lair:{template:'wolf',name:long(80),appearance:'Grey '+long(500),ally:null}});

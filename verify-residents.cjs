@@ -131,12 +131,12 @@ assert.ok(r.validAdventure(viewB,ilyra),'the party save is valid with residents'
 // ---- The Dungeon Master: people elsewhere told in brief, residents and peopleHere explained, ids up to n96 ----
 const server=require('./dm-server.cjs');
 const told=server.sceneFor({input:'I look around.',context:JSON.parse(JSON.stringify(ctx))},{}).context;
-const awayOf=id=>(told.npcSocialState??[]).find(n=>typeof n==='string'?n.includes('['+id+']'):n?.id===id),away=awayOf('n3'),near=(told.nearbyNPCs??[]).find(n=>n.id==='n1');
+const awayOf=id=>(told.npcSocialState??[]).find(n=>typeof n==='string'?n.includes('['+id+']'):n?.id===id),away=awayOf('n3'),near=(told.nearbyNPCs??[]).find(n=>typeof n==='string'?n.includes(' [n1]: '):n?.id==='n1');
 // Someone elsewhere is one line (a brief entry when a grudge, a bond, memories or a fate are to be told); empty parts
 // are left out of what the model reads.
 const rawAway=ctx.npcSocialState.find(n=>n.id==='n3');
 assert.ok(typeof away==='string'?away.startsWith(rawAway.name+' [n3]: ')&&away.includes('lives at '+rawAway.livesAt)&&away.includes(rawAway.attitude)&&(rawAway.metHero!==false||away.includes('not met')):Object.keys(away).every(k=>['attitude','bond','fate','grudge','id','livesAt','memories','metHero','name','role','ties'].includes(k)),'someone elsewhere is told in brief: '+JSON.stringify(away));
-assert.ok(near&&near.attitude&&near.role&&!awayOf('n1'),'someone here is told in full, once, with the people here');
+{const raw=ctx.npcSocialState.find(n=>n.id==='n1');assert.ok(typeof near==='string'&&near.includes('; '+raw.attitude)&&!awayOf('n1'),'someone here is told in full, once, a line with the people here: '+near);}
 const brief=server.sceneFor({input:'x',context:{npcSocialState:[{id:'n5',name:'Cass',present:false,memories:['a','b','c','d'],appearance:'long'}]}},{}).context.npcSocialState[0];same(brief.memories,['c','d']);assert.equal(brief.appearance,undefined);
 (async()=>{
  let sent=null;const fake=reply=>async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'Brom nods.',dialogue:[{speakerId:'n20',text:'Welcome back.'}],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,check:null,discovery:null,ambush:null,...reply})}]}]})};};

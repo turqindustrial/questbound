@@ -142,7 +142,7 @@ const strictProblems=(s,at,out=[])=>{
   for(const m of users.slice(0,-1)){const part=JSON.parse(m.content.slice(m.content.indexOf('\n')+1)).context;assert.ok(!part.player?.health,label+': the hit points go with this turn');assert.ok(!('now' in part)&&!('choices' in part)&&!('recentEvents' in part));}
   if(body.context.player?.health)assert.ok(last.context.player?.health,label+': the hero\'s hit points with this turn');
   assert.ok(!/:null[,}]|:\[\][,}]|:\{\}[,}]|:""[,}]/.test(JSON.stringify(body.context)),label+': nothing empty is sent');}
- {const s=requestScene(at('fighter: town')),keys=Object.keys(s.context);assert.ok(keys.indexOf('story')<keys.indexOf('world')&&keys.indexOf('world')<keys.indexOf('memory')&&keys.indexOf('memory')<keys.indexOf('choices'),'what lasts the tale, then the land, then the story so far, then this turn');
+ {const s=requestScene(at('fighter: town')),keys=Object.keys(s.context);const sofar=keys.includes('memory')?'memory':'journal';assert.ok(keys.indexOf('story')<keys.indexOf('world')&&(keys.indexOf(sofar)<0||keys.indexOf('world')<keys.indexOf(sofar))&&(keys.indexOf(sofar)<0||keys.indexOf(sofar)<keys.indexOf('choices'))&&keys.indexOf('world')<keys.indexOf('choices'),'what lasts the tale, then the land, then the story so far, then this turn');
   assert.equal(s.input,'I look around the market.');}
 
  // ---- 4. Only what the moment needs ----
@@ -161,12 +161,17 @@ const strictProblems=(s,at,out=[])=>{
   assert.ok(JSON.stringify(s).length<JSON.stringify(calm).length*0.6,'a fight reads far less than a calm turn: '+JSON.stringify(s).length+' of '+JSON.stringify(calm).length);
   // Every check on the reply still sees the whole context: the trims touch only what the model reads.
   const whole=r.dmContext(fighter,lb.game,lb.health,'x');assert.ok(whole.world.farLands.length>10&&whole.peopleElsewhere?.length,'the context itself is whole');}
- {const s=sceneOf('fighter: conversation');const near=(s.nearbyNPCs??[]).find(n=>n.id==='keeper');
-  assert.ok(near&&near.attitude&&near.role&&!(s.npcSocialState??[]).some(n=>n===near||n?.id==='keeper'||/\[keeper\]/.test(String(n))),'who someone here is and how they stand: told once, with the people here');
+ {const s=sceneOf('fighter: conversation'),raw=r.dmContext(fighter,f3.game,null,'x');const near=(s.nearbyNPCs??[]).find(n=>typeof n==='string'&&n.includes(' [keeper]: '));
+  const attitude=raw.npcSocialState.find(n=>n.id==='keeper')?.attitude;
+  assert.ok(near&&attitude&&near.includes('; '+attitude)&&!(s.npcSocialState??[]).some(n=>n?.id==='keeper'||/\[keeper\]/.test(String(n))),'who someone here is and how they stand: told once, a line with the people here: '+near);
   assert.ok(s.conversationParticipants.every(p=>typeof p==='string'),'participants by id (their names are with the people here)');
   const lines=sceneOf('fighter: town').choices;assert.ok(lines.every(l=>typeof l==='string'&&/^\[[^\]]+\]/.test(l)),'choices as lines, ids in brackets');
-  assert.equal(lines.filter(l=>/days on the road/.test(l)).length,1,'the ways beyond the map in one line');assert.ok(lines.some(l=>/\[beyond-N\] \[beyond-NE\]/.test(l)));
-  assert.ok(lines.filter(l=>/\[npc-grapple:[^\]]+\]/.test(l)).length>1&&lines.every(l=>(l.match(/\[npc-attack:([^:\]]+)/g)??[]).length<=1),'a line for each person here: the blows at them by id');}
+  assert.equal(lines.filter(l=>/days on the road/.test(l)).length,1,'the ways beyond the map in one line');assert.ok(lines.some(l=>/^\[beyond-ID\], ID: N, NE, /.test(l)));
+  // The blows at the people here: one line for everyone offered the same ones, ID standing for each id listed; read
+  // back, they are exactly the choices offered.
+  {const offered=r.dmContext(fighter,f.game,f.health,'I look around the market.').choices.map(c=>c.id).filter(id=>/^npc-(attack|grapple|shove|throw):/.test(id)).sort();
+   const shown=lines.filter(l=>/\[npc-[a-z]+:ID/.test(l)).flatMap(l=>{const [ids,who]=l.split(', ID: ');return who.split(/, | or /).flatMap(id=>[...ids.matchAll(/\[([^\]]+)\]/g)].map(m=>m[1].replace(':ID',':'+id)));}).sort();
+   assert.ok(offered.length>1);assert.deepEqual(plain(shown),plain(offered),'every blow offered, and only those');}}
  // What each phase cannot use is left out when the reply is read (the one schema allows it).
  {const told=await generate({input:'',context:{...ctx,engineResolved:['You travel to the mill.']}},{apiKey:'k',model:'m',fetchImpl:async()=>done({narration:'You arrive.',actionId:'travel-inn',worldEvent:'x',recruitment:[{npcId:'keeper',decision:'join',reason:'Why not.',terms:'',dc:null,class:null}]})});
   assert.deepEqual([told.narration,told.actionId,told.worldEvent,told.recruitment],['You arrive.',null,null,[]],'a telling only tells');
@@ -210,13 +215,17 @@ const strictProblems=(s,at,out=[])=>{
   const sceneTokens=q=>q.input.slice(1).filter(m=>m.role==='user').reduce((n,m)=>n+tokens(m.content),0);
   // Measured on 2026-10-21 (before → after): town 3410 → 1877, conversation 3380 → 1805, fight 2509 → 1322 and
   // 2544 → 1285, brawl telling 2977 → 1913, party fight 2461 → 1293, wizard 3827 → 2219, a long life 6833 → 4786
-  // and 3283 → 1772; the standing prompt 13618 → 8853 (the schema 2021, unchanged). Budgets leave about 8% of room.
-  const budgets={'fighter: town':2050,'fighter: conversation':2000,'fighter: fight':1450,'fighter: fight, words':1400,'fighter: brawl':2100,'party: fight, words':1400,'wizard: town':2400,'long life: town':5200,'long life: fight, words':1950};
+  // and 3283 → 1772; the standing prompt 13618 → 8853 (the schema 2021, unchanged). Again that day (the host: "optimize
+  // efficiency even more, then do it again until we are at the lowest possible cost per turn"; briefer in dm-server.cjs):
+  // town 1877 → 1308, conversation 1805 → 1254, fight 1322 → 811 and 1285 → 808, brawl telling 1913 → 1340, party fight
+  // 1293 → 832, wizard 2219 → 1513, a long life 4786 → 4010 and 1772 → 970; the standing prompt 8853 → 8326; the
+  // schema 2021 → 2226 (every effect an item of one list) and the empty reply's skeleton 67 → 14. Budgets leave about 8%.
+  const budgets={'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':880,'fighter: fight, words':880,'fighter: brawl':1450,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
   const measured={standing:tokens(standingPrompt),schema:tokens(JSON.stringify(replySchemaFor()))};
   for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
   if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));
-  assert.ok(measured.standing<=9000,'the standing prompt within 9000 tokens (13618 before 2026-10-21): '+measured.standing);
-  assert.ok(measured.schema<=2300,'the reply schema within 2300 tokens: '+measured.schema);
+  assert.ok(measured.standing<=8650,'the standing prompt within 8650 tokens (13618 before 2026-10-21, 8853 after its first pass): '+measured.standing);
+  assert.ok(measured.schema<=2300,'the reply schema within 2300 tokens (2021 with every effect spelled out): '+measured.schema);
   // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
   measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));
   assert.ok(measured.skeleton<=16,'an empty reply skeleton within 16 tokens (67 with every effect spelled out): '+measured.skeleton);
@@ -231,7 +240,9 @@ const strictProblems=(s,at,out=[])=>{
   const t1=idx('fighter: conversation');assert.equal(share('fighter: conversation','fighter: town again'),U[t1].length-1,'two calm turns of a hero share every part but this turn');
   assert.equal(share('fighter: fight, words','fighter: fight'),U[idx('fighter: fight, words')].length-1,'so do two turns of a fight');
   for(const [again,first] of [['fighter: retried (asked again)','fighter: retried'],['fighter: second look (asked again)','fighter: second look']])assert.equal(share(again,first),U[idx(first)].length,again+': everything before its note is the same as the first ask');
-  assert.ok(share('fighter: second look (telling)','fighter: second look')>=3,'a telling shares the instructions, the hero and what lasts the tale with the turn before it');
+  // A telling shares the instructions and the hero with the turn before it; what lasts the tale is told more briefly once
+  // a fight begins (the provider caches no part of the scene anyway: measured live on 2026-10-17 and 2026-10-21).
+  assert.ok(share('fighter: second look (telling)','fighter: second look')>=2,'a telling shares the instructions and the hero with the turn before it');
   assert.ok(share('wizard: town','fighter: town')>=1,'two heroes share the schema and the instructions');
   assert.ok(share('wizard: ruling','wizard: town')>=3&&share('wizard: out of character','wizard: town')>=3&&share('wizard: scene cue','wizard: town')>=3,'a ruling, a word out of character and a scene cue share the instructions, the hero and the tale with the hero\'s turns');}
  let cached=0,all=0,rows=[];
