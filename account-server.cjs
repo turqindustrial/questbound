@@ -42,6 +42,8 @@ async function askDungeonMaster(fetchImpl,dmBackend,payload,user,{onNarration=nu
 }
 function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow(),live,inviteLimits={}}={}){
  const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
+ // The private storage key is unlocked at once in the background (the first table opened after a restart needed it).
+ if(!operations)ops.warm?.();
  const bans=createBans({dir:accountsDir,now});
  // Wrong campaign invite codes per caller and overall (invite-guard.cjs), so guessing a short code stays impractical.
  const inviteGuard=createInviteGuard({file:path.join(dataDir,'.questbound-invite-misses.json'),now,limits:inviteLimits});

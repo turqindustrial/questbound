@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const {secretKey,seal,unseal}=require('./private-secrets.cjs');
+const {secretKey,secretKeyAsync,seal,unseal}=require('./private-secrets.cjs');
 function atomic(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file+'.tmp',JSON.stringify(value),{mode:0o600});fs.renameSync(file+'.tmp',file);}
 // One line in the security log (.questbound-security.jsonl): mechanical labels only, never emails, passwords, session
 // cookies, prompts, codes or network addresses. alerts.cjs (the gateway and the Dungeon Master) writes it this way too.
@@ -39,6 +39,8 @@ function createOperations({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.n
  // A keyed hash (HMAC with the private storage key): what the service keeps of a short secret it must recognise later
  // (a campaign's invite code), so a copy of the stored files alone cannot be searched for it.
  const keyed=(purpose,text)=>crypto.createHmac('sha256',getKey()).update(String(purpose)+':'+String(text)).digest('hex');
- return {audit,consume,backup,status,keyed};
+ // Unlock the key in the background (a service calls this when it starts), so no request waits for PowerShell.
+ const warm=()=>encryption?Promise.resolve(true):secretKeyAsync(path.join(dir,'.questbound-backup-key.dpapi')).then(k=>{encryption??=k;return true;},()=>false);
+ return {audit,consume,backup,status,keyed,warm};
 }
 module.exports={createOperations,atomic,auditTo};
