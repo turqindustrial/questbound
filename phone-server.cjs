@@ -19,7 +19,7 @@ const pairingPolicy=[false,true].map(shared=>pagePolicy(pairingPage(shared)));
 // on a hosted machine the header its proxy sets, given by the host (trustProxy), else the last X-Forwarded-For entry,
 // the one the nearest proxy added (earlier entries are whatever the visitor sent, so they are never trusted).
 const proxyHeaderFor=(shared,trustProxy)=>typeof trustProxy==='string'&&/^[a-z0-9-]{2,40}$/i.test(trustProxy)?trustProxy.toLowerCase():trustProxy?'x-forwarded-for':shared?'cf-connecting-ip':null;
-function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,requestLimit=3000,addressTurns=120,taleLimit=6,taleAddress=10,heroLimit=10,heroAddress=20,pairsPerAddress=10,guestsPerBrowser=10,guestsPerAddress=40,floodAlert=100,dataDir=process.env.QUESTBOUND_DATA||__dirname,alerts=null,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,metricsFile=null,metricsFrom='link',code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
+function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=8085,publicOrigin=null,pairingHours=24,sessionHours=24,maxSessions=20,dmLimit=120,dmTotal=600,artLimit=600,syncLimit=600,waitLimit=1200,typingLimit=400,waitsPerBrowser=3,waitsInAll=300,requestLimit=3000,addressTurns=120,taleLimit=6,taleAddress=10,heroLimit=10,heroAddress=20,pairsPerAddress=10,guestsPerBrowser=10,guestsPerAddress=40,floodAlert=100,dataDir=process.env.QUESTBOUND_DATA||__dirname,alerts=null,trustProxy=false,expiresAt=null,busyWait=60000,sessionStore=null,feedbackFile=null,metricsFile=null,metricsFrom='link',code=String(crypto.randomInt(10000000,100000000)),now=Date.now,fetchImpl=fetch,backends=['http://127.0.0.1:8084','http://127.0.0.1:8083'],syncBackend='http://127.0.0.1:8086',mailer=null,feedbackMail={hour:20,day:50}}={}){
  root=path.resolve(root);
  const shared=publicOrigin?new URL(publicOrigin):null;
  if(shared&&(shared.protocol!=='https:'||shared.pathname!=='/'||shared.search||shared.hash))throw Error('A shared link must be a plain https:// origin.');
@@ -44,7 +44,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  // and make only so many guest identities (and each browser only so many). The address figures are generous enough
  // for a family or a classroom behind one address: two browsers playing flat out use about 120 turns in ten minutes.
  const limiter=(max,span)=>createLimiter(max,span,{now});
- const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),addressTurns:limiter(addressTurns,600000),allTurns:limiter(dmTotal,600000),tales:limiter(taleLimit,3600000),talesAddress:limiter(taleAddress,3600000),heroes:limiter(heroLimit,3600000),heroesAddress:limiter(heroAddress,3600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),register:limiter(5,3600000),guest:limiter(20,3600000),guestDay:limiter(guestsPerAddress,86400000),guestBrowser:limiter(guestsPerBrowser,86400000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
+ const limits={every:limiter(requestLimit,600000),turns:limiter(dmLimit,600000),addressTurns:limiter(addressTurns,600000),allTurns:limiter(dmTotal,600000),tales:limiter(taleLimit,3600000),talesAddress:limiter(taleAddress,3600000),heroes:limiter(heroLimit,3600000),heroesAddress:limiter(heroAddress,3600000),art:limiter(artLimit,600000),sync:limiter(syncLimit,600000),waits:limiter(waitLimit,600000),typing:limiter(typingLimit,600000),register:limiter(5,3600000),guest:limiter(20,3600000),guestDay:limiter(guestsPerAddress,86400000),guestBrowser:limiter(guestsPerBrowser,86400000),login:limiter(20,600000),recover:limiter(20,600000),password:limiter(10,600000)};
  // One address refused again and again is someone hammering the game: the host is told (alerts.cjs: the security log
  // and, if connected, Discord), at most once an hour, without the address itself.
  const alert=alerts??require('./alerts.cjs').createAlerts({dir:dataDir,now}),refusals=new Map();
@@ -54,7 +54,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
  // The host's switch (Questbound.cmd -PauseGuests writes the file, -ResumeGuests removes it): all guest AI is refused at once, no restart needed.
  const paused=()=>fs.existsSync(path.join(dataDir,'.questbound-guests-paused'));
  const pausedWords='The game is paused by the host. Your adventure is unchanged; try again later.';
- const pairedFrom=new Map();
+ const pairedFrom=new Map(),openWaits=new Map();let waitsOpen=0;
  // Behind the tunnel every request arrives from loopback and the tunnel names the real visitor in CF-Connecting-IP; a
  // hosted gateway behind its platform's proxy (trustProxy, serve.cjs) reads the proxy's header for the same reason.
  const proxyHeader=proxyHeaderFor(shared,trustProxy);
@@ -154,14 +154,22 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
     // The table is polled every few seconds; sign-ups and sign-ins (per visitor), recovery codes and passwords (per browser) are rare.
     const visitor=String(client(req)??'');
     if(syncRoute==='campaign-turn'&&paused())return json(res,503,{error:pausedWords});
-    {const seconds=limits.sync(token)||(syncRoute==='campaign-turn'?limits.turns(token)||limits.addressTurns(visitor)||limits.allTurns('all'):syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-guest'?limits.guestBrowser(token)||limits.guest(visitor)||limits.guestDay(visitor):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
+    // The live table (campaign-live.cjs): held waits and typing pings have allowances of their own, so a browser that
+    // waits all the time keeps its whole table allowance (syncLimit) for everything else; and only so many waits may be
+    // held open at once by one browser (waitsPerBrowser) and by the gateway (waitsInAll).
+    const live=syncRoute==='campaign-wait'||syncRoute==='campaign-typing';
+    if(syncRoute==='campaign-wait'){if((openWaits.get(token)??0)>=waitsPerBrowser)return wait(res,2,'The shared table is being asked too often. The game will catch up in a moment.',visitor);if(waitsOpen>=waitsInAll)return json(res,503,{error:'The shared table has many players waiting. Your game will catch up in a moment.'},{'Retry-After':'5'});}
+    {const seconds=syncRoute==='campaign-wait'?limits.waits(token):syncRoute==='campaign-typing'?limits.typing(token):limits.sync(token)||(syncRoute==='campaign-turn'?limits.turns(token)||limits.addressTurns(visitor)||limits.allTurns('all'):syncRoute==='account-register'?limits.register(visitor):syncRoute==='account-guest'?limits.guestBrowser(token)||limits.guest(visitor)||limits.guestDay(visitor):syncRoute==='account-login'?limits.login(visitor):syncRoute==='cloud-load'?limits.recover(token):syncRoute==='account-password'||syncRoute==='account-delete'?limits.password(token):0);
      if(seconds)return wait(res,seconds,syncRoute.startsWith('account')||syncRoute==='cloud-load'?'Too many tries. Wait a few minutes and try again.':syncRoute==='campaign-turn'?'The Dungeon Master needs a short rest. Try again in a few minutes. Your adventure is unchanged.':'The shared table is being asked too often. The game will catch up in a moment.',visitor);}
-    const raw=await body(req,2500000);let response;
+    const raw=await body(req,live?1024:2500000);let response;
+    // A held wait is let go upstream as soon as the browser goes away, and counted while it is open.
+    const gone=new AbortController(),held=syncRoute==='campaign-wait';
+    if(held){openWaits.set(token,(openWaits.get(token)??0)+1);waitsOpen++;let counted=true;const release=()=>{if(!counted)return;counted=false;waitsOpen--;const n=(openWaits.get(token)??1)-1;if(n>0)openWaits.set(token,n);else openWaits.delete(token);};res.on('close',()=>{release();if(!res.writableFinished)gone.abort();});}
     // The table service is told who is asking (never trusted from the visitor), so wrong account passwords are counted per visitor.
-    try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json','X-Questbound-Client':visitor.slice(0,80),Cookie:req.headers.cookie??'','X-Questbound-Secure':shared?'1':'0'},body:raw,signal:AbortSignal.timeout(syncRoute==='campaign-turn'?240000:20000)});}
-    catch{return json(res,503,{error:'The shared table is not running on the PC.'});}
+    try{response=await fetchImpl(syncBackend+'/'+syncRoute,{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json','X-Questbound-Client':visitor.slice(0,80),Cookie:req.headers.cookie??'','X-Questbound-Secure':shared?'1':'0'},body:raw,signal:AbortSignal.any([AbortSignal.timeout(syncRoute==='campaign-turn'?240000:held?40000:20000),gone.signal])});}
+    catch{if(gone.signal.aborted)return;return json(res,503,{error:'The shared table is not running on the PC.'});}
     const accountCookie=response.headers.get('set-cookie');if(accountCookie)res.setHeader('Set-Cookie',accountCookie);
-    return json(res,response.status,await response.json());
+    const answer=await response.json();if(gone.signal.aborted)return;return json(res,response.status,answer);
    }
    if(pathname==='/api/sync/health'&&req.method==='GET'){try{const r=await fetchImpl(syncBackend+'/health',{signal:AbortSignal.timeout(2500)});return json(res,r.status,await r.json());}catch{return json(res,503,{ready:false});}}
    // Playtest feedback from inside the game lands in a plain notes file on the host's PC.
@@ -235,7 +243,7 @@ function createPhoneServer({root=path.join(__dirname,'dist-phone'),host,port=808
   }catch(e){if(!res.headersSent)json(res,e.status??502,{error:e.name==='TimeoutError'?'The PC took too long to respond. Try again.':e.status?e.message:'The phone connection could not complete that request.'});else res.destroy();}
  });
  server.requestTimeout=120000;server.headersTimeout=10000;
- return {server,info:{desktop:'http://localhost:8081/',phone:origin+'/',pairingCode:code,expiresAt:new Date(expires).toISOString(),limits:{turns:dmLimit,turnsInAll:dmTotal,art:artLimit,table:syncLimit,requests:requestLimit,turnsPerAddress:addressTurns,talesPerHour:taleLimit,talesPerAddress:taleAddress,heroesPerHour:heroLimit,heroesPerAddress:heroAddress,pairsPerAddress,guestsPerBrowser,guestsPerAddress}}};
+ return {server,info:{desktop:'http://localhost:8081/',phone:origin+'/',pairingCode:code,expiresAt:new Date(expires).toISOString(),limits:{turns:dmLimit,turnsInAll:dmTotal,art:artLimit,table:syncLimit,tableWaits:waitLimit,typing:typingLimit,waitsPerBrowser,waitsInAll,requests:requestLimit,turnsPerAddress:addressTurns,talesPerHour:taleLimit,talesPerAddress:taleAddress,heroesPerHour:heroLimit,heroesPerAddress:heroAddress,pairsPerAddress,guestsPerBrowser,guestsPerAddress}}};
 }
 // Home Wi-Fi only: the Wi-Fi link is plain http, so it starts only on a network Windows calls Private (or a work
 // domain), or one the host has marked as home (`Questbound.cmd -TrustNetwork` writes its name to

@@ -10,6 +10,7 @@ import {loadAdventure,saveAdventure,adventureSnapshot,validAdventure,forgetAdven
 import {scheduleCloudSave} from './cloudRules';
 import {noteProblem} from './problemLog';
 import {sceneArtSubjects} from './worldArtRules';
+import {ensureArt} from './artClient';
 import {isPartyGame,partyView} from './partyRules';
 import {backupLocalSave} from './tableClient';
 import {accountsOffered} from './accountRules';
@@ -55,8 +56,12 @@ export function useHeroSaves({transition,setNewStoryRequested}){
     return ()=>{current=false;};
   },[loading,hero,game,health,characterChosen,storageError,adventureBlocked,saveRetry]);
   // The shared table's adventure replaces this device's only after it passes the same checks as a local save.
-  async function applyRemote(snapshot,isCurrent=()=>true){
-    await transition.prepare(sceneArtSubjects(snapshot.game));
+  // A live update at the table (`quick`: a turn kept, an edit, pushed by the table's held wait) shows at once, as a turn
+  // does solo; its new pictures are fetched meanwhile and fade in by themselves. Joining a table, or the first state after
+  // a reload, still waits a moment for the scene's pictures (SceneTransition.js).
+  async function applyRemote(snapshot,isCurrent=()=>true,{quick=false}={}){
+    if(quick)for(const subject of sceneArtSubjects(snapshot.game))ensureArt(subject).catch(()=>{});
+    else await transition.prepare(sceneArtSubjects(snapshot.game));
     // A party: this device plays its own hero, joining with it the first time (partyRules.js).
     if(isPartyGame(snapshot?.game)){
       let view=partyView(snapshot,snapshot.game.party.lead); // the server sends each player the table with their own seat in the lead

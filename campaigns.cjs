@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {atomic}=require('./operations.cjs'),{resolveTurn}=require('./server-turn.cjs'),{moderationLabel}=require('./bans.cjs');
+const {createLive}=require('./campaign-live.cjs');
 const fail=(status,message)=>Object.assign(Error(message),{status});
 const digest=text=>crypto.createHash('sha256').update(text).digest('hex');
 const clean=text=>typeof text==='string'?text.replace(/[\x00-\x1f<>]/g,'').trim().slice(0,40):'';
@@ -36,19 +37,22 @@ function typedBy(snapshot,member){
  const lines=[];for(const turn of snapshot?.game?.playback??[])for(const e of turn?.events??[])if(e?.kind==='player'&&typeof e.text==='string'&&(e.speakerSeat?e.speakerSeat===member.seat:e.speakerName===member.name))lines.push(e.text.replace(/[\x00-\x1f]+/g,' ').slice(0,300));
  return lines.slice(-5);
 }
-function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=null,onReport=null}={}){
- const r=require('./rules-engine.cjs').rules(),presence=new Map(),locks=new Map(),reports=new Map();
+function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=null,onReport=null,live:liveOptions={}}={}){
+ // Waits, typing and who is here or acting live in memory (campaign-live.cjs): its presence and lock Maps tell held
+ // waits when someone arrives, leaves or begins a turn, and persist tells them of every new version.
+ const live=createLive({now,...liveOptions});
+ const r=require('./rules-engine.cjs').rules(),presence=live.presence(),locks=live.locks(),reports=new Map();
  const nameCheck=async(name,user)=>{if(!moderate||!name)return;let verdict=null;try{verdict=await moderate(name,user);}catch{}if(verdict&&verdict.action&&verdict.action!=='allow')throw fail(400,typeof verdict.line==='string'&&verdict.line?verdict.line.slice(0,300):'Choose another name for the table.');};
  const isBanned=(c,user)=>(c.banned??[]).some(b=>b.hash===banKey(c,user.id));
  // A member leaves the table: their seat, their hero at a party table and their receipts (the party's lead passes on).
  const dropMember=(c,id)=>{const gone=c.members[id].seat;delete c.members[id];presence.delete(c.id+':'+gone);if(r.isPartyGame(c.snapshot.game)&&Object.keys(c.members).length){const lead=Object.values(c.members)[0].seat;if(c.snapshot.game.party.lead===gone)c.snapshot=r.partyView(c.snapshot,lead);delete c.snapshot.game.party.members[gone];c.snapshot.game.party.order=c.snapshot.game.party.order.filter(v=>v!==gone);delete c.snapshot.game.turnOrder;}c.receipts=(c.receipts??[]).filter(x=>x.by!==gone);};
  const ids=()=>{try{return fs.readdirSync(dir).filter(n=>/^[a-f0-9]{32}\.json$/.test(n)).map(n=>n.slice(0,32));}catch{return [];}};
  const file=id=>{if(!/^[a-f0-9]{32}$/.test(id??''))throw fail(404,'Campaign not found.');return path.join(dir,id+'.json');};
- const persist=c=>{operations?.backup.put('campaign-'+c.id,c);atomic(file(c.id),c);};
+ const persist=c=>{operations?.backup.put('campaign-'+c.id,c);atomic(file(c.id),c);live.changed(c.id,c.version);};
  // A table saved by an older build is brought to the current save format the first time it is read (saveMigrations.js,
  // SAVES.md), and so is a hero brought to a table; an upgraded copy the checks would refuse is never used.
  const upgraded=s=>{const u=r.upgradeAdventure(s);return u!==s&&validSnapshot(u)?u:s;};
- const read=id=>{let c;try{c=JSON.parse(fs.readFileSync(file(id),'utf8'));}catch{throw fail(404,'Campaign not found.');}const was=c.snapshot;c.snapshot=upgraded(c.snapshot);if(seated(c)|c.snapshot!==was)persist(c);return c;};
+ const read=id=>{let c;try{c=JSON.parse(fs.readFileSync(file(id),'utf8'));}catch{throw fail(404,'Campaign not found.');}const was=c.snapshot;c.snapshot=upgraded(c.snapshot);if(seated(c)|c.snapshot!==was)persist(c);live.seen(c.id,c.version);return c;};
  const seat=(c,user)=>c.members[user.id].seat;
  const present=(c,place)=>now()-(presence.get(c.id+':'+place)??0)<15000;
  // When the current turn in a party fight began, kept on the server only: after 90 s anyone may pass it.
@@ -56,7 +60,9 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
  const requireMember=(id,user)=>{const c=read(id);if(!c.members[user.id]){if(isBanned(c,user))throw removedError();operations?.audit('campaign-access-denied',{account:user.id,campaign:id});throw fail(403,'You are not a member of this campaign.');}return c;};
  const free=c=>{if(locks.has(c.id))throw fail(423,'A turn is being resolved. Wait for it to finish.');};
  const touch=(c,user)=>presence.set(c.id+':'+seat(c,user),now());
- function state(c,user,known=-1){
+ // What a member sees: memberState below, plus who is typing and a key for the presence they have seen (campaign-live.cjs).
+ const state=(c,user,known)=>{const s=memberState(c,user,known);return {...s,players:s.players.map(p=>({...p,typing:live.isTyping(c.id,p.id)})),presence:live.presenceKey(c.id)};};
+ function memberState(c,user,known=-1){
   const players=Object.values(c.members).filter(m=>present(c,m.seat)).map(m=>({id:m.seat,name:m.name,role:m.role,acting:locks.get(c.id)===m.seat}));
   // Everyone seated, here or not (so a player can mute or report someone who has stepped away), and for the host the
   // people kept out of this table.
@@ -87,6 +93,7 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    c.members[user.id]={name,role:'player',seat:place};touch(c,user);return advance(c,snapshot,user);
  }
  return {
+  live,
   // The name a player gives is vetted first when a content check is configured (then the answer is a promise).
   create(user,b){if(b&&typeof b==='object')b={...b,snapshot:upgraded(b.snapshot)};return moderate?nameCheck(clean(b.name),user).then(()=>createNow(user,b)):createNow(user,b);},
   join(user,b){
@@ -96,6 +103,19 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
   },
   poll(user,b){const c=requireMember(b.campaignId,user);touch(c,user);return state(c,user,b.knownVersion);},
   leave(user,b){const c=requireMember(b.campaignId,user);presence.delete(c.id+':'+seat(c,user));return {left:true};},
+  // A held wait (route campaign-wait): the same view as poll, answered as soon as the version or who is here, typing or
+  // acting differs from what this member last saw (knownVersion, knownPresence), else after about 25 s as it is.
+  wait(user,b,{signal}={}){
+   const c=requireMember(b.campaignId,user),place=seat(c,user),id=c.id;touch(c,user);
+   const known=Number.isInteger(b.knownVersion)?b.knownVersion:-1,seen=typeof b.knownPresence==='string'?b.knownPresence.slice(0,32):'';
+   const check=force=>{if(!force&&live.version(id)===known&&live.presenceKey(id)===seen)return null;const fresh=requireMember(id,user);return {answer:state(fresh,user,known),urgent:fresh.version!==known};};
+   return live.wait(id,place,check,{signal});
+  },
+  // A typing ping (route campaign-typing): only "typing" or not, never the words; it lapses by itself (campaign-live.cjs).
+  typing(user,b){
+   const c=requireMember(b.campaignId,user);if(typeof b.typing!=='boolean')throw fail(400,'Say whether you are typing.');touch(c,user);
+   const on=b.typing&&locks.get(c.id)!==seat(c,user);live.setTyping(c.id,seat(c,user),on);return {typing:on};
+  },
   invite(user,b){const c=requireMember(b.campaignId,user);if(c.owner!==user.id)throw fail(403,'Only the campaign host can issue invites.');free(c);const invite=crypto.randomBytes(12).toString('base64url');c.inviteHash=digest(invite);c.inviteUntil=now()+7*86400000;persist(c);return {invite};},
   list(user){return {campaigns:ids().map(read).filter(c=>c.members[user.id]).map(c=>({id:c.id,role:c.members[user.id].role,updatedAt:c.updatedAt,title:c.snapshot.game.story?.title??'Shared adventure'}))};},
   async turn(user,b){
@@ -175,7 +195,7 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    mine.push({at:now(),seat:b.seat});reports.set(user.id,mine);if(reports.size>2000)reports.delete(reports.keys().next().value);
    operations?.audit('campaign-report',{campaign:c.id});return {reported:true};
   },
-  removeAccount(id){for(const campaign of ids()){const c=read(campaign);if(c.members[id]){if(c.owner===id){fs.rmSync(file(c.id),{force:true});operations?.backup.remove('campaign-'+c.id);}else{dropMember(c,id);c.version++;clock(c);persist(c);}}}},
+  removeAccount(id){for(const campaign of ids()){const c=read(campaign);if(c.members[id]){if(c.owner===id){fs.rmSync(file(c.id),{force:true});operations?.backup.remove('campaign-'+c.id);live.changed(c.id,-1);}else{dropMember(c,id);c.version++;clock(c);persist(c);}}}},
  };
 }
 module.exports={createCampaigns,validSnapshot,reportReasons};

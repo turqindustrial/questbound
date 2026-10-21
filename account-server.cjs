@@ -12,7 +12,7 @@ const requiredInFile=(()=>{try{return /export const accountsRequired=(true|false
 const accountsRequiredNow=()=>process.env.QUESTBOUND_REQUIRE_ACCOUNTS==='1'||requiredInFile;
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 const accountRoutes=['guest','register','login','verify','save','load','status','logout','logout-all','password','delete'];
-const campaignRoutes=['create','join','list','invite','turn','edit','report','ban','unban'];
+const campaignRoutes=['create','join','list','invite','turn','edit','report','ban','unban','wait','typing'];
 const routes=new Set(['poll','save','leave','cloud-save','cloud-load','usage','ops-status','ops-verify-backups',...accountRoutes.map(x=>'account-'+x),...campaignRoutes.map(x=>'campaign-'+x)]);
 const cookieToken=req=>req.headers.cookie?.match(/(?:^|;\s*)questbound_account=([a-f0-9]{64})(?:;|$)/)?.[1]??'';
 const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');return /^[A-Z0-9]{12}$/.test(c)?crypto.createHash('sha256').update('questbound-cloud-v1:'+c).digest('hex'):null;};
@@ -20,7 +20,7 @@ const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/
 // browser the host of the whole game has banned (node accounts.cjs ban …, bans.cjs) is refused everything here: the
 // Dungeon Master (the gateways ask /usage first), every campaign route and feedback (the gateway asks /usage too).
 const bannedLine='The host of this game has closed it to this browser.';
-function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow()}={}){
+function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow(),live}={}){
  const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
  const bans=createBans({dir:accountsDir,now});
  let campaigns=null;
@@ -33,13 +33,16 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
  // set up, to the mailbox, at most ten an hour.
  const notesFile=feedbackFile??path.join(dataDir,dataDir===__dirname?'playtest-feedback.md':'feedback.md'),mailedReports=[];
  const onReport=report=>{const entry=reportEntry(report,{now:now()});saveFeedback(notesFile,entry);while(mailedReports.length&&mailedReports[0]<=now()-3600000)mailedReports.shift();if(mailedReports.length<10&&mail.configured?.()){mailedReports.push(now());mail.feedback?.(entry.markdown)?.catch?.(()=>{});}};
- campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl,moderate:dmModerate,onReport});
+ campaigns=createCampaigns({dir:path.join(dir,'campaigns'),now,operations:ops,ask:dmAsk,randomImpl,moderate:dmModerate,onReport,...(live?{live}:{})});
  // Allowances in sliding windows. Signing up, signing in and recovery codes are counted per visitor address (the caller
  // the gateway names), as is anything sent without a valid sign-in; everything else per signed-in account, so players
  // behind one home or carrier address never share a bucket. The gateway asks 'usage' before each Dungeon Master
  // request: turns count against the account, illustration and story checks (kind 'art') are not counted here at all
  // (the gateway limits them per browser and spending.cjs prices the paintings).
- const quota={poll:[1200,600000],'campaign-report':[10,3600000],'campaign-ban':[30,3600000],'account-guest':[20,3600000],'guests-overall':[300,3600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],usage:[240,600000],unauthenticated:[300,600000],other:[300,600000],...limits};
+ // A held wait (campaign-wait) answers at most about once a second for presence and at once for a new version, else
+ // every 25 s; typing pings come every few seconds while someone types (campaign-live.cjs, useSharedTable.js).
+ const quota={poll:[1200,600000],'campaign-wait':[1500,600000],'campaign-typing':[400,600000],'campaign-report':[10,3600000],'campaign-ban':[30,3600000],'account-guest':[20,3600000],'guests-overall':[300,3600000],'account-register':[10,3600000],'account-login':[30,600000],'account-verify':[20,600000],'campaign-join':[20,600000],usage:[240,600000],unauthenticated:[300,600000],other:[300,600000],...limits};
+ const liveRoutes=new Set(['campaign-wait','campaign-typing']);
  const perCaller=new Set(['account-guest','account-register','account-login','account-verify','account-logout','cloud-load']);
  const routeLimits=new Map([...routes,'unauthenticated','guests-overall'].map(route=>{const [max,span]=quota[route]??quota.other;return [route,createLimiter(max,span,{now})];}));
  const tooMany=(res,send,route,seconds)=>{ops.audit('rate-denied',{route,status:429});res.setHeader('Retry-After',String(seconds));return send(429,{error:'Too many tries. Wait a few minutes and try again.'});};
@@ -60,6 +63,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    caller=String(req.headers['x-questbound-client']??'this-pc').slice(0,80);
    if(perCaller.has(route)){const seconds=routeLimits.get(route)(caller);if(seconds)return tooMany(res,send,route,seconds);}
    let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>2500000)return send(413,{error:'This adventure is too large.'});}
+   if(liveRoutes.has(route)&&Buffer.byteLength(raw)>1024)return send(413,{error:'Invalid request.'});
    let b;try{b=JSON.parse(raw);}catch{return send(400,{error:'Invalid request.'});}
    if(!b||typeof b!=='object'||Array.isArray(b))return send(400,{error:'Invalid request.'});
    if(Object.hasOwn(b,'token'))return send(400,{error:'This version uses a protected sign-in cookie. Reload and sign in again.'});
@@ -93,6 +97,8 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(route==='account-delete'){const result=await accounts.remove(token,b.password,caller);campaigns.removeAccount(user.id);setSession('');return send(200,result);}
    if(route==='save')return send(403,{error:'Whole-adventure writes are disabled. Send an action to the campaign.'});
    if(route==='poll'||route==='leave')return send(200,campaigns[route](user,b));
+   // A held wait ends when the caller goes away (the gateway or the browser closing the request), so it holds nothing.
+   if(route==='campaign-wait'){const gone=new AbortController();res.on('close',()=>{if(!res.writableFinished)gone.abort();});let result;try{result=await campaigns.wait(user,b,{signal:gone.signal});}catch(e){if(gone.signal.aborted)return;throw e;}if(gone.signal.aborted)return;return send(200,result);}
    if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](req.headers['x-questbound-local']==='1'?{...user,local:true}:user,b);return send(result.conflict?409:200,result);}
    if(route==='usage'){if(b.kind==='dm')ops.consume(user.id,'dm-requests',300);return send(200,{allowed:true,id:user.id});}
    if(route==='ops-status'||route==='ops-verify-backups'){

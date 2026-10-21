@@ -39,7 +39,7 @@ const never=async()=>{throw Error('the provider is never called in this check');
   const hero=fixture.snapshot();
   r=await call(port,'/api/sync/campaign-create',{method:'POST',headers,body:JSON.stringify({snapshot:hero,name:'Ada'})});assert.equal(r.status,200);
   assert.ok(fs.existsSync(path.join(data,'accounts'))&&fs.existsSync(path.join(data,'sessions.json')),'accounts and paired browsers live in the data folder');
-  assert.deepEqual(hosted.info.limits,{turns:60,turnsInAll:1200,art:600,table:600,requests:3000,turnsPerAddress:120,talesPerHour:6,talesPerAddress:10,heroesPerHour:10,heroesPerAddress:20,pairsPerAddress:10,guestsPerBrowser:10,guestsPerAddress:40});
+  assert.deepEqual(hosted.info.limits,{turns:60,turnsInAll:1200,art:600,table:600,tableWaits:1200,typing:400,waitsPerBrowser:3,waitsInAll:300,requests:3000,turnsPerAddress:120,talesPerHour:6,talesPerAddress:10,heroesPerHour:10,heroesPerAddress:20,pairsPerAddress:10,guestsPerBrowser:10,guestsPerAddress:40});
  }finally{await hosted.close();}
  // A restart keeps the invite code and the paired browser.
  hosted=await startHosted({dataDir:data,root,publicOrigin:'https://play.example',port:0,bind:'127.0.0.1',sync:fixture.options,dm:{apiKey:'test-key',model:'test-model',fetchImpl:never},log:()=>{}});
