@@ -141,7 +141,9 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
     const savedAt=new Date(now()).toISOString(),record={savedAt,snapshot:b.snapshot};ops.backup.put('cloud-'+key,record);atomic(file,record);return send(200,{saved:true,savedAt});
    }
    return send(404,{error:'Not found.'});
-  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.',...(e.removed?{removed:true}:{}),...(e.needsHero?{needsHero:true}:{}),...(e.needsTale?{needsTale:true}:{})});}
+  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});
+   // An unexpected fault (no status) is logged for the host, its message and where it happened only (never a request body).
+   if(!e.status)console.error(new Date().toISOString()+' '+route+' failed: '+String(e?.stack??e).split('\n').slice(0,6).join(' | '));send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.',...(e.removed?{removed:true}:{}),...(e.needsHero?{needsHero:true}:{}),...(e.needsTale?{needsTale:true}:{})});}
  });
  server.requestTimeout=20000;server.headersTimeout=10000;
  return {server,accounts,campaigns,operations:ops,bans};
