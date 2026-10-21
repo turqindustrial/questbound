@@ -186,21 +186,28 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  // The feed follows the newest line until the player scrolls up (its own scrolling only ever moves down), and the
  // first jump to the end, when the game opens, is instant rather than animated.
  const lastY=useRef(0),settled=useRef(false);
- const count=turn?(phase.id===turn.id?phase.count:turn.id===animateId&&!reduceMotion?1:turn.events.length):0;
+ // A turn plays out once: one that has begun playing is shown whole when it comes back into view (a conversation opened
+ // and closed, a table's state arriving again), never played a second time from its first line.
+ const played=useRef(new Set()),fresh=t=>!!t&&t.id===animateId&&!reduceMotion&&!played.current.has(t.id);
+ const count=turn?(phase.id===turn.id?phase.count:fresh(turn)?1:turn.events.length):0;
+ // Whether the newest turn is playing now (its dice roll, its sounds and cues sound): only the first time it plays.
+ const live=!!turn&&(phase.id===turn.id?phase.live===true:fresh(turn));
  const playing=!!turn&&count<turn.events.length;
  const feedLimit=width<600?Math.max(150,Math.min(260,height*.3)):Math.max(230,Math.min(400,height*.43));
  useEffect(()=>{let mounted=true;AccessibilityInfo.isReduceMotionEnabled().then(v=>{if(mounted)setReduceMotion(v);});const subscription=AccessibilityInfo.addEventListener('reduceMotionChanged',setReduceMotion);return()=>{mounted=false;subscription.remove();};},[]);
  useEffect(()=>{
   if(!turn)return;
   follow.current=true;if(!fill)scroll.current?.scrollTo({y:0,animated:false});
-  setPhase({id:turn.id,count:turn.id===animateId&&!reduceMotion?1:turn.events.length});
-  if(turn.id!==animateId||reduceMotion)return;
-  const timer=setInterval(()=>setPhase(p=>{const count=Math.min(turn.events.length,p.count+1);if(count===turn.events.length)clearInterval(timer);return {id:turn.id,count};}),850);
+  const animate=fresh(turn);
+  setPhase({id:turn.id,count:animate?1:turn.events.length,live:animate});
+  if(!animate)return;
+  played.current.add(turn.id);
+  const timer=setInterval(()=>setPhase(p=>{const count=Math.min(turn.events.length,p.count+1);if(count===turn.events.length)clearInterval(timer);return {id:turn.id,count,live:true};}),850);
   return()=>clearInterval(timer);
  },[turn?.id,animateId,reduceMotion]);
  useEffect(()=>{onPlayingChange(playing);return()=>onPlayingChange(false);},[playing,onPlayingChange]);
  // While this turn plays, the HUD's HP bars follow the story instead of jumping straight to the result.
- useLayoutEffect(()=>{if(!fill||!names)return;const animating=!!turn&&turn.id===animateId&&!reduceMotion&&playing;setShownHp(animating?shownHp(turn.events,count,names):null);},[fill,turn?.id,count,animateId,reduceMotion,playing,names?.hero,names?.foe]);
+ useLayoutEffect(()=>{if(!fill||!names)return;const animating=live&&playing;setShownHp(animating?shownHp(turn.events,count,names):null);},[fill,turn?.id,count,live,reduceMotion,playing,names?.hero,names?.foe]);
  useEffect(()=>()=>{if(fill)setShownHp(null);},[fill]);
  const mutedList=useMutedMembers();
  const row=(t,e,i,live)=><EventRow key={t.id+'-'+i} event={e} reduceMotion={!live||reduceMotion} sound={live} me={me} avatarFor={avatarFor} sceneFor={sceneFor} lead={i===leadIndex(t.events)} muted={e?.speakerName!==me&&isMutedLine(e,mutedList)}/>;
@@ -208,20 +215,20 @@ export default function TurnPlayback({turns=[],animateId,onPlayingChange,opening
  // While the player types on a phone the feed gives its header up, and it stays on its last lines as its height
  // changes (a keyboard opening must not hide what the player is replying to).
  if(fill)return <View style={s.fillPanel}>
-  <View style={[s.fillBar,typing&&{display:'none'}]}><View style={s.fillTitleRow}><Icon name="journal" size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
+  <View style={[s.fillBar,typing&&{display:'none'}]}><View style={s.fillTitleRow}><Icon name="journal" size={13} color={colors.goldMid}/><PlainText style={[s.title,{marginVertical:4}]}>{turn?'Chronicle · Turn '+turn.id:'The story'}</PlainText></View>{playing?<Pressable accessibilityRole="button" onPress={()=>setPhase(p=>({...p,id:turn.id,count:turn.events.length}))} style={s.skipInline}><PlainText style={s.link}>Show all</PlainText><Icon name="forward" size={12} color={colors.gold}/></Pressable>:aside}</View>
   <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={s.fillScroll} contentContainerStyle={s.fillContent} scrollEventThrottle={80} onLayout={()=>{if(follow.current&&settled.current)scroll.current?.scrollToEnd({animated:false});}} onScroll={e=>{const n=e.nativeEvent,y=n.contentOffset.y;if(y+n.layoutMeasurement.height>=n.contentSize.height-80)follow.current=true;else if(y<lastY.current-2)follow.current=false;lastY.current=y;}} onContentSizeChange={()=>{if(!follow.current)return;scroll.current?.scrollToEnd({animated:settled.current&&!reduceMotion});settled.current=true;}}>
    {intro}
    {!!openingScene&&(!turn||turns[0]?.id===1)&&<ScenePlate subject={openingScene} over="Where your tale begins"/>}
    {!turn&&<Text style={s.opening}>{opening}</Text>}
    {turns.slice(0,-1).map(t=><View key={t.id} style={s.pastTurn}><Divider label={'Turn '+t.id}/>{t.events.map((e,i)=>row(t,e,i,false))}</View>)}
-   {turn&&<View accessibilityLiveRegion="polite">{turns.length>1&&<Divider label={'Turn '+turn.id}/>}{turn.events.slice(0,count).map((e,i)=>row(turn,e,i,turn.id===animateId))}</View>}
+   {turn&&<View accessibilityLiveRegion="polite">{turns.length>1&&<Divider label={'Turn '+turn.id}/>}{turn.events.slice(0,count).map((e,i)=>row(turn,e,i,live))}</View>}
    {busy&&<Writing/>}
   </ScrollView>
  </View>;
  return <View style={s.panel}>
- <View style={s.header}><PlainText style={s.title}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Turn '+turn.id:'THE STORY'}</PlainText><View style={s.skipSlot}>{playing&&<Pressable accessibilityRole="button" onPress={()=>setPhase({id:turn.id,count:turn.events.length})} style={s.skip}><PlainText style={s.link}>Show all now</PlainText></Pressable>}</View></View>
+ <View style={s.header}><PlainText style={s.title}>{busy?'Resolving your action…':playing?'Playing out the turn…':turn?'Turn '+turn.id:'THE STORY'}</PlainText><View style={s.skipSlot}>{playing&&<Pressable accessibilityRole="button" onPress={()=>setPhase(p=>({...p,id:turn.id,count:turn.events.length}))} style={s.skip}><PlainText style={s.link}>Show all now</PlainText></Pressable>}</View></View>
  <ScrollView ref={scroll} accessibilityLabel="Adventure response feed" style={[s.scroll,{maxHeight:feedLimit,...(playing?{minHeight:feedLimit}:{})}]} nestedScrollEnabled scrollEventThrottle={80} onScroll={e=>{const n=e.nativeEvent;follow.current=n.contentOffset.y+n.layoutMeasurement.height>=n.contentSize.height-60;}} onContentSizeChange={()=>{if(follow.current&&turn?.id===animateId)scroll.current?.scrollToEnd({animated:!reduceMotion});}}>
- <View accessibilityLiveRegion="polite">{turn?turn.events.slice(0,count).map((e,i)=>row(turn,e,i,turn.id===animateId)):<Text style={s.opening}>{opening}</Text>}</View>
+ <View accessibilityLiveRegion="polite">{turn?turn.events.slice(0,count).map((e,i)=>row(turn,e,i,live)):<Text style={s.opening}>{opening}</Text>}</View>
  </ScrollView>
  {turns.length>1&&<View style={s.historyToggle}><Pressable accessibilityRole="button" accessibilityState={{expanded:history}} onPress={()=>setHistory(v=>!v)} style={s.skip}><PlainText style={s.link}>{history?'Hide earlier turns':'Earlier turns ('+(turns.length-1)+')'}</PlainText></Pressable></View>}
  {history&&turns.length>1&&<ScrollView style={s.history} nestedScrollEnabled>{turns.slice(0,-1).map(t=><View key={t.id}><PlainText style={s.title}>Turn {t.id}</PlainText>{t.events.map((e,i)=>row(t,e,i,false))}</View>)}</ScrollView>}

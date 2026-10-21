@@ -23,7 +23,7 @@ import {deedById} from './deedRules';
 import {cue} from './cinematics';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
-import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure} from './dmTurnRules';
+import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure,arrivingTurn} from './dmTurnRules';
 import {dmChoices,mapMoves} from "./dmChoiceRules";
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
@@ -122,9 +122,16 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     }catch(e){fail(e);}
     finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   };
-  // Turns that arrive from other players at the table play out here too.
-  const lastTurnId=game.playback?.at(-1)?.id??0,seenTurn=useRef(lastTurnId);
-  useEffect(()=>{if(lastTurnId>seenTurn.current&&table?.joined){setAnimateId(lastTurnId);try{speakTurn(game.playback.at(-1));}catch{}}seenTurn.current=lastTurnId;},[lastTurnId]);
+  // Turns that arrive from other players at the table play out here too, once and in order, as the acting player's own
+  // turn does. The new turn is marked to play in the very render that first holds it (state set during render), so the
+  // feed never shows it whole first and then plays it again from its first line (it did when this was an effect, a
+  // render late). The first state after a reload or on joining is shown as it is: only a table already in step plays
+  // what arrives.
+  const lastTurnId=game.playback?.at(-1)?.id??0,inStep=!!table?.joined&&!!table.synchronized;
+  const [seenTurn,setSeenTurn]=useState({id:lastTurnId,inStep});
+  const arriving=arrivingTurn(seenTurn,lastTurnId,inStep);if(arriving.changed){setSeenTurn(arriving.next);if(arriving.play)setAnimateId(lastTurnId);}
+  const spoken=useRef(lastTurnId);
+  useEffect(()=>{if(table?.joined&&animateId===lastTurnId&&spoken.current!==lastTurnId){spoken.current=lastTurnId;try{speakTurn(game.playback.at(-1));}catch{}}},[animateId,lastTurnId]);
   const waiting=table?.joined?table.otherActing:null; const tableSyncing=!!table?.joined&&!table.synchronized;
   // A party's fight goes in turns (adventureRules.js): on someone else's turn this device waits.
   const turnsNow=turnOrderView(game),turnWait=turnsNow&&!turnsNow.mine?turnsNow.current:null;
@@ -235,5 +242,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     }catch(e){fail(e,{said:question,action:attempted});}
     finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   }
-  return {direct,setDirect,openConversation,conversationId,setConversationId,animateId,playing,setPlaying,people,person,alone,setAlone,ideas,connected,checked,unpaired,status,inputRef,input,setInput,reply,busy,error,errorProblem,fingerprint,draft,engage,lastTurnId,waiting,tableSyncing,turnsNow,turnWait,ask};
+  // At a table the draft is the table's (useSharedTable.js: the narration of whoever's turn is being resolved, this
+  // player's own included, as the Dungeon Master writes it); alone it is this device's own streamed request.
+  const shownDraft=table?.joined?table.draft?.text??'':busy?draft:'';
+  return {direct,setDirect,openConversation,conversationId,setConversationId,animateId,playing,setPlaying,people,person,alone,setAlone,ideas,connected,checked,unpaired,status,inputRef,input,setInput,reply,busy,error,errorProblem,fingerprint,draft:shownDraft,engage,lastTurnId,waiting,tableSyncing,turnsNow,turnWait,ask};
 }

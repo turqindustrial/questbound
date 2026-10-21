@@ -59,3 +59,7 @@ export function possibleIdeas(hero,game,health,lines){
 // A failed turn in the player's words; a scene that moved on, or an adventure that was closed, is not a problem.
 export const turnFailureMessage=(game,e)=>e?.name==='TimeoutError'?'The DM took too long. Nothing was applied.':storyText(game,String(e?.message??e));
 export const benignTurnFailure=message=>/scene changed|adventure was closed/i.test(message);
+// A turn arriving at a shared table (useDmTurn.js, worked out during the render that first holds it): whether the newest
+// turn plays out. Only a table already in step plays what arrives, once; the first state after a reload or on joining is
+// shown as it is. `seen` is {id, inStep} as of the last render.
+export const arrivingTurn=(seen,id,inStep)=>{const changed=seen.id!==id||seen.inStep!==inStep;return {changed,next:changed?{id,inStep}:seen,play:changed&&id>seen.id&&seen.inStep&&inStep};};

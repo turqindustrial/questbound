@@ -81,8 +81,9 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
  const requireMember=(id,user)=>{const c=read(id);if(!c.members[user.id]){if(isBanned(c,user))throw removedError();operations?.audit('campaign-access-denied',{account:user.id,campaign:id});throw fail(403,'You are not a member of this campaign.');}return c;};
  const free=c=>{if(locks.has(c.id))throw fail(423,'A turn is being resolved. Wait for it to finish.');};
  const touch=(c,user)=>presence.set(c.id+':'+seat(c,user),now());
- // What a member sees: memberState below, plus who is typing and a key for the presence they have seen (campaign-live.cjs).
- const state=(c,user,known)=>{const s=memberState(c,user,known);return {...s,players:s.players.map(p=>({...p,typing:live.isTyping(c.id,p.id)})),presence:live.presenceKey(c.id)};};
+ // What a member sees: memberState below, plus who is typing, a key for the presence they have seen (campaign-live.cjs)
+ // and, while a turn is being resolved, the narration the Dungeon Master has written so far (display only, never stored).
+ const state=(c,user,known)=>{const s=memberState(c,user,known),d=live.draft(c.id);return {...s,players:s.players.map(p=>({...p,typing:live.isTyping(c.id,p.id)})),presence:live.presenceKey(c.id),draftKey:live.draftKey(c.id),...(d?{draft:d}:{})};};
  // Nobody plays a table without a hero of their own (the host's words, 2026-10-21: "nobody should be "playing" the
  // multi player function without a character to actually take control of"): a member whose seat holds no hero (one
  // from a one-hero table, or whose hero died before the table began a new tale) is sent no adventure and may only
@@ -147,11 +148,13 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
   poll(user,b){const c=requireMember(b.campaignId,user);touch(c,user);return state(c,user,b.knownVersion);},
   leave(user,b){const c=requireMember(b.campaignId,user);presence.delete(c.id+':'+seat(c,user));return {left:true};},
   // A held wait (route campaign-wait): the same view as poll, answered as soon as the version or who is here, typing or
-  // acting differs from what this member last saw (knownVersion, knownPresence), else after about 25 s as it is.
+  // acting differs from what this member last saw (knownVersion, knownPresence), else after about 25 s as it is. A
+  // device that follows the draft (knownDraft: the draftKey it last saw) is also answered when the narration of a turn
+  // being resolved grows, a few times a second at most (campaign-live.cjs draftGap); an older device never is.
   wait(user,b,{signal}={}){
    const c=requireMember(b.campaignId,user),place=seat(c,user),id=c.id;touch(c,user);
-   const known=Number.isInteger(b.knownVersion)?b.knownVersion:-1,seen=typeof b.knownPresence==='string'?b.knownPresence.slice(0,32):'';
-   const check=force=>{if(!force&&live.version(id)===known&&live.presenceKey(id)===seen)return null;const fresh=requireMember(id,user);return {answer:state(fresh,user,known),urgent:fresh.version!==known};};
+   const known=Number.isInteger(b.knownVersion)?b.knownVersion:-1,seen=typeof b.knownPresence==='string'?b.knownPresence.slice(0,32):'',following=typeof b.knownDraft==='string',drafted=following?b.knownDraft.slice(0,20):'';
+   const check=force=>{const same=live.version(id)===known&&live.presenceKey(id)===seen,draftSame=!following||live.draftKey(id)===drafted;if(!force&&same&&draftSame)return null;const fresh=requireMember(id,user);return {answer:state(fresh,user,known),urgent:fresh.version!==known,draft:same&&!draftSame};};
    return live.wait(id,place,check,{signal});
   },
   // A typing ping (route campaign-typing): only "typing" or not, never the words; it lapses by itself (campaign-live.cjs).
@@ -180,7 +183,10 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    // The day's turn allowance is checked now and spent only when the turn is kept; the host's own desktop is never capped.
    const counted=user.local!==true;if(counted)operations?.consume(user.id,'turns',150,{peek:true});locks.set(c.id,seat(c,user));
    try{
-    const result=await resolveTurn(snapshot,b,{ask:p=>ask(p,user),randomImpl,actorName:c.members[user.id].name,actorSeat:seat(c,user)});
+    // The Dungeon Master's narration is streamed: what it has written so far is the table's draft while the turn is
+    // resolved (every member's held wait carries it), then the kept turn replaces it. Nothing is applied from it.
+    const acting=seat(c,user),result=await resolveTurn(snapshot,b,{ask:p=>ask(p,user,{onNarration:text=>live.setDraft(c.id,acting,text)}),randomImpl,actorName:c.members[user.id].name,actorSeat:acting});
+    live.clearDraft(c.id);
     // A revoked membership or account must not commit after an asynchronous DM response.
     user.active?.();c=requireMember(c.id,user);if(b.baseVersion!==c.version)return {conflict:true,...state(c,user)};
     c.receipts=[...(c.receipts??[]),{id:b.requestId,by:seat(c,user)}].slice(-40);const out=advance(c,result.snapshot,user);if(counted)operations?.consume(user.id,'turns',150,{spend:true});

@@ -188,7 +188,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
     {!hint&&!!typingLine&&<View accessibilityLiveRegion="polite" dataSet={{qb:'typing'}} style={s.typingRow}><Icon name="quill" size={12} color={colors.goldMid}/><PlainText numberOfLines={1} style={s.typingText}>{typingLine}</PlainText></View>}
     {tips&&lesson&&!person&&<View dataSet={{qb:'enter'}} style={s.lesson}><Icon name="info" size={14} color={colors.goldMid}/><PlainText style={s.lessonText}>{lesson}</PlainText></View>}
-    {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
+    {!!draft&&<View dataSet={{qb:'plate',draft:'true'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {!typing&&actionBar}
     <ActionGuide visible={guide} onClose={()=>setGuide(false)} actions={pressable} hero={hero} game={game} spells={spellsOpen} disabled={actionsDisabled} onRun={runAction}/>
     {direct&&<View style={s.directNote}><Icon name="speak" size={13} color={colors.goldBright}/><PlainText style={s.directText}>{compact?'Out of character: the story waits.':'Out of character. Ask about a ruling, or say what went wrong or what you meant to do: the story waits, and the Dungeon Master can take your last turn back.'}</PlainText></View>}

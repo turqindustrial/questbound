@@ -11,6 +11,10 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
  // The live table (campaign-live.cjs): the presence this device last saw, the newest version heard of while its own turn
  // was resolving, the wait now held (so it can be let go and asked again at once) and this player's typing.
  const presence=useRef(''),heard=useRef(-1),held=useRef(null),typer=useRef({on:false,sent:0,idle:null,quiet:0});
+ // The draft: the narration of a turn being resolved at the table, as the Dungeon Master writes it (campaign-live.cjs);
+ // display only. The key of the last one seen goes with each wait, so the table answers when it grows.
+ const draftKey=useRef('');
+ const draftOf=data=>{draftKey.current=typeof data?.draftKey==='string'?data.draftKey:'';const d=data?.draft;return d&&typeof d.text==='string'&&d.text.trim()?{seat:typeof d.seat==='string'?d.seat:null,text:d.text}:null;};
  const checkpoint=()=>({session:epoch.current,branch:version.current});
  const isCurrent=p=>joined.current&&p?.session===epoch.current&&p?.branch===version.current;
  // After the first state this session (and outside joining), an update is applied at once, its pictures fetched meanwhile.
@@ -20,7 +24,8 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   if(data.snapshot)await apply.current(data.snapshot,current,{quick});
   if(!current())return;
   version.current=data.version;if(typeof data.presence==='string')presence.current=data.presence;setTableMembership({version:data.version,campaignId:data.campaignId});
-  setStatus({players:data.players??[],members:data.members??data.players??[],banned:data.banned??null,online:true,synchronized:true,error:'',role:data.role,you:data.you,needsHero:data.needsHero===true,needsTale:data.needsTale===true});
+  // Set in the same moment as the state above, so a kept turn replaces the draft with nothing in between.
+  setStatus({players:data.players??[],members:data.members??data.players??[],banned:data.banned??null,online:true,synchronized:true,error:'',role:data.role,you:data.you,needsHero:data.needsHero===true,needsTale:data.needsTale===true,draft:draftOf(data)});
  }
  // Removed by the table's host (campaigns.cjs ban): this device leaves the table calmly and says why; its own saved
  // adventure from before it joined can be restored on the table screen as after leaving.
@@ -30,7 +35,9 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
  function adoptPresence(data,at){
   if(at!==epoch.current||!joined.current||!data)return;
   if(Number.isInteger(data.version)&&data.version>heard.current)heard.current=data.version;if(typeof data.presence==='string')presence.current=data.presence;
-  setStatus(s=>({...s,players:data.players??s.players,members:data.members??data.players??s.members,banned:data.banned??s.banned,online:true,error:''}));
+  // An answer from before a version this device already has (its own turn kept meanwhile) brings no draft back.
+  const stale=Number.isInteger(data.version)&&data.version<version.current,draft=stale?undefined:draftOf(data);
+  setStatus(s=>({...s,players:data.players??s.players,members:data.members??data.players??s.members,banned:data.banned??s.banned,online:true,error:'',...(stale?{}:{draft})}));
  }
  // Let the held wait go and ask again at once (after this device's own turn, so the wait asks for what it has missed).
  const rewait=()=>{if(version.current<heard.current)held.current?.abort?.();};
@@ -48,7 +55,7 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
     const before=version.current,stamp=generation.current,started=Date.now(),known=busy.current?Math.max(before,heard.current):before;
     const stop=typeof AbortController==='function'?new AbortController():null;held.current=stop;
     try{
-     const data=await campaignCall('campaign-wait',{knownVersion:known,knownPresence:presence.current},40000,stop?.signal);
+     const data=await campaignCall('campaign-wait',{knownVersion:known,knownPresence:presence.current,knownDraft:draftKey.current},40000,stop?.signal);
      if(!alive())break;
      if(!busy.current&&before===version.current&&stamp===generation.current)await adopt(data,at,stamp);else adoptPresence(data,at);
      rest=Date.now()-started<250?250:0;
@@ -96,7 +103,8 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   if(busy.current)throw Error('Wait for the current turn.');stopTyping(false);busy.current=true;generation.current++;const at=epoch.current;
   const payload={question,npcId,direct,...(action===undefined?{}:{action}),...(oneOnOne?{oneOnOne:true}:{}),...(greet?{greet:true}:{}),...(storyPreferences?{storyPreferences}:{}),...(autoShield===false?{autoShield:false}:{}),baseVersion:version.current};
   const signature=JSON.stringify(payload);if(retry.current?.signature!==signature)retry.current={signature,id:globalThis.crypto.randomUUID()};
-  try{const data=await campaignCall('campaign-turn',{...payload,requestId:retry.current.id},300000).catch(e=>{removedFrom(e);throw e;});await adopt(data,at);if(data.conflict){retry.current=null;noteProblem({kind:'table',error:'Another player acted first; the turn was not kept.'});throw Error('Another player acted first. The campaign is updated; try your action again.');}retry.current=null;return {game:data.snapshot.game,health:data.snapshot.health,turn:data.turn,narration:data.narration,suggestions:data.suggestions??[],fault:data.fault===true,deeds:data.deeds??[],xp:data.xp??null};}
+  // A turn that fails leaves no draft of its own behind (the table has dropped it too).
+  try{const data=await campaignCall('campaign-turn',{...payload,requestId:retry.current.id},300000).catch(e=>{removedFrom(e);setStatus(s=>s.draft&&s.draft.seat===s.you?{...s,draft:null}:s);throw e;});await adopt(data,at);if(data.conflict){retry.current=null;noteProblem({kind:'table',error:'Another player acted first; the turn was not kept.'});throw Error('Another player acted first. The campaign is updated; try your action again.');}retry.current=null;return {game:data.snapshot.game,health:data.snapshot.health,turn:data.turn,narration:data.narration,suggestions:data.suggestions??[],fault:data.fault===true,deeds:data.deeds??[],xp:data.xp??null};}
   finally{busy.current=false;rewait();}
  }
  async function edit(change){if(busy.current)throw Error('Wait for the current turn.');busy.current=true;generation.current++;const at=epoch.current;try{const data=await campaignCall('campaign-edit',{...change,baseVersion:version.current}).catch(e=>{removedFrom(e);throw e;});await adopt(data,at);if(data.conflict){noteProblem({kind:'table',error:'The campaign changed; an edit was not kept.'});throw Error('The campaign changed. Try that edit again.');}return data;}finally{busy.current=false;rewait();}}
@@ -107,8 +115,10 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
  async function unban(ref){const data=await campaignCall('campaign-unban',{ref});setStatus(s=>({...s,banned:data.banned??s.banned}));return data;}
  // This player's seat at the campaign (opaque; never an account id), else the device id before the first answer.
  const me=status.you??deviceId(),others=status.players.filter(p=>p.id!==me);
+ // The narration of the turn being resolved, for everyone at the table (whose turn it is, and whether it is this player's).
+ const draft=status.draft?.text?{text:status.draft.text,mine:status.draft.seat===me,name:status.players.find(p=>p.id===status.draft.seat)?.name??null}:null;
  // Who else is typing (never one already acting): their seat and table name.
  const typers=others.filter(p=>p.typing&&!p.acting).map(p=>({id:p.id,name:p.name}));
- return {joined:membership.joined,name:membership.name,campaignId:membership.campaignId,...status,invite,others,otherActing:others.find(p=>p.acting)?.name??null,typers,typed,notice,clearNotice:()=>setNotice(''),join,leave,turn,edit,report,ban,unban,bringHero,startTale,members:status.members??status.players,setActing:useCallback(()=>{},[]),checkpoint,isCurrent,deviceId:me,
+ return {joined:membership.joined,name:membership.name,campaignId:membership.campaignId,...status,draft,invite,others,otherActing:others.find(p=>p.acting)?.name??null,typers,typed,notice,clearNotice:()=>setNotice(''),join,leave,turn,edit,report,ban,unban,bringHero,startTale,members:status.members??status.players,setActing:useCallback(()=>{},[]),checkpoint,isCurrent,deviceId:me,
   newInvite:async()=>{const data=await campaignCall('campaign-invite');setInvite(data.invite);},listCampaigns:()=>campaignCall('campaign-list')};
 }

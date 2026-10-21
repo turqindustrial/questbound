@@ -15,11 +15,17 @@
 //   or `typingMs` after their last ping. Words are never sent or kept.
 // - `presence()` and `locks()` are Maps that tell the waits when they change: a member arriving or leaving, a turn begun
 //   or kept. campaigns.cjs uses them in place of its plain Maps, so presence and the turn lock need no other hooks.
+// - The draft (2026-10-21, table-stream): while a turn is resolved, the narration the Dungeon Master has written so far
+//   (`setDraft`, from the account service's streamed request) is kept for that campaign and sent with the answers to
+//   members who follow it (`knownDraft`). It is display only: nothing is applied from it, and it is gone the moment the
+//   turn ends (kept, refused or failed: the lock is let go) or a new one begins. Draft-only answers to one member are at
+//   least `draftGap` apart (400 ms, so a few a second however fast the words come) and at most `draftBudget` in ten
+//   minutes (past that a member simply sees the kept turn), so following a draft cannot run a device's allowances down.
 const crypto=require('node:crypto');
 const busyWords='The shared table has many players waiting. Your game will catch up in a moment.';
-function createLive({now=Date.now,waitMs=25000,maxWaits=500,perMember=2,typingMs=10000,presenceGap=600,hereMs=15000,setTimer=setTimeout,clearTimer=clearTimeout}={}){
- const waits=new Map(),typing=new Map(),lastAnswer=new Map(),versions=new Map(),pending=new Set(),lockSeq=new Map(),lockSeen=new Map();
- let open=0,flushing=null,presenceMap=null,lockMap=null;
+function createLive({now=Date.now,waitMs=25000,maxWaits=500,perMember=2,typingMs=10000,presenceGap=600,hereMs=15000,draftGap=400,draftBudget=600,draftMax=1800,setTimer=setTimeout,clearTimer=clearTimeout}={}){
+ const waits=new Map(),typing=new Map(),lastAnswer=new Map(),versions=new Map(),pending=new Set(),lockSeq=new Map(),lockSeen=new Map(),drafts=new Map(),draftsSent=new Map();
+ let open=0,flushing=null,presenceMap=null,lockMap=null,draftSeq=0;
  const key=(campaign,seat)=>campaign+':'+seat;
  const unref=t=>{t?.unref?.();return t;};
  const waitingFor=k=>{const [campaign]=k.split(':');for(const w of waits.get(campaign)??[])if(w.member===k)return true;return false;};
@@ -45,9 +51,12 @@ function createLive({now=Date.now,waitMs=25000,maxWaits=500,perMember=2,typingMs
   let found;try{found=w.check(force);}catch(e){if(finish(w))w.reject(e);return;}
   if(!found)return;
   // A turn begun or ended since this member's last answer is news at once, like a new version: turns are few.
-  const urgent=found.urgent||(lockSeq.get(w.campaign)??0)>(lockSeen.get(w.member)??0);
-  if(!force&&!urgent){const since=now()-(lastAnswer.get(w.member)??0);if(since<presenceGap){if(!w.later)w.later=unref(setTimer(()=>{w.later=null;look(w);},presenceGap-since));return;}}
-  if(finish(w)){lastAnswer.set(w.member,now());lockSeen.set(w.member,lockSeq.get(w.campaign)??0);for(const m of [lastAnswer,lockSeen])if(m.size>5000)m.delete(m.keys().next().value);w.resolve(found.answer);}
+  const urgent=found.urgent||(lockSeq.get(w.campaign)??0)>(lockSeen.get(w.member)??0),draftOnly=!urgent&&found.draft===true;
+  // Only the draft is new: a few a second at most, and not past the member's budget (they still get the kept turn).
+  if(!force&&draftOnly&&spentDrafts(w.member)>=draftBudget)return;
+  const gap=draftOnly?draftGap:presenceGap;
+  if(!force&&!urgent){const since=now()-(lastAnswer.get(w.member)??0);if(since<gap){if(!w.later)w.later=unref(setTimer(()=>{w.later=null;look(w);},gap-since));return;}}
+  if(finish(w)){lastAnswer.set(w.member,now());lockSeen.set(w.member,lockSeq.get(w.campaign)??0);if(draftOnly&&!force)draftsSent.get(w.member)?.push(now())??draftsSent.set(w.member,[now()]);for(const m of [lastAnswer,lockSeen,draftsSent])if(m.size>5000)m.delete(m.keys().next().value);w.resolve(found.answer);}
  }
  // Changes are gathered and looked at once, after the change has been written (persist) and the current request answered.
  function notify(campaign){
@@ -61,7 +70,18 @@ function createLive({now=Date.now,waitMs=25000,maxWaits=500,perMember=2,typingMs
   typing.set(k,unref(setTimer(()=>{typing.delete(k);notify(campaign);},typingMs)));
   if(!was)notify(campaign);return !was;
  }
- function clearMember(campaign,seat){setTyping(campaign,seat,false);lastAnswer.delete(key(campaign,seat));lockSeen.delete(key(campaign,seat));}
+ function clearMember(campaign,seat){setTyping(campaign,seat,false);lastAnswer.delete(key(campaign,seat));lockSeen.delete(key(campaign,seat));draftsSent.delete(key(campaign,seat));}
+ // Draft answers sent to a member in the last ten minutes.
+ function spentDrafts(member){const list=draftsSent.get(member);if(!list)return 0;while(list.length&&list[0]<=now()-600000)list.shift();return list.length;}
+ // The narration so far of the turn the acting member (the lock's seat) is taking; anyone else's is ignored.
+ function setDraft(campaign,seat,text){
+  campaign=String(campaign);if(typeof text!=='string'||lockMap?.get(campaign)!==seat)return false;
+  text=text.slice(0,draftMax);const was=drafts.get(campaign);if(was&&was.seat===seat&&was.text===text)return false;
+  drafts.set(campaign,{seat,text,seq:++draftSeq});notify(campaign);return true;
+ }
+ function clearDraft(campaign){if(!drafts.delete(String(campaign)))return false;notify(campaign);return true;}
+ const draft=campaign=>{const d=drafts.get(String(campaign));return d?{seat:d.seat,text:d.text}:null;};
+ const draftKey=campaign=>{const d=drafts.get(String(campaign));return d?String(d.seq):'';};
  // check(force) returns {answer, urgent} when there is something to tell (always when forced), or null to keep waiting;
  // it may throw (the member was removed, the campaign is gone), which ends the wait with that error.
  function wait(campaign,seat,check,{signal,timeout=waitMs}={}){
@@ -94,17 +114,17 @@ function createLive({now=Date.now,waitMs=25000,maxWaits=500,perMember=2,typingMs
  const bump=k=>lockSeq.set(String(k),(lockSeq.get(String(k))??0)+1);
  function locks(){
   class Locks extends Map{
-   set(k,v){super.set(k,v);bump(k);setTyping(k,v,false);notify(k);return this;}
-   delete(k){const had=super.delete(k);if(had){bump(k);notify(k);}return had;}
+   set(k,v){super.set(k,v);bump(k);setTyping(k,v,false);drafts.delete(String(k));notify(k);return this;}
+   delete(k){const had=super.delete(k);drafts.delete(String(k));if(had){bump(k);notify(k);}return had;}
   }
   return lockMap=new Locks();
  }
  // The version each campaign is at (read or written), so a wait can tell whether it has news without reading the file.
  const seen=(campaign,version)=>{if(Number.isInteger(version))versions.set(String(campaign),version);};
  const changed=(campaign,version)=>{seen(campaign,version);notify(campaign);};
- const status=()=>({open,campaigns:waits.size,typing:typing.size});
+ const status=()=>({open,campaigns:waits.size,typing:typing.size,drafts:drafts.size});
  // Ends every wait (a test, or the service stopping).
- function close(){for(const list of [...waits.values()])for(const w of [...list])if(finish(w))w.reject(Object.assign(Error('The table service is restarting.'),{status:503}));for(const t of typing.values())clearTimer(t);typing.clear();}
- return {wait,notify,changed,seen,setTyping,isTyping,presenceKey,presence,locks,status,close,version:campaign=>versions.get(String(campaign)),open:(campaign,seat)=>waitingFor(key(campaign,seat)),waitMs,busyWords};
+ function close(){for(const list of [...waits.values()])for(const w of [...list])if(finish(w))w.reject(Object.assign(Error('The table service is restarting.'),{status:503}));for(const t of typing.values())clearTimer(t);typing.clear();drafts.clear();}
+ return {wait,notify,changed,seen,setTyping,isTyping,setDraft,clearDraft,draft,draftKey,presenceKey,presence,locks,status,close,version:campaign=>versions.get(String(campaign)),open:(campaign,seat)=>waitingFor(key(campaign,seat)),waitMs,busyWords};
 }
 module.exports={createLive,busyWords};

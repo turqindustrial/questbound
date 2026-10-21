@@ -21,6 +21,25 @@ const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/
 // browser the host of the whole game has banned (node accounts.cjs ban …, bans.cjs) is refused everything here: the
 // Dungeon Master (the gateways ask /usage first), every campaign route and feedback (the gateway asks /usage too).
 const bannedLine='The host of this game has closed it to this browser.';
+// A table turn's request to the Dungeon Master is streamed (table-stream, 2026-10-21): the DM answers NDJSON lines of
+// {narration} while it writes (the narration so far), then {reply} or {error}, exactly as it answers a solo player's
+// device (dmConnection.js readTurn). The narration goes to onNarration (the table's draft, display only); the reply is
+// checked by the same rules as before. A DM from before streaming, or one that refuses before writing, answers plain
+// JSON, which is read as it always was.
+async function readDmStream(response,onNarration){
+ let result=null,buffer='';const decoder=new TextDecoder();
+ const take=line=>{if(!line.trim())return;let m;try{m=JSON.parse(line);}catch{return;}if(m&&typeof m.narration==='string'){try{onNarration(m.narration);}catch{}}else if(m?.reply&&typeof m.reply==='object')result=m.reply;else if(m?.error)result={error:String(m.error)};};
+ for await(const chunk of response.body){buffer+=decoder.decode(chunk,{stream:true});let i;while((i=buffer.indexOf('\n'))>=0){take(buffer.slice(0,i));buffer=buffer.slice(i+1);}}
+ take(buffer+decoder.decode());
+ return result??{error:'The Dungeon Master\'s reply was cut off. Nothing was applied; try again.'};
+}
+async function askDungeonMaster(fetchImpl,dmBackend,payload,user,{onNarration=null}={}){
+ const streamed=typeof onNarration==='function';
+ const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,...(streamed?{stream:true}:{}),...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(90000)});
+ const body=streamed&&/ndjson/.test(response.headers?.get?.('content-type')??'')?await readDmStream(response,onNarration):await response.json();
+ if(!response.ok||body?.error)throw Object.assign(Error(body?.error||'The Dungeon Master could not respond.'),{status:502});
+ return body;
+}
 function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow(),live,inviteLimits={}}={}){
  const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
  const bans=createBans({dir:accountsDir,now});
@@ -28,7 +47,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
  const inviteGuard=createInviteGuard({file:path.join(dataDir,'.questbound-invite-misses.json'),now,limits:inviteLimits});
  let campaigns=null;
  const accounts=createAccounts({allowGuests:!accountsRequired,onGuestRemoved:id=>campaigns?.removeAccount(id),...accountOptions,dir:accountsDir,now,validSnapshot,mailer:mail,backup:ops.backup,audit:ops.audit});
- const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
+ const dmAsk=ask??((payload,user,options)=>askDungeonMaster(fetchImpl,dmBackend,payload,user,options));
  // Table names go through the Dungeon Master's content check (moderation.cjs, mode 'moderate'): only its process holds
  // the API key. A few seconds at most, and it fails open. Tests that stand in for the Dungeon Master (ask) pass their own.
  const dmModerate=moderate??(ask?null:async(text,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({input:text,context:{mode:'moderate',choices:[]},...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(4000)});if(!response.ok)return null;return (await response.json())?.moderation??null;});
@@ -127,4 +146,4 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
  server.requestTimeout=20000;server.headersTimeout=10000;
  return {server,accounts,campaigns,operations:ops,bans};
 }
-module.exports={createSyncServer,routes,cookieToken,accountsRequiredNow};
+module.exports={createSyncServer,routes,cookieToken,accountsRequiredNow,askDungeonMaster,readDmStream};
