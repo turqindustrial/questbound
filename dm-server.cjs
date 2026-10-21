@@ -9,7 +9,7 @@ delete require.cache[require.resolve('./dm-intent.cjs')];
 const {situation,secondLook,settled}=require('./dm-intent.cjs');
 // The standing instructions (dm-instructions.cjs), reloaded with this file like the modules above.
 delete require.cache[require.resolve('./dm-instructions.cjs')];
-const {standingPrompt,heroPrompt,narratorVoice,questInstructions,memoryInstructions,contractInstructions}=require('./dm-instructions.cjs');
+const {standingPrompt,heroPrompt,narratorVoice,suggestionNote,questInstructions,memoryInstructions,contractInstructions}=require('./dm-instructions.cjs');
 // The reply schema and its parts (dm-schemas.cjs), reloaded with this file like the modules above.
 delete require.cache[require.resolve('./dm-schemas.cjs')];
 const {npcClassNames,introduceSchema,replySchemaFor,spelledOutSchema,asFields,flatReply,phaseFields,listFields}=require('./dm-schemas.cjs');
@@ -26,7 +26,8 @@ function sceneFor(body,{canDiscover=false,canAmbush=false}={}){
  // `now` restates the present in plain sentences (see dm-intent.cjs): where the player is, whether a fight is on,
  // what became of the foe and where they may go.
  const scene={now:situation(c),...c};
- for(const key of ['actionContract','loadoutGuidance','castingHelp'])delete scene[key];
+ // Whether the player sees suggestions is said in this turn's note (suggestionNote), not read with the scene.
+ for(const key of ['actionContract','loadoutGuidance','castingHelp','suggest'])delete scene[key];
  if(Array.isArray(scene.skillChecks))scene.skillChecks=scene.skillChecks.map(s=>s&&typeof s==='object'?(s.skill??s.ability)+': '+s.ability+' '+(s.total>=0?'+':'')+s.total+(s.expert?' (expert)':s.trained?' (trained)':'')+(s.reliable?' (reliable)':''):s);
  if(scene.player&&typeof scene.player==='object')scene.player={...scene.player,backstory:cut(scene.player.backstory,600),description:cut(scene.player.description,400),connections:cut(scene.player.connections,300)};
  if(scene.story&&typeof scene.story==='object'){
@@ -59,8 +60,9 @@ function sceneFor(body,{canDiscover=false,canAmbush=false}={}){
  if(Array.isArray(scene.spellReference))scene.spellReference=scene.spellReference.map(s=>s&&typeof s==='object'?{...s,material:cut(s.material,80)}:s);
  if(!ruling&&scene.stage!=='combat'&&!scene.npcCombat?.active)delete scene.npcDefenses;
  // The rules text for the spells and features the player's words name (and a spell awaiting a ruling), read this turn.
- {const named=turnRules(body);if(named.spells.length||named.featureDetails.length)scene.rulesReference=named;}
- leaner(scene,body);compact(scene,body);briefer(scene,body);
+ // A scene cue's words are the game's, not the player's: they name no spell or feature.
+ {const named=c.sceneTrigger?null:turnRules(body);if(named&&(named.spells.length||named.featureDetails.length))scene.rulesReference=named;}
+ leaner(scene,body);compact(scene,body);briefer(scene,body);if(narrating&&!ruling)tellingOnly(scene,body);
  // The player's words come last, after the scene, so the start of the request stays the same from turn to turn.
  return {context:inCacheOrder(lean(scene)),input:body.input};
 }
@@ -368,6 +370,32 @@ function briefer(scene,body){
  // Choices: a note that only repeats attackOptions (the grapple's DC) or the standing prompt (when a chapter may close).
  if(Array.isArray(scene.choices))scene.choices=scene.choices.map(l=>typeof l==='string'&&(/^\[end-turn\] End your turn without acting$/.test(l)||/^\[throw:([^\]]+)\] Throw \1$/.test(l))?l.replace(/\] .*$/,']'):l).map(l=>typeof l!=='string'?l:/^\[(?:grapple|shove)(?::[^\]]*)?\] /.test(l)?l.replace(/ \(an Unarmed Strike: [^)]*\)$/,''):/^\[story-advance\] /.test(l)?'[story-advance] the chapter\'s goal achieved in play (never before)':l);
  if(isObj(scene.encounter)&&isObj(scene.encounter.signatureMove)){const m=scene.encounter.signatureMove;scene.encounter={...scene.encounter,signatureMove:m.name+(m.text?': '+m.text:'')};}
+}
+// A telling (round 3 of leaner turns, 2026-10-21, the host: "the lowest possible cost per turn"): a resolved turn or a
+// scene cue chooses, checks, discovers and recruits nothing, so what only an ordinary turn can use is left out of what
+// the model reads. What lasts the tale (sceneParts' first part: the story, the hero, their skills and spells, the quest)
+// is never touched, and in a fight nothing but this turn's part is, so a telling still shares those parts with the turn
+// before it. Out of a fight: the attack figures, the map beyond where the hero stands (a place the engine's lines or the
+// player's words name is kept), people elsewhere, offers to join, the older story so far (the tale's first line, the
+// chapter under way and the facts bearing on who is here stay), the journal beyond its last two entries; a cue also the
+// pack and the spoils. Always: journeys on offer, and a cue's own words (the turn's note says them). The people here,
+// the place, the story, the talk and what the engine resolved stay. Every check on the reply still reads the whole
+// context.
+const tellingLimits={journal:2,taleLines:2};
+function tellingOnly(scene,body){
+ const c=body.context??{},cue=!!c.sceneTrigger,fight=fightingNow(scene);
+ for(const k of ['shortRests','recruitmentTargets','sceneTrigger','levelReady','castingIssue','choices'])delete scene[k];
+ if(Array.isArray(scene.now))scene.now=scene.now.filter(l=>typeof l!=='string'||!/^(?:The player may set out at once|Any travel choice offered may be taken)/.test(l));
+ if(fight)return;
+ for(const k of ['attackOptions','joinOffers','peopleElsewhere'])delete scene[k];
+ if(cue){delete scene.inventory;delete scene.spoils;}
+ const said=[body.input,...(Array.isArray(c.engineResolved)?c.engineResolved:[])].map(t=>String(t??'')).join(' ').toLowerCase();
+ if(isObj(scene.world)){const w={...scene.world};
+  for(const k of ['morePlaces','morePlacesNotListed','farLands','regions','landsRemembered','placesLeft','canDiscover','canAmbush','creatureTemplates','beyond'])delete w[k];
+  if(Array.isArray(w.knownPlaces))w.knownPlaces=w.knownPlaces.filter(p=>{const name=(typeof p==='string'?p.split(' [')[0]:p?.name)??'';return name.length>=3&&said.includes(name.toLowerCase());});
+  scene.world=w;}
+ if(Array.isArray(scene.journal))scene.journal=scene.journal.slice(-tellingLimits.journal);
+ if(isObj(scene.memory)){const m=scene.memory,tale=Array.isArray(m.taleNow)?m.taleNow:[];scene.memory={...(tale.length?{taleNow:tale.length>tellingLimits.taleLines+1?[tale[0],...tale.slice(-tellingLimits.taleLines)]:tale}:{}),...(m.facts?{facts:m.facts}:{}),...(m.about?{about:m.about}:{})};}
 }
 // Empty parts (null, '', [] and {}) are left out of what the model reads: an absent field means the same to it.
 const lean=v=>{if(Array.isArray(v))return v.map(lean);if(!v||typeof v!=='object')return v;const out={};for(const [k,x] of Object.entries(v)){const y=lean(x);if(y===null||y===undefined||y===''||(Array.isArray(y)&&!y.length)||(typeof y==='object'&&!Array.isArray(y)&&!Object.keys(y).length))continue;out[k]=y;}return out;};
@@ -717,7 +745,7 @@ async function turnPlan(body,{fetchImpl,reasoning,live,people,portraits}){
   const sceneTrigger=body.context.sceneTrigger&&typeof body.context.sceneTrigger.cue==='string'?body.context.sceneTrigger.cue.slice(0,800):null;
   // The player speaking to the DM directly, out of character: an answer, and perhaps the last turn taken back.
   const ooc=!!body.context.outOfCharacter&&!body.context.engineResolved&&!resolvingSpell&&!sceneTrigger;
-  const phaseInstructions=sceneTrigger?'\nSCENE TRIGGER: The player has not spoken. '+sceneTrigger+' Present conversationParticipants speak first, in character, reacting to this moment and addressing the player. Give one to three short dialogue lines, each speaker saying something different (never two greetings alike), and in narration exactly one short sentence of what is seen or done as they speak (never empty, never the spoken words). Do not decide the player\'s words or actions. effects empty.':resolvingSpell?'\nCURRENT PHASE: Adjudicate pendingSpell now. Return a ruling (cast, deny or clarify) and no castCommand, actionId or check. If details are missing, use clarify and ask the specific question in narration and note; all effects must be zero. A narrative answer alone does not resolve the spell. Prefer cast or deny; use clarify only when the target is truly missing. Damage on a cast is never more than pendingSpell.damageMost, the most the dice of the spell can deal.':body.context.engineResolved?'\nCURRENT PHASE: Narrate the already resolved engine results. No actionId, castCommand, ruling, check, discovery, ambush, recruitment or worldEvent.'+(errandPaidTurn(body.context)?' The errand in context.story.errand is done: keeper hands over the promised reward ('+String(body.context.story.errand.reward??'').slice(0,160)+') now, with loot in this reply, within the loot limits.':''):ooc?'\nOUT OF CHARACTER: The player is speaking to you directly, player to Dungeon Master, outside the story: about a ruling, something that went wrong, what they meant to do, or how the game works. Answer plainly in your own voice, as a friendly human Dungeon Master talking across the table, in two to five sentences: no story narration, no NPC speech, and do not advance the scene. Speak of "the rules", "the dice" and "the game"; never mention an engine, fields, schemas, data or anything about how the game is built. Be fair and specific: explain what the rules or the game did, using context.outOfCharacter.lastTurn (what they said and what the game resolved); admit it when their words were misread or a rule was applied wrongly; say what they can do now. If the last turn went wrong because their words were misread, the game did something they clearly did not intend, or a rule was misapplied, and context.outOfCharacter.canRewind is true, set rewind to true: the game then takes that whole turn back (hit points, dice, position, everything) so they can say what they meant, and tell them so. Never rewind because the dice went badly, a fight is going poorly, a risk they chose did not pay off, or the hero died fairly: say no kindly and explain why. When canRewind is false and they ask to undo something, explain that the turn cannot be taken back any more and suggest what they can do instead. Set fault to true when the player tells you the game would not let them do something the rules allow, did something other than what they asked, or showed something wrong, or when you admit a rule was applied wrongly: the game then offers to send a short note to the host so it can be fixed. Leave it out for questions about the rules, plans, or the dice going against them. You cannot change hit points, gold, items or the story here: effects hold only rewind or fault, and dialogue is empty.':'';
+  const phaseInstructions=sceneTrigger?'\nSCENE TRIGGER: The player has not spoken. '+sceneTrigger+' Present conversationParticipants speak first, in character, reacting to this moment and addressing the player. Give one to three short dialogue lines, each speaker saying something different (never two greetings alike), and in narration exactly one short sentence of what is seen or done as they speak (never empty, never the spoken words). Do not decide the player\'s words or actions. effects empty.':resolvingSpell?'\nCURRENT PHASE: Adjudicate pendingSpell now. Return a ruling (cast, deny or clarify) and no castCommand, actionId or check. If details are missing, use clarify and ask the specific question in narration and note; all effects must be zero. A narrative answer alone does not resolve the spell. Prefer cast or deny; use clarify only when the target is truly missing. Damage on a cast is never more than pendingSpell.damageMost, the most the dice of the spell can deal.':body.context.engineResolved?'\nCURRENT PHASE: Narrate the already resolved engine results. No actionId, castCommand, ruling, check, discovery, ambush, recruitment or worldEvent.'+(errandPaidTurn(body.context)?' The errand in context.story.errand is done: keeper hands over the promised reward ('+String(body.context.story.errand.reward??'').slice(0,160)+') now, with loot in this reply, within the loot limits.':''):ooc?'\nOUT OF CHARACTER: The player is speaking to you directly, player to Dungeon Master, outside the story: about a ruling, something that went wrong, what they meant to do, or how the game works. Answer plainly in your own voice, as a friendly human Dungeon Master talking across the table, in two to five sentences: no story narration, no NPC speech, and do not advance the scene. Speak of "the rules", "the dice" and "the game"; never mention an engine, fields, schemas, data or anything about how the game is built. Be fair and specific: explain what the rules or the game did, using context.outOfCharacter.lastTurn (what they said and what the game resolved); admit it when their words were misread or a rule was applied wrongly; say what they can do now. If the last turn went wrong because their words were misread, the game did something they clearly did not intend, or a rule was misapplied, and context.outOfCharacter.canRewind is true, set rewind to true: the game then takes that whole turn back (hit points, dice, position, everything) so they can say what they meant, and tell them so. Never rewind because the dice went badly, a fight is going poorly, a risk they chose did not pay off, or the hero died fairly: say no kindly and explain why. When canRewind is false and they ask to undo something, explain that the turn cannot be taken back any more and suggest what they can do instead. Set fault to true when the player tells you the game would not let them do something the rules allow, did something other than what they asked, or showed something wrong, or when you admit a rule was applied wrongly: the game then offers to send a short note to the host so it can be fixed. Leave it out for questions about the rules, plans, or the dice going against them. You cannot change hit points, gold, items or the story here: effects hold only rewind or fault, and dialogue is empty.':''+suggestionNote(body);
   // A new place can be revealed only on an ordinary turn of a written story, when the player is free to set out.
   const canDiscover=!!body.context.world?.canDiscover&&!body.context.engineResolved&&!resolvingSpell&&!sceneTrigger&&!ooc;
   const canAmbush=!!body.context.world?.canAmbush&&!body.context.engineResolved&&!resolvingSpell&&!sceneTrigger&&!ooc;
@@ -861,7 +889,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
    // a check is the turn and the journey waits for the next one (a join starts no other action); a decline or an
    // offer leaves the action standing and is dropped.
    if(Array.isArray(result.recruitment)&&result.recruitment.length&&[result.actionId,result.castCommand,result.check,result.discovery,result.ambush].some(v=>v!=null)){
-    if(result.recruitment.some(p=>['join','check'].includes(p?.decision))){for(const k of ['actionId','castCommand','check','discovery','ambush'])result[k]=null;noted('recruitment beside an action','the action waits');}
+    if(result.recruitment.some(p=>['join','check'].includes(p?.decision))){for(const k of ['actionId','castCommand','check','discovery','ambush'])result[k]=null;result.retell=true;noted('recruitment beside an action','the action waits');}
     else{result.recruitment=[];noted('recruitment beside an action','recruitment dropped');}
    }
   };
@@ -902,7 +930,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   // Loot goes with the narration that hands it over: dropped when this turn starts an action, refused if it cannot be paid.
   let loot=canLoot?repairedLoot(result.loot??null):null;
   {const clamped=clampedLoot(loot,body.context);loot=clamped.loot;for(const what of new Set(clamped.changed))noted('loot '+what,what==='gold'?'clamped to the level\'s most':'magic removed');}
-  if(loot&&([result.actionId,castCommand,ruling,check,discovery,ambush].some(v=>v!=null)||recruitment.length)){loot=null;noted('loot beside an action','dropped');}
+  if(loot&&([result.actionId,castCommand,ruling,check,discovery,ambush].some(v=>v!=null)||recruitment.length)){loot=null;result.retell=true;noted('loot beside an action','dropped');}
   if(!loot&&canLoot&&errandPaidTurn(body.context)&&errandPurse(body.context)>0){loot={gold:Math.min(errandPurse(body.context),40*(body.context.player?.level??1)+60),items:[],reason:'The promised reward for the errand.'};noted('errand reward','the game paid');}
   if(loot&&!validLoot(loot,body.context)){if(Number.isInteger(loot.gold)&&(body.context.inventory?.gold??0)+loot.gold<0)throw Error('You do not have enough gold for that.');loot=null;}
   // Facts to keep (the story so far): tidied here, never a reason to refuse; a turn that starts an action keeps them
@@ -910,7 +938,9 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   let remember=canRelate?cleanRemember(result.remember,body.context):[];
   if([result.actionId,castCommand,ruling,check].some(v=>v!=null)||recruitment.length)remember=[];
   if(!introduce)remember=remember.map(f=>({...f,about:f.about.filter(id=>id!=='new')}));
-  const reply={narration,dialogue,recruitment,relationships,remember,loot,introduce,actionId:result.actionId,castCommand,ruling,worldEvent,check,discovery,ambush,rewind:ooc&&result.rewind===true&&body.context.outOfCharacter?.canRewind===true,suggestions:ooc?[]:cleanSuggestions(result.suggestions,body.input,body.context),fault:ooc&&result.fault===true};
+  // retell: the narration may tell what did not happen (a journey that now waits for a join, loot left out), so the
+  // device and the campaign server ask for the telling of what the engine resolved even where the reply could serve.
+  const reply={...(result.retell?{retell:true}:{}),narration,dialogue,recruitment,relationships,remember,loot,introduce,actionId:result.actionId,castCommand,ruling,worldEvent,check,discovery,ambush,rewind:ooc&&result.rewind===true&&body.context.outOfCharacter?.canRewind===true,suggestions:ooc?[]:cleanSuggestions(result.suggestions,body.input,body.context),fault:ooc&&result.fault===true};
   // Hit points stated in the telling must be the game's own.
   reply.narration=checkedHp(reply.narration,body.context);reply.dialogue=reply.dialogue.map(l=>({...l,text:checkedHp(l.text,body.context)}));
   validateGroundedReply(body.context,reply);

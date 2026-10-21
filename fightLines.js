@@ -6,6 +6,7 @@ import {gearedHero} from './inventoryRules';
 import {storyText} from './storyRules';
 import {creatureNature} from "./spellDamageRules";
 import {heroesAtTable} from "./playbackRules";
+import {routineCalmTurn,calmTelling,chosenTelling} from './calmLines';
 
 // Routine fight moves told by the game itself (the host, 2026-10-17: "Let the game narrate routine fight moves: a plain
 // attack, Dodge or 'end my turn' currently asks the AI to describe it, even though the dice cards already show what
@@ -469,9 +470,16 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
  return {narration,dialogue};
 }
 // The one call a device and the campaign server make after previewing a fight move: the game's own telling when the
-// move is routine (no request to the Dungeon Master), else null.
-export function routineTelling({hero,before,preview,health,action,words,preferences={}}){
+// move is routine (no request to the Dungeon Master), else null. `chosen` is the Dungeon Master's own reply when it
+// chose the move (its actionId): away from a fight a routine outcome then keeps that reply, with the game's line for
+// what the dice and the road decided (calmLines.js chosenTelling), instead of asking again only to tell it.
+export function routineTelling({hero,before,preview,health,action,words,preferences={},chosen=null}){
  if(!preview||preview.error)return null;
+ // Away from a fight: a rest, a draught, a journey back, a search, an order or the shield, told by calmLines.js.
+ if(!flInFight(before)){const calm=routineCalmTurn(before,preview.game,action,words,{events:preview.events,waiting:!!preview.waiting,chosen:!!chosen});if(!calm.routine)return null;
+  if(chosen)return chosenTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator,chosen});
+  const told=calmTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator});return told?{...told,told:'game'}:null;}
+ if(chosen)return null;
  const verdict=routineFightTurn(before,preview.game,action,words,{hero,health,afterHealth:preview.health,events:preview.events,waiting:!!preview.waiting});
  if(!verdict.routine)return null;
  return {...fightTelling({hero,before,after:preview.game,health,afterHealth:preview.health,action,events:preview.events,narrator:preferences?.narrator,brutality:preferences?.brutality}),told:'game',fightRound:fightRoundKey(before)};

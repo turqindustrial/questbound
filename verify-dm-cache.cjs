@@ -220,7 +220,11 @@ const strictProblems=(s,at,out=[])=>{
   // town 1877 → 1308, conversation 1805 → 1254, fight 1322 → 811 and 1285 → 808, brawl telling 1913 → 1340, party fight
   // 1293 → 832, wizard 2219 → 1513, a long life 4786 → 4010 and 1772 → 970; the standing prompt 8853 → 8326; the
   // schema 2021 → 2226 (every effect an item of one list) and the empty reply's skeleton 67 → 14. Budgets leave about 8%.
-  const budgets={'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':880,'fighter: fight, words':880,'fighter: brawl':1450,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
+  // Round 3 (the same day, the host: "the lowest possible cost per turn"; tellingOnly in dm-server.cjs): a telling reads only
+  // what a telling can use: the fight's telling 811 → 800, the brawl's 1340 → 1329, the journey's to the mill 728 → 717 (in a fight only this
+  // turn's part is trimmed, so a telling keeps sharing the earlier parts with the turn before it)
+  // (a check's telling and a scene cue are held in verify-lean-turns.cjs).
+  const budgets={'fighter: to the mill':775,'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':865,'fighter: fight, words':880,'fighter: brawl':1435,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
   const measured={standing:tokens(standingPrompt),schema:tokens(JSON.stringify(replySchemaFor()))};
   for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
   if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));

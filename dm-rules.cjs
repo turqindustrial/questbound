@@ -27,18 +27,23 @@ const coreRules=[
  'Detect Magic: magic within 30 feet while concentrating (10 minutes); an aura needs a later Magic action and a visible bearer; it identifies nothing and reveals no invisible creatures.',
  'Rules text proves nothing implemented: only game actions and ruling fields change state; say so of unsupported effects, never narrating an unrecorded item, condition, multi-target damage or resource change.'
 ];
+// Whether lower-cased words name something as a whole word or phrase.
+const namedIn=(input,name)=>{const n=String(name??'').toLowerCase();if(!n)return false;let at=input.indexOf(n);while(at>=0){const before=input[at-1],after=input[at+n.length];if(!/[a-z0-9]/.test(before??'')&&!/[a-z0-9]/.test(after??''))return true;at=input.indexOf(n,at+1);}return false;};
 function rulesFor(body){
  const c=body.context??{},p=c.player??{},input=String(body.input??'').toLowerCase();
  const available=new Set((c.spellReference??[]).map(s=>s.name));
  const pending=c.pendingSpell?.id;
- const matches=spells.filter(s=>s.id===pending||input.includes(s.name.toLowerCase()));
+ // A name counts only as a whole word ("said" names no Aid, "Halloway" no Hallow), and a spell the hero does not have only
+ // when the words speak of casting ("I knock at the door" is not Knock): the reference is for the spell in play.
+ const magicTalk=/\b(?:cast|casts|casting|spell|spells|magic|ritual|cantrip|cantrips)\b/.test(input);
+ const matches=spells.filter(s=>s.id===pending||(namedIn(input,s.name)&&(available.has(s.name)||magicTalk)));
  // Pending spell always wins the bounded retrieval budget; never truncate its text.
  matches.sort((a,b)=>Number(b.id===pending)-Number(a.id===pending));
  const eligible=features.filter(f=>f.class===p.class&&f.level<=p.level&&(!f.subclass||f.subclass===p.subclass));
  return {edition:'2024 / SRD 5.2',sources:['https://www.dndbeyond.com/sources/dnd/br-2024/spells','https://www.dndbeyond.com/sources/dnd/br-2024/playing-the-game'],coreRules,actionRules,
   spells:matches.slice(0,6).map(s=>({...s,availableToCharacter:available.has(s.name),referenceOnly:true})),
   availableFeatures:eligible.map(f=>({name:f.name,level:f.level,subclass:f.subclass,automation:f.automation})),
-  featureDetails:eligible.filter(f=>input.includes(f.name.toLowerCase())).slice(0,4),
+  featureDetails:eligible.filter(f=>namedIn(input,f.name)).slice(0,4),
   limits:'This reference grants no new actions, spells or features. Missing rules require clarification, not invented mechanics. Engine results remain authoritative.'};
 }
 // The same reference in three parts, so the provider can cache what never changes (dm-server.cjs, the cache order):

@@ -19,7 +19,7 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  const target=greet?request.npcId:r.conversationTarget(game,question,people.some(p=>p.id===request.npcId)?request.npcId:null),talkingTo=people.find(p=>p.id===target);
  const toDm=!greet&&(request.direct===true||/^(?:dm[, :]|\(ooc\))/i.test(question));
  const post=async(scene=game,hp=health,extra={})=>{
-  const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp,question),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...extra}});
+  const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp,question),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...(request.suggest===false?{suggest:false}:{}),...extra}});
   if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');return body;
  };
  function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
@@ -32,7 +32,7 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   const suggestions=Array.isArray(body.suggestions)?body.suggestions.filter(t=>typeof t==='string'&&t.trim()).slice(0,3):[];
   return {snapshot:next,narration:body.narration,turn:result.turn??null,events:result.events??[],suggestions,fault:toDm&&body.fault===true,deeds:marked.fresh??[],xp:xp.gained>0?{amount:xp.gained,label:xp.labels.join(' · ')}:null};
  }
- async function cast(command,narration){
+ async function cast(command,narration,chosen=null){
   const dice=[],draw=()=>{const n=randomImpl();dice.push(n);return n;};
   const preview=r.adventureStep(r.withAttackIntent(game,question),health,ruled,command.action,draw);if(preview.error)throw fail(preview.error);
   if(preview.waiting){
@@ -44,9 +44,10 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   }
   // A routine fight move is told by the game itself, with no request to the Dungeon Master (fightLines.js), exactly as
   // on a device: the same rule, the same seeded lines.
-  const told=narration===undefined?r.routineTelling({hero:ruled,before:game,preview,health,action:command.action,words:question,preferences:preferences(request.storyPreferences)}):null;
+  // A routine calm move the Dungeon Master chose keeps its own reply (calmLines.js chosenTelling): no second request.
+  const told=narration===undefined||chosen?r.routineTelling({hero:ruled,before:game,preview,health,action:command.action,words:question,preferences:preferences(request.storyPreferences),chosen}):null;
   const body=told??await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40)});let i=0;
-  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),told?{told:'game',fightRound:told.fightRound}:{});
+  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),told?.told==='game'?{told:'game',fightRound:told.fightRound}:{});
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
  // A greeting is a trigger turn (no player line): the Dungeon Master writes it as a scene moment in which only that
@@ -72,7 +73,8 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  if(body.recruitment?.length||body.check){
   const action=body.check?{type:'ai-check',check:body.check}:{type:'recruitment',plans:body.recruitment},dice=[];
   const preview=r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,npcId:target},()=>{const n=randomImpl();dice.push(n);return n;});if(preview.error)throw fail(preview.error);
-  const reply=await post(preview.game,preview.health,{engineResolved:preview.events});let i=0;return finish(action,{...reply,worldEvent:null},undefined,()=>dice[i++]??randomImpl());
+  // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. A check is told once rolled.
+  const reply=body.check||body.retell||body.recruitment.some(p=>p?.decision==='check')?await post(preview.game,preview.health,{engineResolved:preview.events}):body;let i=0;return finish(action,{...reply,worldEvent:null},undefined,()=>dice[i++]??randomImpl());
  }
  if(body.ruling)return finish({type:'ai-ruling',ruling:body.ruling},body);
  if(body.discovery){const {travel,...place}=body.discovery;return finish({type:'discover',place,travel},body);}
@@ -80,6 +82,6 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  // A journey the player named may be one the choices had no room for: any journey on the map can be taken (mapMoves).
  const choice=body.actionId==null?null:[...r.dmChoices(ruled,game,health),...r.mapMoves(game)].find(c=>c.id===body.actionId);
  if(body.actionId!=null&&!choice)throw fail('That action is no longer available.');
- return choice?cast({action:choice.action},body.narration):finish(null,body);
+ return choice?cast({action:choice.action},body.narration,body.retell?null:body):finish(null,body);
 }
 module.exports={resolveTurn};

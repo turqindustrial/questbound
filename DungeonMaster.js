@@ -28,8 +28,7 @@ import SuggestionsBar,{ideaChipsFor} from './DmSuggestions';
 import DmHeader from './DmHeader';
 import {useMutedMembers} from './tableMutes';
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
-const panelKey='questbound.suggestions.v1';
-const loadPanel=()=>{try{const v=JSON.parse(globalThis.localStorage?.getItem(panelKey)??'null');return {open:v?.open===true,tab:['say','speak','actions'].includes(v?.tab)?v.tab:'say'};}catch{return {open:false,tab:'say'};}};
+import {panelKey,loadPanel} from './suggestionPanel';
 export default function DungeonMaster({hero,game,health,act,onConversationChange,table,fill=false,quick=[],sendRef,onTyping}) {
   const {width:viewWidth,height:viewHeight}=useWindowDimensions(),compact=viewWidth<600,short=viewHeight<520;
   // Typing on a phone: while the message box has the keyboard, the story keeps the screen and the action row,
