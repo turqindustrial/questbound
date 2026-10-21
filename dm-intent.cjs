@@ -118,17 +118,19 @@ function secondLook(body,reply,{canDiscover=false}={}){
   if(lonely&&arrivedAt(context))return {kind:'nobody here',sure:false,note:'Your telling brings the player to '+String(here.name).slice(0,60)+', '+(here.kind?'a '+here.kind:'a place')+' where people would be, but nobody is named there (context.world.peopleHere is 0). Tell the same moment again, and this time return introduce for the one person the player would notice first on arriving (who they are, what they are doing), and let them speak if it fits. Keep everything else as you told it; all mechanical fields stay null.'};}
  if(!text||text.length>400||fighting(context)||context.engineResolved||context.sceneTrigger||context.outOfCharacter||context.pendingSpell)return null;
  const asking=question(text),plain=!asking&&!negated(text)&&!hedged(text)&&text.length<=200;
+ // The game's own one-line telling: at a table of several heroes it names the one acting (everyone reads it).
+ const hero=Array.isArray(context.party)&&context.party.length?String(context.player?.name??'').trim():'',told=(you,them)=>hero?hero+' '+them:you;
  const none=!started(reply),goes=!asking&&!negated(text)&&moving(text),named=goes?namedJourneys(text,context):[];
  if(none&&named.length===1){
   const j=named[0];
-  return {kind:'known place',actionId:j.actionId,sure:plain&&j.strong,say:'You set out for '+j.name+'.',
+  return {kind:'known place',actionId:j.actionId,sure:plain&&j.strong,say:told('You set out for '+j.name+'.','sets out for '+j.name+'.'),
    note:'Your last reply started no game action. The player\'s message reads as setting out for '+j.name+' now, and '+j.actionId+' is on offer and allowed (context.now says so). If they are setting out, select actionId '+j.actionId+' and narrate them leaving: no obstacle, warning or condition in the way, and nobody stopping them. Only if the message is plainly not a decision to go now (a question, a plan for later, something said to someone) answer it without the journey.'};
  }
  // Off the edge of this land's map: the beyond choice that way (the game opens the new land).
  if(none&&!asking&&!negated(text)&&offLand(text)){
   const b=bearingOf(text),id=b?'beyond-'+b:null,ways=(context.choices??[]).filter(c=>typeof c?.id==='string'&&c.id.startsWith('beyond-')).map(c=>c.id);
   const word=b?Object.keys(compassIds).find(k=>compassIds[k]===b).replace(/^(north|south)(east|west)$/,'$1-$2'):null;
-  if(id&&ways.includes(id))return {kind:'beyond the map',actionId:id,sure:plain,say:'You set out '+word+', beyond the edge of your map.',
+  if(id&&ways.includes(id))return {kind:'beyond the map',actionId:id,sure:plain,say:told('You set out '+word+', beyond the edge of your map.','sets out '+word+', beyond the edge of the map.'),
    note:'Your last reply started no game action. The player\'s message reads as leaving this land altogether, '+word+', past the edge of the map, and '+id+' is on offer. Select actionId '+id+' and narrate them setting out on the long road; the game opens the new land. Only if the message is plainly not a decision to go now answer it without the journey.'};
   if(!b&&ways.length)return {kind:'beyond the map',sure:false,note:'Your last reply started no game action. The player\'s message reads as leaving this land altogether, past the edge of the map. Select the beyond choice ('+ways.join(', ')+') nearest the way their words point (ask which way only if nothing in the scene suggests one), or use discovery with region for a land they name.'};
  }
@@ -150,7 +152,7 @@ function secondLook(body,reply,{canDiscover=false}={}){
  const lead=none&&!asking?settledLead(text,context):null;
  if(lead)return {kind:'lead',sure:false,
   note:'Your last reply closed nothing. The player\'s message may settle the lead "'+String(lead.title).slice(0,80)+'", and lead-done:'+lead.id+' is on offer. If this message completes it (the thing is handed over, the truth is told to the one who asked, the matter is settled for good or ill), select actionId lead-done:'+lead.id+' in this reply; the telling of the moment follows. If it only moves the errand along, answer as you did.'};
- if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.','loot':'You search the fallen.'}[id],
+ if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:hero?hero+' '+{'short-rest':'takes a short rest.','long-rest':'settles down to rest.','potion':'drinks a healing draught.','loot':'searches the fallen.'}[id]:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.','loot':'You search the fallen.'}[id],
   note:'Your last reply started no game action. The player\'s message reads as '+what+', and '+id+' is on offer. Select actionId '+id+' unless the message is plainly not doing so now.'};
  return null;
 }

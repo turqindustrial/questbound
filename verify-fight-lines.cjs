@@ -75,11 +75,33 @@ const shape=v=>JSON.stringify(v,(k,val)=>Array.isArray(val)?'list':val);for(cons
 const cases=x.fightLineCases();assert.ok(cases.length>=3*60,'every case is counted');
 for(const c of cases)assert.ok(c.count>=12,c.narrator+' has only '+c.count+' ways to tell "'+c.case+'"');
 for(const kind of ['taunt','hurt','band','beast','undead','monster','cheer','wince','warn'])assert.ok(x.fightBarks[kind].length>=12,'spoken lines for '+kind);
-const every=[];const walk=(v,where)=>{if(Array.isArray(v))v.forEach(s=>every.push([where,s]));else if(v&&typeof v==='object')for(const [k,w] of Object.entries(v))walk(w,where+'.'+k);};walk(x.fightLineBook,'book');walk(x.fightBarks,'barks');
-assert.ok(every.length>900,'a large library ('+every.length+' lines)');
+const raw=[];const walk=(v,where)=>{if(Array.isArray(v))v.forEach((s,i)=>raw.push([where,s,i]));else if(v&&typeof v==='object')for(const [k,w] of Object.entries(v))walk(w,where+'.'+k);};walk(x.fightLineBook,'book');walk(x.fightBarks,'barks');
+// A line and its twin told of the hero by name at a table of several heroes ('You cut.|{hero} cuts.'); '!' marks both.
+const formsOf=s=>{const at=s.indexOf('|');return at<0?[s]:[s.slice(0,at),(s.startsWith('!')?'!':'')+s.slice(at+1)];};
+const every=raw.flatMap(([where,s])=>formsOf(s).map((f,i)=>[i?where+' (told of the hero)':where,f]));
+assert.ok(raw.length>900,'a large library ('+raw.length+' lines)');
 const counted=/\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|hundred|dozen)\b/i,rulesWords=/\b(?:HP|hit points?|damage|dice|die|d20|rolls?|rolled|AC|armou?r class|bonus action|reaction|advantage|disadvantage|initiative|round|slot|saving throw|saves?|proficiency|modifier|critical|crit|luck|lucky|unlucky|fortune|fortunate|reroll|spared|mercy|turn order|second wind|action surge|slain|kills?|killed|lifeless)\b/i;
 for(const [where,s] of every){assert.ok(!counted.test(s),where+' states a number: '+s);assert.ok(!rulesWords.test(s),where+' names a rule or a kill: '+s);assert.ok(s.length<=160,where+' is short: '+s);}
-const all=every.map(e=>e[1]);assert.equal(new Set(all.filter(s=>!s.startsWith('{Foe} '))).size,all.filter(s=>!s.startsWith('{Foe} ')).length,'no line is written twice');
+for(const twin of [false,true]){const all=raw.map(e=>formsOf(e[1])).filter(f=>!twin||f[1]).map(f=>twin?f[1]:f[0]).filter(s=>!/^!?\{Foe\} /.test(s));assert.equal(new Set(all).size,all.length,'no line is written twice'+(twin?' (told of the hero)':''));}
+// ---- 4b. Told of the hero by name at a table of several heroes (the host, 2026-10-21: "make sure that when a player is
+// being talked to or interacted with, that character is named instead of just saying "you"") ----
+{const heroMoves=/^book\.\w+\.(?:swing|offhand|spell|dodge|end|draught|wind|surge|knack|saveUp|saveDown)\b/,you=/\b(?:you|your|yours|yourself|yourselves)\b/i,places=t=>[...t.matchAll(/\{(\w+)\}/g)].map(m=>m[1]).filter(k=>k!=='hero').sort().join(',');
+ let twins=0;
+ for(const [where,s] of raw){const [line,twin]=formsOf(s),speech=/^barks\.(?:taunt|hurt|band|cheer|wince|warn)$/.test(where);
+  const needs=heroMoves.test(where)||you.test(line)||(speech&&where!=='barks.band')||where==='barks.tags';
+  assert.ok(!twin||!twin.includes('|'),where+': one twin a line');
+  if(!needs){assert.equal(twin,undefined,where+' needs no twin: '+s);continue;}
+  assert.ok(twin,where+' tells the hero\'s move or says "you", so it needs a twin told of the hero by name: '+line);twins++;
+  assert.ok(twin.includes('{hero}'),where+': the twin names the hero: '+twin);
+  if(!speech)assert.ok(!you.test(twin),where+': the twin never says "you": '+twin);
+  assert.equal(places(twin),places(line),where+': the twin keeps the line\'s other names: '+twin);
+  // Agreement: a name takes the singular verb, "they" the plural, and the twin reads as a sentence.
+  assert.ok(!/(?<!\b(?:should|would|could|can|will|must|may|might|did|does|let|lets|make|makes|see|sees) )\{hero\} (?:are|have|were|do|don't|go|take|keep|hold|make|swing|strike|step|drink|wait|stand|cut|thrust|lunge|draw|throw|hurl|feel|find|give|let|put|turn|dance|weave)\b/.test(twin),where+': "{hero}" takes a singular verb: '+twin);
+  assert.ok(!/\bthey (?:is|has|was|does|keeps|holds|swings|strikes|drinks|waits|stands|takes|makes|feels|finds|gives|lets|puts|turns)\b/i.test(twin),where+': "they" takes a plural verb: '+twin);
+  assert.ok(/^(?:\{hero\}|\{Foe\}|\{Foes\}|\{name\}|\{spell\}|[A-Z])/.test(twin.replace(/^!/,'')),where+': the twin starts a sentence: '+twin);
+  const filled=twin.replace(/\{hero\}/g,'Thalion Brightwater').replace(/\{\w+\}/g,'the bandit cutthroat');assert.ok(filled.length<=190,where+': the twin stays short: '+filled);
+  assert.ok(Math.abs(twin.length-line.length)<=60,where+': the twin keeps the line\'s length: '+twin);}
+ assert.ok(twins>=780,'every line about the hero has its twin ('+twins+')');}
 assert.ok(!/survivalOdds|sparedBlow/.test(readText('fightLines.js')),'the hidden odds are never mentioned');
 
 // ---- 5. Seeded: the same turn gives the same words; different turns differ ----
@@ -88,7 +110,7 @@ assert.ok(!/survivalOdds|sparedBlow/.test(readText('fightLines.js')),'the hidden
  const voicesSaid=voices.map(narrator=>x.fightTelling({...args,narrator}).narration);assert.equal(new Set(voicesSaid).size,3,'each narrator in their own voice');
  const later=new Set();for(let id=1;id<=30;id++)later.add(x.fightTelling({...args,before:{...big,playback:[{id,npcId:null,events:[{kind:'narration',text:'.'}]}]}}).narration);assert.ok(later.size>=20,'different turns are told differently ('+later.size+' of 30)');
  // Restrained leaves out the grittier lines.
- const fill=t=>t.slice(1).replace(/{foe}/g,'the bandit cutthroat').replace(/{Foe}/g,'The bandit cutthroat'),gritty=every.filter(e=>e[1].startsWith('!')).map(e=>fill(e[1]));assert.ok(gritty.length>=6);
+ const fill=t=>t.slice(1).replace(/{foe}/g,'the bandit cutthroat').replace(/{Foe}/g,'The bandit cutthroat'),gritty=every.filter(e=>e[1].startsWith('!')&&!e[0].endsWith('(told of the hero)')).map(e=>fill(e[1]));assert.ok(gritty.length>=6);
  const heavy={...args,events:args.events.map(t=>t.replace(/^\d+ slashing/,'390 slashing'))};let grim=0;for(let id=1;id<=300;id++){const at={...heavy,before:{...big,playback:[{id,npcId:null,events:[{kind:'narration',text:'.'}]}]}};if(gritty.some(g=>x.fightTelling(at).narration.includes(g)))grim++;const said=x.fightTelling({...at,brutality:'restrained'}).narration;for(const g of gritty)assert.ok(!said.includes(g),'Restrained leaves out: '+g);}assert.ok(grim>0,'Gritty uses the grittier lines now and then');}
 
 // ---- 6. No line repeats within a fight ----

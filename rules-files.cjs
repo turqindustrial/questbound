@@ -11,7 +11,7 @@ const rulesFiles=['saveVersion.js','subclassOptions.js','campaignRules.js','mapR
 // Pure modules the screens use beside the rules (art subjects, descriptions, the feed's cards, the roster, save codes,
 // map drawing, the tale card...). The server never loads them; the checks that test them add them after the rules
 // with `rulesSource({extra:[...]})` (or `withHelpers` for all of them).
-const helperFiles=['worldArtRules.js','descriptions.js','chronicleRules.js','playbackHp.js','entityRules.js','rosterRules.js','turnMemory.js','mapLayout.js','mapArt.js','characterDraft.js','saveCodes.js','taleRules.js','characterOptions.js','dmTurnRules.js'];
+const helperFiles=['worldArtRules.js','descriptions.js','chronicleRules.js','playbackHp.js','entityRules.js','rosterRules.js','turnMemory.js','mapLayout.js','mapArt.js','characterDraft.js','saveCodes.js','taleRules.js','characterOptions.js','suggestionRules.js','dmTurnRules.js'];
 // A source file as text, with LF line endings whatever the checkout holds.
 const readText=file=>fs.readFileSync(path.join(__dirname,file),'utf8').replace(/\r\n/g,'\n');
 // One module made ready to share a scope with the others: its imports and the word export removed.

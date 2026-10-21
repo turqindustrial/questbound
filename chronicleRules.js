@@ -37,6 +37,10 @@ export function describeEvent(event){
   const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
   const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};
   if(/^You have earned a level\b/.test(text))return {type:'level'};
+  // At a table of several heroes another hero's line is told of them by name (playbackRules.js visibleTurn: toldOf).
+  const who=typeof event?.toldOf==='string'?event.toldOf:null;
+  if(who&&text.startsWith(who+' has earned a level'))return {type:'level',who};
+  if(who&&text.startsWith(who+' searches ')){const m=text.slice(who.length+10).match(/^(.+?)\.$/);if(m)return {type:'search',title:m[1],who};}
   // Experience (experienceRules.js): how much and for what; a party's line says everyone gained.
   const xp=text.match(/^Experience: \+([\d,]+) \((.+)\)\.( Every hero in the party gains experience too\.)?$/);if(xp)return {type:'xp',amount:xp[1],label:xp[2],party:!!xp[3]};
   const partyXp=text.match(/^The party gains experience \((.+)\)\.$/);if(partyXp)return {type:'xp',amount:null,label:partyXp[1],party:true};
@@ -69,15 +73,17 @@ export function describeEvent(event){
   if(d){
    const head=text.match(/^(.+?):\s/)?.[1]??'',save=/ save d20/.test(text),initiative=/initiative$/i.test(head)||/initiative:/.test(text);
    const target=text.match(/vs (your |[^:]{1,60}?’s )?(AC|DC) (\d+)/),total=Number(text.match(/= (\d+)(?: vs|\.)/)?.[1]??NaN);
-   const foe=!!target?.[1]||/ attacks you:/.test(text);
-   let title=head.replace(/^You use /,'').replace(/^You throw (.+?) at /,'Thrown $1 → ').replace(/^You throw /,'Thrown ').replace(/ against /,' → ');
+   const foe=!!target?.[1]||/ attacks you:/.test(text)||(typeof event?.toldOf==='string'&&text.includes(' attacks '+event.toldOf+':'));
+   const who=typeof event?.toldOf==='string'&&head.startsWith(event.toldOf+' ')?event.toldOf:null,own=who?head.slice(who.length).replace(/^ uses /,' use ').replace(/^ throws /,' throw '):null;
+   let title=(who?'You'+own:head).replace(/^You use /,'').replace(/^You throw (.+?) at /,'Thrown $1 → ').replace(/^You throw /,'Thrown ').replace(/ against /,' → ');
+   if(who&&title.startsWith('You'))title=who+title.slice(3);
    const extra=text.match(/[;:] (\d+) (\w+) damage/);
    // "Reason: Wisdom (Perception) d20 [9] …" is a check the Dungeon Master called for: which skill, or which ability.
    const called=text.match(/: (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)(?: \(([A-Za-z ]+)\))? d20 /),check=called?(called[2]??called[1]):null;
    // Whatever follows the verdict ("You find the latch.") is the outcome in words.
    const after=text.replace(/^.*?(?:Critical hit!?|\bHit\b\.?|\bMiss\b\.?|\bSuccess\b\.?|\bFailure\b\.?|: (?:success|failure))[;.]?\s*/,'');
    const outcome=after!==text?after.replace(/^\d+ \w+ damage(?: \([^)]*\))?[.;]?\s*/,'').replace(/^Damage \d+d\d+ \[[\d, ]+\] = \d+[^.]*\.\s*/,'').trim():'';
-   return {type:initiative?'initiative':save?'save':'roll',title,actor:foe?'foe':'you',natural:d.natural,rolls:d.rolls,mode:d.mode,total:Number.isFinite(total)?total:null,
+   return {type:initiative?'initiative':save?'save':'roll',title,actor:foe?'foe':'you',...(who&&!foe?{who}:{}),natural:d.natural,rolls:d.rolls,mode:d.mode,total:Number.isFinite(total)?total:null,
     target:target?target[2]+' '+target[3]:null,check,verdict:verdictOf(text,save),math:mathOf(text,d.natural),damage:extra?{amount:Number(extra[1]),damageType:damageKind(extra[2])}:null,outcome};
   }
  }

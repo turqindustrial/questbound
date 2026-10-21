@@ -176,12 +176,16 @@ function cleanRemember(list,context){
  }
  return kept;
 }
+// Whether a suggestion can happen now (suggestionRules.js, the one rule the device uses too, with facts from the game):
+// read here from the scene this turn was given (body.context) with the spell catalogue's names. The file is loaded as
+// text each time this module is, so an edit there is live with the next request, as one here is.
+const suggestionPossible=(()=>{try{const fn=require('node:vm').runInNewContext(require('./rules-files.cjs').moduleSource('suggestionRules.js')+'\n;suggestionPossible'),names=require('./spellCatalog.json').map(s=>s.name);return (text,context)=>{try{return fn(text,context,names)!==false;}catch{return true;}};}catch{return ()=>true;}})();
 // What the player might say next (the Suggestions tab): at most three short lines in their own voice, tidied here and
 // never a reason to refuse a reply. Lines that speak out of character, state hit points, repeat what the player just
-// said or run long are dropped.
-function cleanSuggestions(list,input){
+// said or run long are dropped, and so is anything this hero cannot do now (suggestionPossible).
+function cleanSuggestions(list,input,context=null){
  const seen=new Set(),said=String(input??'').trim().toLowerCase();
  return (Array.isArray(list)?list:[]).filter(t=>typeof t==='string').map(t=>t.replace(/\s+/g,' ').trim().replace(/^(?:[-*\u2022]\s+|\d+[.)]\s+)/,'').replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g,'').trim())
-  .filter(t=>{const key=t.toLowerCase();if(t.length<3||t.length>110||/^(?:\(\s*ooc|\[\s*ooc|ooc\b|dm\b|dungeon master\b)/i.test(t)||/\d+\s*(?:HP|hit points?)\b/i.test(t)||/\b(?:button|click)\b/i.test(t)||key===said||seen.has(key))return false;seen.add(key);return true;}).slice(0,3);
+  .filter(t=>{const key=t.toLowerCase();if(t.length<3||t.length>110||/^(?:\(\s*ooc|\[\s*ooc|ooc\b|dm\b|dungeon master\b)/i.test(t)||/\d+\s*(?:HP|hit points?)\b/i.test(t)||/\b(?:button|click)\b/i.test(t)||key===said||seen.has(key)||!suggestionPossible(t,context))return false;seen.add(key);return true;}).slice(0,3);
 }
-module.exports={cut,tidy,repairedCreature,repairedDiscovery,repairedIntroduce,repairedLoot,errandPaidTurn,errandPurse,magicRewardTurn,clampedLoot,validLoot,personId,knownPeople,validIntroduce,validRelationships,relationshipAllowed,validSketch,validCreature,validDiscovery,genericWords,spellNamed,validCheck,validRuling,knownHp,hpWords,checkedHp,unusable,transient,faultKind,tellingCut,castableSpell,castWords,echoStop,greetingWords,lineWords,echoes,distinctDialogue,rememberMechanics,cleanRemember,cleanSuggestions};
+module.exports={suggestionPossible,cut,tidy,repairedCreature,repairedDiscovery,repairedIntroduce,repairedLoot,errandPaidTurn,errandPurse,magicRewardTurn,clampedLoot,validLoot,personId,knownPeople,validIntroduce,validRelationships,relationshipAllowed,validSketch,validCreature,validDiscovery,genericWords,spellNamed,validCheck,validRuling,knownHp,hpWords,checkedHp,unusable,transient,faultKind,tellingCut,castableSpell,castWords,echoStop,greetingWords,lineWords,echoes,distinctDialogue,rememberMechanics,cleanRemember,cleanSuggestions};
