@@ -148,7 +148,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  // way on is a new hero. At a shared table the table keeps their seat; friends there may still bring them back.
  const revivals=game.stage==='dead'&&!resting?revivalOptions(game,hero).filter(o=>o.ready):[];
  const atTable=!!table?.joined,first=hero.name.split(' ')[0];
- const deathNote=atTable?(game.party?'A friend who knows Revivify can still bring '+first+' back while the party stays where they fell. To play on with a new hero, leave the table, make your hero, and join again with the campaign invite.':'This table shares one hero. The host decides how the tale goes on.'):revivals.length?revivals.map(o=>o.name.split(' ')[0]+' knows Revivify and can bring you back, for a diamond worth '+o.cost+' gp.').join(' '):first+' is gone. Their adventure ends here; they are remembered among the fallen under Heroes.';
+ const deathNote=atTable?(game.party?'A friend who knows Revivify can still bring '+first+' back while the party stays where they fell. To play on, bring another of your heroes to your seat.':'Bring another of your heroes to your seat to play on.'):revivals.length?revivals.map(o=>o.name.split(' ')[0]+' knows Revivify and can bring you back, for a diamond worth '+o.cost+' gp.').join(' '):first+' is gone. Their adventure ends here; they are remembered among the fallen under Heroes.';
  const deathPanel=game.stage==='dead'&&game.death&&<View dataSet={{qb:'plate'}} style={[s.epitaph,layout!=='wide'&&s.epitaphStrip]}>
   <Icon name="skull" size={layout==='wide'?24:18} color={colors.muted}/>
   <View style={{alignItems:'center',flexShrink:1}}>
@@ -160,7 +160,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
   {!!deathNote&&<PlainText style={s.epitaphNote}>{deathNote}</PlainText>}
   {revivals.map(o=><Pressable key={o.id} accessibilityRole="button" accessibilityLabel={'Ask '+o.name+' to bring '+first+' back with Revivify, for a diamond worth '+o.cost+' gold'} onPress={()=>act({type:'revive',by:o.id})} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="spell" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>{'Ask '+o.name.split(' ')[0]}</PlainText></Pressable>)}
   {revivals.length>0&&!!onLetGo&&<Pressable accessibilityRole="button" onPress={onLetGo} dataSet={{qb:'btn'}} style={s.epitaphQuiet}><PlainText style={s.epitaphQuietText}>{'Let '+first+' go'}</PlainText></Pressable>}
-  {!revivals.length&&!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>Begin a new hero</PlainText></Pressable>}
+  {!revivals.length&&!!onNewHero&&<Pressable accessibilityRole="button" onPress={onNewHero} dataSet={{qb:'btn-primary'}} style={s.epitaphButton}><Icon name="quill" size={15} color={tint('#ffeef0')}/><PlainText style={s.epitaphButtonText}>{atTable?'Bring another hero':'Begin a new hero'}</PlainText></Pressable>}
  </View>;
  // The people of this story and how they feel about you: a grudge or a debt, else the last thing they remember.
  const toneColor={bad:colors.bloodBright,warn:tint('#e0a860'),good:colors.heal,best:colors.goldBright,calm:colors.muted,dead:colors.faint};

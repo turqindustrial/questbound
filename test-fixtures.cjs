@@ -8,7 +8,10 @@ function fixtures(root,extra={}){
  async function user(accounts,email='tester@example.test',password='lantern-wisp-71'){
   const pending=await accounts.register(email,password);return accounts.verify(email,pending.challenge,codes.get(email));
  }
- const snapshot=(type='fighter')=>{const hero=r.readyHero(type);return JSON.parse(JSON.stringify(r.adventureSnapshot(hero,r.newAdventure(hero),null,true)));};
- return {options,codes,user,snapshot,operations};
+ // A hero in a written tale (journey-fixtures.cjs): a shared table plays a tale (campaigns.cjs), never the crossroads
+ // adventure a game without a story once was; `{tale:false}` gives a hero with no tale yet.
+ const taleGame=(hero,n=0)=>r.freshStoryGame(hero,require('./journey-fixtures.cjs').journeyStory(n),r.newAdventure(hero));
+ const snapshot=(type='fighter',{tale=true}={})=>{const hero=r.readyHero(type);return JSON.parse(JSON.stringify(r.adventureSnapshot(hero,tale?taleGame(hero):r.newAdventure(hero),null,true)));};
+ return {options,codes,user,snapshot,taleGame,operations};
 }
 module.exports={fixtures};

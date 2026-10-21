@@ -79,13 +79,26 @@ try{
  assert.ok(g.enemyHP>=beforeFoe,'a foe not yet met grows to match');
  for(const [id,trained] of Object.entries(g.npcClasses??{}))assert.ok(trained.level>=(companion[id]?.level??1),'companions keep pace');
  assert.ok(g.storyLog.some(l=>/reached level 2/.test(l.text??l)),'the story log records it');
- // 6. A one-hero campaign (party:false): every member plays the host's hero, but its lasting choices are the host's.
+ // 6. The one-hero kind of table is retired (the host's words, 2026-10-21: "nobody should be "playing" the multi
+ // player function without a character to actually take control of"). A new table is always a party, whatever it asks
+ // for, and nobody joins without a hero of their own. A table saved as the old kind is read as a party with the host's
+ // hero in the lead: another member is sent no adventure (never the host's hero), may not play or edit, and brings a
+ // hero of their own to their seat; then they play that hero.
  {const ready={...r.newAdventure(fighter),xp:r.xpForLevel(2)},made=c.create(A,{snapshot:snapshotOf(fighter,ready),party:false,name:'Al'});
-  const guest=c.join(B,{invite:made.invite,name:'Bo'}),at2={id:made.campaignId,version:guest.version};
-  for(const change of [{kind:'advance',character:{...fighter,level:2}},{kind:'wield',name:'Greatsword'},{kind:'shield',away:true},{kind:'attune',name:'Rope'},{kind:'training',training:{}}])
-   assert.throws(()=>edit(B,at2,change),e=>e.status===403,'a guest cannot make '+change.kind+' choices for the host');
-  const noted=edit(B,at2,{kind:'note',text:'Ask the miller.'});assert.equal(noted.version,at2.version+1,'a guest may still write in the journal');
-  const own=edit(A,{id:at2.id,version:noted.version},{kind:'advance',character:{...fighter,level:2}});assert.equal(JSON.parse(own.snapshot.character).level,2,'the host levels their own hero');}
+  assert.ok(r.isPartyGame(made.snapshot.game),'a new table is always a party');
+  assert.throws(()=>c.join(B,{invite:made.invite,name:'Bo'}),e=>e.status===400,'nobody joins without a hero');
+  // An old one-hero table: Bo was seated and played Al's hero.
+  rewrite(made.campaignId,camp=>{const v=r.partyView(camp.snapshot,camp.members[A.id].seat);const {party,...game}=v.game;camp.snapshot={...v,game};camp.members[B.id]={name:'Bo',role:'player',seat:'seat-'+'b'.repeat(16)};});
+  const seen=c.poll(B,{campaignId:made.campaignId,knownVersion:-1});
+  assert.equal(seen.needsHero,true,'the old table asks Bo to bring a hero');assert.equal(seen.snapshot,undefined,'and never sends him Al’s hero');
+  const host=c.poll(A,{campaignId:made.campaignId,knownVersion:-1});assert.equal(host.needsHero,false);assert.ok(r.isPartyGame(host.snapshot.game),'read as a party, Al in the lead');
+  assert.equal(JSON.parse(host.snapshot.character).name,fighter.name);
+  assert.throws(()=>edit(B,{id:made.campaignId,version:seen.version},{kind:'note',text:'Ask the miller.'}),e=>e.status===409&&e.needsHero,'no edits without a hero');
+  assert.throws(()=>c.join(B,{campaignId:made.campaignId,snapshot:snapshotOf(fighter,r.newAdventure(fighter))}),e=>e.status===409&&/already at this table/.test(e.message),'not a copy of Al’s hero');
+  const brought=c.join(B,{campaignId:made.campaignId,snapshot:snapshotOf(wizard,r.newAdventure(wizard))});
+  assert.equal(brought.needsHero,false);assert.equal(JSON.parse(brought.snapshot.character).name,wizard.name,'Bo plays his own hero');assert.equal(brought.you,'seat-'+'b'.repeat(16),'at his seat');
+  assert.equal(Object.keys(brought.snapshot.game.party.members).length,2);
+  const own=edit(A,{id:made.campaignId,version:brought.version},{kind:'advance',character:{...fighter,level:2}});assert.equal(JSON.parse(own.snapshot.character).level,2,'the host levels their own hero');}
 
  // 7. Level 3 and above at a table: an older subclass is kept; a hero with none yet chooses one now (as Advancement.js).
  {const adv=r.advancementLevels('Fighter').includes(4)?[{level:4,abilities:['Strength','Strength']}]:[];
@@ -139,5 +152,5 @@ try{
   assert.equal(m.join(C,{invite:fresh,snapshot:snapshotOf(r.readyHero('cleric'),r.newAdventure(r.readyHero('cleric'))),name:'Cy'}).members.length,2,'others still join');
   assert.throws(()=>m.unban(C,{campaignId:made.campaignId,ref:out.banned[0].ref}),e=>e.status===403);
   assert.deepEqual(m.unban(A,{campaignId:made.campaignId,ref:out.banned[0].ref}).banned,[]);assert.equal(m.join(B,{invite:fresh,snapshot:snapshotOf(wizard,r.newAdventure(wizard)),name:'Bo'}).members.length,3,'let back, he may rejoin');}
- console.log('Campaign edits: the host removes, bans and lets back a member; a member reports another; the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, a one-hero campaign’s lasting choices are the host’s, an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
+ console.log('Campaign edits: the host removes, bans and lets back a member; a member reports another; the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, every table a party (an old one-hero table asks its other members to bring their own heroes, never sending them the host’s), an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
 }finally{fs.rmSync(dir,{recursive:true,force:true});}

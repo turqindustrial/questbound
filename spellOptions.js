@@ -69,6 +69,17 @@ export function speciesSpells(hero) {
   const ids=[...(species==='Tiefling'?['thaumaturgy']:[]),...(lineageSpells[lineage]??[]).filter(([from])=>level>=from).map(([,id])=>id)];
   return [...new Set(ids)].filter(id=>spellLibrary.some(s=>s.id===id));
 }
+// Where a species spell comes from, said wherever spells are listed (the host, 2026-10-21, of a Wood Elf Monk who knew
+// Druidcraft "without any multiclasses": it is the Wood Elf lineage's cantrip). The lineage or species that grants it
+// ('Wood Elf', 'Forest Gnome', 'Infernal Tiefling', 'Tiefling' for every Tiefling's Thaumaturgy), or null for a spell
+// the hero's class gives them too.
+export function speciesSpellSource(hero,id){
+  if(!speciesSpells(hero).includes(id)||(hero?.spells??[]).includes(id)||automaticSpells(hero).includes(id))return null;
+  const lineage=heroLineage(hero),species=heroSpecies(hero);
+  if(!(lineageSpells[lineage]??[]).some(([,spell])=>spell===id))return species;
+  return species==='Tiefling'?lineage+' Tiefling':lineage;
+}
+export const spellSourceLine=(hero,id)=>{const source=speciesSpellSource(hero,id);return source?'A gift of your '+source+' '+(/Tiefling$/.test(source)?'heritage':'lineage')+', not of your class.':null;};
 // How many times a species spell can be cast without a slot between long rests.
 export function speciesUseLimit(hero,id) {
   const spell=spellLibrary.find(s=>s.id===id);if(!spell||spell.level===0||!speciesSpells(hero).includes(id))return 0;

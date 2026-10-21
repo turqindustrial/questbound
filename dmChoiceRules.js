@@ -128,7 +128,6 @@ export function dmChoices(hero,game,health=null) {
     return choices;
   }
   if(game.concentration)add('end-concentration','End concentration',{type:'end-concentration'});
-  if(['victory','defeat','escaped'].includes(game.stage))add('restart-adventure','Begin another adventure with this character');
   if(game.stage==='inn'&&!map.accepted)add('study','Study the lantern, accept the quest, and depart for the bridge');
   for(const [id,stage,label] of [['persuade-keeper','inn','Persuade the keeper for a watchtower lead: Charisma DC 10'],['investigate-signal','tower','Decipher the tower signal: Intelligence DC 10']])if(game.stage===stage&&!(game.dmChecks??[]).includes(id)&&!(id==='investigate-signal'&&map.clue))add('check:'+id,label);
   for(const option of interactionOptions(game))add(option.id,option.label);

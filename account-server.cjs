@@ -3,6 +3,7 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const {createAccounts}=require('./accounts.cjs'),{loopbackHost}=require('./security-headers.cjs');
 const {createLimiter}=require('./rate-limit.cjs'),{createCampaigns,validSnapshot}=require('./campaigns.cjs'),{createOperations,atomic}=require('./operations.cjs'),{createMailer}=require('./mailer.cjs');
 const {createBans}=require('./bans.cjs'),{reportEntry,saveFeedback}=require('./feedback-notes.cjs');
+const {createInviteGuard,inviteWords}=require('./invite-guard.cjs');
 // The terms players accept are the ones legalText.js carries, so the date has one source.
 const currentTerms=(()=>{try{return /export const legalUpdated='([^']+)'/.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'legalText.js'),'utf8'))[1];}catch{return '10 October 2026';}})();
 // Whether a signed-in, email-verified account is needed to play: one switch, accountsRequired in accountRules.js (read
@@ -12,7 +13,7 @@ const requiredInFile=(()=>{try{return /export const accountsRequired=(true|false
 const accountsRequiredNow=()=>process.env.QUESTBOUND_REQUIRE_ACCOUNTS==='1'||requiredInFile;
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 const accountRoutes=['guest','register','login','verify','save','load','status','logout','logout-all','password','delete'];
-const campaignRoutes=['create','join','list','invite','turn','edit','report','ban','unban','wait','typing'];
+const campaignRoutes=['create','join','list','invite','turn','edit','report','ban','unban','tale','wait','typing'];
 const routes=new Set(['poll','save','leave','cloud-save','cloud-load','usage','ops-status','ops-verify-backups',...accountRoutes.map(x=>'account-'+x),...campaignRoutes.map(x=>'campaign-'+x)]);
 const cookieToken=req=>req.headers.cookie?.match(/(?:^|;\s*)questbound_account=([a-f0-9]{64})(?:;|$)/)?.[1]??'';
 const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');return /^[A-Z0-9]{12}$/.test(c)?crypto.createHash('sha256').update('questbound-cloud-v1:'+c).digest('hex'):null;};
@@ -20,9 +21,11 @@ const cloudKey=code=>{const c=String(code??'').toUpperCase().replace(/[^A-Z0-9]/
 // browser the host of the whole game has banned (node accounts.cjs ban …, bans.cjs) is refused everything here: the
 // Dungeon Master (the gateways ask /usage first), every campaign route and feedback (the gateway asks /usage too).
 const bannedLine='The host of this game has closed it to this browser.';
-function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow(),live}={}){
+function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir=path.join(__dirname,'.questbound-cloud'),accountsDir=path.join(__dirname,'.questbound-accounts'),cloudLimit=200,limits={},now=Date.now,mailer=null,operations=null,ask=null,moderate=null,feedbackFile=null,randomImpl,dmBackend='http://127.0.0.1:8084',fetchImpl=fetch,accountOptions={},accountsRequired=accountsRequiredNow(),live,inviteLimits={}}={}){
  const dataDir=path.dirname(accountsDir),ops=operations??createOperations({dir:dataDir,now}),mail=mailer??createMailer({dir:dataDir});
  const bans=createBans({dir:accountsDir,now});
+ // Wrong campaign invite codes per caller and overall (invite-guard.cjs), so guessing a short code stays impractical.
+ const inviteGuard=createInviteGuard({file:path.join(dataDir,'.questbound-invite-misses.json'),now,limits:inviteLimits});
  let campaigns=null;
  const accounts=createAccounts({allowGuests:!accountsRequired,onGuestRemoved:id=>campaigns?.removeAccount(id),...accountOptions,dir:accountsDir,now,validSnapshot,mailer:mail,backup:ops.backup,audit:ops.audit});
  const dmAsk=ask??(async(payload,user)=>{const response=await fetchImpl(dmBackend+'/dm',{method:'POST',headers:{Origin:'http://localhost:8081','Content-Type':'application/json'},body:JSON.stringify({...payload,...(user.local?{}:{guest:'account-'+user.id})}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok)throw Object.assign(Error(body.error||'The Dungeon Master could not respond.'),{status:502});return body;});
@@ -99,7 +102,12 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
    if(route==='poll'||route==='leave')return send(200,campaigns[route](user,b));
    // A held wait ends when the caller goes away (the gateway or the browser closing the request), so it holds nothing.
    if(route==='campaign-wait'){const gone=new AbortController();res.on('close',()=>{if(!res.writableFinished)gone.abort();});let result;try{result=await campaigns.wait(user,b,{signal:gone.signal});}catch(e){if(gone.signal.aborted)return;throw e;}if(gone.signal.aborted)return;return send(200,result);}
-   if(route.startsWith('campaign-')){const result=await campaigns[route.slice(9)](req.headers['x-questbound-local']==='1'?{...user,local:true}:user,b);return send(result.conflict?409:200,result);}
+   if(route.startsWith('campaign-')){
+    // A join by invite code waits once this caller (or everyone) has got codes wrong too often; a wrong code is counted.
+    const byInvite=route==='campaign-join'&&b.invite!==undefined;
+    if(byInvite){const held=inviteGuard.blocked(caller);if(held){ops.audit('invite-guess-denied',{route,status:429});res.setHeader('Retry-After',String(held.seconds));return send(429,{error:inviteWords[held.whose]});}}
+    let result;try{result=await campaigns[route.slice(9)](req.headers['x-questbound-local']==='1'?{...user,local:true}:user,b);}catch(e){if(byInvite&&e.inviteMiss){inviteGuard.miss(caller);ops.audit('invite-wrong',{route,status:404});}throw e;}
+    return send(result.conflict?409:200,result);}
    if(route==='usage'){if(b.kind==='dm')ops.consume(user.id,'dm-requests',300);return send(200,{allowed:true,id:user.id});}
    if(route==='ops-status'||route==='ops-verify-backups'){
     if(req.headers['x-questbound-local']!=='1')return send(403,{error:'Host diagnostics are available only on the desktop.'});
@@ -114,7 +122,7 @@ function createSyncServer({dir=path.join(__dirname,'.questbound-table'),cloudDir
     const savedAt=new Date(now()).toISOString(),record={savedAt,snapshot:b.snapshot};ops.backup.put('cloud-'+key,record);atomic(file,record);return send(200,{saved:true,savedAt});
    }
    return send(404,{error:'Not found.'});
-  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.',...(e.removed?{removed:true}:{})});}
+  }catch(e){if(e.status>=400&&e.status<500)ops.audit('request-denied',{route,status:e.status});send(e.status??500,{error:e.status?e.message:'The game service could not complete that request. Your last saved progress is kept.',...(e.removed?{removed:true}:{}),...(e.needsHero?{needsHero:true}:{}),...(e.needsTale?{needsTale:true}:{})});}
  });
  server.requestTimeout=20000;server.headersTimeout=10000;
  return {server,accounts,campaigns,operations:ops,bans};

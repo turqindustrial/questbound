@@ -118,7 +118,7 @@ function byHand(hero,snapshot,action,question,dice,actorName){
   const A={id:'a'.repeat(64)},B={id:'b'.repeat(64)},hero=r.readyHero('fighter'),bandit=()=>(r.hostileFoes.findIndex(f=>f.key==='bandit')+.5)/r.hostileFoes.length;
   try{
    const made=c.create(A,{snapshot:r.adventureSnapshot(hero,r.hostileEncounterGame(hero,r.newAdventure(hero),bandit),null,true),name:'Al',party:true});
-   const second=r.readyHero('fighter'),bo=c.join(B,{invite:made.invite,snapshot:r.adventureSnapshot(second,r.newAdventure(second),null,true),name:'Bo'}),id=made.campaignId;
+   const second={...r.readyHero('fighter'),name:'Brannoc Second'},bo=c.join(B,{invite:made.invite,snapshot:r.adventureSnapshot(second,r.newAdventure(second),null,true),name:'Bo'}),id=made.campaignId;
    const turn=(user,body)=>c.turn(user,{campaignId:id,requestId:crypto.randomUUID(),baseVersion:c.poll(user,{campaignId:id}).version,...body});
    const opening=chip(second,bo.snapshot.game,bo.snapshot.health,/^attack:/);await turn(B,{question:'I attack.',action:opening.action});
    assert.ok(c.poll(B,{campaignId:id,knownVersion:-1}).snapshot.game.turnOrder,'the fight goes in turns');

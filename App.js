@@ -1,13 +1,13 @@
 import {findDmEndpoint,writeStory} from './dmConnection';
 import {loadJourneys,playedJourneys,journeysToOffer,rememberJourney} from './journeyLibrary';
-import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory} from './startTale';
+import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory,playScreenFor,tableSnapshot} from './startTale';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
 import {sceneArtSubjects,npcArtSubject} from './worldArtRules';
 import {usePageWheel} from './usePageWheel';
 import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import EncounterProvider from './EncounterOverlay';
-import {freshStoryGame,levelUpReady,foeForLevel} from './storyRules';
+import {freshStoryGame,levelUpReady,foeForLevel,hasTale} from './storyRules';
 import {advancedInPlace,experienceView} from './experienceRules';
 import {hostileEncounterGame} from './hostileEncounter';
 import {appendJournal,appendStoryLog} from './journalRules';
@@ -119,12 +119,26 @@ function QuestboundApp() {
   const party=partyMembers(game).filter(m=>!m.lead);
   // Another hero tapped in the party row opens Mute, Report and (for the table's host) Remove and ban beneath it.
   const [memberOpen,setMemberOpen]=useState(null),mutedHere=useMutedMembers(table.campaignId),openedMember=memberOpen?(table.members??[]).find(m=>m.id===memberOpen):null;
+  // At a shared table: a player with no hero of their own there (or whose hero has died) may make a new one to bring,
+  // and the table's host chooses the table's tale on the New Adventure screen; nothing else leaves the table.
+  const tablePick=table.joined&&(table.needsHero||(!!hero&&game.stage==='dead')),tableTale=table.joined&&table.role==='owner'&&!table.needsHero;
+  const [taleReplace,setTaleReplace]=useState(false),[tableReturn,setTableReturn]=useState(false);
   async function setScreen(target){
-    if(table.joined&&['Character Selection','Character Creation','Adventure Opening'].includes(target)){setScreenState('Multiplayer');setError('Leave the shared table before changing your hero or starting a separate adventure.');return;}
+    if(table.joined&&['Character Selection','Character Creation','Adventure Opening'].includes(target)&&!(target==='Adventure Opening'&&tableTale)&&!(target==='Character Creation'&&tablePick)){setScreenState('Multiplayer');setError('Leave the shared table before changing your hero or starting a separate adventure.');return;}
     if(['Adventure','Character Creation','Multiplayer','Adventure Opening'].includes(target)&&mustSignIn){setScreenState('Settings');setError('Sign in and verify your email before playing. Your existing guest saves are kept.');return;}
     try{if(['Adventure','Character Sheet','Campaign Journal','Followers'].includes(target)&&hero)await transition.prepare([...sceneArtSubjects(game),...(target==='Followers'?Object.keys(game.followers??{}).map(id=>npcArtSubject(game,id)):[])]);setScreenState(target);}
     catch(e){setError(e.message);}
   }
+  // A game is played only with a tale (storyRules.js hasTale): a hero whose adventure has none (a new hero, or an old
+  // save from the crossroads tale of the first builds) chooses one on the New Adventure screen first; at a table, a
+  // player without a hero of their own there, or before the host has chosen the table's tale, waits on the table
+  // screen (startTale.js playScreenFor). Nothing is deleted: the old adventure stays until a new tale begins.
+  const taleNow=hasTale(game);
+  useEffect(()=>{
+    if(loading||!['Adventure','Character Sheet','Campaign Journal','Followers','Level Up'].includes(screen))return;
+    const next=playScreenFor({hero,game,characterChosen,table});if(next==='Adventure')return;
+    if(next==='Adventure Opening')setNewStoryRequested(true);setScreenState(next);
+  },[screen,loading,taleNow,characterChosen,!!hero,table.joined,table.needsHero,table.needsTale]);
   const button = (label, onPress, variant='secondary', style) => <GameButton key={label} label={label} variant={variant} disabled={loading||creatingStory} onPress={onPress} style={style}/>;
   // The saved adventure is this hero's: if it ended in death, the hero cannot be played again.
   const heroFallen=!!hero&&characterChosen&&game.stage==='dead';
@@ -136,7 +150,8 @@ function QuestboundApp() {
   useEffect(()=>{if(screen!=='Adventure Opening')return;let current=true;(async()=>{const [list,played]=await Promise.all([loadJourneys(),playedJourneys()]);if(current)setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);})();return()=>{current=false;};},[screen]);
   // With journeys on offer, a choice they stand in for (Easy to get into, a written opening, a journey no longer on
   // offer) moves to the first journey; without them, a journey choice goes back to Easy to get into.
-  useEffect(()=>{const id=String(selectedIntro);if(!journeysOnOffer?.length){if(id.startsWith('journey:'))setSelectedIntro('easy');return;}if(['idea','surprise','hostile'].includes(id)||journeysOnOffer.some(j=>'journey:'+j.id===id))return;setSelectedIntro('journey:'+journeysOnOffer[0].id);},[journeysOnOffer,selectedIntro]);
+  // A table plays a tale, so the Skirmish is not offered there.
+  useEffect(()=>{const id=String(selectedIntro),skirmish=id==='hostile'&&table.joined;if(!journeysOnOffer?.length){if(id.startsWith('journey:')||skirmish)setSelectedIntro('easy');return;}if(['idea','surprise'].includes(id)||(id==='hostile'&&!skirmish)||journeysOnOffer.some(j=>'journey:'+j.id===id))return;setSelectedIntro('journey:'+journeysOnOffer[0].id);},[journeysOnOffer,selectedIntro,table.joined]);
   // A hero who has died and cannot be brought back (deathRules.js deathIsFinal; or whose player lets them go) is laid
   // to rest: a memorial line in the graveyard, and the hero and their adventure leave this device's save, so they can
   // never be continued, set aside or chosen again. The epitaph stays on screen until the player leaves the play
@@ -158,8 +173,9 @@ function QuestboundApp() {
     try{await saveCharacter(next);setHero(next);setForm(f=>({...f,portrait}));}catch{setError('Your new portrait could not be saved. Try again.');}
   }
   async function playCharacter(begin=false){
-    if(storyLock.current||loading||storageError||adventureBlocked||!hero||heroFallen)return;
-    if(!newStoryRequested){setCharacterChosen(true);setScreen('Adventure');return;}
+    if(storyLock.current||loading||storageError||adventureBlocked||!hero||(heroFallen&&!table.joined))return;
+    if(table.joined){if(begin===true&&tableTale)await beginTableTale();return;}
+    if(!newStoryRequested&&hasTale(game)){setCharacterChosen(true);setScreen('Adventure');return;}
     if(begin!==true){setScreen('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});return;}
     storyLock.current=true;setCreatingStory(true);setError('');
     let waiting=false;
@@ -192,6 +208,41 @@ function QuestboundApp() {
     }catch(e){if(waiting)noteStoryWait('failed');setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
     finally{storyLock.current=false;setCreatingStory(false);}
   }
+  // The table's host begins a tale for everyone (campaigns.cjs tale): a ready journey by its id (Let fate decide picks
+  // one), or a tale written on this device first (Your own tale, or a written opening when no journeys are on offer).
+  async function beginTableTale(){
+    storyLock.current=true;setCreatingStory(true);setError('');
+    let waiting=false;
+    try{
+      const {wish,start,journeyId,introId}=taleChoice({selectedIntro,continuing:false,idea,easyStart:storyPreferences().easyStart,journeysOnOffer});
+      if(selectedIntro==='hostile')throw Error('A table plays a tale: choose a ready journey or your own tale.');
+      noteTale(start.introId,!!start.easyStart);
+      let payload={journey:journeyId};
+      if(!journeyId){noteStoryWait('start');waiting=true;
+        const endpoint=await findDmEndpoint();
+        const {ok,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen:true,continuing:false,bearing:'N',wish,journeyId:null,introId,start}));
+        if(!ok)throw Error(body.error||'The story could not be created.');
+        payload={story:body.story,introId};noteStoryWait('done');waiting=false;}
+      const data=await table.startTale({...payload,replace:taleReplace});
+      if(data?.tale?.libraryId)await rememberJourney(data.tale.libraryId);
+      // A host alone at the table goes back to the table screen, where the invite now shows; with players seated, to play.
+      setTaleReplace(false);setIdea('');setNewStoryRequested(false);setCharacterChosen(true);setScreenState((data?.members?.length??0)>1?'Adventure':'Multiplayer');scrollRef.current?.scrollTo({y:0,animated:false});
+    }catch(e){if(waiting)noteStoryWait('failed');setError(e.name==='TimeoutError'?'The tale took too long to start. The table is unchanged; try again.':e.message);
+      if(/left the library/.test(String(e.message)))loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});}
+    finally{storyLock.current=false;setCreatingStory(false);}
+  }
+  // The hero a player brings to a shared table (SharedTable.js): their current hero, one from their roster or a
+  // ready-made one. A hero other than the current one becomes this device's hero first (the current one waits in the
+  // roster), so the table's copy never replaces a hero who is not at the table. Returns the solo snapshot to bring.
+  async function heroForTable(choice){
+    if(loading||saving||storageError)throw Error('Your saves are still loading. Try again in a moment.');
+    let chosen;
+    if(choice?.kind==='roster')chosen=await playFromRoster(choice.entry,{stay:true});
+    else if(choice?.kind==='ready'){chosen=await takeReadyHero(choice.character);if(!chosen)throw Error('Your company is full. Retire a hero under Heroes first.');}
+    else if(hero&&game.stage!=='dead')chosen={hero,game,health,chosen:characterChosen};
+    if(!chosen?.hero)throw Error('Choose your hero for the table first.');
+    return tableSnapshot(chosen);
+  }
   async function saveHero() {
     if (loading || saving || storageError) return;
     if (buildError(form) || spellSelectionError(form)) {
@@ -206,7 +257,8 @@ function QuestboundApp() {
       setHero(character);
       setHealth(null); setGame(newAdventure(character));
       setCharacterChosen(false);setNewStoryRequested(true);
-      setScreen('Character Selection');
+      // A hero made to bring to a shared table goes straight back to the table screen, chosen.
+      if(tableReturn){setTableReturn(false);setScreenState('Multiplayer');}else setScreen('Character Selection');
       scrollRef.current?.scrollTo({y:0,animated:false});
     } catch {
       setError('Could not save your character. Your entries are still here; please try again.');
@@ -214,17 +266,23 @@ function QuestboundApp() {
       setSaving(false);
     }
   }
+  // A ready-made hero becomes this device's hero (the current one set aside first), with no tale yet.
+  async function takeReadyHero(character){
+    if (hero && !await setCurrentAside()) return null;
+    if (hero) backupLocalSave();
+    await saveCharacter(character);
+    const fresh=newAdventure(character);
+    setHero(character); setForm({...blankBuild(), ...character, species: character.species ?? character.race});
+    setHealth(null); setGame(fresh);
+    setCharacterChosen(false); setNewStoryRequested(true); setShowReady(false);
+    return {hero:character,game:fresh,health:null,chosen:false};
+  }
   // A ready-made hero skips the builder: saved, then straight to choosing where the story begins.
   async function useReadyHero(character) {
     if (loading || saving || storageError) return;
     setSaving(true); setError('');
     try {
-      if (hero && !await setCurrentAside()) return;
-      if (hero) backupLocalSave();
-      await saveCharacter(character);
-      setHero(character); setForm({...blankBuild(), ...character, species: character.species ?? character.race});
-      setHealth(null); setGame(newAdventure(character));
-      setCharacterChosen(false); setNewStoryRequested(true); setShowReady(false);
+      if (!await takeReadyHero(character)) return;
       setScreenState('Adventure Opening');
       scrollRef.current?.scrollTo({y:0,animated:false});
     } catch {
@@ -250,7 +308,7 @@ function QuestboundApp() {
     }catch{setError('Could not save your level-up. Your previous character is still saved. Retry when ready.');}
     finally{setSaving(false);}
   }
-  const gameScreen=['Adventure','Character Sheet','Campaign Journal','Followers'].includes(screen)&&characterChosen&&hero;
+  const gameScreen=['Adventure','Character Sheet','Campaign Journal','Followers'].includes(screen)&&characterChosen&&hero&&playScreenFor({hero,game,characterChosen,table})==='Adventure';
   const saved=characterChosen&&!!hero;
   // Settings opened from the game menu, and a level-up, stay inside the adventure: same scene, same score, a way back.
   const [returnToGame,setReturnToGame]=useState(false);
@@ -266,7 +324,7 @@ function QuestboundApp() {
   // A blow against the hero shakes the play area for a moment.
   const [shake,setShake]=useState(0);
   useCue(useCallback(event=>{if(event.kind==='hurt'&&displayState().screenEffects){setShake(event.id);setTimeout(()=>setShake(value=>value===event.id?0:value),450);}},[]));
-  const playing=screen==='Adventure'&&characterChosen&&!!hero&&!!heroStats?.available;
+  const playing=screen==='Adventure'&&characterChosen&&!!hero&&!!heroStats?.available&&playScreenFor({hero,game,characterChosen,table})==='Adventure';
   // A phone's keyboard leaves little height: the play screen says when the player is typing.
   const [typingPlay,setTypingPlay]=useState(false),visibleHeight=useVisualViewport().height||windowHeight;
   // Side-by-side play on large screens and on any landscape screen (a phone on its side has height for one column only).
@@ -293,7 +351,7 @@ function QuestboundApp() {
     const stamp=Date.now();setUnveil(stamp);setTimeout(()=>setUnveil(value=>value===stamp?0:value),1600);
     // A tale nobody has played a turn of yet (its first turn is the opening itself: storyRules.js freshStoryGame).
     const hostile=game.story?.introId==='hostile',fresh=!(game.playback??[]).some(t=>t.events?.some(e=>e.kind==='player'));
-    cue('area',fresh?(hostile?{over:'Steel is drawn',title:areaName}:{over:'A new tale begins',title:game.story?.title??areaName,sub:game.story?areaName:null}):{over:game.story?.title??'The Lantern at the Crossroads',title:areaName});
+    cue('area',fresh?(hostile?{over:'Steel is drawn',title:areaName}:{over:'A new tale begins',title:game.story?.title??areaName,sub:game.story?areaName:null}):{over:game.story?.title??'Questbound',title:areaName});
   },[areaName,launched]);
   const hpRatio=inGame&&heroStats?.available?(health?.current??heroStats.hp)/Math.max(1,heroStats.hp):1;
   useEffect(()=>{setDanger(launched&&inGame&&!dead&&hpRatio<=.3?1-hpRatio:0);},[launched,inGame,hpRatio,dead]);
@@ -371,10 +429,10 @@ function QuestboundApp() {
       {!table.joined&&!!table.notice&&<Pressable accessibilityRole="alert" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}
       {!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}
       {saveStatus.startsWith('Adventure not saved')?<Pressable accessibilityRole="button" onPress={()=>setSaveRetry(value=>value+1)}><Text style={s.tableNotice}>{saveStatus} Tap to retry.</Text></Pressable>:!!saveProblem&&<Text accessibilityRole="alert" style={s.tableNotice}>{saveStatus}</Text>}
-      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1} onMember={setMemberOpen} openMember={memberOpen} mutedSeats={mutedHere.map(m=>m.seat)}/>}{!!openedMember&&<MemberActions table={table} member={openedMember} named onClose={()=>setMemberOpen(null)}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
+      {table.joined&&<View dataSet={{qb:'plate'}} style={s.tableBar}><View style={s.tableRow}><Icon name="people" size={14} color={tint('#9fe3d8')}/><Text numberOfLines={1} style={[s.tableText,{flex:1}]}>Shared table · {table.players.length} {table.players.length===1?'player':'players'} {table.online?'':'· reconnecting…'}{table.otherActing?' · '+table.otherActing+' is taking a turn':''}</Text></View>{party.length>0&&!table.needsHero&&<PartyPanel game={game} health={health} maxHp={heroStats?.hp??1} onMember={setMemberOpen} openMember={memberOpen} mutedSeats={mutedHere.map(m=>m.seat)}/>}{!!openedMember&&<MemberActions table={table} member={openedMember} named onClose={()=>setMemberOpen(null)}/>}{!!table.notice&&<Pressable accessibilityRole="button" onPress={table.clearNotice}><Text style={s.tableNotice}>{table.notice}  ✕</Text></Pressable>}{!!table.error&&<Text accessibilityRole="alert" style={s.tableNotice}>{table.error}</Text>}</View>}
     </View>}
     <View dataSet={{qb:shake?'shake':undefined}} style={[s.play,wideGame&&s.playWide,wideGame&&windowHeight<520&&{paddingTop:6,paddingBottom:6}]}>
-      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');setNewStoryRequested(true);setScreen('Character Selection');}} resting={!!restingKey&&restingKey===JSON.stringify(hero)} onLetGo={layHeroToRest} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth} onRestart={() => {setGame(newAdventure(hero,game));setHealth(null);}}/>
+      <Adventure onTyping={setTypingPlay} layout={wideGame?'wide':'narrow'} levelUp={levelUpReady(game,hero)} onLevelUp={()=>{setError('');setScreen('Level Up');}} onNewHero={()=>{setError('');if(table.joined){setScreenState('Multiplayer');return;}setNewStoryRequested(true);setScreen('Character Selection');}} resting={!!restingKey&&restingKey===JSON.stringify(hero)} onLetGo={layHeroToRest} table={table} hero={hero} game={game} setGame={setGame} health={health} setHealth={setHealth}/>
     </View>
   </View>:<View dataSet={{safe:'pad'}} style={s.shell}>
     {/* Menus: a fixed top bar; only the framed content below scrolls, and short content is centred in the window. */}
@@ -383,14 +441,16 @@ function QuestboundApp() {
       <View style={s.controls}><FullscreenToggle compact/><AudioToggle compact/></View>
     </View>
   {home?<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={{flexGrow:1}} keyboardShouldPersistTaps="handled">
-    <HomeScreen hero={hero} game={game} health={health} saved={saved} unprotected={saved&&!account&&accountsOffered()} onLegal={tab=>openLegal(tab,'Home')} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
-      onContinue={()=>{setNewStoryRequested(false);setReturnToGame(false);setScreen(characterChosen?'Adventure':'Character Selection');}}
+    <HomeScreen hero={hero} game={game} health={health} saved={saved&&taleNow} unprotected={saved&&!account&&accountsOffered()} onLegal={tab=>openLegal(tab,'Home')} disabled={loading||creatingStory} width={windowWidth} height={windowHeight} notice={homeNotice}
+      onContinue={()=>{setReturnToGame(false);const next=playScreenFor({hero,game,characterChosen,table});if(next==='Adventure')setNewStoryRequested(false);else if(next==='Adventure Opening')setNewStoryRequested(true);setScreen(next);}}
       onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackRequest(null);setFeedbackOpen(true);}}/>
     <FeedbackSheet visible={feedbackOpen} onClose={()=>{setFeedbackOpen(false);setFeedbackRequest(null);}} context={feedbackContext} problem={feedbackRequest?.problem??null} prefill={feedbackRequest?.prefill??''}/>
   </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,screen==='Adventure Opening'&&journeysOnOffer?.length&&s.journeyContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
     {/* Web scroll events include the browser bringing a focused field above the phone keyboard.
         Dismissing on that scroll immediately blurs the field and closes the keyboard. */}
-    <MenuScreens {...{screen,inGame,compact,loading,storageError,saveProblem,saveStatus,button,setSaveRetry,table,party,game,health,heroStats,hero,heroFallen,error,useReadyHero,saving,newStoryRequested,characterChosen,creatingStory,playCharacter,setEditingHero,setForm,setError,setScreen,showReady,setShowReady,roster,graves,playFromRoster,retireFromRoster,selectedIntro,setSelectedIntro,idea,setIdea,continuingNow,journeysOnOffer,canContinue,setContinueRegion,form,saveHero,scrollRef,saveAdvancement,choosePortrait,setGame,setHealth,adventureBlocked,setNewStoryRequested,legalTab,setLegalTab,restoreFromCloud,setAccount,openLegal,legalFrom,returnToGame,saved,backToGame,gameScreen}}/>
+    <MenuScreens {...{screen,inGame,compact,loading,storageError,saveProblem,saveStatus,button,setSaveRetry,table,party,game,health,heroStats,hero,heroFallen,error,useReadyHero,saving,newStoryRequested,characterChosen,creatingStory,playCharacter,setEditingHero,setForm,setError,setScreen,showReady,setShowReady,roster,graves,playFromRoster,retireFromRoster,selectedIntro,setSelectedIntro,idea,setIdea,continuingNow,journeysOnOffer,canContinue,setContinueRegion,form,saveHero,scrollRef,saveAdvancement,choosePortrait,setGame,setHealth,adventureBlocked,setNewStoryRequested,legalTab,setLegalTab,restoreFromCloud,setAccount,openLegal,legalFrom,returnToGame,saved,backToGame,gameScreen,heroForTable,tableTale,tablePick,taleReplace,
+      onTableHero:()=>{setTableReturn(true);setEditingHero(false);setForm(blankBuild());setError('');setScreenState('Character Creation');scrollRef.current?.scrollTo({y:0,animated:false});},
+      onChooseTale:replace=>{setTaleReplace(!!replace);setError('');setScreenState('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});}}}/>
   </ScrollView>}</View>}
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}

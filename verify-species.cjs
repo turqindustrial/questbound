@@ -8,7 +8,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // elves are listed together (the host, 2026-10-12: "maybe drow should be listed under the elves with the others."),
 // and the dark elf is called a Drow everywhere players see it; a hero saved as a 'Dark Elf' reads as one, unchanged.
 const source=rulesSource({extra:['descriptions.js','characterOptions.js']});
-const r=vm.runInNewContext(source+'\n({regardMemory,species,legacySpecies,speciesGroups,speciesName,speciesTraits,speciesProfile,heroSpecies,baseSpeciesOf,speciesSkills,makeCharacter,buildError,blankBuild,speciesSpells,heroLineage,trainedSkills,combatBasics,isValidCharacter,newAdventure,adventureSnapshot,validAdventure,dmContext,speciesRegard,speciesPlural,readyHero,speciesDetails,heroSize,creatureDefenses,newAdventure})',{AsyncStorage:{}});
+const r=vm.runInNewContext(source+'\n({speciesSpellSource,spellSourceLine,castMenu,freshStoryGame,actionDescription,regardMemory,species,legacySpecies,speciesGroups,speciesName,speciesTraits,speciesProfile,heroSpecies,baseSpeciesOf,speciesSkills,makeCharacter,buildError,blankBuild,speciesSpells,heroLineage,trainedSkills,combatBasics,isValidCharacter,newAdventure,adventureSnapshot,validAdventure,dmContext,speciesRegard,speciesPlural,readyHero,speciesDetails,heroSize,creatureDefenses,newAdventure})',{AsyncStorage:{}});
 const form=(species,extra={})=>({...r.blankBuild(),name:'Lirael',species,class:'Fighter',background:'Guide',plusTwo:'Dexterity',plusOne:'Wisdom',...extra});
 const at=(hero,level)=>({...hero,level});
 const hp=hero=>({current:r.combatBasics(hero).hp,temp:0});
@@ -73,4 +73,17 @@ const g=r.newAdventure(oldWood);assert.equal(r.speciesRegard(g,'mara',oldWood).k
 // Elves are Medium, an elf never sleeps, and the ready-made wizard is a High Elf.
 assert.equal(r.heroSize(wood),'Medium');assert.equal(r.baseSpeciesOf('Wood Elf'),'Elf');assert.equal(r.baseSpeciesOf('Human'),'Human');
 const ilyra=r.readyHero('wizard');assert.equal(ilyra.species,'High Elf');assert.equal(ilyra.lineage,'High Elf');assert.ok(r.speciesSpells(ilyra).includes('prestidigitation'));
-console.log('Passed: High Elf, Wood Elf and Drow are species of their own, listed together as the Elves, and a hero saved as a Dark Elf reads as a Drow, unchanged (Wood Elf 35 feet, Druidcraft, Longstrider, Pass without Trace; High Elf Prestidigitation, Detect Magic, Misty Step; both darkvision 60, Fey Ancestry, Keen Senses, Trance); speed, darkvision and traits for every species reach the sheet and the Dungeon Master; Keen Senses trains a skill; heroes made as a plain Elf keep loading as the elf they are.');
+// Species spells say where they come from (the host, 2026-10-21, of a Wood Elf Monk with Druidcraft "without any
+// multiclasses"): the Cast… chips, the slot organizer, the action guide and the sheet name the lineage, never for a
+// spell the hero's class gives them too.
+{const monk=r.makeCharacter(form('Wood Elf',{class:'Monk',plusTwo:'Dexterity',plusOne:'Wisdom'}));assert.ok(!r.buildError(form('Wood Elf',{class:'Monk'})),'fixture: a Wood Elf Monk');
+ const three=at(monk,3),tale=r.freshStoryGame(three,require('./journey-fixtures.cjs').journeyStory(0),r.newAdventure(three)),menu=r.castMenu(three,tale);
+ assert.equal(r.speciesSpellSource(monk,'druidcraft'),'Wood Elf');assert.match(r.spellSourceLine(monk,'druidcraft'),/Wood Elf lineage, not of your class/);
+ const druidcraft=menu.find(c=>c.spell==='druidcraft'),longstrider=menu.find(c=>c.spell==='longstrider');
+ assert.match(druidcraft.detail,/Wood Elf/,'the Cast… chip names the lineage');assert.match(longstrider.detail,/Wood Elf/);assert.ok(longstrider.casts.some(w=>w.slot==='species'&&/Wood Elf/.test(w.detail)),'and the slot organizer’s free way');
+ assert.match(r.actionDescription(druidcraft,three,tale),/Wood Elf lineage/,'the action guide says so');
+ const druid=r.makeCharacter(form('Wood Elf',{class:'Druid',plusTwo:'Wisdom',plusOne:'Dexterity'}));if(druid.spells?.includes('druidcraft'))assert.equal(r.speciesSpellSource(druid,'druidcraft'),null,'a class spell too: no lineage named');
+ const tiefling=r.makeCharacter(form('Tiefling',{lineage:'Infernal'}));assert.equal(r.speciesSpellSource(tiefling,'thaumaturgy'),'Tiefling');assert.equal(r.speciesSpellSource(tiefling,'fire-bolt'),'Infernal Tiefling');
+ const sheet=fs.readFileSync('MagicPanel.js','utf8');assert.ok(/spellSourceLine\(hero,spell\.id\)/.test(sheet)&&/speciesSpellSource\(hero,spell\.id\)/.test(sheet),'the sheet’s spell list names it');
+ for(const name of ['High Elf','Wood Elf','Drow'])assert.ok(r.speciesTraits[name].traits.some(([,text])=>/whatever your class/.test(text)),'the builder says the '+name+'’s spells come with the lineage');}
+console.log('Passed: High Elf, Wood Elf and Drow are species of their own (a species spell names its lineage wherever spells are listed), listed together as the Elves, and a hero saved as a Dark Elf reads as a Drow, unchanged (Wood Elf 35 feet, Druidcraft, Longstrider, Pass without Trace; High Elf Prestidigitation, Detect Magic, Misty Step; both darkvision 60, Fey Ancestry, Keen Senses, Trance); speed, darkvision and traits for every species reach the sheet and the Dungeon Master; Keen Senses trains a skill; heroes made as a plain Elf keep loading as the elf they are.');

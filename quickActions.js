@@ -1,5 +1,5 @@
 import {knownSpells,automaticEffects,castingStages,spellCostOptions,castableNow} from './spellRules';
-import {spellSlots,slotUsed} from './spellOptions';
+import {spellSlots,slotUsed,speciesSpellSource} from './spellOptions';
 import {placeName} from './mapRules';
 import {weaponIcon} from './iconPaths';
 import {combatBasics} from './combatRules';
@@ -42,7 +42,7 @@ export function quickActions(hero,game,health=null){
   // End turn leads (gold) once the action is spent; before that it waits at the end of the row.
   if(id==='end-turn'){(game.actionUsed?primary:last).push({key:id,glyph:'⧗',icon:'forward',label:'End turn',question:'I end my turn.',action:c.action,primary:!!game.actionUsed});continue;}
   // Attacking townsfolk and declaring the story finished stay deliberate, typed decisions.
-  if(/^(npc-attack|story-complete|story-advance|lead-done|restart-adventure)/.test(id))continue;
+  if(/^(npc-attack|story-complete|story-advance|lead-done)/.test(id))continue;
   // Going beyond the edge of the map is chosen on the map (or asked for in words), never a chip.
   if(id.startsWith('beyond-'))continue;
   // Passing an absent player's turn is offered by the play screen's waiting row, after a wait.
@@ -166,7 +166,7 @@ export function spellActions(hero,game){
   const costs=spellCostOptions(hero,game,spell),how=costs.includes('species')?'Free':!fighting&&costs.includes('ritual')?'Ritual · 10 min':null;
   const ends=spell.concentration&&held&&held!==spell.id&&heldName?'ends '+heldName:null;
   const timing=fighting&&spell.castingTime==='Bonus Action'&&!effect?.asAction?'Bonus':fighting&&spell.castingTime==='Reaction'?'Reaction':null;
-  const base={key:'spell:'+spell.id,spell:spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp||effect?.buff?'shield':effect?.detection||effect?.narrated?'eye':spellIcon(effect?.type),label:spell.name,detail:[spell.level?'Level '+spell.level:'Cantrip',timing,how,ends].filter(Boolean).join(' · ')};
+  const base={key:'spell:'+spell.id,spell:spell.id,glyph:'✧',icon:effect?.heal?'heal':effect?.protection||effect?.temp||effect?.buff?'shield':effect?.detection||effect?.narrated?'eye':spellIcon(effect?.type),label:spell.name,detail:[spell.level?'Level '+spell.level:'Cantrip',speciesSpellSource(hero,spell.id),timing,how,ends].filter(Boolean).join(' · ')};
   // A friend's chip carries its own cast, aimed at that hero by id (two heroes may share a name).
   const friendCast=(m,question='I cast '+spell.name+' on '+m.name+'.')=>{const c=dmCommand(hero,game,question);return {question,...(c?.action?.type==='spell'?{action:{...c.action,request:{...c.action.request,partyTarget:m.id}}}:{})};};
   // Each chip of a levelled spell carries its ways of casting (castOptions): the slot organizer offers them.
@@ -202,7 +202,7 @@ function castOptions(hero,game,spell,chip,fighting,friend=null){
  return costs.map((c,i)=>{
   const slot=typeof c==='number',end=slot?' using a '+slotOrdinal(c)+'-level slot':c==='ritual'?' as a ritual':c==='arcanum'?' with my arcanum':'',pre=slot?'at '+slotOrdinal(c)+' level ':c==='ritual'?'as a ritual ':c==='arcanum'?'with my arcanum ':'';
   const left=slot?Math.max(0,(total[c-1]??0)-slotUsed(game,c)):null;
-  const detail=[same?null:gains[i],slot?left+' left':c==='ritual'?'10 min · no slot':c==='species'?'no slot':null].filter(Boolean).join(' · ');
+  const detail=[same?null:gains[i],slot?left+' left':c==='ritual'?'10 min · no slot':c==='species'?'no slot':null,c==='species'?speciesSpellSource(hero,spell.id):null].filter(Boolean).join(' · ');
   const label=slot?'Level '+c:c==='ritual'?'Ritual':c==='species'?'Free':'Arcanum';
   const way=chip.prefill?{prefill:chip.prefill.replace(/^(I cast .+? )(on )?$/,(m,head,on)=>head+pre+(on??''))}:friend?friend(chip.question.replace(/.$/,end+'.')):{question:chip.question.replace(/.$/,end+'.')};
   return {key:chip.key+'@'+c,glyph:'✧',icon:chip.icon,spell:spell.id,slot:c,label,...(detail?{detail}:{}),...way,primary:i===0,...(/\bBonus\b/.test(chip.detail??'')?{bonus:true}:{})};

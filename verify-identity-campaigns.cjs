@@ -13,7 +13,7 @@ async function user(email){const pending=await post('account-register',{email,pa
  assert.equal((await post('account-verify',{email,challenge:pending.body.challenge,code:codes.get(email)})).status,401);return {...verified.body,cookie:verified.cookie.split(';')[0],email};}
 async function main(){await listen();base='http://127.0.0.1:'+server.address().port;
  const a=await user('alpha@example.test'),b=await user('beta@example.test'),c=await user('gamma@example.test');
- const hero=r.readyHero('fighter'),second=r.readyHero('wizard'),snap=r.adventureSnapshot(hero,r.newAdventure(hero),null,true),snapB=r.adventureSnapshot(second,r.newAdventure(second),null,true);
+ const hero=r.readyHero('fighter'),second=r.readyHero('wizard'),tale=h=>r.freshStoryGame(h,require('./journey-fixtures.cjs').journeyStory(0),r.newAdventure(h)),snap=r.adventureSnapshot(hero,tale(hero),null,true),snapB=r.adventureSnapshot(second,tale(second),null,true);
  assert.equal((await post('account-save',{snapshot:snap},a.cookie)).status,200);assert.equal((await post('account-save',{snapshot:snapB},b.cookie)).status,200);
  assert.equal((await post('account-load',{},a.cookie)).body.snapshot.character,snap.character);assert.equal((await post('account-load',{},b.cookie)).body.snapshot.character,snapB.character);
  assert.equal((await post('account-load',{token:a.cookie},b.cookie)).status,400);
