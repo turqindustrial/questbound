@@ -16,7 +16,7 @@ async function run(reply,ctx=context){let request;const result=await generate({i
  for(const decision of ['cast','deny','clarify']){
   const ruling={decision,note:decision==='clarify'?'Which creature are you targeting?':'Resolve the stated spell using engine dice.',damage:0,selfDamage:0,healing:0,temporaryHP:0};
   const {request,result}=await run({...empty,ruling});
-  const fields=request.text.format.schema.properties;
+  const fields=require('./dm-schemas.cjs').asFields(request.text.format.schema).properties;
   // The standing guidance says what a casting issue is and how to tell a described spell; the ruling is held to the dice.
   for(const text of ['CASTING ISSUES','SPELLS TO DESCRIBE','pendingSpell.damageMost'])assert.ok(requestParts(request).instructions.includes(text),text);
   assert.equal(context.pendingSpell.damageMost,6,'Acid Splash at level 1 deals at most 1d6');

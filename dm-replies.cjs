@@ -13,6 +13,10 @@ function repairedCreature(c){
  if(!c||typeof c!=='object')return c;
  const r={...c,name:tidy(c.name,60),appearance:tidy(c.appearance,400)};
  if(r.ally&&typeof r.ally==='object')r.ally={...r.ally,name:tidy(r.ally.name,60),appearance:tidy(r.ally.appearance,400)};
+ // A creature at its side is one creature of another kind (a wolf's mate belongs to a pack, a pack is never at anyone's
+ // side): one of the same kind, or a pack, is left out rather than the whole place or ambush refused (seen in the
+ // diagnostics as "a new place the map could not use", asked again until rescued without it).
+ if(r.ally&&typeof r.ally==='object'&&(r.ally.template===r.template||!allyKinds.includes(r.ally.template)))r.ally=null;
  return r;
 }
 function repairedDiscovery(d){

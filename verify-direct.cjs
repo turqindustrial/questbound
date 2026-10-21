@@ -51,7 +51,7 @@ const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandi
  const keys={apiKey:'k',model:'gpt-6-luna'};
  let reply=await generate({input:'why did the bandit go first?',context:context(ooc(true))},{...keys,fetchImpl:fake({})});
  assert.equal(reply.rewind,false);assert.equal(reply.narration,'It rolled higher initiative.');
- assert.ok(requestParts(sent).tail.includes('OUT OF CHARACTER'),'told after the scene');const schema=sent.text.format.schema;
+ assert.ok(requestParts(sent).tail.includes('OUT OF CHARACTER'),'told after the scene');const schema=require('./dm-schemas.cjs').asFields(sent.text.format.schema);
  // The one reply schema serves every phase (it is cached with the instructions): rewind and fault are in it, required
  // as strict mode wants, and what out of character cannot return is left out when the reply is read (below).
  assert.deepEqual(schema.properties.rewind,{type:['boolean','null']});assert.ok(schema.required.includes('rewind'));
@@ -69,7 +69,7 @@ const ooc=canRewind=>({outOfCharacter:{canRewind,lastTurn:{said:'I hit the bandi
  // An ordinary turn is untouched: no rewind, the usual schema, and the turn and rest guidance in the instructions.
  reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({rewind:true})});
  assert.equal(reply.rewind,false);
- reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,false,'only out of character');assert.ok(sent.text.format.schema.required.includes('fault'));assert.ok(!requestParts(sent).instructions.includes('OUT OF CHARACTER:'));
+ reply=await generate({input:'I look around.',context:context({})},{...keys,fetchImpl:fake({fault:true})});assert.equal(reply.fault,false,'only out of character');assert.ok(require('./dm-schemas.cjs').asFields(sent.text.format.schema).required.includes('fault'));assert.ok(!requestParts(sent).instructions.includes('OUT OF CHARACTER:'));
  for(const text of ['one action and one bonus action','end-turn','short-rest'])assert.ok(requestParts(sent).instructions.includes(text),text);
  console.log('Passed: messages addressed to the DM are recognised, the state before each turn is remembered and restored exactly once, questions leave the game alone and stay in the feed and journal, and the server answers out of character without changing the game (rewind only when a turn can be taken back; a fault it admits is flagged so the game can offer a note to the host).');
 })().catch(e=>{console.error(e);process.exit(1);});

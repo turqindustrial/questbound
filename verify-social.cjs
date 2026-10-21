@@ -27,8 +27,8 @@ assert.deepEqual(social.forgiveness,{weight:'grave',amends:1,needed:2,amendsToGo
 (async()=>{
  // ---- Amends and forgiveness, held to the game's count ----
  let out=await ask('I am sorry. Forgive me.',early,{relationships:[{npcId:first.id,change:'forgave',memory:'Fine. I forgive you.'}]});
- assert.ok(sent.text.format.schema.properties.relationships.items.properties.change.enum.includes('amends'));
- assert.ok(sent.text.format.schema.properties.relationships.items.properties.change.enum.includes('forgave'));
+ assert.ok(require('./dm-schemas.cjs').asFields(sent.text.format.schema).properties.relationships.items.properties.change.enum.includes('amends'));
+ assert.ok(require('./dm-schemas.cjs').asFields(sent.text.format.schema).properties.relationships.items.properties.change.enum.includes('forgave'));
  assert.deepEqual(plain(out.relationships),[],'Forgiveness before the time has passed is dropped');
  const instructions=JSON.stringify(sent);
  for(const words of ['FORGIVENESS: A grudge is not forever','ONE ON ONE','ANYONE ADDRESSED ANSWERS','SUGGESTIONS:'])assert.ok(instructions.includes(words),'The standing instructions say '+words);
@@ -74,7 +74,7 @@ assert.deepEqual(social.forgiveness,{weight:'grave',amends:1,needed:2,amendsToGo
 
  // ---- Suggestions, tidied ----
  out=await ask('Who are you?',early,{suggestions:['DM, undo that','x','I ask her name.','  "I ask her name."  ','(ooc) what now','I hit him for 5 HP.','Who are you?','I'.padEnd(200,'.')]});
- const schema=sent.text.format.schema;
+ const schema=require('./dm-schemas.cjs').asFields(sent.text.format.schema);
  assert.equal(schema.properties.suggestions.maxItems,3);assert.ok(schema.required.includes('suggestions'));
  assert.equal(Object.keys(schema.properties).at(0),'narration','Narration still streams first');
  assert.deepEqual(plain(out.suggestions),['I ask her name.']);

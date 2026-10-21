@@ -65,6 +65,6 @@ const keys={apiKey:'test-only',model:'test-model'},body={input:'I kick the sleep
 (async()=>{
  const sprung=await generate(body,{...keys,fetchImpl:reply({narration:'Two shapes rise.',ambush:{template:'goblin',name:'Snag',appearance:'A one-eyed goblin in a wolfskin hood.',ally:{template:'wolf',name:'Worg',appearance:'A red-eyed worg with a saddle.'}}})});
  assert.equal(sprung.ambush.ally.name,'Worg');
- assert.equal((await generate(body,{...keys,fetchImpl:reply({narration:'x',ambush:{template:'wolf',name:'Grey',appearance:'A grey wolf with a torn ear.',ally:{template:'wolf',name:'Other',appearance:'Another grey wolf here.'}}})})).ambush,null,'a creature the game could not use is never sprung');
+ assert.equal((await generate(body,{...keys,fetchImpl:reply({narration:'x',ambush:{template:'wolf',name:'Grey',appearance:'A grey wolf with a torn ear.',ally:{template:'wolf',name:'Other',appearance:'Another grey wolf here.'}}})})).ambush?.ally,null,'an ally of the same kind is left out (never sprung), the wolf alone kept');
  console.log('Passed: a creature with a different one at its side (own HP, AC, attacks, chip, name and spell targeting, HP lines), the second one flees when the leader falls and returns with a lair owner after you flee; only a single creature of another kind can be an ally, and the DM can send one.');
 })().catch(e=>{console.error(e);process.exit(1);});

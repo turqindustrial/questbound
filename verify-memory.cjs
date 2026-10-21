@@ -146,13 +146,13 @@ assert.ok(block.earlierTales.some(t=>/^Before that, oldest first: The First Road
  const ctx=r.dmContext(hero,g,hp,'Tell me about Edric.'),body={input:'Tell me about Edric.',context:{...plain(ctx),storyPreferences:{},conversationWith:null,conversationParticipants:[]}};
  const answer=await server.generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake(reply)});
  assert.deepEqual(answer.remember,[{text:'Tamsin\'s brother Edric went to the salt mines.',about:['keeper'],settles:null}]);
- const schema=request.text.format.schema;assert.ok(schema.required.includes('remember'),'required, as strict mode wants');
+ const schema=require('./dm-schemas.cjs').asFields(request.text.format.schema);assert.ok(schema.required.includes('remember'),'required, as strict mode wants');
  assert.deepEqual(plain(schema.properties.remember.items.required),['text','about','settles']);assert.equal(schema.properties.remember.items.additionalProperties,false);assert.deepEqual(schema.properties.remember.items.properties.settles.type,['string','null']);
  assert.ok(Object.keys(schema.properties).indexOf('remember')<Object.keys(schema.properties).indexOf('suggestions'),'suggestions stay last');
  assert.ok(requestScene(request).context.memory,'the model reads the memory');
  // Out of character nothing is remembered; a reply that starts an action keeps its facts for the telling.
  const ooc=await server.generate({...body,context:{...body.context,outOfCharacter:{canRewind:false,lastTurn:null}}},{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({...reply,rewind:false,fault:false})});
- assert.deepEqual(ooc.remember,[],'a fact written out of character is left out');assert.equal(request.text.format.schema.properties.remember.maxItems,2,'the one schema for every phase');
+ assert.deepEqual(ooc.remember,[],'a fact written out of character is left out');assert.equal(require('./dm-schemas.cjs').asFields(request.text.format.schema).properties.remember.maxItems,2,'the one schema for every phase');
  const acting=await server.generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({...reply,actionId:ctx.choices[0].id})});assert.deepEqual(acting.remember,[]);
  // ---- 9. A shared table: facts from any member's turn are kept in the shared world ----
  const engine=require('./rules-engine.cjs').rules(),{resolveTurn}=require('./server-turn.cjs');

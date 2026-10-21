@@ -207,7 +207,7 @@ const hob={name:'Hob Tallow',species:'Human',role:'A ferryman.',appearance:'A st
  // An offer from someone present who was not invited is accepted; a join from them is not.
  const offer=await server.generate(body(),{...keys,fetchImpl:reply({recruitment:[{npcId:'n1',decision:'offer',reason:'He wants the road.',terms:'',dc:null,class:'Fighter'}]})});
  same(offer.recruitment.map(p=>[p.npcId,p.decision,p.class]),[['n1','offer','Fighter']]);
- const schema=lastRequest.text.format.schema.properties.recruitment.items.properties;
+ const schema=require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).properties.recruitment.items.properties;
  assert.ok(schema.decision.enum.includes('offer'));assert.ok(schema.class.enum.includes('Ranger')&&schema.class.enum.includes(null));
  assert.deepEqual((await server.generate(body(),{...keys,fetchImpl:reply({recruitment:[{npcId:'n1',decision:'join',reason:'He wants the road.',terms:'',dc:null,class:'Fighter'}]})})).recruitment,[],'an uninvited join is refused');
  const invited=await server.generate(body({recruitmentTargets:['mara']},'Wren, will you come with me?'),{...keys,fetchImpl:reply({recruitment:[{npcId:'mara',decision:'join',reason:'Her brother.',terms:'',dc:null,class:'Necromancer'}]})});
@@ -215,7 +215,7 @@ const hob={name:'Hob Tallow',species:'Human',role:'A ferryman.',appearance:'A st
  // introduce: a Cleric is kept, a made-up class repaired to null.
  const cleric=await server.generate(body(),{...keys,fetchImpl:reply({introduce:{...hob,class:'Cleric'}})});assert.equal(cleric.introduce.class,'Cleric');
  const odd=await server.generate(body(),{...keys,fetchImpl:reply({introduce:{...hob,class:'Necromancer'}})});assert.equal(odd.introduce.class,null);
- assert.ok(lastRequest.text.format.schema.properties.introduce.required.includes('class'));
+ assert.ok(require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).properties.introduce.required.includes('class'));
  // ally and parts in relationships.
  const ally=await server.generate(body(),{...keys,fetchImpl:reply({relationships:[{npcId:'keeper',change:'ally',memory:'I will hold the hall for the hero.'}]})});
  same(ally.relationships.map(d=>d.change),['ally']);

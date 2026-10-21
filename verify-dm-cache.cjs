@@ -19,7 +19,9 @@ const R=vm.runInNewContext(rulesSource({extra:['worldArtRules.js']})+'\n({freshS
 const plain=v=>JSON.parse(JSON.stringify(v));
 const seq=(s=11)=>()=>(s=(s*16807)%2147483647)/2147483647;
 const full=o=>({narration:'It happens.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,fault:null,remember:[],suggestions:[],...o});
-const done=o=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(full(o))}]}]})});
+// The provider writes each game effect as an item of effects (dm-schemas.cjs): the stand-in does too.
+const asEffects=o=>{const {narration,dialogue,suggestions,...rest}=o,effects=[];for(const [k,v] of Object.entries(rest))for(const x of [].concat(v))if(x!=null)effects.push({[k]:x});return {narration,dialogue,effects,suggestions};};
+const done=o=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(asEffects(full(o)))}]}]})});
 const calls=[];let script=null;
 const fetchImpl=async(url,options)=>{const q=JSON.parse(options.body);calls.push(q);return script?script(q,calls.length):done({});};
 const ask=body=>generate(body,{apiKey:'k',model:'test-model',fetchImpl});
@@ -49,6 +51,8 @@ const strictProblems=(s,at,out=[])=>{
  const types=[].concat(s?.type??[]);
  if(types.includes('object')){const keys=Object.keys(s.properties??{});if(s.additionalProperties!==false)out.push(at+' allows other properties');if(JSON.stringify([...(s.required??[])].sort())!==JSON.stringify([...keys].sort()))out.push(at+' does not require every property');for(const k of keys)strictProblems(s.properties[k],at+'.'+k,out);}
  if(types.includes('array'))strictProblems(s.items,at+'[]',out);
+ for(const [i,a] of (s.anyOf??[]).entries())strictProblems(a,at+'|'+i,out);
+ if(!types.length&&!s?.anyOf)out.push(at+' has no type');
  return out;
 };
 (async()=>{
@@ -93,8 +97,15 @@ const strictProblems=(s,at,out=[])=>{
  for(const {label,q} of sent){assert.equal(JSON.stringify(q.text.format.schema),schema,label+': the one reply schema');assert.equal(q.text.format.strict,true);}
  assert.ok(!/"(?:keeper|mara|n\d+|np\d+|travel-[\w-]+|npc-attack[^"]*|end-turn)"/.test(schema),'the schema names no one and no choice');
  assert.deepEqual(strictProblems(replySchemaFor(),'reply'),[],'strict structured output');
- {const p=replySchemaFor().properties;assert.equal(Object.keys(p)[0],'narration','narration still streams first');assert.equal(Object.keys(p).at(-1),'suggestions');
-  for(const k of ['actionId','castCommand','ruling','worldEvent','check','discovery','ambush','loot','introduce','rewind','fault'])assert.ok([].concat(p[k].type).includes('null'),k+' may be null in every phase');}
+ {const p=replySchemaFor().properties;assert.deepEqual(Object.keys(p),['narration','dialogue','effects','suggestions'],'narration still streams first, suggestions last, every effect an item of effects');
+  const kinds=p.effects.items.anyOf.map(b=>Object.keys(b.properties));assert.ok(kinds.every(k=>k.length===1),'each item holds one effect');
+  assert.deepEqual(kinds.flat().sort(),['actionId','ambush','castCommand','check','discovery','fault','introduce','loot','recruitment','relationships','remember','rewind','ruling','worldEvent']);
+  // Read back as the reply the game has always read: every effect in its own field, the three lists up to two each.
+  const flat=server.flatReply({narration:'n',dialogue:[],effects:[{actionId:'travel-p1'},{actionId:'travel-p2'},{remember:{text:'a',about:[],settles:null}},{remember:{text:'b',about:[],settles:null}},{remember:{text:'c',about:[],settles:null}},{rewind:true}],suggestions:['s']});
+  assert.deepEqual(flat,full({narration:'n',actionId:'travel-p1',remember:[{text:'a',about:[],settles:null},{text:'b',about:[],settles:null}],rewind:true,suggestions:['s']}));
+  assert.deepEqual(server.flatReply(full({actionId:'x'})),full({actionId:'x'}),'a reply with every field spelled out is read as it is');
+  {const a=server.asFields(replySchemaFor()),b=require('./dm-schemas.cjs').spelledOutSchema();assert.deepEqual(Object.keys(a.properties).sort(),Object.keys(b.properties).sort());for(const k of Object.keys(b.properties))assert.deepEqual(a.properties[k],b.properties[k],'field by field it is the schema it replaced: '+k);}
+  assert.deepEqual(strictProblems(require('./dm-schemas.cjs').spelledOutSchema(),'spelled out'),[]);}
 
  // ---- 2. The instructions: the standing prompt alone, the same for every hero, phase, retry and second look ----
  for(const {label,q} of sent){
@@ -179,6 +190,11 @@ const strictProblems=(s,at,out=[])=>{
   // Any other refusal is reported as before.
   await assert.rejects(generate({input:'I look.',context:ctx},{apiKey:'k',model:'m',fetchImpl:async()=>({ok:false,status:400,headers:{get:()=>null},json:async()=>({error:{message:'Bad request.'}})})}),/could not complete this request/);
   assert.equal(globalThis.__questboundNoCacheKey,undefined);
+  // A provider that refuses the effects list is asked again at once with every effect spelled out as a field (the
+  // schema before 2026-10-21), for the rest of the process; its reply is read as it is.
+  {const schemas=[];const reply=await generate({input:'I look.',context:ctx},{apiKey:'k',model:'m',fetchImpl:async(u,opt)=>{const q=JSON.parse(opt.body);schemas.push(q.text.format.schema);if(schemas.length===1)return {ok:false,status:400,headers:{get:()=>null},json:async()=>({error:{message:"Invalid schema for response_format 'dm_reply': anyOf is not supported here."}})};return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(full({narration:'You look.',worldEvent:'Dust settles.'}))}]}]})};}});
+   assert.equal(schemas.length,2);assert.deepEqual(schemas[0],replySchemaFor());assert.deepEqual(schemas[1],require('./dm-schemas.cjs').spelledOutSchema());assert.equal(reply.narration,'You look.');assert.equal(reply.worldEvent,'Dust settles.');
+   delete globalThis.__questboundSpelledOut;}
   assert.equal(promptLayout,3);}
 
  // ---- 5b. Token budgets (the host, 2026-10-21: "optimize token usage even further we shouldn't need that many per turn") ----
@@ -200,7 +216,10 @@ const strictProblems=(s,at,out=[])=>{
   for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
   if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));
   assert.ok(measured.standing<=9000,'the standing prompt within 9000 tokens (13618 before 2026-10-21): '+measured.standing);
-  assert.ok(measured.schema<=2100,'the reply schema within 2100 tokens: '+measured.schema);
+  assert.ok(measured.schema<=2300,'the reply schema within 2300 tokens: '+measured.schema);
+  // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
+  measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));
+  assert.ok(measured.skeleton<=16,'an empty reply skeleton within 16 tokens (67 with every effect spelled out): '+measured.skeleton);
   for(const [label,most] of Object.entries(budgets))assert.ok(measured[label]<=most,label+': the scene within '+most+' tokens: '+measured[label]);}
  // ---- 6. What a warm cache can reuse: every leading part a request shares with one sent before it ----
  const U=sent.map(x=>units(x.q)),T=U.map(u=>u.map(tokens));

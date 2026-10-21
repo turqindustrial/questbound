@@ -25,7 +25,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  const free=body('I head for the hills to the north.',{world:{canDiscover:true}});
  const found=await generate(free,{...keys,fetchImpl:success({narration:'You climb toward the ridge.',discovery:ridge})});
  assert.equal(found.discovery.name,'Thornback Ridge');assert.equal(found.discovery.miles,12);
- assert.equal(lastRequest.text.format.schema.properties.discovery.type[0],'object');assert.ok(lastRequest.text.format.schema.required.includes('discovery'));
+ assert.equal(require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).properties.discovery.type[0],'object');assert.ok(require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).required.includes('discovery'));
  assert.equal((await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'You climb.',discovery:ridge})})).discovery,null,'a place the map could not use is never added (asked again, then left out)');
  {await generate(free,{...keys,fetchImpl:success({narration:'You go.'})});const freeSchema=JSON.stringify(lastRequest.text.format.schema);await generate(body('I head north.',{world:{canDiscover:false}}),{...keys,fetchImpl:success({narration:'Not yet.'})});assert.equal(JSON.stringify(lastRequest.text.format.schema),freeSchema,'the schema is the same whether or not the player may set out (it is cached); the map refuses the place instead (above)');}
  {const told=await generate({...free,context:{...free.context,engineResolved:['You travel to Thornback Ridge.']}},{...keys,fetchImpl:success({narration:'You arrive.',discovery:ridge})});assert.equal(told.discovery,null,'Narrating a resolved turn reveals nothing');assert.equal(told.narration,'You arrive.');assert.equal(JSON.stringify(lastRequest.text.format.schema),JSON.stringify(require('./dm-server.cjs').replySchemaFor()),'the one schema, the same for every phase');}
@@ -42,7 +42,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'x',discovery:{...ridge,danger:'risky',feature:null,lair:widow}})})).discovery.danger,'lair','A place given a creature is a lair');
  const wild=body('I kick the sleeping boar.',{world:{canDiscover:true,canAmbush:true}});
  const sprung=await generate(wild,{...keys,fetchImpl:success({narration:'It wakes.',ambush:{template:'boar',name:'Tusked Brute',appearance:'A boar with tusks like sickles.'}})});
- assert.equal(sprung.ambush.template,'boar');assert.equal(lastRequest.text.format.schema.properties.ambush.type[0],'object');
+ assert.equal(sprung.ambush.template,'boar');assert.equal(require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).properties.ambush.type[0],'object');
  assert.equal((await generate(free,{...keys,fetchImpl:success({narration:'x',ambush:widow})})).ambush,null,'No ambush away from the wilds');
  assert.equal((await generate(wild,{...keys,fetchImpl:success({narration:'x',ambush:{...widow,template:'dragon'}})})).ambush,null);
  assert.ok(requestParts(lastRequest).instructions.includes('DANGER IN THE WILDS'));
@@ -58,7 +58,7 @@ const body=(input,extra={})=>({input,context:{choices:[],spellReference:spells,s
  // gold over the level's most is cut to it (not dropped); magic only rewards a chapter or a lead, within the level.
   const chest=body('I search the chest.',{stage:'inn',inventory:{gold:10},player:{level:1}});
  await generate(chest,{...keys,fetchImpl:success({narration:'You open it.'})});
- const itemSchema=lastRequest.text.format.schema.properties.loot.anyOf?.[0]??lastRequest.text.format.schema.properties.loot;
+ const itemSchema=require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).properties.loot.anyOf?.[0]??require('./dm-schemas.cjs').asFields(lastRequest.text.format.schema).properties.loot;
  assert.ok(itemSchema.properties.items.items.properties.kind.enum.includes('armor'),'armor is a kind');assert.ok(itemSchema.properties.items.items.properties.magic.enum.includes('cloak-of-protection')&&itemSchema.properties.items.items.required.includes('magic'),'magic is an id from the catalogue');
  assert.ok(requestParts(lastRequest).instructions.includes('SPOILS: context.spoils')&&requestParts(lastRequest).instructions.includes('MAGIC REWARDS'));
  const hoard={gold:150,items:[{name:'Silver chalice',kind:'treasure',qty:1,value:25,note:'A dented cup.',magic:null}],reason:'Found in the chest.'};

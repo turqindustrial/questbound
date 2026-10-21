@@ -38,6 +38,14 @@ const zero={damage:0,selfDamage:0,healing:0,temporaryHP:0};
   let t=await playable('two objects',[done(twice)],{question:'I warm my hands by the fire.'});assert.equal(t.out.narration,'The fire pops.');assert.equal(t.calls.length,1,'read at once, not asked again');
   t=await playable('two items',[{status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(full({narration:'Rain on the shutters.'}))}]},{type:'message',content:[{type:'output_text',text:JSON.stringify(full({narration:'Rain again.'}))}]}]}],{question:'I listen to the rain.'});
   assert.equal(t.out.narration,'Rain on the shutters.');assert.equal(t.calls.length,1);}
+ // 1b. The provider writes each game effect as an item of effects: read as every effect in its own field. A choice id
+ //     copied with the brackets the choices are listed in ("[travel-tower]") is that choice, and a telling given as
+ //     null beside it is framed, without asking again (both seen in the diagnostics on 2026-10-21).
+ {const id=r.dmChoices(wizard,inn.game,inn.health).map(c=>c.id).find(x=>/^travel-/.test(x));assert.ok(id,'a journey on offer');
+  let t=await playable('effects list',[done(JSON.stringify({narration:'You set out.',dialogue:[],effects:[{actionId:id},{remember:{text:'The keeper owes you a favour.',about:['keeper'],settles:null}}],suggestions:[]})),done({narration:'You arrive.'})],{question:'I set out on the road.'});
+  assert.equal(t.calls.length,2,'the journey and its telling');assert.equal(t.out.narration,'You arrive.');
+  t=await playable('brackets',[done(JSON.stringify({narration:null,dialogue:[],effects:[{actionId:'['+id+']'}],suggestions:[]})),done({narration:'You arrive.'})],{question:'I set out on the road.'});
+  assert.equal(t.calls.length,2,'mended in place: never asked again');assert.equal(t.out.narration,'You arrive.');}
  // 2. A reply cut short by the output limit is asked again with twice the room; cut short every time, a telling that
  //    was written in full is told on its own (nothing else applied).
  {let t=await playable('cut short once',[cut('{"narration":"The fire'),done({narration:'The fire burns low.'})],{question:'I watch the fire.'});
@@ -51,7 +59,7 @@ const zero={damage:0,selfDamage:0,healing:0,temporaryHP:0};
  // 4. Someone joins as the hero sets out (the diagnostics, 2026-10-10: a join with travel-p1, refused three times). The
  //    join is the turn and the journey waits for the next one; a decline beside the journey is dropped and the hero goes.
  {const joined=await playable('join beside travel',[done({narration:'Mara shoulders her pack and you set out together.',recruitment:[{npcId:'mara',decision:'join',reason:'She wants to see the bridge for herself.',terms:'',dc:null,class:null}],actionId:'travel-bridge'}),done({narration:'Mara falls in beside you.'})],{question:'Mara, come with me to the bridge.'});
-  assert.equal(joined.calls.length,2,'the join, then its telling: never asked again for the journey');assert.equal(joined.calls[0].text.format.schema.properties.recruitment.maxItems>0,true);
+  assert.equal(joined.calls.length,2,'the join, then its telling: never asked again for the journey');assert.equal(require('./dm-schemas.cjs').asFields(joined.calls[0].text.format.schema).properties.recruitment.maxItems>0,true);
   assert.equal(joined.game.stage,'inn','the journey waits for the next turn');assert.ok(!joined.game.map.visited.includes('bridge'));assert.equal(joined.out.narration,'Mara falls in beside you.');
   const went=await playable('decline beside travel',[done({narration:'Mara shakes her head; you go alone.',recruitment:[{npcId:'mara',decision:'decline',reason:'She has her own errand here.',terms:'',dc:null,class:null}],actionId:'travel-bridge'}),done({narration:'The bridge looms out of the mist.'})],{question:'Mara, come with me to the bridge.'});
   assert.notEqual(went.game.stage,'inn','the hero sets out');assert.ok(went.game.map.visited.includes('bridge'));}
