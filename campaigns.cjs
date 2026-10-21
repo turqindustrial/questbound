@@ -3,6 +3,21 @@ const {atomic}=require('./operations.cjs'),{resolveTurn}=require('./server-turn.
 const fail=(status,message)=>Object.assign(Error(message),{status});
 const digest=text=>crypto.createHash('sha256').update(text).digest('hex');
 const clean=text=>typeof text==='string'?text.replace(/[\x00-\x1f<>]/g,'').trim().slice(0,40):'';
+// Campaign invites (the host's words, 2026-10-21: "8 characters shown as 4 characters, a dash, and 4 more characters,
+// all either numbers or capitol letters ... players can type lower case letters and it will count as correct"): eight
+// of A-Z and 0-9 by crypto, shown as XXXX-XXXX; typed in any case, with or without the dash and spaces. Only a keyed
+// hash of the code is kept (operations.keyed: an HMAC with the private storage key). Guessing is held back by the
+// account service (invite-guard.cjs: wrong codes per caller and overall, kept across restarts). Long codes from before
+// (16 characters, case as written) keep working until they expire.
+const inviteAlphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function newInvite(){let code='';for(let i=0;i<8;i++)code+=inviteAlphabet[crypto.randomInt(inviteAlphabet.length)];return code.slice(0,4)+'-'+code.slice(4);}
+function inviteForms(typed){
+ if(typeof typed!=='string'||typed.length>40)return [];
+ const raw=typed.trim(),code=raw.toUpperCase().replace(/[\s-]+/g,''),forms=[];
+ if(/^[A-Z0-9]{8}$/.test(code))forms.push({code});
+ if(/^[a-zA-Z0-9_-]{16}$/.test(raw))forms.push({old:raw});
+ return forms;
+}
 function validSnapshot(s){
  try{if(!s||Array.isArray(s)||JSON.stringify(s).length>2000000||typeof s.character!=='string'||s.character.length>200000)return false;
   const r=require('./rules-engine.cjs').rules(),hero=JSON.parse(s.character);return r.isValidCharacter(hero)&&r.validAdventure(s,hero)&&(!r.isPartyGame(s.game)||Object.keys(s.game.party.members).every(id=>{const v=r.partyView(s,id),h=JSON.parse(v.character);return r.isValidCharacter(h)&&r.validAdventure(v,h);}));
@@ -38,6 +53,9 @@ function typedBy(snapshot,member){
 }
 function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=null,onReport=null}={}){
  const r=require('./rules-engine.cjs').rules(),presence=new Map(),locks=new Map(),reports=new Map();
+ const inviteHash=code=>'v2:'+(operations?.keyed?operations.keyed('campaign-invite-v2',code):digest('questbound-campaign-invite-v2:'+code));
+ const inviteHashes=typed=>inviteForms(typed).map(f=>f.code?inviteHash(f.code):digest(f.old));
+ const freshInvite=c=>{const invite=newInvite();c.inviteHash=inviteHash(invite.replace('-',''));c.inviteUntil=now()+7*86400000;return invite;};
  const nameCheck=async(name,user)=>{if(!moderate||!name)return;let verdict=null;try{verdict=await moderate(name,user);}catch{}if(verdict&&verdict.action&&verdict.action!=='allow')throw fail(400,typeof verdict.line==='string'&&verdict.line?verdict.line.slice(0,300):'Choose another name for the table.');};
  const isBanned=(c,user)=>(c.banned??[]).some(b=>b.hash===banKey(c,user.id));
  // A member leaves the table: their seat, their hero at a party table and their receipts (the party's lead passes on).
@@ -48,7 +66,10 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
  // A table saved by an older build is brought to the current save format the first time it is read (saveMigrations.js,
  // SAVES.md), and so is a hero brought to a table; an upgraded copy the checks would refuse is never used.
  const upgraded=s=>{const u=r.upgradeAdventure(s);return u!==s&&validSnapshot(u)?u:s;};
- const read=id=>{let c;try{c=JSON.parse(fs.readFileSync(file(id),'utf8'));}catch{throw fail(404,'Campaign not found.');}const was=c.snapshot;c.snapshot=upgraded(c.snapshot);if(seated(c)|c.snapshot!==was)persist(c);return c;};
+ // A table of the retired one-hero kind (everyone played the host's hero) is read as a party with the host's hero in
+ // the lead: every other member is then asked to bring a hero of their own (heroless, below) and joins at their seat.
+ const partied=c=>{if(r.isPartyGame(c.snapshot?.game))return false;const owner=c.members?.[c.owner];if(!owner)return false;const next=r.startParty(c.snapshot,owner.seat,owner.name);if(!validSnapshot(next))return false;c.snapshot=next;return true;};
+ const read=id=>{let c;try{c=JSON.parse(fs.readFileSync(file(id),'utf8'));}catch{throw fail(404,'Campaign not found.');}const was=c.snapshot;c.snapshot=upgraded(c.snapshot);if(seated(c)|partied(c)|c.snapshot!==was)persist(c);return c;};
  const seat=(c,user)=>c.members[user.id].seat;
  const present=(c,place)=>now()-(presence.get(c.id+':'+place)??0)<15000;
  // When the current turn in a party fight began, kept on the server only: after 90 s anyone may pass it.
@@ -56,47 +77,69 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
  const requireMember=(id,user)=>{const c=read(id);if(!c.members[user.id]){if(isBanned(c,user))throw removedError();operations?.audit('campaign-access-denied',{account:user.id,campaign:id});throw fail(403,'You are not a member of this campaign.');}return c;};
  const free=c=>{if(locks.has(c.id))throw fail(423,'A turn is being resolved. Wait for it to finish.');};
  const touch=(c,user)=>presence.set(c.id+':'+seat(c,user),now());
+ // Nobody plays a table without a hero of their own (the host's words, 2026-10-21: "nobody should be "playing" the
+ // multi player function without a character to actually take control of"): a member whose seat holds no hero (one
+ // from a one-hero table, or whose hero died before the table began a new tale) is sent no adventure and may only
+ // bring a hero (join with campaignId). A table with no tale yet (opened before one was chosen, or an old table on
+ // the crossroads tale) plays nothing until its host starts one (tale).
+ const heroless=(c,user)=>!r.isPartyGame(c.snapshot.game)?c.owner!==user.id:!c.snapshot.game.party.members[seat(c,user)];
+ const taleless=c=>!r.hasTale(c.snapshot.game);
+ const ready=(c,user)=>{if(heroless(c,user))throw Object.assign(fail(409,'Choose your hero and bring them to the table first.'),{needsHero:true});if(taleless(c))throw Object.assign(fail(409,c.owner===user.id?'Choose a tale for the table first.':'The host has not chosen a tale for this table yet.'),{needsTale:true});};
+ const heroName=(c,place)=>{const g=c.snapshot.game;if(!r.isPartyGame(g))return place===c.members[c.owner]?.seat?JSON.parse(c.snapshot.character).name:null;const m=g.party.members[place];if(!m)return null;try{return JSON.parse(place===g.party.lead?c.snapshot.character:m.character).name??null;}catch{return null;}};
+ // A hero brought to a table: a valid solo adventure with a living hero (what they carry comes with them).
+ // Never a hero already at the table (a copy of another player's hero, or the same ready-made hero twice).
+ const broughtHero=(b,c=null,place=null)=>{if(!validSnapshot(b?.snapshot)||r.isPartyGame(b.snapshot.game))throw fail(400,'Choose your hero before joining the table.');if(['dead','dying'].includes(b.snapshot.game.stage))throw fail(400,'That hero cannot travel now. Choose another hero for the table.');
+  if(c&&r.isPartyGame(c.snapshot.game)&&Object.entries(r.settleParty(c.snapshot).members).some(([id,m])=>id!==place&&m.character===b.snapshot.character))throw fail(409,'That hero is already at this table. Choose another hero of your own.');return b.snapshot;};
  function state(c,user,known=-1){
   const players=Object.values(c.members).filter(m=>present(c,m.seat)).map(m=>({id:m.seat,name:m.name,role:m.role,acting:locks.get(c.id)===m.seat}));
   // Everyone seated, here or not (so a player can mute or report someone who has stepped away), and for the host the
   // people kept out of this table.
-  const members=Object.values(c.members).map(m=>({id:m.seat,name:m.name,role:m.role,here:present(c,m.seat)}));
-  return {campaignId:c.id,version:c.version,you:seat(c,user),role:c.members[user.id].role,players,members,...(c.owner===user.id?{banned:(c.banned??[]).map(b=>({ref:b.ref,name:b.name,at:b.at}))}:{}),updatedAt:c.updatedAt,updatedBy:c.updatedBy,...(known!==c.version?{snapshot:r.isPartyGame(c.snapshot.game)?r.partyView(c.snapshot,seat(c,user)):c.snapshot}:{})};
+  const members=Object.values(c.members).map(m=>({id:m.seat,name:m.name,role:m.role,here:present(c,m.seat),hero:heroName(c,m.seat)}));
+  // A member with no hero of their own here is sent no adventure (never another player's hero): only that they must
+  // bring one. Everyone is told whether the table has a tale yet.
+  const needsHero=heroless(c,user),needsTale=taleless(c);
+  return {campaignId:c.id,version:c.version,you:seat(c,user),role:c.members[user.id].role,players,members,needsHero,needsTale,...(c.owner===user.id?{banned:(c.banned??[]).map(b=>({ref:b.ref,name:b.name,at:b.at}))}:{}),updatedAt:c.updatedAt,updatedBy:c.updatedBy,...(known!==c.version&&!needsHero?{snapshot:r.isPartyGame(c.snapshot.game)?r.partyView(c.snapshot,seat(c,user)):c.snapshot}:{})};
  }
  const advance=(c,snapshot,user)=>{if(!validSnapshot(snapshot))throw fail(400,'That adventure did not pass validation.');c.snapshot=snapshot;c.version++;c.updatedAt=new Date(now()).toISOString();c.updatedBy=c.members[user.id].name;clock(c);persist(c);return state(c,user);};
  function createNow(user,b){
    if(ids().length>=100)throw fail(507,'Campaign storage is full. Ask the host.');
    if(!validSnapshot(b.snapshot)||r.isPartyGame(b.snapshot.game))throw fail(400,'Start with your own valid solo adventure.');
+   broughtHero(b);
+   // A table plays a tale: the host's tale under way, or none yet (the game then opens it with none, and the host
+   // chooses one before inviting anyone: startTale.js tableSnapshot).
    operations?.consume(user.id,'campaigns',5);
-   const id=crypto.randomBytes(16).toString('hex'),invite=crypto.randomBytes(12).toString('base64url'),name=clean(b.name)||'Host',place=newSeat();
-   const snapshot=b.party===false?b.snapshot:r.startParty(b.snapshot,place,name);
-   const c={id,owner:user.id,members:{[user.id]:{name,role:'owner',seat:place}},inviteHash:digest(invite),inviteUntil:now()+7*86400000,version:1,updatedAt:new Date(now()).toISOString(),updatedBy:name,snapshot,receipts:[]};
+   // Every table is a party: each player brings their own hero (the one-hero kind is retired; `party` is ignored).
+   const id=crypto.randomBytes(16).toString('hex'),name=clean(b.name)||'Host',place=newSeat();
+   const snapshot=r.startParty(b.snapshot,place,name);
+   const c={id,owner:user.id,members:{[user.id]:{name,role:'owner',seat:place}},version:1,updatedAt:new Date(now()).toISOString(),updatedBy:name,snapshot,receipts:[]};
+   const invite=freshInvite(c);
    persist(c);touch(c,user);operations?.audit('campaign-created',{account:user.id,campaign:id});return {...state(c,user),invite};
  }
- const invited=invite=>{const hash=digest(invite),found=ids().map(read).find(c=>c.inviteUntil>now()&&c.inviteHash===hash);if(!found)throw fail(404,'Campaign invite is invalid or expired.');return found;};
+ const invited=invite=>{const hashes=inviteHashes(invite),found=hashes.length?ids().map(read).find(c=>c.inviteUntil>now()&&hashes.includes(c.inviteHash)):null;if(!found)throw Object.assign(fail(404,'That campaign invite is not right, or it has expired. Check the code with the table’s host.'),{inviteMiss:true});return found;};
  // Read again here (after the name check, which waits on the Dungeon Master) so nothing that changed meanwhile is lost.
  function joinNow(user,b){
-   const c=invited(b.invite);if(isBanned(c,user))throw removedError();free(c);
-   if(c.members[user.id]){touch(c,user);if(r.isPartyGame(c.snapshot.game)&&r.settleParty(c.snapshot).members[seat(c,user)]?.status==='dead'&&validSnapshot(b.snapshot)){const revived=r.joinParty(c.snapshot,seat(c,user),{...b.snapshot,name:c.members[user.id].name});if(revived.error)throw fail(409,revived.error);return advance(c,revived.snapshot,user);}return state(c,user);}
+   const c=b.campaignId?requireMember(b.campaignId,user):invited(b.invite);if(isBanned(c,user))throw removedError();free(c);
+   // A member already seated keeps their hero. One with no hero here (or whose hero has died) brings one to their seat.
+   if(c.members[user.id]){touch(c,user);const mine=r.settleParty(c.snapshot).members[seat(c,user)];if((mine&&mine.status!=='dead')||!b.snapshot)return state(c,user);
+    const brought=r.joinParty(c.snapshot,seat(c,user),{...broughtHero(b,c,seat(c,user)),name:c.members[user.id].name});if(brought.error)throw fail(409,brought.error);return advance(c,brought.snapshot,user);}
    if(Object.keys(c.members).length>=12)throw fail(409,'This campaign is full.');
-   let snapshot=c.snapshot;const name=clean(b.name)||'Adventurer',place=newSeat();
-   if(r.isPartyGame(snapshot.game)){
-    if(!validSnapshot(b.snapshot))throw fail(400,'Choose your hero and start an adventure before joining.');
-    const joined=r.joinParty(snapshot,place,{...b.snapshot,name});if(joined.error)throw fail(409,joined.error);snapshot=joined.snapshot;
-   }
-   c.members[user.id]={name,role:'player',seat:place};touch(c,user);return advance(c,snapshot,user);
+   // Whoever joins brings their own hero: nobody joins without one to control.
+   const name=clean(b.name)||'Adventurer',place=newSeat(),joined=r.joinParty(c.snapshot,place,{...broughtHero(b,c,place),name});if(joined.error)throw fail(409,joined.error);
+   c.members[user.id]={name,role:'player',seat:place};touch(c,user);return advance(c,joined.snapshot,user);
  }
  return {
   // The name a player gives is vetted first when a content check is configured (then the answer is a promise).
   create(user,b){if(b&&typeof b==='object')b={...b,snapshot:upgraded(b.snapshot)};return moderate?nameCheck(clean(b.name),user).then(()=>createNow(user,b)):createNow(user,b);},
   join(user,b){
-   if(typeof b.invite!=='string'||!/^[a-zA-Z0-9_-]{16}$/.test(b.invite))throw fail(400,'Enter the campaign invite supplied by its host.');
-   b={...b,snapshot:upgraded(b.snapshot)};const found=invited(b.invite);if(isBanned(found,user)){operations?.audit('campaign-ban-refused',{campaign:found.id});throw removedError();}
+   // By invite, or (a member already seated, bringing a hero to their seat) by the campaign's id.
+   if(typeof b.campaignId==='string'&&b.invite===undefined)return joinNow(user,{...b,snapshot:b.snapshot===undefined?undefined:upgraded(b.snapshot)});
+   if(!inviteForms(b.invite).length)throw fail(400,'Enter the campaign invite supplied by its host: eight letters and numbers, like K7Q2-9XMB.');
+   b={...b,campaignId:undefined,snapshot:upgraded(b.snapshot)};const found=invited(b.invite);if(isBanned(found,user)){operations?.audit('campaign-ban-refused',{campaign:found.id});throw removedError();}
    return moderate&&!found.members[user.id]?nameCheck(clean(b.name),user).then(()=>joinNow(user,b)):joinNow(user,b);
   },
   poll(user,b){const c=requireMember(b.campaignId,user);touch(c,user);return state(c,user,b.knownVersion);},
   leave(user,b){const c=requireMember(b.campaignId,user);presence.delete(c.id+':'+seat(c,user));return {left:true};},
-  invite(user,b){const c=requireMember(b.campaignId,user);if(c.owner!==user.id)throw fail(403,'Only the campaign host can issue invites.');free(c);const invite=crypto.randomBytes(12).toString('base64url');c.inviteHash=digest(invite);c.inviteUntil=now()+7*86400000;persist(c);return {invite};},
+  invite(user,b){const c=requireMember(b.campaignId,user);if(c.owner!==user.id)throw fail(403,'Only the campaign host can issue invites.');free(c);const invite=freshInvite(c);persist(c);return {invite};},
   list(user){return {campaigns:ids().map(read).filter(c=>c.members[user.id]).map(c=>({id:c.id,role:c.members[user.id].role,updatedAt:c.updatedAt,title:c.snapshot.game.story?.title??'Shared adventure'}))};},
   async turn(user,b){
    let c=requireMember(b.campaignId,user);touch(c,user);
@@ -104,6 +147,7 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    if(c.receipts?.some(x=>x.id===b.requestId&&x.by===seat(c,user)))return {...state(c,user),replayed:true};
    free(c);if(b.baseVersion!==c.version)return {conflict:true,...state(c,user)};
    if(b.snapshot||b.conversation||b.ruling||b.random)throw fail(400,'Send an action, not a replacement game state.');
+   ready(c,user);
    const snapshot=r.isPartyGame(c.snapshot.game)?r.partyView(c.snapshot,seat(c,user)):c.snapshot;
    const order=r.turnOrderView(snapshot.game),pass=b.action?.type==='party-pass',direct=b.direct===true;
    // AGENTS: after 90 s, or at once when that hero's player is not at the table, anyone may pass a hero's turn; the
@@ -124,8 +168,43 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
     return {...out,narration:result.narration,turn:result.turn,suggestions:result.suggestions??[],fault:result.fault===true,deeds:result.deeds??[],xp:result.xp??null};
    }finally{locks.delete(c.id);}
   },
+  // The host starts a tale for the whole table (there was no campaign route for one before 2026-10-21): a ready journey
+  // from the Dungeon Master's library (asked for here, as a device asks: mode 'adventure', introId 'easy', journey,
+  // easyStart) or a tale the host's device had written (Your own tale, a written opening), checked by the same rules
+  // as a device's new tale (freshStoryGame) and the table's own checks (validSnapshot). The host's hero leads; every
+  // member's living hero is seated in it with what they carry (partyRules.js partyInTale). Out of a fight only; a tale
+  // still under way is replaced only when the host confirms it (replace).
+  async tale(user,b){
+   let c=requireMember(b.campaignId,user);touch(c,user);
+   if(c.owner!==user.id)throw fail(403,'Only the table’s host chooses its tale.');
+   free(c);if(b.baseVersion!==c.version)return {conflict:true,...state(c,user)};
+   if(heroless(c,user))throw Object.assign(fail(409,'Bring your own hero to the table before choosing its tale.'),{needsHero:true});
+   const world=r.isPartyGame(c.snapshot.game)?r.settleParty(c.snapshot).world:c.snapshot.game,story=world.story;
+   if(world.turnOrder||world.npcCombat?.active||world.wildFight||world.dungeon?.active||world.pendingSpell||['combat','dying','dead'].includes(world.stage))throw fail(409,'Finish the fight before the table begins a new tale.');
+   if(r.hasTale(world)&&story.introId!=='hostile'&&story.status!=='complete'&&b.replace!==true)throw fail(409,'The table is in the middle of '+String(story.title).slice(0,80)+'. Confirm to replace it with a new tale.');
+   const journey=typeof b.journey==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(b.journey)?b.journey:null;
+   if(!journey&&(!b.story||typeof b.story!=='object'||Array.isArray(b.story)||JSON.stringify(b.story).length>400000))throw fail(400,'Choose a ready journey or a tale for the table.');
+   const introId=journey?'easy':['idea','surprise','easy','crown','drowned','sunforge','winter','deep','names','oath'].includes(b.introId)?b.introId:'surprise';
+   locks.set(c.id,seat(c,user));
+   try{
+    let written=b.story;
+    if(journey){
+     if(!ask)throw fail(503,'The Dungeon Master is not reachable from the table just now. Try again soon.');
+     const hero=JSON.parse(r.partyView(c.snapshot,seat(c,user)).character);
+     const answer=await ask({input:'Create a fresh adventure for my character.',context:{mode:'adventure',introId:'easy',journey,easyStart:true,choices:[],player:{name:hero.name,species:r.heroSpecies(hero),class:hero.class,level:hero.level,background:hero.background,backstory:hero.backstory}}},user);
+     written=answer?.story;if(!written||typeof written!=='object')throw fail(502,'The Dungeon Master did not hand over that journey. Choose another.');
+    }
+    // Nothing changed meanwhile, and the host is still the host.
+    user.active?.();c=requireMember(c.id,user);if(b.baseVersion!==c.version)return {conflict:true,...state(c,user)};
+    const begun=r.partyInTale(c.snapshot,seat(c,user),written,introId);if(begun.error)throw fail(409,begun.error);
+    operations?.audit('campaign-tale',{campaign:c.id});
+    const out=advance(c,begun.snapshot,user);return {...out,tale:{title:begun.snapshot.game.story.title,libraryId:begun.snapshot.game.story.libraryId??null}};
+   }finally{locks.delete(c.id);}
+  },
   edit(user,b){
    const c=requireMember(b.campaignId,user);free(c);if(b.baseVersion!==c.version)return {conflict:true,...state(c,user)};
+   // Only for a hero of one's own (a table without a tale yet allows a hero's own choices: nothing is played).
+   if(heroless(c,user))throw Object.assign(fail(409,'Choose your hero and bring them to the table first.'),{needsHero:true});
    const party=r.isPartyGame(c.snapshot.game);let snapshot=party?r.partyView(c.snapshot,seat(c,user)):c.snapshot,gained=null;const game={...snapshot.game};
    // In a one-hero campaign every member plays the host's hero; its lasting choices are the host's alone.
    if(!party&&c.owner!==user.id&&['advance','training','attune','portrait','wield','shield'].includes(b.kind))throw fail(403,'Only the campaign host makes lasting choices for the host’s hero.');
@@ -178,4 +257,4 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
   removeAccount(id){for(const campaign of ids()){const c=read(campaign);if(c.members[id]){if(c.owner===id){fs.rmSync(file(c.id),{force:true});operations?.backup.remove('campaign-'+c.id);}else{dropMember(c,id);c.version++;clock(c);persist(c);}}}},
  };
 }
-module.exports={createCampaigns,validSnapshot,reportReasons};
+module.exports={createCampaigns,validSnapshot,reportReasons,newInvite,inviteForms};

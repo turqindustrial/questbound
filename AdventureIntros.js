@@ -1,6 +1,6 @@
 import React,{useState,useEffect} from 'react';
 import {View,Text,TextInput,Pressable,StyleSheet,useWindowDimensions} from 'react-native';
-import intros from './adventureIntros.json';
+import allIntros from './adventureIntros.json';
 import {GameButton,Ornament,ScreenTitle,Crest,Toggle} from './ui';
 import Icon from './Icon';
 import {playSound} from './audio';
@@ -67,8 +67,11 @@ function JourneyShelf({journeys,selected,onSelect,onStart,busy,error,narrow}){
 // Let fate decide, with journeys ready: one of them, chosen by chance.
 const fateCopy={setting:'One of the ready journeys, chosen for you by chance. You find out which when it begins.',conflict:'Its land, its people and its trouble stay a surprise until the first scene, and it starts at once.',journey:null,stakes:null,tone:'Any journey',arrival:'Ready at once'};
 const firstTime=()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}};
-export default function AdventureIntros({selected,onSelect,onStart,busy,error,continuation=null,continuing=false,onContinuing,idea='',onIdea=()=>{},journeys=null}){
+export default function AdventureIntros({selected,onSelect,onStart,busy,error,continuation=null,continuing=false,onContinuing,idea='',onIdea=()=>{},journeys=null,forTable=null}){
  const narrow=useWindowDimensions().width<420;
+ // The host of a shared table chooses the table's tale here (campaigns.cjs tale): the same tales, without the Skirmish
+ // (a table plays a tale) or a next tale in a region; every hero at the table begins it together.
+ const intros=forTable?allIntros.filter(i=>!i.local):allIntros;
  // With journeys ready, the list is Your own tale, the journeys, Let fate decide (one of them) and the Skirmish; the
  // written openings and Easy to get into (every journey is one) are offered only when the library cannot be reached.
  const library=Array.isArray(journeys)&&journeys.length>0,shown=library?intros.filter(i=>i.idea||i.id==='surprise'||i.local):intros;
@@ -79,10 +82,11 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
   <View style={s.narrator}><NarratorChoice compact/><EasyStart busy={busy}/></View>
   <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'One moment…':'Begin the next tale'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
   <Ornament/><Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
- return <View><ScreenTitle eyebrow="New adventure" icon="compass" title="Where does your story begin?" sub="Choose a tale, or bring your own idea. Each is yours alone: a long story told in chapters, with its own country, people, side errands and roads to other lands."/>
+ return <View>{forTable?<ScreenTitle eyebrow="The shared table" icon="people" title="Choose the table’s tale" sub="Every hero at the table begins it together, each with what they carry. Pick a ready journey to start at once, or bring your own idea."/>:<ScreenTitle eyebrow="New adventure" icon="compass" title="Where does your story begin?" sub="Choose a tale, or bring your own idea. Each is yours alone: a long story told in chapters, with its own country, people, side errands and roads to other lands."/>}
+  {!!forTable?.replacing&&<Text accessibilityRole="alert" style={s.first}>This replaces <Text style={s.firstStrong}>{forTable.replacing}</Text> for everyone at the table once the new tale begins.</Text>}
  {/* A first-time player (the in-game "How to play" card not yet dismissed) is told where to start. */}
-  {!continuation&&firstTime()&&library&&<Text style={s.first}>First time here? Pick any <Text style={s.firstStrong}>ready journey</Text> below: each starts at once, with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
-  {!continuation&&firstTime()&&!library&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
+  {!continuation&&!forTable&&firstTime()&&library&&<Text style={s.first}>First time here? Pick any <Text style={s.firstStrong}>ready journey</Text> below: each starts at once, with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
+  {!continuation&&!forTable&&firstTime()&&!library&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
   {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
   <View style={s.narrator}><NarratorChoice compact/>{selected!=='hostile'&&<EasyStart always={selected==='easy'||ready} journey={ready} busy={busy}/>}</View>
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
@@ -98,7 +102,7 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
  {chosen&&<View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':hot?'swords':'play'} label={busy?(hot?'Drawing steel…':'One moment…'):intro.idea&&!ideaReady(idea)?'Write your idea first':'Begin '+(hot?'the encounter':'this adventure')} disabled={busy||(!!intro.idea&&!ideaReady(idea))} onPress={onStart} style={{marginTop:0}}/></View>}
  {intro.idea&&library&&<JourneyShelf journeys={journeys} selected={selected} onSelect={onSelect} onStart={onStart} busy={busy} error={error} narrow={narrow}/>}</React.Fragment>;})}
  <Ornament/>
- <Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
+ <Text style={s.note}>{forTable?'The table’s tale begins for everyone once it is ready.':'Starting replaces your current adventure only after the new story has been created and saved.'}</Text></View>;
 }
 const s=StyleSheet.create({
  copy:{fontFamily:fonts.ui,color:tint('#d4ced2'),lineHeight:23,fontSize:14.5,marginBottom:10},

@@ -1,6 +1,10 @@
 import {combatBasics} from './combatRules';
 import {gearedHero} from './inventoryRules';
 import {heroSpecies} from './characterRules';
+import {newAdventure} from './adventureRules';
+import {freshStoryGame} from './storyRules';
+import {carriedBase} from './sequelRules';
+import {adventureSnapshot} from './adventureStorage';
 // A party at the shared table: every player brings their own hero into one adventure. The world (the story, the map,
 // the people, the fight) is shared; each hero's own state (hit points, draughts, pack, slots, deeds, dying...) is kept
 // per hero in game.party.members. A snapshot always has one hero in the lead: the one whose device sent it. Every
@@ -98,4 +102,27 @@ export function soloFromParty(snapshot,level=null){
 export function partyMembers(game){
  if(!isPartyGame(game))return [];
  return (game.party.order??Object.keys(game.party.members)).filter(id=>game.party.members[id]).map(id=>{const m=game.party.members[id],hero=parse(m.character)??{};return {id,lead:id===game.party.lead,name:hero.name??'A hero',player:m.name||null,species:heroSpecies(hero),heroClass:hero.class??'',level:hero.level??1,status:m.status,hp:m.health?.current??m.stats?.hp??null,maxHp:m.stats?.hp??null};});
+}
+// Every table plays a written tale (the host's words, 2026-10-21: "get rid of that story and make sure it doesn't
+// appear anymore"). A table opened before it had a tale, or whose tale is done, begins one for everyone: the host's
+// hero leads and the tale is set up for them (freshStoryGame, as a new tale on a device), carrying what a hero carries
+// into a next tale (carriedBase: pack, draughts, training, experience, deeds and the story so far); then every other
+// living hero at the table is seated again with what they carry. A member whose hero has died is not seated: they
+// bring a new hero (campaigns.cjs). Returns the table seen from the host, or an error.
+const carried=hero=>({...(hero?.pack?{pack:hero.pack}:{}),potions:Math.max(1,hero?.potions??1),...(hero?.skillTraining?{skillTraining:hero.skillTraining}:{}),...(Number.isInteger(hero?.xp)?{xp:hero.xp}:{}),...(hero?.levelsOwed?{levelsOwed:hero.levelsOwed}:{}),...(hero?.deeds?.length?{deeds:hero.deeds}:{})});
+export function partyInTale(snapshot,lead,story,introId){
+ if(!isPartyGame(snapshot?.game))return {error:'This table has no party to begin a tale with.'};
+ const settled=settleParty(snapshot),host=settled.members[lead];
+ if(!host||host.status==='dead')return {error:'Bring a living hero to the table before choosing its tale.'};
+ const view=partyView(snapshot,lead),hero=parse(view.character);if(!hero)return {error:'Your hero could not be read.'};
+ let game;try{game=freshStoryGame(hero,{...story,introId},newAdventure(hero,carriedBase(view.game)));}catch{return {error:'That tale could not be set up for the table. Choose another.'};}
+ const lived=[...(view.game.storyHistory??[]),view.game.story?.title].filter(t=>typeof t==='string'&&t);
+ if(lived.some(t=>t.toLowerCase()===game.story.title.toLowerCase()))return {error:'This table has already lived that tale. Choose another.'};
+ game.storyHistory=[...new Set([...lived,game.story.title])].slice(-100);
+ let next=startParty(adventureSnapshot(hero,game,null,true),lead,host.name);
+ for(const id of settled.order){
+  const m=settled.members[id];if(id===lead||!m||m.status==='dead')continue;
+  const joined=joinParty(next,id,{character:m.character,game:carried(m.hero),health:null,name:m.name});if(!joined.error)next=joined.snapshot;
+ }
+ return {snapshot:partyView(next,lead)};
 }

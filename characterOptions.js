@@ -3,13 +3,13 @@
 // (spellOptions.js lineageSpells), in Questbound's own words. Spells of level 1 or more can each be cast once a long
 // rest without a slot, and with slots by a hero who has them.
 export const lineageDetails = {
-  'High Elf': {description: 'Elves of old courts and libraries, with magic close at hand. You know Prestidigitation; at level 3 Detect Magic and at level 5 Misty Step.'},
-  'Wood Elf': {description: 'Elves of the deep forests, quick and quiet. You know Druidcraft; at level 3 Longstrider and at level 5 Pass without Trace.'},
-  'Forest Gnome': {description: 'Gnomes of the woods, friends to small beasts. You know Minor Illusion, and can cast Speak with Animals without a slot a few times each long rest.'},
-  'Rock Gnome': {description: 'Gnomes of workshops and clever devices. You know Mending and Prestidigitation.'},
-  Abyssal: {description: 'A legacy of the churning depths below the worlds. You know Poison Spray; at level 3 Ray of Sickness and at level 5 Hold Person.'},
-  Chthonic: {description: 'A legacy of the grey realms of the dead. You know Chill Touch; at level 3 False Life and at level 5 Ray of Enfeeblement.'},
-  Infernal: {description: 'A legacy of the ordered realms of fire and law. You know Fire Bolt; at level 3 Hellish Rebuke and at level 5 Darkness.'},
+  'High Elf': {description: 'Elves of old courts and libraries, with magic close at hand. You know Prestidigitation; at level 3 Detect Magic and at level 5 Misty Step. These come with your lineage, whatever your class.'},
+  'Wood Elf': {description: 'Elves of the deep forests, quick and quiet. You know Druidcraft; at level 3 Longstrider and at level 5 Pass without Trace. These come with your lineage, whatever your class.'},
+  'Forest Gnome': {description: 'Gnomes of the woods, friends to small beasts. You know Minor Illusion, and can cast Speak with Animals without a slot a few times each long rest. These come with your lineage, whatever your class.'},
+  'Rock Gnome': {description: 'Gnomes of workshops and clever devices. You know Mending and Prestidigitation. These come with your lineage, whatever your class.'},
+  Abyssal: {description: 'A legacy of the churning depths below the worlds. You know Poison Spray; at level 3 Ray of Sickness and at level 5 Hold Person. These come with your lineage, whatever your class.'},
+  Chthonic: {description: 'A legacy of the grey realms of the dead. You know Chill Touch; at level 3 False Life and at level 5 Ray of Enfeeblement. These come with your lineage, whatever your class.'},
+  Infernal: {description: 'A legacy of the ordered realms of fire and law. You know Fire Bolt; at level 3 Hellish Rebuke and at level 5 Darkness. These come with your lineage, whatever your class.'},
 };
 export const speciesDetails = {
   Dragonborn: {description: 'A draconic hero with scales and a powerful ancestral connection. Imagine the color and presence you bring to the party.'},

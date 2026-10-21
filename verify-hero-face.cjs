@@ -129,7 +129,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-hero-face-'));
    const aside=r.setAside([],[],hero,r.newAdventure(hero),null,true);assert.ok(r.validRosterEntry(aside.roster[0]));same(r.restoreEntry(aside.roster[0]).hero.portrait,{library:'np012'},'the roster keeps it');}
   {const dirC=fs.mkdtempSync(path.join(os.tmpdir(),'qb-face-table-')),seq=(s=11)=>()=>(s=(s*16807)%2147483647)/2147483647;
    const c=createCampaigns({dir:dirC,ask:async()=>({narration:'On.',actionId:null}),randomImpl:seq()}),A={id:'a'.repeat(64)},B={id:'b'.repeat(64)};
-   const snap=hero=>rules.adventureSnapshot(hero,rules.newAdventure(hero),null,true);
+   const snap=hero=>rules.adventureSnapshot(hero,rules.freshStoryGame(hero,require('./journey-fixtures.cjs').journeyStory(0),rules.newAdventure(hero)),null,true);
    const made=c.create(A,{snapshot:snap(fighter),name:'Al'}),joined=c.join(B,{invite:made.invite,name:'Bo',snapshot:snap(cleric)});
    const edit=(user,version,change)=>c.edit(user,{campaignId:made.campaignId,baseVersion:version,...change});
    const refused=(fn,status,pattern)=>assert.throws(fn,e=>e.status===status&&pattern.test(e.message));
@@ -138,8 +138,9 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-hero-face-'));
    const seen=c.poll(A,{campaignId:made.campaignId});const others=Object.values(seen.snapshot.game.party.members).map(m=>JSON.parse(m.character));
    same(others.find(h=>h.name===cleric.name).portrait,{library:'np033'},'the other players see it');assert.equal(JSON.parse(seen.snapshot.character).portrait,undefined,'and their own hero is untouched');
    const cleared=edit(B,chose.version,{kind:'portrait',portrait:null});assert.equal(JSON.parse(cleared.snapshot.character).portrait,undefined,'none: back to the default');
-   const solo=c.create(A,{snapshot:snap(fighter),party:false,name:'Al'}),guestJoin=c.join(B,{invite:solo.invite,name:'Bo'});
-   assert.throws(()=>c.edit(B,{campaignId:solo.campaignId,baseVersion:guestJoin.version,kind:'portrait',portrait:{library:'np001'}}),e=>e.status===403,'in a one-hero campaign the host\'s hero\'s face is the host\'s choice');
+   // The one-hero kind of table is retired (2026-10-21): every table is a party, and nobody joins without a hero.
+   const solo=c.create(A,{snapshot:snap(fighter),party:false,name:'Al'});assert.ok(rules.isPartyGame(solo.snapshot.game),'every table is a party');
+   assert.throws(()=>c.join(B,{invite:solo.invite,name:'Bo'}),e=>e.status===400,'nobody joins a table without a hero of their own');
    fs.rmSync(dirC,{recursive:true,force:true});}
   console.log('Carried: save codes, the roster and the shared table (the portrait edit; every player sees each hero\'s own choice).');
 

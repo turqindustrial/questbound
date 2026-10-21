@@ -91,8 +91,10 @@ export function heroSaveActions({hero,roster,graves,game,health,characterChosen,
     if(next.error){setError(next.error);return false;}
     await saveLists(next);setRoster(next.roster);setGraves(next.graves);return true;
   }
-  async function playFromRoster(entry){
-    if(saving||loading||storageError||creatingStory)return;
+  // A hero from the roster becomes the current one (the current hero is set aside first). For a shared table (stay)
+  // the screen does not change and the restored hero is returned, so the table can be joined with them.
+  async function playFromRoster(entry,{stay=false}={}){
+    if(saving||loading||storageError||creatingStory)return null;
     setSaving(true);setError('');
     try{
       const restored=restoreEntry(entry),aside=setAside(roster.filter(e=>e.id!==entry.id),graves,hero,game,health,characterChosen);
@@ -102,8 +104,9 @@ export function heroSaveActions({hero,roster,graves,game,health,characterChosen,
       await saveCharacter(restored.hero);await saveAdventure(restored.adventure,restored.hero);
       await saveLists(aside);setRoster(aside.roster);setGraves(aside.graves);
       setHero(restored.hero);setForm({...blankBuild(),...restored.hero,species:restored.hero.species??restored.hero.race});setGame(restored.game);setHealth(restored.health);setCharacterChosen(restored.chosen);setNewStoryRequested(!restored.chosen);setAdventureBlocked(false);
-      setScreenState('Home');
-    }catch(e){setError(e.message||'Could not switch heroes. Your current hero is unchanged.');}
+      if(!stay)setScreenState('Home');
+      return restored;
+    }catch(e){if(stay)throw Error(e.message||'Could not switch heroes. Your current hero is unchanged.');setError(e.message||'Could not switch heroes. Your current hero is unchanged.');return null;}
     finally{setSaving(false);}
   }
   // A hero brought over from another device by its recovery code; the current one is set aside first.

@@ -25,7 +25,7 @@ import {anyoneStanding,partyFightGoesOn,partyStep} from "./partyTurnRules";
 import {attackPerson,againOnPerson,brawlStep} from "./brawlRules";
 import {giveDraught,drinkPotion,drinkFromPack,shortRest,longRest} from "./recoveryRules";
 import {travelStep,discoverStep,beyondStep} from "./travelRules";
-import {abilityCheck,restartAdventure,inspectTower,bridgeStep,studyOrListen} from "./crossroadsRules";
+import {abilityCheck,inspectTower,bridgeStep,studyOrListen} from "./crossroadsRules";
 import {endSpellMarks} from "./spellConditionRules";
 import {withDefenses} from "./spellDamageRules";
 import {tickBuffs} from "./spellBuffRules";
@@ -334,7 +334,7 @@ let stepHandlers = null;
 function stepHandler(action) {
   if (!stepHandlers) stepHandlers = {
     type: {'npc-attack': attackPerson, 'end-concentration': endConcentration, travel: travelStep, discover: discoverStep, beyond: beyondStep, 'give-potion': giveDraught, ambush: ambushStep},
-    word: {'check:': abilityCheck, 'restart-adventure': restartAdventure, potion: drinkPotion, 'drink:': drinkFromPack, 'inspect-tower': inspectTower, 'call-wisp': bridgeStep, approach: bridgeStep, 'again:': againOnPerson, 'move-mark:': againOnPerson, 'short-rest': shortRest, 'long-rest': longRest, study: studyOrListen, listen: studyOrListen}
+    word: {'check:': abilityCheck, potion: drinkPotion, 'drink:': drinkFromPack, 'inspect-tower': inspectTower, 'call-wisp': bridgeStep, approach: bridgeStep, 'again:': againOnPerson, 'move-mark:': againOnPerson, 'short-rest': shortRest, 'long-rest': longRest, study: studyOrListen, listen: studyOrListen}
   };
   const table = typeof action === 'string' ? stepHandlers.word : stepHandlers.type, key = typeof action === 'string' ? action.replace(/:[^]*$/, ':') : action?.type;
   return typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : null;

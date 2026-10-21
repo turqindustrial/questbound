@@ -4,6 +4,7 @@ import {combatBasics} from './combatRules';
 import {windLimit,shortRestLimit} from './classActions';
 import {subclassAction,subclassUses,subclassUsesLeft,subclassScaled} from './subclassRules';
 import {knownSpells} from './spellRules';
+import {spellSourceLine} from './spellOptions';
 import {placeName,travelRoute,mapLocation,distanceText,durationText} from './mapRules';
 import {magicItems,packMagic} from './lootRules';
 // What things are, in a sentence or two: every item a hero can carry, every action the game offers and every spell
@@ -106,7 +107,7 @@ export function actionDescription(action,hero,game){
  if(key==='spells-back')return 'Back to your other actions.';
  if(key==='cast-back')return 'Back to your spells.';
  // A spell chip (a friend's heal and a way of casting from the slot organizer carry the spell's id too).
- if(key.startsWith('spell:')){const id=action.spell??key.slice(6).split(/[:@]/)[0],spell=knownSpells(hero).find(s=>s.id===id),text=spellSummary(spell);
+ if(key.startsWith('spell:')){const id=action.spell??key.slice(6).split(/[:@]/)[0],spell=knownSpells(hero).find(s=>s.id===id),from=spell?spellSourceLine(hero,spell.id):null,text=[spellSummary(spell),from].filter(Boolean).join(' ');
   if(action.slot===undefined||!spell)return text;
   const way=typeof action.slot==='number'?'Cast with a level '+action.slot+' slot'+(action.slot>spell.level?', above the spell\'s own level':'')+(action.detail?' ('+action.detail+')':'')+'.':action.slot==='ritual'?'Cast as a ritual: it takes ten minutes longer and spends no slot.':action.slot==='species'?'Cast without a slot, as your people can, once between long rests.':'Cast with your Mystic Arcanum, once between long rests.';
   return (text?text+' ':'')+way;}

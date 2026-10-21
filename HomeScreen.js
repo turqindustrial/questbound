@@ -20,14 +20,15 @@ export function homeLayout(width,height){
 export default function HomeScreen({hero,game,health,saved,unprotected=false,disabled,onContinue,onNew,onOpen,onFeedback,onLegal,width,height,notice}){
  const {landscape,wide,short,tiny,logo}=homeLayout(width,height);
  const stats=hero?combatBasics(hero):null,hp=health?.current??stats?.hp;
- const where=game?.story?.title??(saved?'The Lantern at the Crossroads':null);
+ // `saved`: a hero with a tale under way (App.js); a hero with none yet is offered New Adventure, not Continue.
+ const where=game?.story?.title??null;
  // A hero who died keeps their slot as a memorial; a new hero is the way forward.
  const fallen=saved&&game?.stage==='dead';
  // On a phone the menu is compact (the two main entries, then the other four two to a row) so the emblem keeps the
  // middle of the screen; a desktop lists them in a column.
  const grid=!wide||landscape,others=[['sheet','Heroes','Character Selection'],['people',grid&&width<350?'Together':'Play Together','Multiplayer'],['d20','Dice','Dice Roller'],['settings','Settings','Settings']];
  const menu=<View style={[s.menu,!wide&&s.menuNarrow,landscape&&{marginTop:4,paddingLeft:0}]}>
-  {!!hero&&<MenuItem primary={saved&&!fallen} icon="play" label="Continue" sub={!wide&&!short&&stats?.available?null:fallen?hero.name+' has fallen':hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide} style={grid&&{paddingVertical:5}}/>}
+  {!!hero&&saved&&<MenuItem primary={!fallen} icon="play" label="Continue" sub={!wide&&!short&&stats?.available?null:fallen?hero.name+' has fallen':hero.name+(where?' · '+where:'')} onPress={onContinue} disabled={disabled} center={!wide} style={grid&&{paddingVertical:5}}/>}
   <MenuItem primary={!saved||fallen} icon="compass" label="New Adventure" sub={saved&&!fallen?null:'Pick a hero and choose where the story begins'} onPress={onNew} disabled={disabled} center={!wide} style={grid&&{paddingVertical:5}}/>
   {grid?<View style={[s.menuGrid,landscape&&{maxWidth:360}]}>{others.map(([icon,label,target])=><View key={target} style={s.menuCell}><MenuItem icon={icon} label={label} size="small" tight onPress={()=>onOpen(target)} disabled={disabled} center={!wide}/></View>)}</View>
   :<View style={s.menuGroup}>{others.map(([icon,label,target])=><MenuItem key={target} icon={icon} label={label} size={short?'small':'large'} onPress={()=>onOpen(target)} disabled={disabled}/>)}</View>}

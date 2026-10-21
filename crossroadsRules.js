@@ -1,9 +1,12 @@
-// The crossroads tale (the adventure without a written story): the inn's quest, accepted with or without a study of
-// the lantern, the keeper's and the tower's checks, the watchtower bell, the bridge and its wisp (called home or fought),
-// and starting again once it ends (moved from adventureRules.js; the vault is dungeonRules.js, the rewards campaignRules.js).
+// The crossroads tale (the adventure without a written story) of the first builds: the inn's quest, accepted with or
+// without a study of the lantern, the keeper's and the tower's checks, the watchtower bell, the bridge and its wisp
+// (called home or fought) (moved from adventureRules.js; the vault is dungeonRules.js, the rewards campaignRules.js).
+// No player reaches it any more (2026-10-21: a game without a tale is never played; see storyRules.js hasTale), and
+// its "begin another adventure" restart is gone; the engine keeps these moves for the checks that test the rules on
+// the crossroads' fixed places and for old saves, which load as they are and then ask for a tale.
 import {mapState,travelTo} from "./mapRules";
 import {modifier} from "./characterRules";
-import {newAdventure,finishStep} from "./adventureRules";
+import {finishStep} from "./adventureRules";
 export function abilityCheck(step) {
   const {game, health, hero, action, random, next, hp} = step;
   const id = action.slice(6),
@@ -43,14 +46,6 @@ export function abilityCheck(step) {
       title: 'Ability check',
       text
     }
-  };
-}
-export function restartAdventure(step) {
-  const {game, hero} = step;
-  if (!['victory', 'defeat', 'escaped'].includes(game.stage)) return;
-  return {
-    game: newAdventure(hero, game),
-    health: null
   };
 }
 export function inspectTower(step) {

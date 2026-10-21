@@ -36,6 +36,9 @@ function createOperations({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.n
   verify(){let checked=0;try{for(const id of fs.readdirSync(store).filter(valid))for(const version of list(id).slice(0,1)){const value=backup.read(id,version);if(!require('./campaigns.cjs').validSnapshot(value.snapshot))throw Error('Backup adventure validation failed.');checked++;}}catch(e){if(e.code!=='ENOENT')throw e;}return {checked};},
  };
  function status(){let events=[];try{events=fs.readFileSync(log,'utf8').trim().split('\n').slice(-100).map(l=>JSON.parse(l));}catch{}return {day:today(),usage:counters.day===today()?counters.total??{}:{},alerts:events.filter(e=>/denied|failed|invalid|alert/.test(e.event)).slice(-20),backupVersions:20,mailConfigured:require('./mailer.cjs').createMailer({dir}).configured()};}
- return {audit,consume,backup,status};
+ // A keyed hash (HMAC with the private storage key): what the service keeps of a short secret it must recognise later
+ // (a campaign's invite code), so a copy of the stored files alone cannot be searched for it.
+ const keyed=(purpose,text)=>crypto.createHmac('sha256',getKey()).update(String(purpose)+':'+String(text)).digest('hex');
+ return {audit,consume,backup,status,keyed};
 }
 module.exports={createOperations,atomic,auditTo};

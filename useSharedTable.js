@@ -16,7 +16,7 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   if(data.snapshot)await apply.current(data.snapshot,current);
   if(!current())return;
   version.current=data.version;setTableMembership({version:data.version,campaignId:data.campaignId});
-  setStatus({players:data.players??[],members:data.members??data.players??[],banned:data.banned??null,online:true,synchronized:true,error:'',role:data.role,you:data.you});
+  setStatus({players:data.players??[],members:data.members??data.players??[],banned:data.banned??null,online:true,synchronized:true,error:'',role:data.role,you:data.you,needsHero:data.needsHero===true,needsTale:data.needsTale===true});
  }
  // Removed by the table's host (campaigns.cjs ban): this device leaves the table calmly and says why; its own saved
  // adventure from before it joined can be restored on the table screen as after leaving.
@@ -26,12 +26,24 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
   const poll=async()=>{if(polling||busy.current)return;polling=true;const before=version.current,stamp=generation.current;try{const data=await campaignCall('poll',{knownVersion:before});if(!busy.current&&before===version.current)await adopt(data,at,stamp);}catch(e){if(at===epoch.current&&!removedFrom(e))setStatus(s=>({...s,online:false,error:e.message}));}finally{polling=false;}};
   poll();const timer=setInterval(poll,2500);return()=>{clearInterval(timer);epoch.current++;};
  },[membership.joined,membership.campaignId,ready]);
- async function join(name,host,{party=true,code='',campaignId=null}={}){
+ // Joining (or hosting) always brings a hero (SharedTable.js: the hero the player chose for this table, as a solo
+ // snapshot); taking a seat again at a campaign this device already belongs to is a poll.
+ async function join(name,host,{code='',campaignId=null,snapshot=null}={}){
   if(busy.current)return;busy.current=true;setNotice('');
-  try{const snapshot=hero&&characterChosen?adventureSnapshot(hero,game,health,characterChosen):null;
-   const data=campaignId?await campaignCall('poll',{campaignId,knownVersion:-1}):await campaignCall(host?'campaign-create':'campaign-join',{snapshot,name,party,invite:code.trim()});
+  try{const brought=snapshot??(hero&&characterChosen?adventureSnapshot(hero,game,health,characterChosen):null);
+   const data=campaignId?await campaignCall('poll',{campaignId,knownVersion:-1}):await campaignCall(host?'campaign-create':'campaign-join',{snapshot:brought,name,...(host?{}:{invite:code.trim()})});
    setTableMembership({joined:true,name:name.trim().slice(0,40),campaignId:data.campaignId,version:data.version});joined.current=true;epoch.current++;await adopt(data);setInvite(data.invite??'');setMembership(tableMembership());
   }finally{busy.current=false;}
+ }
+ // A member with no hero of their own at the table (or whose hero has died) brings one to their seat.
+ async function bringHero(snapshot){
+  if(busy.current)throw Error('Wait for the current turn.');busy.current=true;generation.current++;const at=epoch.current;
+  try{const data=await campaignCall('campaign-join',{snapshot}).catch(e=>{removedFrom(e);throw e;});await adopt(data,at);return data;}finally{busy.current=false;}
+ }
+ // The host begins a tale for the whole table: a ready journey (its id) or a tale the host's device had written.
+ async function startTale({journey=null,story=null,introId=null,replace=false}){
+  if(busy.current)throw Error('Wait for the current turn.');busy.current=true;generation.current++;const at=epoch.current;
+  try{const data=await campaignCall('campaign-tale',{...(journey?{journey}:{story,introId}),...(replace?{replace:true}:{}),baseVersion:version.current},120000).catch(e=>{removedFrom(e);throw e;});await adopt(data,at);if(data.conflict)throw Error('The table changed meanwhile. Choose the tale again.');return data;}finally{busy.current=false;}
  }
  async function leave(){epoch.current++;joined.current=false;setTableMembership({joined:false});setMembership(tableMembership());setStatus({players:[],online:false,synchronized:false,error:''});await campaignCall('leave').catch(()=>{});}
  async function turn(question,{npcId=null,direct=false,action,oneOnOne=false,greet=false,storyPreferences,autoShield=true}={}){
@@ -49,6 +61,6 @@ export function useSharedTable({ready,hero,game,health,characterChosen,applyRemo
  async function unban(ref){const data=await campaignCall('campaign-unban',{ref});setStatus(s=>({...s,banned:data.banned??s.banned}));return data;}
  // This player's seat at the campaign (opaque; never an account id), else the device id before the first answer.
  const me=status.you??deviceId(),others=status.players.filter(p=>p.id!==me);
- return {joined:membership.joined,name:membership.name,campaignId:membership.campaignId,...status,invite,others,otherActing:others.find(p=>p.acting)?.name??null,notice,clearNotice:()=>setNotice(''),join,leave,turn,edit,report,ban,unban,members:status.members??status.players,setActing:useCallback(()=>{},[]),checkpoint,isCurrent,deviceId:me,
+ return {joined:membership.joined,name:membership.name,campaignId:membership.campaignId,...status,invite,others,otherActing:others.find(p=>p.acting)?.name??null,notice,clearNotice:()=>setNotice(''),join,leave,turn,edit,report,ban,unban,bringHero,startTale,members:status.members??status.players,setActing:useCallback(()=>{},[]),checkpoint,isCurrent,deviceId:me,
   newInvite:async()=>{const data=await campaignCall('campaign-invite');setInvite(data.invite);},listCampaigns:()=>campaignCall('campaign-list')};
 }
