@@ -60,6 +60,8 @@ export const s=StyleSheet.create({group:{flexDirection:'row',flexWrap:'wrap',gap
  prompt:{fontFamily:fonts.display,color:colors.gold,fontSize:13,fontWeight:'700',letterSpacing:1.6,textTransform:'uppercase',marginTop:6,marginBottom:10},
  input:{fontFamily:fonts.story,color:tint('#f5efe1'),backgroundColor:tint('rgba(8,5,9,.75)'),borderColor:tint('rgba(178,34,58,.4)'),borderWidth:1,borderRadius:3,padding:16,minHeight:92,textAlignVertical:'top',fontSize:18,lineHeight:26},
  toolbar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10,marginTop:12},hint:{fontFamily:fonts.ui,color:colors.faint,fontSize:11.5,flexShrink:1},
+ // Another player typing at a shared table (DungeonMaster.js): one quiet line above the message box, cut short, never wider.
+ typingRow:{flexDirection:'row',alignItems:'center',gap:6,marginTop:6,minWidth:0,maxWidth:'100%'},typingText:{fontFamily:fonts.ui,fontStyle:'italic',color:colors.muted,fontSize:11.5,flexShrink:1,minWidth:0},
  button:{paddingVertical:13,paddingHorizontal:24,backgroundColor:tint('#9e1b32'),borderRadius:3,borderWidth:1,borderColor:tint('#f06e80'),minHeight:46,justifyContent:'center'},buttonText:{fontFamily:fonts.display,color:tint('#ffeef0'),fontSize:13,fontWeight:'800',letterSpacing:1.8,textTransform:'uppercase'},
  error:{fontFamily:fonts.ui,color:colors.danger,fontSize:14,lineHeight:22,marginTop:12}
 });

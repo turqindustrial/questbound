@@ -84,7 +84,7 @@ async function sharedLink(){
  }finally{await new Promise(resolve=>patient.server.close(resolve));}
  // A flood from one address is refused before any work, whatever it asks for; a home gateway has limits of its own by default.
  const flood=createPhoneServer({host:'127.0.0.1',port:0,root,code:'11112222',requestLimit:3,fetchImpl});
- assert.deepEqual(flood.info.limits,{turns:120,turnsInAll:600,art:600,table:600,requests:3,turnsPerAddress:120,talesPerHour:6,talesPerAddress:10,heroesPerHour:10,heroesPerAddress:20,pairsPerAddress:10,guestsPerBrowser:10,guestsPerAddress:40});
+ assert.deepEqual(flood.info.limits,{turns:120,turnsInAll:600,art:600,table:600,tableWaits:1200,typing:400,waitsPerBrowser:3,waitsInAll:300,requests:3,turnsPerAddress:120,talesPerHour:6,talesPerAddress:10,heroesPerHour:10,heroesPerAddress:20,pairsPerAddress:10,guestsPerBrowser:10,guestsPerAddress:40});
  await new Promise(resolve=>flood.server.listen(0,'127.0.0.1',resolve));
  try{
   const get=()=>new Promise((resolve,reject)=>http.get({hostname:'127.0.0.1',port:flood.server.address().port,path:'/',headers:{Host:'127.0.0.1:0'}},res=>{res.resume();res.on('end',()=>resolve({status:res.statusCode,retry:res.headers['retry-after']}));}).on('error',reject));

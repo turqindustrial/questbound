@@ -1,7 +1,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no});return {resolve,reject,promise};};
 const settle=()=>new Promise(r=>setImmediate(r));
-function fixture(){
+// Without `live` the server is an older build with no held waits (campaign-wait answers 404): the device polls every
+// 2.5 s as before. verify-table-live.cjs checks the held waits themselves.
+function fixture({live=null}={}){
  let slots=[],index=0,pendingEffects=[],timers=[],membership={joined:true,name:'Alice',campaignId:'test'},serverVersion=1,gate=null,applyGate=null,fail=false,kicked=false;
  const calls=[],applied=[];
  const state=()=>({campaignId:'test',version:serverVersion,role:'owner',you:'seat-0123456789abcdef',players:[{id:'seat-0123456789abcdef',name:'Al'},{id:'seat-fedcba9876543210',name:'Bo'}],snapshot:{game:{version:serverVersion},health:null}});
@@ -10,10 +12,10 @@ function fixture(){
  const useEffect=(fn,deps)=>{const i=index++;if(!slots[i]||deps.some((d,j)=>d!==slots[i].deps[j])){slots[i]?.cleanup?.();slots[i]={deps};pendingEffects.push(()=>slots[i].cleanup=fn());}};
  const source=fs.readFileSync('useSharedTable.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'');
  const use=vm.runInNewContext(source+'\nuseSharedTable',{useRef,useState,useEffect,useCallback:f=>f,tableMembership:()=>membership,setTableMembership:c=>membership={...membership,...c},deviceId:()=> 'alice',crypto:require('node:crypto').webcrypto,
-  setInterval:f=>{timers.push(f);return f},clearInterval:f=>timers=timers.filter(x=>x!==f),adventureSnapshot:()=>({}),noteProblem:()=>null,
-  campaignCall:async(route,body)=>{calls.push({route,body});if(kicked)throw Object.assign(Error('The host of this table has removed you from it.'),{removed:true});if(['campaign-report','campaign-ban','campaign-unban'].includes(route))return route==='campaign-report'?{reported:true}:state();if(route==='poll'){const s=state();if(gate){const g=gate;gate=null;await g.promise;}return s;}if(route==='campaign-turn'){if(fail){fail=false;throw Error('Lost connection');}serverVersion++;return state();}if(route==='campaign-edit'){serverVersion++;return state();}return {};}});
+  setInterval:f=>{timers.push(f);return f},clearInterval:f=>timers=timers.filter(x=>x!==f),setTimeout,clearTimeout,AbortController,Date,adventureSnapshot:()=>({}),noteProblem:()=>null,
+  campaignCall:async(route,body,timeout,signal)=>{calls.push({route,body});if(route==='campaign-wait'&&!kicked){if(!live)throw Object.assign(Error('Not found.'),{status:404});return live({body,signal,state});}if(route==='campaign-typing')return {typing:body.typing};if(kicked)throw Object.assign(Error('The host of this table has removed you from it.'),{removed:true});if(['campaign-report','campaign-ban','campaign-unban'].includes(route))return route==='campaign-report'?{reported:true}:state();if(route==='poll'){const s=state();if(gate){const g=gate;gate=null;await g.promise;}return s;}if(route==='campaign-turn'){if(fail){fail=false;throw Error('Lost connection');}serverVersion++;return state();}if(route==='campaign-edit'){serverVersion++;return state();}return {};}});
  const render=()=>{index=0;const value=use({ready:true,hero:{},game:{},health:null,characterChosen:true,applyRemote:async(s,current)=>{if(applyGate){const g=applyGate;applyGate=null;await g.promise;}if(current())applied.push(s.game.version);}});for(const fn of pendingEffects.splice(0))fn();return value;};
- return {render,calls,applied,poll:()=>timers[0](),delayPoll:()=>gate=deferred(),delayApply:()=>applyGate=deferred(),remote:()=>serverVersion++,failOnce:()=>fail=true,kick:()=>kicked=true,membership:()=>membership};
+ return {state,bump:()=>serverVersion++,render,calls,applied,poll:()=>timers[0](),delayPoll:()=>gate=deferred(),delayApply:()=>applyGate=deferred(),remote:()=>serverVersion++,failOnce:()=>fail=true,kick:()=>kicked=true,membership:()=>membership};
 }
 (async()=>{
  let f=fixture(),table=f.render();await settle();assert.deepEqual(f.applied,[1]);

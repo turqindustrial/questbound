@@ -25,6 +25,7 @@ import {useDmTurn} from './useDmTurn';
 import {s} from './dmStyles';
 import SuggestionsBar,{ideaChipsFor} from './DmSuggestions';
 import DmHeader from './DmHeader';
+import {useMutedMembers} from './tableMutes';
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
 const panelKey='questbound.suggestions.v1';
 const loadPanel=()=>{try{const v=JSON.parse(globalThis.localStorage?.getItem(panelKey)??'null');return {open:v?.open===true,tab:['say','speak','actions'].includes(v?.tab)?v.tab:'say'};}catch{return {open:false,tab:'say'};}};
@@ -60,6 +61,11 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   useEffect(()=>{setSpellsOpen(false);setCastSpell(null);closeAttack();},[lastTurnId]);
   // Tell the table while this player is taking a turn, so others wait instead of racing.
   useEffect(()=>{table?.setActing?.(busy);},[busy]);
+  // At a table the others see while this player types (useSharedTable.js typed: only that they type, never the words),
+  // and this player sees who else is typing, members muted on this device left out.
+  useEffect(()=>{table?.typed?.(input);},[input]);
+  const muted=useMutedMembers(table?.campaignId??null),typers=table?.joined?(table.typers??[]).filter(p=>!muted.some(m=>m.seat===p.id)).map(p=>p.name):[];
+  const typingLine=!typers.length?null:typers.length===1?typers[0]+' is typing…':typers.length===2?typers[0]+' and '+typers[1]+' are typing…':'Several players are typing…';
   // A party's fight goes in turns (partyTurnRules.js): on someone else's turn this device waits; after a minute and a
   // half (or at once when their player has left the table) it may pass that turn.
   const turnKey=turnWait?turnsNow.round+':'+turnWait.id:'';
@@ -177,6 +183,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
       <Pressable accessibilityRole="button" onPress={dismissTips} dataSet={{qb:'chip'}} style={s.tipsButton}><Icon name="check" size={14} color={colors.gold}/><PlainText style={s.tipsButtonText}>Got it</PlainText></Pressable>
     </View>:null} aside={(short||compact||snug)&&!person?statusPill:null} typing={typing} me={table?.joined?table.name:null} turns={turns} animateId={animateId} onPlayingChange={setPlaying} busy={busy} opening={person?'You turn to '+person.name+'.':previousNarration??game.story?.opening??'Describe what you do. Your story unfolds here.'}/>
     {!!hint&&<Text style={[s.hint,{color:colors.gold,marginTop:6}]}>{hint}</Text>}
+    {!hint&&!!typingLine&&<View accessibilityLiveRegion="polite" dataSet={{qb:'typing'}} style={s.typingRow}><Icon name="quill" size={12} color={colors.goldMid}/><PlainText numberOfLines={1} style={s.typingText}>{typingLine}</PlainText></View>}
     {tips&&lesson&&!person&&<View dataSet={{qb:'enter'}} style={s.lesson}><Icon name="info" size={14} color={colors.goldMid}/><PlainText style={s.lessonText}>{lesson}</PlainText></View>}
     {busy&&!!draft&&<View dataSet={{qb:'plate'}} accessibilityLiveRegion="polite" style={s.draft}><Icon name="quill" size={14} color={colors.gold}/><PlainText numberOfLines={compact?3:5} style={s.draftText}>{draft}</PlainText></View>}
     {!typing&&actionBar}
