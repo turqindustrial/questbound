@@ -70,7 +70,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,mut
  switch(view.type){
   case 'roll':case 'save':case 'initiative':{
    const foe=view.actor==='foe',crit=view.verdict==='crit';
-   const over=view.type==='initiative'?'Initiative':view.type==='save'?'Saving throw':view.check?view.check+' check':foe?'Enemy attack':/check|Perception|Persuasion|Insight|Stealth|Athletics|Investigation|Convince|Search/i.test(view.title+view.math)?'Check':'Your roll';
+   const over=view.type==='initiative'?'Initiative':view.type==='save'?'Saving throw':view.check?view.check+' check':foe?'Enemy attack':view.who?view.who+'’s roll':/check|Perception|Persuasion|Insight|Stealth|Athletics|Investigation|Convince|Search/i.test(view.title+view.math)?'Check':'Your roll';
    return wrap(<>
     <DieFace value={view.natural} animate={live} small={view.type==='initiative'}/>
     <View style={s.cardBody}>
@@ -130,7 +130,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,mut
    <View style={s.cardBody}><PlainText style={s.cardOver}>Lead seen through</PlainText><Text style={s.cardTitle}>{view.title}</Text></View>
   </>,[s.card,s.taleCard],{qb:'feed-roll'});
   // Spoils: the search, what it found, and any magic item among it (lootRules.js).
-  case 'search':return wrap(<><Icon name="bag" size={13} color={colors.gold}/><Text style={s.overText}>You search {view.title}</Text></>,s.overRow);
+  case 'search':return wrap(<><Icon name="bag" size={13} color={colors.gold}/><Text style={s.overText}>{view.who?view.who+' searches':'You search'} {view.title}</Text></>,s.overRow);
   case 'found':return wrap(<>
    <View style={s.dmgIcon}><Icon name="coin" size={18} color={colors.coin}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>Found</PlainText><Text style={s.cardOutcome}>{view.items.length?view.items.join(' · '):'Nothing of value.'}</Text></View>
@@ -146,7 +146,7 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,mut
   </>,s.overRow,{qb:'feed-xp'});
   case 'level':return wrap(<>
    <View style={s.dmgIcon}><Icon name="starFill" size={18} color={colors.goldBright}/></View>
-   <View style={s.cardBody}><PlainText style={s.cardOver}>A level earned</PlainText><PlainText style={s.cardOutcome}>Take it when you are ready, out of a fight.</PlainText></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>{view.who?view.who+' earned a level':'A level earned'}</PlainText><PlainText style={s.cardOutcome}>{view.who?'They take it when they are ready, out of a fight.':'Take it when you are ready, out of a fight.'}</PlainText></View>
   </>,[s.card,s.taleCard],{qb:'feed-roll'});
  }
  const kind=event.kind;
@@ -155,12 +155,12 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,mut
  if(scene)return wrap(<ScenePlate subject={scene} over="You arrive at"/>,s.plateWrap);
  // A line typed by a member this device muted (tableMutes.js) is folded, with Show to read it anyway.
  if(kind==='player'&&muted)return wrap(<MutedLine name={event.speakerName} text={event.text} textStyle={s.playerText}/>,s.player,{qb:'feed-player'});
- if(kind==='player'){const who=event.speakerName&&event.speakerName!==me?event.speakerName:'You';return wrap(<>
+ if(kind==='player'){const who=event.speakerName&&event.speakerName!==me?(event.heroName&&event.heroName!==event.speakerName?event.heroName+' · '+event.speakerName:event.speakerName):'You';return wrap(<>
   <View style={s.playerHead}><Icon name="quill" size={12} color={tint('#caa9f0')}/><PlainText style={s.playerLabel}>{who}</PlainText></View>
   <Text style={s.playerText}>{event.text}</Text>
  </>,s.player,{qb:'feed-player'});}
  if(kind==='dialogue'){const subject=avatarFor?.(event.speakerId);return wrap(<>
-  <View style={s.speakerRow}>{subject?<DynamicArt dataSet={{qb:'avatar'}} subject={subject} style={s.speakerAvatar} compact/>:<View style={s.speakerMark}><Icon name="speak" size={14} color={tint('#e36778')}/></View>}<PlainText style={s.speakerName}>{(event.speakerName??'Dungeon Master')}</PlainText></View>
+  <View style={s.speakerRow}>{subject?<DynamicArt dataSet={{qb:'avatar'}} subject={subject} style={s.speakerAvatar} compact/>:<View style={s.speakerMark}><Icon name="speak" size={14} color={tint('#e36778')}/></View>}<PlainText style={s.speakerName}>{(event.speakerName??'Dungeon Master')+(event.toLabel?' → '+event.toLabel:'')}</PlainText></View>
   <Text style={s.quote}>“{event.text.replace(/^[“"]|[”"]$/g,'')}”</Text>
  </>,s.dialogue,{qb:'feed-dialogue'});}
  if(kind==='narration'){const text=String(event.text??''),cap=lead&&/^[A-Za-z]/.test(text);return wrap(<>
@@ -169,7 +169,8 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,mut
  return wrap(<><Icon name="star" size={12} color={colors.gold}/><Text style={s.actionText}>{event.text}</Text></>,s.actionRow);
 }
 // "You travel to Lookout Rock. 900 ft; 3 minutes pass." names the place up to the first full stop.
-const arrivalLine=/^You (?:arrive at|return to|fall back to|travel to|reach) ([^.!;]+)/;
+// At a table another hero's journey is told of them by name ("Kara travels to …"): the whole party goes.
+const arrivalLine=/^(?:You (?:arrive at|return to|fall back to|travel to|reach)|[^.!;:]{1,60}? (?:arrives at|returns to|falls back to|travels to|reaches)) ([^.!;]+)/;
 function ScenePlate({subject,over}){
  return <View style={s.plate}>
   <DynamicArt subject={subject} style={StyleSheet.absoluteFill} compact/>

@@ -97,9 +97,43 @@ const calm={...r.freshStoryGame(wiz,story,r.newAdventure(wiz)),spellSlotsUsed:[1
  assert.ok(dm.includes('const battle=inBattle(game)||!!turnsNow;')&&dm.includes('const actionBar=battle?battleBar:calmBar;'),'buttons in battle, Suggestions otherwise');
  assert.ok(/dataSet=\{\{qb:panel\.open\?'seg-on':'chip',keepfocus:'true',suggest:'toggle'\}\}/.test(dm)&&/keepfocus:'true',suggest:id\}\}/.test(dm),'the switch and the sub-tabs keep the keyboard up');
  assert.ok(dm.includes('{!typing&&actionBar}'),'they step aside while typing on a phone');
- assert.ok(dm.includes("const ideaLines=direct||dead||dying||!!turnWait||!!waiting?[]:"),'no lines to say out of character, dying, dead or on another\'s turn');
+ assert.ok(dm.includes("const offeredIdeas=direct||dead||dying||!!turnWait||!!waiting?[]:"),'no lines to say out of character, dying, dead or on another\'s turn');
+ assert.ok(dm.includes('const ideaLines=useMemo(()=>possibleIdeas(hero,game,health,offeredIdeas)'),'and only lines this hero can act on now, from the Dungeon Master or the stand-ins');
  assert.ok(dm.includes(":!panel.open?[]:shownTab==='say'?"),'number keys press only what is in view (nothing while Suggestions is closed)');
  assert.ok(dm.includes("onPress={()=>{if(on)return;playSound('click');savePanel({...panel,tab:id});}}")&&!/setPanel\(\{[^}]*tab:/.test(dm),'a sub-tab changes only when the player picks it');
  assert.ok(dm.includes("if(a.casts?.length>1){setCastSpell(a.key);return;}")&&dm.includes("key:'cast-back'"),'a spell with a choice opens the organizer');
  assert.ok(guide.includes("a.key!=='cast-back'")&&guide.includes("a.casts?.length>1?'Choose'"),'the guide skips Back and says Choose');}
+// ---- Only suggestions that can happen (the host, 2026-10-21: "the dm was giving suggestions for actions that were not
+// available, it should only recommend actions that are capable of actually occurring") ----
+// The Dungeon Master's service drops them from the scene it was given (dm-replies.cjs cleanSuggestions, suggestionRules.js);
+// the device drops them again with the game's own reading of the words (dmTurnRules.js possibleIdeas).
+{const {cleanSuggestions,suggestionPossible}=require('./dm-replies.cjs');
+ const scene={stage:'inn',choices:[{id:'travel-p1',label:'Travel to Millbrook'},{id:'loot',label:'Search the fallen'}],nearbyNPCs:[{id:'mara',name:'Mara Venn'}],npcSocialState:[{id:'mara',name:'Mara Venn'},{id:'n1',name:'Tobin Reed'}],
+  spellReference:[{name:'Fire Bolt',level:0,availableCosts:[]},{name:'Magic Missile',level:1,availableCosts:[]},{name:'Shield',level:1,availableCosts:[1]}],inventory:{healingDraughts:0,found:[]},world:{knownPlaces:[{name:'Millbrook'}],regions:['The Vale']}};
+ const dropped={'an unknown spell':'I cast Fireball at the door.','a spell with no slot left':'I cast Magic Missile at the bandits.','no draught':'I drink a healing draught.','a draught given away':'I give Mara a healing draught.',
+  'a short rest not offered':'I take a short rest.','a long rest not offered':'I make camp for the night.','an unknown place':'I head to Ravenhold.','an attack outside a fight':'I attack the wolf.','an absent person':'I ask Tobin about the road.',
+  'an absent person, hailed':'Tobin, where were you?','someone the game does not know':'I tell Brother Aldous the truth.','a spell not known, said later':'Then I cast Sleep on them.'};
+ for(const [why,line] of Object.entries(dropped))assert.equal(suggestionPossible(line,scene),false,'dropped: '+why+' ("'+line+'")');
+ const kept=['Mara, what do you know about the bridge?','I ask Mara where Tobin went.','Where does the road north go?','I head to Millbrook.','I go to the old mill.','I cast Fire Bolt at the lock.','I cast Shield.','I cast a wary glance at the gate.','I search the fallen.','I thank Mara for the bread.','I would rather keep my coin.','Can you show me the way to Ravenhold?'];
+ for(const line of kept)assert.equal(suggestionPossible(line,scene),true,'kept: '+line);
+ assert.equal(suggestionPossible('I head to Millbrook.',{...scene,stage:'combat'}),false,'no journey in a fight');
+ assert.equal(suggestionPossible('I attack the wolf.',{...scene,stage:'combat'}),true,'an attack in a fight');
+ assert.equal(suggestionPossible('I drink a healing draught.',{...scene,inventory:{healingDraughts:2}}),true,'a draught carried');
+ assert.equal(suggestionPossible('I take a short rest.',{...scene,choices:[...scene.choices,{id:'short-rest',label:'Short rest'}]}),true,'a rest offered');
+ assert.equal(suggestionPossible('I ask Tobin about the road.',{...scene,nearbyNPCs:[...scene.nearbyNPCs,{id:'n1',name:'Tobin Reed'}]}),true,'someone here');
+ assert.equal(suggestionPossible('I hand Kara my last draught.',{...scene,inventory:{healingDraughts:1},party:[{name:'Kara Vell'}]}),true,'another hero at the table is here');
+ assert.equal(suggestionPossible('I head to The Vale.',scene),true,'a land the map knows');
+ assert.equal(suggestionPossible('I cast Magic Missile at the bandits.',{...scene,spellReference:[{name:'Magic Missile',level:1,availableCosts:[1]}]}),true,'a slot left');
+ // Never a reason to refuse: the reply keeps its other lines.
+ assert.deepEqual(cleanSuggestions(['I cast Fireball at the door.','Mara, what do you know?','I head to Ravenhold.','I look around the yard.'],'Hello.',scene),['Mara, what do you know?','I look around the yard.']);
+ assert.deepEqual(cleanSuggestions(['I cast Fireball at the door.','I look around.'],'Hello.'),['I cast Fireball at the door.','I look around.'],'with no scene nothing is judged');
+ // The device: the game's own reading (dmCommand and a preview of the move) and facts from the game itself.
+ const p=vm.runInNewContext(rulesSource({extra:['suggestionRules.js','dmTurnRules.js']})+'\n({possibleIdeas,ideaFacts,readyHero,newAdventure,hostileEncounterGame,combatBasics,replyIdeas})',{AsyncStorage:{}});
+ const w=p.readyHero('wizard'),inn=p.newAdventure(w),full={current:p.combatBasics(w).hp,temp:0};
+ const lines=['I cast Fireball at the door.','I cast Magic Missile at the wall.','I drink a healing draught.','I take a short rest.','I attack the wolf.','I ask Mara about the road.','Mara, what news?','Tobin, where were you?','I head to Ravenhold.','Where does the road go?','I cast Fire Bolt at the lock.'];
+ assert.deepEqual(p.possibleIdeas(w,inn,full,lines),['I cast Magic Missile at the wall.','I ask Mara about the road.','Mara, what news?','Where does the road go?','I cast Fire Bolt at the lock.'],'the device keeps only what this hero can do here');
+ assert.deepEqual(p.possibleIdeas(w,{...inn,spellSlotsUsed:[9,9,9]},full,lines).includes('I cast Magic Missile at the wall.'),false,'no slot left: no levelled spell');
+ assert.deepEqual(p.possibleIdeas(w,inn,{current:2,temp:0},['I drink a healing draught.']),inn.potions>0?['I drink a healing draught.']:[],'a draught only when carried and of use');
+ // The stand-ins pass the same rule (none is ever dropped: they are written to be possible).
+ for(const g of [inn,{...inn,stage:'bridge'}])assert.deepEqual(p.possibleIdeas(w,g,full,p.replyIdeas(g,w,null)),p.replyIdeas(g,w,null),'the stand-ins are all possible');}
 console.log('Suggestions and slots: out of battle Say, Speak (people, offers, revivals) and Actions fold into one switch, remembered per device; in battle the buttons stay. Cast… groups cantrips and each spell level with its slots (a Warlock\'s pact slots once), and the slot organizer offers every way to cast (lowest first, ritual and free castings, what a higher slot gains), each read back by dmCommand at the slot chosen, resolved through the engine and the DM commit, and accepted at a shared table.');

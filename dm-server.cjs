@@ -910,7 +910,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   let remember=canRelate?cleanRemember(result.remember,body.context):[];
   if([result.actionId,castCommand,ruling,check].some(v=>v!=null)||recruitment.length)remember=[];
   if(!introduce)remember=remember.map(f=>({...f,about:f.about.filter(id=>id!=='new')}));
-  const reply={narration,dialogue,recruitment,relationships,remember,loot,introduce,actionId:result.actionId,castCommand,ruling,worldEvent,check,discovery,ambush,rewind:ooc&&result.rewind===true&&body.context.outOfCharacter?.canRewind===true,suggestions:ooc?[]:cleanSuggestions(result.suggestions,body.input),fault:ooc&&result.fault===true};
+  const reply={narration,dialogue,recruitment,relationships,remember,loot,introduce,actionId:result.actionId,castCommand,ruling,worldEvent,check,discovery,ambush,rewind:ooc&&result.rewind===true&&body.context.outOfCharacter?.canRewind===true,suggestions:ooc?[]:cleanSuggestions(result.suggestions,body.input,body.context),fault:ooc&&result.fault===true};
   // Hit points stated in the telling must be the game's own.
   reply.narration=checkedHp(reply.narration,body.context);reply.dialogue=reply.dialogue.map(l=>({...l,text:checkedHp(l.text,body.context)}));
   validateGroundedReply(body.context,reply);

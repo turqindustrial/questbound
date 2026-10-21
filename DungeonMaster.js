@@ -20,6 +20,7 @@ import {gearedHero} from './inventoryRules';
 import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
 import {replyIdeas} from './greetings';
+import {possibleIdeas} from './dmTurnRules';
 import {openFeedback} from './Feedback';
 import {useDmTurn} from './useDmTurn';
 import {s} from './dmStyles';
@@ -125,7 +126,9 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   // Say: what the Dungeon Master offered with the latest turn, else a few stand-ins worked out here. A tap only fills
   // the message box (it never sends), so the player can change it first.
   const standIns=useMemo(()=>replyIdeas(game,hero,person?.id??null),[fingerprint,person?.id]);
-  const ideaLines=direct||dead||dying||!!turnWait||!!waiting?[]:ideas?.turn===lastTurnId&&ideas.person===(person?.id??null)&&ideas.lines.length?ideas.lines:standIns;
+  const offeredIdeas=direct||dead||dying||!!turnWait||!!waiting?[]:ideas?.turn===lastTurnId&&ideas.person===(person?.id??null)&&ideas.lines.length?ideas.lines:standIns;
+  // Only what this hero can do now (dmTurnRules.js possibleIdeas: the shared rule and the game's own reading).
+  const ideaLines=useMemo(()=>possibleIdeas(hero,game,health,offeredIdeas),[fingerprint,offeredIdeas.join('\n')]);
   // In battle: the Actions | Say tabs beside the row, as before (never switching by themselves).
   const [tab,setTab]=useState('actions');
   // Out of battle: Suggestions, open or closed, and the sub-tab last chosen, kept per device.

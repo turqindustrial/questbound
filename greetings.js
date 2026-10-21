@@ -1,6 +1,6 @@
 import {npcScene,npcLore} from './npcRules';
 import {speciesRegard} from './relationshipRules';
-import {seededRandom,mapLocation,knownPlaceIds,travelRoute,placeName} from './mapRules';
+import {seededRandom,mapLocation,knownPlaceIds,travelRoute,placeName,travelError} from './mapRules';
 // Turning to someone: they speak first. The Dungeon Master writes the line from who they are, what is on their mind
 // and how they feel about the hero (`cue`); the line here (`fallback`) stands in when the Dungeon Master cannot be
 // reached, so nobody is ever met with silence.
@@ -112,9 +112,9 @@ export function replyIdeas(game,hero,personId=null){
  // Several people here: a different thing to say to two of them, so nobody is offered one line for everyone.
  if(here.length>1){const [a,b]=ideaPick(here.map(n=>n.id),seed+':who').map(id=>ideaName(npcLore(game,id)?.name??here.find(n=>n.id===id).name)),foe=game.story?.foe,askA='I ask '+a+' what is going on here.',askB=foe&&ideaFits('I ask '+b+' what they know about '+foe+'.')?'I ask '+b+' what they know about '+foe+'.':'I ask '+b+' who else I should talk to.';return [ideaFits(askA)?askA:'I ask what is going on here.',ideaFits(askB)?askB:'I ask around.','I look around.'];}
  if(here.length){const who=ideaName(npcLore(game,here[0].id)?.name??here[0].name),ask='I ask '+who+' what is going on here.';return ['I look around.',ideaFits(ask)?ask:'I ask what is going on here.','I search the area for anything useful.'];}
- // Nobody about: the nearest place the hero knows of is somewhere to go.
+ // Nobody about: the nearest place the hero knows of is somewhere to go (only one the map lets them go to now).
  let nearest=null;
- try{const at=mapLocation(game);for(const id of knownPlaceIds(game)){if(id===at)continue;const route=travelRoute(game,at,id);if(route&&(!nearest||route.minutes<nearest.minutes))nearest={id,minutes:route.minutes};}}catch{}
+ try{const at=mapLocation(game);for(const id of knownPlaceIds(game)){if(id===at||travelError(game,id))continue;const route=travelRoute(game,at,id);if(route&&(!nearest||route.minutes<nearest.minutes))nearest={id,minutes:route.minutes};}}catch{}
  const go=nearest?'I head toward '+plain(placeName(game,nearest.id))+'.':null;
  return ['I look around.','I search the area for anything useful.',...(go&&ideaFits(go)?[go]:[])];
 }
