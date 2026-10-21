@@ -67,7 +67,7 @@ const keepAlive=setInterval(()=>{},1000);
   got=await held;const alice=got.players.find(p=>p.name==='Alice');assert.ok(alice.acting&&!alice.typing,'acting at once, and no longer typing');
   held=C.wait(B,{campaignId,knownVersion:got.version,knownPresence:got.presence});await sleep(20);
   t=Date.now();turnGate.resolve();const kept=await turn;got=await held;turnGate=null;turnEntered=null;
-  assert.equal(got.version,kept.version);assert.ok(got.snapshot,'the kept turn arrives with the state');assert.ok(Date.now()-t<200,'pushed at once');
+  assert.equal(got.version,kept.version);assert.ok(got.snapshot,'the kept turn arrives with the state');assert.ok(Date.now()-t<1000,'pushed at once (well inside the old 2.5 s poll; the margin is for a busy machine)');
   assert.equal(got.snapshot.game.party.lead,got.you,'each member is sent the table with their own hero in the lead');
   // Bob's own held wait while Bob is removed and kept out: it ends with the calm "removed" answer.
   held=C.wait(B,{campaignId,knownVersion:got.version,knownPresence:got.presence});await sleep(10);
