@@ -885,6 +885,16 @@ export function placeColour(game,placeId){
  for(const [name,v] of Object.entries(st.places))if(stagingIds(game).place(name)===placeId)return stgList(v?.colour).filter(t=>typeof t==='string'&&t.trim());
  return [];
 }
+// What the Quest tab and the journal show of a written tale (the stories spec, 1.6): its length and chapter, what is at
+// stake now, the latest sign of the foe's plan (no counter), the choices made (and those left to fate) and the ending
+// taken. Only what has happened: never a later chapter, a beat to come or an ending not reached. Null without a staging.
+export function taleQuestView(game){
+ const st=stgStaging(game);if(!st)return null;
+ const length=writtenLengths.includes(st.length)?st.length:'short',p=stagingPlain(game.pace)?game.pace:{};
+ const choices=Object.entries(stagingPlain(p.marks)?p.marks:{}).map(([c,o])=>{const opt=stgChoice(st,c)?.options.find(x=>stagingPlain(x)&&x.id===o);return opt?{label:stgClean(opt.label,80).replace(/[.\s]+$/,''),lapsed:stgList(p.fired).includes('lapsed:'+c)}:null;}).filter(Boolean);
+ const ending=typeof p.ending==='string'?stgList(st.endings).find(e=>stagingPlain(e)&&e.id===p.ending):null;
+ return {tier:length[0].toUpperCase()+length.slice(1)+' tale',stakes:talesStakes(game),sign:typeof p.sign==='string'&&p.sign.trim()?stgClean(p.sign,stagingLimits.sign):null,choices,ending:ending?stgClean(ending.title,60).replace(/[.\s]+$/,''):null};
+}
 // The latest sign of the foe's plan (calmLines.js adds it, once, to a journey or rest the game tells).
 export const pressureSign=game=>stgStaging(game)&&typeof game.pace?.sign==='string'&&game.pace.sign.trim()?game.pace.sign:null;
 // Lines for the story log (storyLog.js storyEvents): stakes that changed, choices made, the ending taken.

@@ -2,6 +2,7 @@ import {useSceneTransition} from './SceneTransition';
 import {sceneArtSubjects} from './worldArtRules';
 import {EntityText as Text,useEncounter} from './EncounterOverlay';
 import {storyText,questState,noteLead} from './storyRules';
+import TaleState from './TaleState';
 import {cue} from './cinematics';
 import {quickActions} from './quickActions';
 import {dungeonRooms,dungeonState} from './dungeonRules';
@@ -201,11 +202,12 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <Ornament style={{marginVertical:10}}/>
    {/* A long tale shows the chapter under way (its goal is what to do now) above the aim of the whole story. */}
    {!!quest?.current&&game.story.status!=='complete'&&<View style={s.chapter}>
-    <View style={s.chapterTop}><PlainText style={s.chapterOver}>Chapter {quest.number} of {quest.chapters}</PlainText><View style={s.chapterPips} accessibilityLabel={(quest.number-1)+' of '+quest.chapters+' chapters finished'}>{Array.from({length:quest.chapters},(_,i)=><View key={i} style={[s.chapterPip,i<quest.number-1&&s.chapterPipDone,i===quest.number-1&&s.chapterPipNow]}/>)}</View></View>
+    <View style={s.chapterTop}><PlainText style={s.chapterOver}>{game.story.written?(game.story.written.length==='long'?'Long':game.story.written.length==='medium'?'Medium':'Short')+' tale · ':''}Chapter {quest.number} of {quest.chapters}</PlainText><View style={s.chapterPips} accessibilityLabel={(quest.number-1)+' of '+quest.chapters+' chapters finished'}>{Array.from({length:quest.chapters},(_,i)=><View key={i} style={[s.chapterPip,i<quest.number-1&&s.chapterPipDone,i===quest.number-1&&s.chapterPipNow]}/>)}</View></View>
     <PlainText style={s.chapterTitle}>{quest.current.title}</PlainText>
-    <Text style={s.objective}>{quest.current.goal}</Text>
+    <Text style={s.objective}>{game.story.written?<PlainText style={s.aimLabel}>Aim  </PlainText>:null}{quest.current.goal}</Text>
    </View>}
    {game.story&&(quest?.current&&game.story.status!=='complete'?<Text style={s.aim}><PlainText style={s.aimLabel}>The tale  </PlainText>{game.story.objective}</Text>:<Text style={s.objective}>{game.story.objective}</Text>)}
+   {!!game.story?.written&&<TaleState game={game}/>}
    <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.stage==='dying'?'You lie unconscious, bleeding out.':game.stage==='dead'?'Your hero has died.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??(game.wildFight?foe.name:game.story.foe))+'.':game.stage==='wild'?placeDescription(game,mapLocation(game)):game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
   </View>
   {/* Leads: side errands heard of along the way, ticked off as they are seen through. */}

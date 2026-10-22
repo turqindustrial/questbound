@@ -37,6 +37,11 @@ export function describeEvent(event){
   const begun=text.match(/^Chapter (\d+) begins: (.+?)\. ([\s\S]+)$/);if(begun)return {type:'chapter',number:Number(begun[1]),title:begun[2],text:begun[3]};
   const lead=text.match(/^Lead seen through: (.+?)\.?$/);if(lead)return {type:'lead',title:lead[1]};
   if(/^You have earned a level\b/.test(text))return {type:'level'};
+  // A written tale's own moments (stagingRules.js): what is at stake changes, a choice is made (or left to fate), the
+  // tale's ending is reached.
+  const stake=text.match(/^At stake: (.+?), ([\s\S]+?)\.?$/);if(stake)return {type:'stake',name:stake[1],state:stake[2]};
+  const chose=text.match(/^(You chose|Left to fate): ([\s\S]+?)\.?$/);if(chose)return {type:'choice',label:chose[2],lapsed:chose[1]==='Left to fate'};
+  const ending=text.match(/^Ending: (.+?)\.?$/);if(ending)return {type:'ending',title:ending[1]};
   // At a table of several heroes another hero's line is told of them by name (playbackRules.js visibleTurn: toldOf).
   const who=typeof event?.toldOf==='string'?event.toldOf:null;
   if(who&&text.startsWith(who+' has earned a level'))return {type:'level',who};

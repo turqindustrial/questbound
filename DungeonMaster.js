@@ -21,6 +21,7 @@ import {combatBasics} from './combatRules';
 import ActionGuide from './ActionGuide';
 import {replyIdeas} from './greetings';
 import {possibleIdeas} from './dmTurnRules';
+import {taleSayLines} from './stagingRules';
 import {openFeedback} from './Feedback';
 import {useDmTurn} from './useDmTurn';
 import {s} from './dmStyles';
@@ -28,7 +29,7 @@ import SuggestionsBar,{ideaChipsFor} from './DmSuggestions';
 import DmHeader from './DmHeader';
 import {useMutedMembers} from './tableMutes';
 // Suggestions (out of battle): open or closed, and the sub-tab (say, speak or actions) last chosen, per device.
-import {panelKey,loadPanel} from './suggestionPanel';
+import {panelKey,loadPanel,panelUnset} from './suggestionPanel';
 export default function DungeonMaster({hero,game,health,act,onConversationChange,table,fill=false,quick=[],sendRef,onTyping}) {
   const {width:viewWidth,height:viewHeight}=useWindowDimensions(),compact=viewWidth<600,short=viewHeight<520;
   // Typing on a phone: while the message box has the keyboard, the story keeps the screen and the action row,
@@ -133,12 +134,19 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const standIns=useMemo(()=>replyIdeas(game,hero,person?.id??null),[fingerprint,person?.id]);
   const offeredIdeas=direct||dead||dying||!!turnWait||!!waiting?[]:ideas?.turn===lastTurnId&&ideas.person===(person?.id??null)&&ideas.lines.length?ideas.lines:standIns;
   // Only what this hero can do now (dmTurnRules.js possibleIdeas: the shared rule and the game's own reading).
-  const ideaLines=useMemo(()=>possibleIdeas(hero,game,health,offeredIdeas),[fingerprint,offeredIdeas.join('\n')]);
+  // A written tale's own lines come first (stagingRules.js taleSayLines): on its opening turn its three first things to
+  // say (in place of the stand-ins), and while a choice of the tale is open each option's line; a tap fills the box.
+  const taleLines=useMemo(()=>direct||dead||dying||!!turnWait||!!waiting?[]:taleSayLines(game),[fingerprint,direct,!!turnWait,!!waiting]);
+  const opening=taleLines.length>0&&!(game.playback??[]).some(t=>(t?.events??[]).some(e=>e?.kind==='player'));
+  const ideaLines=useMemo(()=>{const own=possibleIdeas(hero,game,health,opening?[]:offeredIdeas);return [...new Set([...taleLines,...own])].slice(0,Math.max(4,taleLines.length));},[fingerprint,offeredIdeas.join('\n'),taleLines.join('\n')]);
   // In battle: the Actions | Say tabs beside the row, as before (never switching by themselves).
   const [tab,setTab]=useState('actions');
   // Out of battle: Suggestions, open or closed, and the sub-tab last chosen, kept per device.
   const [panel,setPanel]=useState(loadPanel);
   const savePanel=next=>{setPanel(next);try{globalThis.localStorage?.setItem(panelKey,JSON.stringify(next));}catch{}};
+  // A device's first written tale (the stories spec, H2) opens Suggestions on Say, once: only when this device has never
+  // opened or closed Suggestions itself, so a player's own choice is always kept.
+  useEffect(()=>{if(game?.story?.written&&panelUnset())savePanel({open:true,tab:'say'});},[game?.story?.id]);
   const fillIdea=text=>{playSound('click');setInput(text);setTimeout(()=>inputRef.current?.focus(),30);};
   const ideasDisabled=busy||playing;
   // Speak: a chip for each person here (the dead hero speaks to no one), then the offers and revivals about people.

@@ -129,6 +129,19 @@ function EventRow({event,reduceMotion,sound,me,avatarFor,sceneFor,lead=false,mut
    <View style={s.dmgIcon}><Icon name="check" size={18} color={colors.goldBright}/></View>
    <View style={s.cardBody}><PlainText style={s.cardOver}>Lead seen through</PlainText><Text style={s.cardTitle}>{view.title}</Text></View>
   </>,[s.card,s.taleCard],{qb:'feed-roll'});
+  // A written tale: what is at stake now, a choice made (or left to fate), the ending reached.
+  case 'stake':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="heart" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>At stake</PlainText><Text style={s.cardTitle}>{view.name}</Text><Text style={s.cardOutcome}>{view.state.charAt(0).toUpperCase()+view.state.slice(1)}.</Text></View>
+  </>,[s.card,s.taleCard],{qb:'feed-stake'});
+  case 'choice':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="flag" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>{view.lapsed?'Left to fate':'You chose'}</PlainText><Text style={s.cardTitle}>{view.label}</Text></View>
+  </>,[s.card,s.taleCard],{qb:'feed-choice'});
+  case 'ending':return wrap(<>
+   <View style={s.dmgIcon}><Icon name="starFill" size={18} color={colors.goldBright}/></View>
+   <View style={s.cardBody}><PlainText style={s.cardOver}>Ending</PlainText><Text style={s.cardTitle}>{view.title}</Text></View>
+  </>,[s.card,s.taleCard],{qb:'feed-ending'});
   // Spoils: the search, what it found, and any magic item among it (lootRules.js).
   case 'search':return wrap(<><Icon name="bag" size={13} color={colors.gold}/><Text style={s.overText}>{view.who?view.who+' searches':'You search'} {view.title}</Text></>,s.overRow);
   case 'found':return wrap(<>

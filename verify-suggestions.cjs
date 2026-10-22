@@ -98,7 +98,11 @@ const calm={...r.freshStoryGame(wiz,story,r.newAdventure(wiz)),spellSlotsUsed:[1
  assert.ok(/dataSet=\{\{qb:panel\.open\?'seg-on':'chip',keepfocus:'true',suggest:'toggle'\}\}/.test(dm)&&/keepfocus:'true',suggest:id\}\}/.test(dm),'the switch and the sub-tabs keep the keyboard up');
  assert.ok(dm.includes('{!typing&&actionBar}'),'they step aside while typing on a phone');
  assert.ok(dm.includes("const offeredIdeas=direct||dead||dying||!!turnWait||!!waiting?[]:"),'no lines to say out of character, dying, dead or on another\'s turn');
- assert.ok(dm.includes('const ideaLines=useMemo(()=>possibleIdeas(hero,game,health,offeredIdeas)'),'and only lines this hero can act on now, from the Dungeon Master or the stand-ins');
+ assert.ok(dm.includes('const own=possibleIdeas(hero,game,health,opening?[]:offeredIdeas)'),'and only lines this hero can act on now, from the Dungeon Master or the stand-ins');
+ // A written tale's own lines (stagingRules.js taleSayLines) come first: its three first things to say on the opening
+ // turn, in place of the stand-ins, and each open choice's lines; a device's first written tale opens Suggestions on Say
+ // once, only when the device has never opened or closed Suggestions itself.
+ assert.ok(dm.includes('taleSayLines(game)')&&dm.includes('[...new Set([...taleLines,...own])]')&&dm.includes("if(game?.story?.written&&panelUnset())savePanel({open:true,tab:'say'})")&&dm.includes('getItem(panelKey)==null'),'a written tale\'s own lines first, and Suggestions open on Say for a device\'s first written tale');
  assert.ok(dm.includes(":!panel.open?[]:shownTab==='say'?"),'number keys press only what is in view (nothing while Suggestions is closed)');
  assert.ok(dm.includes("onPress={()=>{if(on)return;playSound('click');savePanel({...panel,tab:id});}}")&&!/setPanel\(\{[^}]*tab:/.test(dm),'a sub-tab changes only when the player picks it');
  assert.ok(dm.includes("if(a.casts?.length>1){setCastSpell(a.key);return;}")&&dm.includes("key:'cast-back'"),'a spell with a choice opens the organizer');
