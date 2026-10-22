@@ -40,7 +40,7 @@ export function wildFoeStats(template,name,level){
  const f=foeTemplate(template),stats=foeStatsFor(f,level);
  return stats.group?{...stats,group:{...stats.group,plural:foePlural(name)}}:stats;
 }
-export function foeLabel(game){return game.wildFight?.name??game.story?.foe??'Encounter opponent';}
+export function foeLabel(game){return (game.wildFight?calledFoe(game.wildFight):null)??game.story?.foe??'Encounter opponent';}
 const sketchText=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
 export function validFoeSketch(f){return !!f&&templateKeys.includes(f.template)&&sketchText(f.name,60)&&sketchText(f.appearance,400);}
 // ---------- A second creature at the foe's side ----------
@@ -59,19 +59,31 @@ export function alliesScatter(game){const lines=livingAllies(game).map(a=>`With 
 export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return (g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum);}
 // A creature's own name without a leading "The" (the stories spec, Phase A6, 2026-10-22: a lair held by "The Tallow
 // Walkers" opened with "A The Tallow Walkers bursts out", and every line after said "the The ..."): the game's own lines
-// say "the" and "The" themselves, and the opening keeps the name's own "The".
+// say "the" and "The" themselves, and the opening keeps the name's own "The". The name as given is kept beside it
+// (wildFight.called), so a creature fled from is remembered by it and keeps its picture (worldArtRules.js reads it).
 export const bareFoeName=n=>{const t=String(n??'').trim(),m=/^the\s+(\S.{2,})$/i.exec(t);return m?m[1]:t;};
+export const calledFoe=w=>typeof w?.called==='string'&&w.called.trim()?w.called:w?.name;
+// The opening line's subject (the project review, 2026-10-22: "An Old Tusk bursts out", "A Grimjaw bursts out", "The
+// Hollow Knights bursts out … It hasn't"): a name with its own "The" keeps it; a name that ends on a kind of creature
+// ("Dire Wolf", "Mill Wolf") takes "A" or "An"; any other is a creature's own name ("Grimjaw", "Old Tusk") and stands
+// alone. A name ending in a plural (Knights, Walkers) is told as many.
+const foeKindWords=/^(?:wolf|wolves|hound|hounds|worg|dog|jackal|bear|boar|stag|cat|lion|panther|spider|spiders|bandit|bandits|cutthroat|raider|raiders|goblin|goblins|orc|orcs|marauder|lackey|skeleton|skeletons|zombie|zombies|ghoul|ghouls|ghost|wraith|spectre|specter|shade|wight|troll|ogre|giant|drake|wyrm|wyvern|dragon|serpent|snake|viper|rat|rats|bat|bats|crab|toad|beetle|scorpion|centipede|wasp|leech|eel|horror|thing|creature|beast|brute|warrior|knight|hag|witch|cultist|thug|guard|soldier|deserter|reaver|golem|sentinel|warden|ooze|slime|elemental|stalker|hunter|lurker|crawler|mauler|swarm|harpy|owlbear|vulture|crow|raven|eagle|hawk|shambler|walker|revenant|mummy|imp|fiend|demon|devil|wisp|mimic|basilisk|gnoll|kobold|hobgoblin|bugbear|captain|chief|chieftain|leader|matriarch|patriarch|alpha|mother|queen|king|lord|lady|widow|prowler|shrieker|terror|monster|champion|sergeant|scout|archer|shaman|priest|mage|sorcerer|warlock|necromancer|keeper|guardian|sentry|watcher|haunt|ghast|wolfhound|mastiff|cur|hog|sow|ram|bull|elk|ape|crocodile|lizard|salamander|frog|worm|grub|tick|moth|hornet|mongrel|brigand|ruffian|outlaw|poacher|smuggler|pirate|mercenary|sellsword|zealot|acolyte|fanatic|corpse|husk|thrall|spirit|phantom|banshee|lich|vampire|werewolf|wolfman|gargoyle|harrier|tusker|grizzly)$/i;
+function foeOpening(name,called){
+ const last=name.split(/\s+/).at(-1)??'',many=/[a-z]s$/i.test(last)&&!/(?:ss|us|is)$/i.test(last);
+ const kind=!many&&(foeKindWords.test(last)||/^[a-z]/.test(name));
+ return {subject:called!==name?'The '+name:kind?(/^[aeiou]/i.test(name)?'An ':'A ')+name:name,many};
+}
 // A creature lunges out at a found place. The story's own foe keeps its HP and fate for later.
 export function startWildFight(game,hero,foe,{place,from,hp=null}){
- const called=String(foe.name??'').trim(),name=bareFoeName(called);
+ const called=String(foe.name??'').trim(),name=bareFoeName(called),opening=foeOpening(name,called);
  const stats=wildFoeStats(foe.template,name,hero.level??1),ally=foe.ally&&validAllySketch(foe.ally,foe.template)?makeAlly({...foe.ally,name:bareFoeName(foe.ally.name)},hero.level??1):null;
  const next={...game,stage:'combat',enemyHP:hp??stats.maximum,round:1,openingAttackAvailable:true,
-  wildFight:{template:foe.template,name,appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(game.foeScale?{storyFoeScale:game.foeScale}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
+  wildFight:{template:foe.template,name,...(called!==name?{called}:{}),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(game.foeScale?{storyFoeScale:game.foeScale}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
   world:{...game.world,at:place}};
  delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;delete next.foeScale;
  if(ally)next.foeAllies=[ally];
- const many=stats.group?stats.group.size+' '+stats.group.plural:name!==called?'The '+name:(/^[aeiou]/i.test(name)?'An ':'A ')+name;
- return {game:next,entries:[`${many} ${stats.group?'burst':'bursts'} out at ${placeName(game,place)}${ally?', a '+ally.name+' at '+(stats.group?'their':'its')+' side':''}! ${stats.group||ally?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
+ const many=stats.group?stats.group.size+' '+stats.group.plural:opening.subject,plural=!!stats.group||opening.many;
+ return {game:next,entries:[`${many} ${plural?'burst':'bursts'} out at ${placeName(game,place)}${ally?', a '+ally.name+' at '+(plural?'their':'its')+' side':''}! ${plural||ally?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
 }
 // The fight is over: won (the creature is dead or beaten), fled (back the way you came) or fell (you lie dying).
 export function endWildFight(game,outcome){
@@ -82,16 +94,16 @@ export function endWildFight(game,outcome){
  // A creature left behind keeps its wounds as a share of what it would have against one hero (it is scaled afresh
  // to whoever comes back for it).
  const leftHP=f>1?Math.max(1,Math.round(game.enemyHP*w.stats.maximum/scaledFoe(w.stats,f).maximum)):game.enemyHP;
- const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:w.name,appearance:w.appearance,hp:Math.max(1,Math.min(w.stats.maximum,leftHP)),...(w.ally?{ally:w.ally}:{})};return q;});
+ const places=worldPlaces(game).map(p=>{if(p.id!==w.place)return p;const q={...p};if(outcome==='won'){delete q.threat;q.cleared=true;}else q.threat={template:w.template,name:calledFoe(w),appearance:w.appearance,hp:Math.max(1,Math.min(w.stats.maximum,leftHP)),...(w.ally?{ally:w.ally}:{})};return q;});
  next.world={...game.world,places,at:outcome==='fled'?(worldPlace(game,w.from)?w.from:null):w.place};
  if(outcome==='won')next.stage='wild';
  if(outcome==='fled')next.stage=worldPlace(game,w.from)?'wild':w.from;
- next.journal=appendJournal(journalForGame(next),'encounter',(outcome==='won'?'Defeated ':outcome==='fled'?'Fled from ':'Fell to ')+w.name,`At ${placeName(game,w.place)}.`);
+ next.journal=appendJournal(journalForGame(next),'encounter',(outcome==='won'?'Defeated ':outcome==='fled'?'Fled from ':'Fell to ')+(w.called?'the '+w.name:w.name),`At ${placeName(game,w.place)}.`);
  return next;
 }
 export function validWildFight(g){
  const w=g.wildFight;if(w===undefined)return true;
- return !!w&&(g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=3000&&validFoeScale(w.storyFoeScale)&&(w.storyFoeScale===undefined||w.storyFoeScale.key==='story')&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
+ return !!w&&(g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&templateKeys.includes(w.template)&&sketchText(w.name,60)&&(w.called===undefined||sketchText(w.called,64))&&sketchText(w.appearance,400)&&!!worldPlace(g,w.place)&&(['inn','bridge','tower'].includes(w.from)||!!worldPlace(g,w.from))&&Number.isInteger(w.storyFoeHP)&&w.storyFoeHP>=0&&w.storyFoeHP<=3000&&validFoeScale(w.storyFoeScale)&&(w.storyFoeScale===undefined||w.storyFoeScale.key==='story')&&(w.storyFoeFate===undefined||['slain','subdued'].includes(w.storyFoeFate))&&(w.ally===undefined||validAllySketch(w.ally,w.template))&&!!w.stats&&Number.isInteger(w.stats.maximum)&&w.stats.maximum>=1&&w.stats.maximum<=1000&&g.world?.at===w.place;
 }
 export function validCombatExtras(g){
  const t=g.foeTricks,c=g.heroCondition;

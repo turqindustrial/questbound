@@ -56,7 +56,11 @@ assert.equal(context.quest.openLeads.length,2);assert.equal(context.quest.levelE
  assert.equal(read.quest.truth,written.chapters[0].turn,'out of a fight the model reads the truth');assert.equal(read.quest.next,'The Pass That Remembers','and the next chapter by its title');assert.equal(read.quest.revealedWhenAchieved,undefined);
  const older=JSON.parse(JSON.stringify(context));delete older.quest.truth;assert.equal(sceneFor({input:'I look around.',context:older}).context.quest.truth,written.chapters[0].turn,'a device that sends only revealedWhenAchieved');
  const fighting=sceneFor({input:'I attack.',context:{...JSON.parse(JSON.stringify(context)),stage:'combat'}}).context;assert.equal(fighting.quest?.truth,undefined,'not in a fight');assert.equal(fighting.quest?.next,undefined);
- assert.ok(standingPrompt.includes('When the player pursues the goal where it points (goes there, searches, asks the right person, clears it), tell the truth in that very reply')&&standingPrompt.includes('never hold it behind one failed roll'),'find where found');
+ assert.ok(standingPrompt.includes('When the player pursues the goal where it points (searches there, asks the right person, clears it), the find is certain, no check: tell the truth in that very reply')&&standingPrompt.includes('a journey or fight there is told as it falls, the find with the next move')&&standingPrompt.includes('tells that find if not yet told'),'find where found, in a reply that can select story-advance');
+ // The telling of a chapter closed reads the found chapter's truth in its line, never the next chapter's (the project
+ // review, 2026-10-22).
+ const closing=sceneFor({input:'',context:{...JSON.parse(JSON.stringify(context)),engineResolved:['Chapter 1 complete: '+written.chapters[0].title+'. '+written.chapters[0].turn,'Chapter 2 begins.']}}).context;assert.equal(closing.quest.truth,undefined,'no next chapter\'s truth in the telling of a chapter closed');assert.equal(closing.quest.next,undefined);
+ assert.equal(sceneFor({input:'',context:{...JSON.parse(JSON.stringify(context)),engineResolved:['You travel to the ford.']}}).context.quest.truth,written.chapters[0].turn,'other tellings read it as before (one cached part a chapter changes)');
  assert.ok(!standingPrompt.includes('Pace it like a campaign'),'paced by the tale\'s length');}
 assert.equal(r.dmContext(hero,plain,hp).quest,undefined);
 // The chips never offer to move the tale on: that is the Dungeon Master's call.
@@ -105,6 +109,7 @@ assert.equal(joined.story.chapter,0);
 // A level earned and not yet taken stays earned when the next tale begins.
 const carried=r.freshStoryGame(hero,{...JSON.parse(JSON.stringify(written)),id:'saga-3',title:'A Third Tale'},r.newAdventure(hero,r.carriedBase(turn.game)));assert.ok(Number.isInteger(turn.game.xp));assert.equal(carried.xp,turn.game.xp,'Experience carries into the next tale');assert.ok(valid(carried));
 const oldCarried=r.newAdventure(hero,r.carriedBase({...turn.game,xp:undefined,levelsOwed:2}));assert.equal(oldCarried.levelsOwed,2,'An old save keeps its owed levels');assert.equal(r.heroXp(oldCarried,hero),r.xpForLevel(3));
+const pendingChecks=[];
 // ---- The errand closes where it is found (the stories spec, Phase A3, 2026-10-22) ----
 // A tale with an errand closes chapter 1 once the errand's place is cleared: in the very step that wins the lair, so the
 // telling of the fight's end (a device's preview, the campaign server's) already holds the find ("Chapter 1 complete:
@@ -130,15 +135,31 @@ const oldCarried=r.newAdventure(hero,r.carriedBase({...turn.game,xp:undefined,le
  assert.equal(e.withErrandReward(keeperHere,keeperHere,{loot:null}).story.errand.rewardDue,true);
  assert.equal(e.withErrandReward(g,g,{loot:{gold:30,items:[],reason:'x'}}).story.errand.rewardDue,true,'not paid where keeper is not');
  assert.equal(e.withErrandReward(keeperHere,keeperHere,{loot:{gold:30,items:[],reason:'The reward.'}}).story.errand.rewardDue,undefined,'paid');
+ assert.equal(e.withErrandReward(keeperHere,keeperHere,{npcId:'keeper',loot:{gold:30,items:[],reason:'For the road.'}}).story.errand.rewardDue,undefined,'handed over by keeper in a talk with them');
+ // A purchase, a gift from someone else or a find while keeper is about is not the reward (the project review, 2026-10-22).
+ assert.equal(e.withErrandReward(keeperHere,keeperHere,{npcId:'keeper',loot:{gold:-50,items:[{name:'Potion of Healing',kind:'potion',qty:1,value:0,note:'A draught.'}],reason:'A draught bought from the keeper.'}}).story.errand.rewardDue,true,'a purchase is not the reward');
+ assert.equal(e.withErrandReward(keeperHere,keeperHere,{npcId:'mara',loot:{gold:0,items:[{name:'Charm',kind:'gear',qty:1,value:0,note:'A charm.'}],reason:'A gift from Tobin.'}}).story.errand.rewardDue,true,'a gift from someone else is not');
+ assert.equal(e.withErrandReward(keeperHere,keeperHere,{npcId:null,loot:{gold:12,items:[],reason:'Coins found in the straw.'}}).story.errand.rewardDue,true,'a find is not');
  assert.equal(e.withErrandReward(keeperHere,{...keeperHere,npcFate:{keeper:'dead'}},null).story.errand.rewardDue,undefined,'never paid by the dead');
  // The game pays the promised purse itself when the reply speaking with keeper hands over nothing (dm-replies.cjs errandPaidTurn).
  {const {errandPaidTurn}=require('./dm-replies.cjs'),c=plainOf(e.dmContext(kara,keeperHere,h));
   assert.equal(errandPaidTurn(c),false,'not without speaking to keeper');assert.equal(errandPaidTurn({...c,conversationWith:{id:'keeper'}}),true,'speaking with keeper: paid');
-  assert.equal(errandPaidTurn({...c,conversationWith:{id:'keeper'},engineResolved:['You take a short rest.']}),false,'not in a telling');}
+  assert.equal(errandPaidTurn({...c,conversationWith:{id:'keeper'},engineResolved:['You take a short rest.']}),false,'not in a telling');
+  // That turn's note says so (the project review, 2026-10-22: no note named the reward), one item may carry magic (its
+  // chapter's "Chapter 1 complete" was told with the lair's fall, where no loot can be), and the game pays the purse
+  // itself only when the telling hands the reward over.
+  const {clampedLoot}=require('./dm-replies.cjs'),talk={...c,conversationWith:{id:'keeper'},nearbyNPCs:[...(c.nearbyNPCs??[]).filter(n=>n.id!=='keeper'),{id:'keeper',name:'keeper'}]};
+  const cloak={gold:30,items:[{name:'Grey cloak',kind:'gear',qty:1,value:0,note:'A cloak.',magic:'cloak-of-protection'}],reason:'The promised reward.'};
+  assert.equal(clampedLoot(cloak,talk).loot.items[0].magic,'cloak-of-protection','a magic reward on the payment turn');assert.equal(clampedLoot(cloak,{...talk,conversationWith:{id:'mara'}}).loot.items[0].magic,null,'not elsewhere');
+  pendingChecks.push((async()=>{const {generate,requestParts}=require('./dm-server.cjs');let asked=null;const reply=o=>async(u,opt)=>{asked=JSON.parse(opt.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'x',dialogue:[],effects:[],suggestions:[],...o})}]}]})};};
+  const road=await generate({input:'Captain, which road is safest?',context:talk},{apiKey:'k',model:'m',fetchImpl:reply({narration:'She taps the map.',dialogue:[{speakerId:'keeper',text:'The river road.'}]})});
+  assert.match(requestParts(asked).tail??'',/ERRAND REWARD: .*keeper hands over the promised reward \(30 gold, paid by the reeve\) in this reply/,'the turn\'s note names the reward');assert.equal(road.loot,null,'a telling that hands nothing over pays nothing');
+  const purse=await generate({input:'I am back.',context:talk},{apiKey:'k',model:'m',fetchImpl:reply({narration:'She counts the promised gold into your palm.',dialogue:[]})});assert.equal(purse.loot?.gold,30,'the purse the telling hands over is paid');})());}
  // A save stalled with its place already cleared closes the chapter at its next move.
  {let stalled=plainOf(e.freshStoryGame(kara,story,e.newAdventure(kara)));stalled={...stalled,map:{...stalled.map,accepted:true},world:{...stalled.world,places:stalled.world.places.map(p=>p.id===lair?(({threat,...rest})=>({...rest,cleared:true}))(p):p)}};
-  const moved=e.adventureStep(stalled,null,kara,e.dmChoices(kara,stalled,null).find(c=>c.action?.type==='travel').action,()=>.5);assert.equal(moved.game.story.chapter,1,'a stalled save moves on');}
+  const moved=e.adventureStep(stalled,null,kara,e.dmChoices(kara,stalled,null).find(c=>c.action?.type==='travel').action,()=>.5);assert.equal(moved.game.story.chapter,1,'a stalled save moves on');
+  assert.equal(moved.game.story.errand.rewardDue,undefined,'owing nothing: its keeper may already have paid while it stalled');}
  // A tale written with staging of its own (Phase B) is left to it; a tale without an errand is untouched.
  {const staged=plainOf({...g,story:{...g.story,chapter:0,staging:{}}});assert.equal(e.errandFound(staged),false);}
 }
-console.log('Passed: a long tale starts with its chapters, leads, six landmarks and far lands (days away, each its own map); the Dungeon Master is told only the chapter under way and is offered moving on, never an early ending; chapters advance one at a time with what they reveal, each chapter is worth experience and a level can be taken on the road, a foe not yet fought grows with the hero, leads close once, the last chapter ends the tale, the next tale keeps both stories\' lands apart, and stories without chapters play as before.');
+Promise.all(pendingChecks).then(()=>console.log('Passed: a long tale starts with its chapters, leads, six landmarks and far lands (days away, each its own map); the Dungeon Master is told only the chapter under way and is offered moving on, never an early ending; chapters advance one at a time with what they reveal, each chapter is worth experience and a level can be taken on the road, a foe not yet fought grows with the hero, leads close once, the last chapter ends the tale, the next tale keeps both stories\' lands apart, and stories without chapters play as before.')).catch(e=>{console.error(e);process.exit(1);});

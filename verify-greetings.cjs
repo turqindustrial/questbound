@@ -115,15 +115,24 @@ console.log('Passed: things to say next stand in for the Dungeon Master (fitting
 // ---- Someone met for the first time shows what they are after (the stories spec, Phase A8, 2026-10-22) ----
 // The game's written greeting took the place of the Dungeon Master's, which was where a person's agenda surfaced: the
 // aside now carries their hook (its first clause) or their motive, with no request; never once they have talked with the
-// hero, never from someone set against them, never "you".
-{const agenda=r.greeting(game,first.id,hero).aside;assert.ok(/ is plainly hoping to /.test(agenda),'a first meeting carries the motive: '+agenda);
+// hero, never from someone set against them, never "you". Only a want anyone could see, never a secret (the project
+// review, 2026-10-22: a hidden prince's motive was told as "plainly hoping to … without drawing attention to himself"):
+// a hook or motive speaking of secrets, hiding, shame, lies or the hero says nothing, nothing after "even if" or
+// "without" is said, a resident's motive (the story writer's) is never said, and the frames vary.
+{const agenda=r.greeting(game,first.id,hero).aside;assert.ok(/ (?:is|looks to be) hoping to /.test(agenda),'a first meeting carries the motive: '+agenda);
  const talked={...game,playback:[{id:7,npcId:first.id,events:[{kind:'dialogue',speakerId:first.id,text:'We have met.'}]},{id:8,npcId:null,events:[{kind:'narration',text:'Time passes.'}]}]};
- assert.ok(!/plainly/.test(r.greeting(talked,first.id,hero).aside),'not once they have talked');
- assert.ok(!/plainly/.test(r.greeting({...game,npcMemory:{...game.npcMemory,[first.id]:{attitude:'hostile',memories:[]}}},first.id,hero).aside),'not from the hostile');
- const lib={...game,people:{...(game.people??{}),n1:{name:'Elaris Venn',role:'Shrine grave-keeper',motive:'They want to learn why one grave is tended.',hook:'A missing villager\'s grave is being tended in secret, and Elaris cannot report it without exposing their own part.',home:game.world?.at??'inn',appearance:'A thin figure in a grey shawl.',species:'Human',gender:'other',personality:'Quiet.'}}};
- assert.equal(r.greetingAgenda(lib,'n1'),'Something is plainly on Elaris\'s mind: a missing villager\'s grave is being tended in secret.','a library person\'s hook, its first clause');
+ assert.ok(!/hoping/.test(r.greeting(talked,first.id,hero).aside),'not once they have talked');
+ assert.ok(!/hoping/.test(r.greeting({...game,npcMemory:{...game.npcMemory,[first.id]:{attitude:'hostile',memories:[]}}},first.id,hero).aside),'not from the hostile');
+ const lib=hook=>({...game,people:{...(game.people??{}),n1:{name:'Elaris Venn',role:'Shrine grave-keeper',motive:'They want to learn why one grave is tended.',hook,home:game.world?.at??'inn',appearance:'A thin figure in a grey shawl.',species:'Human',gender:'other',personality:'Quiet.'}}});
+ assert.equal(r.greetingAgenda(lib('A missing villager\'s grave is being tended in secret, and Elaris cannot report it without exposing their own part.'),'n1'),'','never a secret');
+ assert.match(r.greetingAgenda(lib('The ferry rope at the crossing has frayed twice this month, and Elaris must answer for it.'),'n1'),/^(?:Something is on Elaris's mind|Elaris seems preoccupied|Elaris has a matter on their mind, by the look of it): the ferry rope at the crossing has frayed twice this month\.$/,'a library person\'s hook, its first clause');
+ assert.equal(r.greetingAgenda(lib('Elaris carries a sealed letter for the reeve, and the road north is closed.'),'n1'),'Elaris carries a sealed letter for the reeve.','a hook that names them first, as it stands');
+ assert.match(r.greetingAgenda(lib('Someone has broken into Elaris\'s shrine twice this week, and the offerings are gone.'),'n1'),/: someone has broken into their shrine twice this week\.$/,'their own name said as "their"');
+ for(const h of ['He asks the hero to carry a sealed message north.','Elaris keeps the reeve from learning who opened the sluice gate.','A stranger must find the missing water source before the thaw.','She is ashamed of the debt she ran up at the ferry.'])assert.equal(r.greetingAgenda(lib(h),'n1'),'','no agenda from '+h);
  const motive=m=>r.greetingAgenda({...game,story:{...game.story,npcs:{...game.story.npcs,[first.id]:{...game.story.npcs[first.id],motive:m}}}},first.id);
- assert.match(motive('Find her brother before the frost.'),/ is plainly hoping to find her brother before the frost\.$/);assert.match(motive('He wants to sell enough maps to go home.'),/hoping to sell enough maps to go home\.$/);
- for(const m of ['Mend.','Wants the road safe.','Why should I help you?','Keep you safe.'])assert.equal(motive(m),'','no agenda from '+m);
- for(const [id,p] of Object.entries(lib.people))assert.ok(!/\byou\b/i.test(r.greetingAgenda(lib,id)));}
+ assert.match(motive('Find her brother before the frost.'),/ (?:is|looks to be) hoping to find her brother before the frost\.$/);assert.match(motive('He wants to sell enough maps to go home.'),/hoping to sell enough maps to go home\.$/);
+ assert.match(motive('Find her brother, even if it costs the harvest.'),/hoping to find her brother\.$/,'nothing after "even if"');
+ for(const m of ['Mend.','Wants the road safe.','Why should I help you?','Keep you safe.','Keep the inn running without drawing attention to her past.','Wants to keep the reeve from learning that she opened the sluice gate that night.','Secretly sells the watch\'s patrol routes to the smugglers.'])assert.equal(motive(m),'','no agenda from '+m);
+ assert.equal(r.greetingAgenda({...game,people:{...(game.people??{}),n2:{name:'Calven Rusk',role:'Rope-hauler',motive:'He wants to hear what the canal workers fear losing.',home:game.world?.at??'inn',resident:true,appearance:'A wiry man.',species:'Human',gender:'man',personality:'Quiet.'}}},'n2'),'','a resident\'s motive is the story writer\'s, never said');
+ for(const h of ['The ferry rope has frayed, and you must mend it.','Someone took the bell.'])assert.ok(!/\byou\b/i.test(r.greetingAgenda(lib(h),'n1')));}
 console.log('Passed: people speak first when turned to (never in a fight, never twice running), the line is written by the game (no request) and fits a grudge, hostility, friendship, a companion or their view of the hero\'s kind, and the greeting is saved as a turn without putting words in the player\'s mouth.');

@@ -66,7 +66,10 @@ const errandPaidTurn=context=>{const e=context?.story?.errand;if(!e)return false
  if(e.rewardDue===true)return !(context.engineResolved??[]).length&&!context.sceneTrigger&&context.conversationWith?.id==='keeper'&&(context.nearbyNPCs??[]).some(n=>n?.id==='keeper');
  return (context.engineResolved??[]).some(t=>/^Chapter 1 complete: /.test(String(t)));};
 const errandPurse=context=>{const m=/(\d[\d,]*)\s*(?:gold|gp)\b/i.exec(String(context?.story?.errand?.reward??''));return m?Number(m[1].replace(/,/g,'')):0;};
-const magicRewardTurn=context=>(context.engineResolved??[]).some(t=>/^Chapter \d+ complete: |^Lead seen through: /.test(String(t)));
+// A magic item as a reward: in the telling of a chapter completed or a lead seen through, and on the turn keeper hands
+// over the reward of the errand the game closed chapter 1 for (that "Chapter 1 complete" was told with the lair's fall,
+// where the fallen leave no room for a reward).
+const magicRewardTurn=context=>(context.engineResolved??[]).some(t=>/^Chapter \d+ complete: |^Lead seen through: /.test(String(t)))||(context?.story?.errand?.rewardDue===true&&errandPaidTurn(context));
 function clampedLoot(l,context){
  if(!l||typeof l!=='object'||!Array.isArray(l.items))return {loot:l,changed:[]};
  const level=context.player?.level??1,cap=40*level+60,changed=[];let next=l;
@@ -135,20 +138,28 @@ const hpWords='(?:HP|hit points?)';
 // for 6 damage" "hits it hard", and a figure in brackets goes. Every damage figure is softened, right or wrong (unlike hit
 // points, which a telling may quote when the game knows them).
 const damageTypes='acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder';
-const damageWords={acid:'a burn',bludgeoning:'a heavy blow',cold:'a numbing chill',fire:'a burn',force:'a hard blow',lightning:'a jolt',necrotic:'a withering touch',piercing:'a wound',poison:'poison',psychic:'a stab of pain',radiant:'a searing light',slashing:'a cut',thunder:'a concussive blow'};
-const damageFigure='(?:exactly\\s+|only\\s+|just\\s+|a mere\\s+|some\\s+)?\\d+\\s+(?:points?\\s+of\\s+)?(?:('+damageTypes+')\\s+)?damage\\b';
+// Each kind of harm as a noun that reads after "takes", "deals" or "suffers" (the project review, 2026-10-22: "deals a
+// searing light" did not).
+const damageWords={acid:'a burn',bludgeoning:'a heavy blow',cold:'a numbing chill',fire:'a burn',force:'a hard blow',lightning:'a jolt',necrotic:'a withering wound',piercing:'a wound',poison:'a dose of poison',psychic:'a stab of pain',radiant:'a searing wound',slashing:'a cut',thunder:'a concussive blow'};
+// A figure is a number or a whole dice sum ("1d8+3"), never the tail of one ("+3") or part of a word; "a total of" goes
+// with it.
+const damageAmount='(?<![\\w+\\-−.])(?:\\d+d\\d+(?:\\s*[+\\-−]\\s*\\d+)?|\\d+)';
+const damageFigure='(?:a\\s+total\\s+of\\s+|exactly\\s+|only\\s+|just\\s+|a mere\\s+|some\\s+)?'+damageAmount+'\\s+(?:points?\\s+of\\s+)?(?:('+damageTypes+')\\s+)?damage\\b';
+// A softened figure that opens a sentence opens it with a capital.
+const sentenceStart=(said,offset,whole)=>/^\s*$|[.!?]["'”’)]*\s+$/.test(whole.slice(0,offset))?said[0].toUpperCase()+said.slice(1):said;
 function softDamage(text){
  if(typeof text!=='string'||!/\d/.test(text)||!/damage/i.test(text))return text;
  return text
   .replace(new RegExp('\\s*\\([^()]*?\\d+\\s+(?:points?\\s+of\\s+)?(?:(?:'+damageTypes+')\\s+)?damage\\b[^()]*\\)','gi'),'')
   .replace(new RegExp('\\bfor\\s+(?:an?\\s+)?(?:(?:extra|additional|further)\\s+)?'+damageFigure,'gi'),'hard')
-  .replace(new RegExp('\\b(?:(?:an?\\s+)?(?:extra|additional|further)\\s+|another\\s+)?'+damageFigure,'gi'),(m,type)=>damageWords[String(type??'').toLowerCase()]??'a wound')
+  .replace(new RegExp('\\b(?:(?:an?\\s+)?(?:extra|additional|further)\\s+|another\\s+)?'+damageFigure,'gi'),(m,type,offset,whole)=>sentenceStart(damageWords[String(type??'').toLowerCase()]??'a wound',offset,whole))
   .replace(/ {2,}/g,' ').replace(/ +([,.;!?])/g,'$1');
 }
+// Out of character the Dungeon Master explains the dice plainly ("Your Fire Bolt rolled a 2"): damage figures stay there.
 function checkedHp(text,context){
  if(typeof text!=='string'||!/\d/.test(text))return text;
  const ok=knownHp(context),bad=v=>!ok.has(Number(v));
- return softDamage(text)
+ return (context?.outOfCharacter&&!context.engineResolved?text:softDamage(text))
   .replace(new RegExp('\\s*\\([^()]*?(?<![\\w+-])(\\d+)\\s*'+hpWords+'\\b[^()]*\\)','gi'),(m,v)=>bad(v)?'':m)
   .replace(new RegExp('\\b(down to|drops? to|dropping to|falls? to|falling to|reduced to|left with|leaving (?:it|him|her|them|you) with|with only|with just)\\s+(?:only\\s+|just\\s+)?(\\d+)\\s*'+hpWords+'\\b(?:\\s+(?:left|remaining))?','gi'),(m,lead,v)=>{if(!bad(v))return m;const l=lead.toLowerCase();return /^(drop|fall)/.test(l)?'is badly hurt':/^leaving/.test(l)?lead.replace(/\s+with$/i,'')+' badly wounded':/^(with|left)/.test(l)?'badly wounded':'badly hurt';})
   // "back up to 9 HP" loses the figure; "at 9 HP" becomes "wounded"; any other wrong figure becomes "wounds".
@@ -163,15 +174,24 @@ const unusable=message=>/^(The AI (did not return a usable reply|proposed an inv
 const transient=e=>['TimeoutError','AbortError'].includes(e?.name)||/HTTP 5\d\d|fetch failed|ECONNRESET|socket hang up/i.test(String(e?.message??''));
 function faultKind(e){const m=String(e?.message??'');return e?.name==='TimeoutError'?'timed out':/usable reply/.test(m)?'unreadable':/incomplete/.test(m)?'cut short':/HTTP 5|fetch failed|ECONNRESET|socket/i.test(m)?'provider fault':/invalid ruling|cast, deny|denied or clarified|Spell damage/.test(m)?'ruling':/recruitment/.test(m)?'recruitment':/speaker/.test(m)?'speaker':/new place/.test(m)?'place':/creature/.test(m)?'creature':/check/i.test(m)?'check':/invalid response/.test(m)?'telling':/Out of character/.test(m)?'out of character':/already resolved/.test(m)?'resolved twice':'other';}
 // A check's failure written ahead that changes nothing (the stories spec, Phase A2, 2026-10-22: 21 checks failed into
-// nothing in the saved games, and a chapter stalled behind one failed roll): its last sentence says the attempt came to
-// nothing ("you find nothing", "nothing comes of it", "in vain") with no turn after it (but, until, instead...) and
-// nobody speaks. Such a reply is asked for again, like any unusable reply; a rescue keeps the check without its outcomes.
+// nothing in the saved games, and a chapter stalled behind one failed roll): its last sentence ends on the attempt coming
+// to nothing ("you find nothing", "nothing comes of it", "in vain", "no sign of the courier anywhere") and nothing in it
+// moves the scene: no clause after those words (", and the guard hears you", "; the drawer slams shut", ", so you must
+// ask at the gate"), none before them in the same sentence ("The clerk sends for the watch; you learn nothing more."), no
+// earlier words of a consequence (an alarm, someone hearing or seeing you, footsteps, a cost, something broken) and
+// nobody speaking. Until the project review of 2026-10-22 only the words after the match were read, for a turn word, and
+// good failures ("You find nothing, and the guard hears you.") were asked again up to twice; the judge (dm-server.cjs)
+// now asks again once at most and otherwise keeps the outcomes.
 const deadEndWords=/\b(?:(?:find|finds|found|turns?\s+up|turned\s+up|yields?|yielded|reveals?|revealed|learns?|learned|gets?|notices?|noticed|spots?|spotted|hears?|heard|discovers?|discovered|uncovers?|uncovered|sees?|saw)\s+(?:nothing|no\s+(?:sign|trace|clue|answer|sense|luck|more|further)|little\s+of\s+(?:use|note|value))|nothing\s+(?:happens|comes\s+of\s+it|of\s+(?:note|use|value|interest)|useful|more|stirs|changes|new)|inconclusive|to\s+no\s+avail|in\s+vain|no\s+luck|comes?\s+up\s+empty|empty-handed|draws?\s+a\s+blank|leads?\s+nowhere|nothing\s+to\s+show)\b/i;
-const deadEndTurns=/\b(?:but|yet|though|although|however|instead|until|except|only|as|when|while|before|meanwhile|then)\b/i;
+const deadEndAfter=/[,;:—–]\s*\S|\s-\s|\b(?:but|yet|though|although|however|instead|until|except|only|as|when|while|before|meanwhile|then|and|so|now|still|unless)\b/i;
+const deadEndBefore=/[;:—–]|\s-\s/;
+const deadEndMoves=/\b(?:alert\w*|alarm\w*|(?:hears?|heard|sees?|saw|spots?|spotted|notices?|noticed|watch(?:es|ing)?)\s+you|suspic\w*|footsteps?|wak(?:e|es|ing|ened)|woken|woke|attention|costs?|price|los(?:e|es|t|ing)|broke|broken|breaks?|snaps?|snapped|jams?|jammed|slams?|slammed|echo\w*|sends?\s+for|calls?\s+for|shouts?|shouted|someone|warn\w*|creak\w*|behind\s+you|too\s+late|hurt|bleed\w*|torn|spill\w*)\b/i;
 function deadEnd(text,dialogue=[]){
  if(Array.isArray(dialogue)&&dialogue.length)return false;
  const sentences=String(text??'').trim().split(/(?<=[.!?])\s+/).filter(Boolean),last=sentences.at(-1)??'',m=deadEndWords.exec(last);
- return !!m&&!deadEndTurns.test(last.slice(m.index+m[0].length));
+ if(!m||deadEndAfter.test(last.slice(m.index+m[0].length)))return false;
+ const before=last.slice(0,m.index);
+ return !deadEndBefore.test(before)&&!deadEndMoves.test([...sentences.slice(0,-1),before].join(' '));
 }
 // A telling too long for the feed is cut after its last whole sentence that fits.
 function tellingCut(text,max){const head=text.slice(0,max),end=Math.max(...['. ','! ','? ','.\n','!\n','?\n','."','!"','?"','.\u201d','!\u201d','?\u201d'].map(s=>head.lastIndexOf(s)));return end>max/2?head.slice(0,end+2).trim():head.replace(/\s+\S*$/,'')+'\u2026';}

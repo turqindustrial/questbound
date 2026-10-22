@@ -165,22 +165,42 @@ export function greeting(game,id,hero){
  return {mood,scene:'You turn to '+name+'.',aside:agenda?aside+' '+agenda:aside,line};
 }
 // What someone met for the first time is after, in the aside (the stories spec, Phase A8, 2026-10-22: the game's written
-// greeting took the place of the Dungeon Master's, which was where a person's agenda used to surface): the first clause of
-// their hook (the people library's), else their motive ("They want to …", "Wants to …", or the story writer's "Find her
-// brother."), said of them by name, so the Dungeon Master's first reply, which reads the feed, carries it on. Nothing when
-// neither says enough; never "you".
-const agendaStarts=/^(?:a|an|the|one|some|someone|something|his|her|their|its|old|an old|word|rumou?rs?)\b/i;
+// greeting took the place of the Dungeon Master's, which was where a person's agenda used to surface), so the Dungeon
+// Master's first reply, which reads the feed, carries it on. Only a want anyone could see, never a secret (the project
+// review, 2026-10-22: hooks and motives are written for the Dungeon Master, many about hiding something, and "Calven is
+// plainly hoping to … without drawing attention to himself" gave away a hidden prince): the first clause of a library
+// person's hook, or keeper's or mara's motive ("They want to …", "Wants to …", "Find her brother."), never a resident's
+// (the story writer's residents carry the tale's secrets in their motives); nothing when the hook or motive speaks of
+// secrets, hiding, shame, lies, spying or the hero, and nothing after "even if", "without", "though" and the like. Said
+// of them by name in one of a few frames, a hook that starts with their name as it stands; never "you".
+const agendaStarts=/^(?:a|an|the|one|some|someone|something|his|her|their|its|old|an old|word|rumou?rs?|he|she|they)\b/i;
 const motiveNotVerb=/^(?:a|an|the|his|her|their|its|my|our|your|they|he|she|it|i|we|someone|something|nothing|no|not|to|for|wants?|needs?|is|was|has|had|being|only|just|very|more|most)\b/i;
+const agendaHush=/\b(?:secret\w*|hid(?:e|es|den|ing)|conceal\w*|disguis\w*|ashamed|shame\w*|alone|unaware|betray\w*|suspect\w*|spy|spies|spying|smuggl\w*|blackmail\w*|murder\w*|lie|lies|lied|lying|deceiv\w*|privately|in private|true (?:name|identity)|real (?:name|identity|cause)|nobody knows|no one knows|from\s+(?:learning|knowing|finding|discovering|seeing)|cover(?:s|ed|ing)?\s+up|knows?|knew|remembers?|recogni[sz]\w*|poison\w*|guilt\w*|blames?|hero|heroes|adventurers?|outsiders?|strangers?|attention)\b/i;
+const agendaCut=/;|:|\.\s|,\s+(?:and|but|so|yet|while|though)\s+|\s+(?:even if|even though|without|though|although|unless|before anyone|so that)\s/i;
+// A sentence of the aside starts with a capital ("the keeper" is a name in the old crossroads tale).
+const agendaSentence=t=>t?t[0].toUpperCase()+t.slice(1):t;
+const agendaFrames=['Something is on {own} mind: {want}.','{Name} seems preoccupied: {want}.','{Name} has a matter on their mind, by the look of it: {want}.'];
 export function greetingAgenda(game,id){
  const lore=npcLore(game,id),whole=String(lore?.name??'').trim();if(!whole)return '';
  const called=ideaName(whole),own=called+'\'s',fits=t=>t.length>=12&&t.length<=150&&!/\byou\b/i.test(t);
- const hook=String(lore?.hook??'').replace(/\s+/g,' ').trim().split(/;|:|\.\s|,\s+(?:and|but|so|yet|while|though)\s+/)[0].replace(/[.!?,]+$/,'').trim();
- if(hook.length>=20&&fits(hook))return 'Something is plainly on '+own+' mind: '+(agendaStarts.test(hook)?hook[0].toLowerCase()+hook.slice(1):hook)+'.';
+ const random=seededRandom('agenda:'+id+':'+(game?.story?.id??''));
+ const hookText=String(lore?.hook??'').replace(/\s+/g,' ').trim();
+ const hook=agendaHush.test(hookText)?'':hookText.split(agendaCut)[0].replace(/[.!?,]+$/,'').trim();
+ if(hook.length>=20&&fits(hook)){
+  // A hook that names them first is said as it stands ("Orri carries a sealed message north."); else in a frame, its
+  // opening word lower-cased unless it is a name, and their own name inside it said as "their".
+  const esc=t=>t.replace(/[.*+?^$(){}|[\]\\]/g,'\\$&'),them='(?:'+esc(whole)+'|'+esc(called)+')';
+  if(new RegExp('^'+them+'(?:[\'\u2019]s)?\\s+[a-z]').test(hook))return hook+'.';
+  const want=(agendaStarts.test(hook)?hook[0].toLowerCase()+hook.slice(1):hook).replace(new RegExp('\\b'+them+'[\'\u2019]s\\b','g'),'their');
+  return agendaSentence(agendaFrames[Math.floor(random()*agendaFrames.length)].replace('{own}',own).replace('{Name}',called).replace('{want}',want));
+ }
+ if(id!=='keeper'&&id!=='mara')return '';
  const motive=String(lore?.motive??'').replace(/\s+/g,' ').trim().replace(/[.!]+$/,'');
- if(/[?;:]/.test(motive))return '';
- const wants=/^(?:(?:they|he|she|[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)?)\s+)?(?:wants?|hopes?|needs?|means|longs?|aims?|plans?)\s+(to\s+.+)$/i.exec(motive);
- const aim=wants?wants[1]:/^[A-Za-z]+\s+\S+\s+\S/.test(motive)&&!motiveNotVerb.test(motive)&&!/^[A-Z][a-z]+\s+[A-Z]/.test(motive)?'to '+motive[0].toLowerCase()+motive.slice(1):'';
- return aim&&fits(aim)?called+' is plainly hoping '+aim+'.':'';
+ if(/[?;:]/.test(motive)||agendaHush.test(motive))return '';
+ const plain=motive.split(agendaCut)[0].trim().replace(/[,.!]+$/,'');
+ const wants=/^(?:(?:they|he|she|[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)?)\s+)?(?:wants?|hopes?|needs?|means|longs?|aims?|plans?)\s+(to\s+.+)$/i.exec(plain);
+ const aim=wants?wants[1]:/^[A-Za-z]+\s+\S+\s+\S/.test(plain)&&!motiveNotVerb.test(plain)&&!/^[A-Z][a-z]+\s+[A-Z]/.test(plain)?'to '+plain[0].toLowerCase()+plain.slice(1):'';
+ return aim&&fits(aim)?agendaSentence(called+(random()<0.5?' is hoping ':' looks to be hoping ')+aim+'.'):'';
 }
 // ---------- Greetings at moments the game notices (sceneTriggers.js) ----------
 // Coming back to the tale's starting place, and the morning after a long rest: the people there speak first in a line

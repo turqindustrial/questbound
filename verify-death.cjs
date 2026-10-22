@@ -198,8 +198,14 @@ same(r.setAside([],[],fighter,deadGame,s.health,true).graves.map(g=>g.name),[fig
  assert.equal(rr.dyingTelling({hero,game:fightG}),null,'only while dying');
  const seen=new Set(Array.from({length:12},(_,i)=>rr.dyingTelling({hero,game:{...fallen.game,playback:[{id:i+2,npcId:null,events:[{kind:'narration',text:'x'}]}]}}).narration));assert.ok(seen.size>=4,'varied');
  assert.notEqual(rr.dyingTelling({hero,game:{...fallen.game,playback:[...(fallen.game.playback??[]),{id:99,npcId:null,told:'game',events:[{kind:'narration',text:told.narration}]}]}}).narration,told.narration,'never the line just said');
- for(const l of vm.runInNewContext(rulesSource()+'\n(dyingLines)',{AsyncStorage:{}})){const [solo,twin]=l.split('|');assert.ok(twin&&twin.includes('{hero}')&&!/\byou\b|\byour\b/i.test(twin),'a twin told of the hero: '+l);assert.ok(/Death save/.test(solo)&&/Death save/.test(twin));}
- const src=fs.readFileSync('useDmTurn.js','utf8');assert.ok(src.indexOf('dyingTelling({hero,game})')>0&&src.indexOf('dyingTelling({hero,game})')<src.indexOf("const body=await request(game,health,command?.error?{castingIssue:command.error}:{});"),'a device answers before any request');
+ // Each narrator has eight of its own (the project review, 2026-10-22: Wick turned solemn at the moment of dying).
+ const voices=vm.runInNewContext(rulesSource()+'\n(dyingLines)',{AsyncStorage:{}});assert.deepEqual(Object.keys(voices).sort(),['bard','chronicler','lamplighter']);
+ for(const [voice,lines] of Object.entries(voices)){assert.ok(lines.length>=8,voice);assert.equal(new Set(lines).size,lines.length,voice+': no line twice');
+  for(const l of lines){const [solo,twin]=l.split('|');assert.ok(twin&&twin.includes('{hero}')&&!/\byou\b|\byour\b/i.test(twin),'a twin told of the hero: '+l);assert.ok(/Death save/.test(solo)&&/Death save/.test(twin));assert.ok(!/\d/.test(l),'no numbers: '+l);}}
+ for(const voice of ['lamplighter','bard'])assert.ok(voices[voice].map(l=>l.split('|')[0]).includes(rr.dyingTelling({hero,game:fallen.game,narrator:voice}).narration),'told in '+voice+'\'s voice');
+ assert.ok(voices.chronicler.map(l=>l.split('|')[0]).includes(rr.dyingTelling({hero,game:fallen.game,narrator:'nobody'}).narration),'an unknown narrator is the Chronicler');
+ const src=fs.readFileSync('useDmTurn.js','utf8'),at=src.indexOf('dyingTelling({hero,game,narrator:storyPreferences().narrator})');assert.ok(at>0&&at<src.indexOf("const body=await request(game,health,command?.error?{castingIssue:command.error}:{});"),'a device answers before any request, in its narrator\'s voice');
+ assert.ok(fs.readFileSync('server-turn.cjs','utf8').includes('r.dyingTelling({hero:ruled,game,narrator:preferences(request.storyPreferences).narrator})'),'and a table in the acting player\'s');
  let asked=0;const ask=async()=>{asked++;return {narration:'The Dungeon Master answers.',suggestions:[]};};
  (async()=>{const snap=rr.adventureSnapshot(hero,fallen.game,fallen.health,true);
   const said=await resolveTurn(snap,{question:'Tobin, help me!'},{ask,randomImpl:()=>.5});assert.equal(asked,0,'no request at the table');assert.match(said.narration,/Death save/);assert.equal(said.turn.told,'game');assert.equal(said.snapshot.game.stage,'dying','nothing changes');

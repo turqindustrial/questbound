@@ -209,7 +209,13 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
         const told=narration===undefined||chosen?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences(),chosen}):null;
         if(told)body=told;
         // A moment in which people speak first (arriving somewhere new, a fight won) is told in this same telling.
-        else if(connected&&protocol>=3){const cue=sceneTrigger(game,preview.game,command.action),first=cue&&conversationPeople(preview.game).some(n=>n.id===cue.speakerId)?{speakFirst:{speakerId:cue.speakerId,cue:cue.cue}}:{};body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events),...first});}
+        // A calm move sent to the Dungeon Master only because it follows a milestone or two game-told moves is told by the
+        // game when the Dungeon Master cannot answer (calmLines.js calmFallback): a ceiling, a pause, a limit, an outage.
+        else{const fallback=narration===undefined?calmFallback({hero,before:game,preview,action:command.action,words:question,preferences:storyPreferences()}):null;
+          if(connected&&protocol>=3){const cue=sceneTrigger(game,preview.game,command.action),first=cue&&conversationPeople(preview.game).some(n=>n.id===cue.speakerId)?{speakFirst:{speakerId:cue.speakerId,cue:cue.cue}}:{};
+            try{body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events),...first});}
+            catch(e){if(!fallback||benignTurnFailure(String(e?.message??e)))throw e;body=fallback;}}
+          else if(fallback)body=fallback;}
         let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
       }
     };
@@ -222,7 +228,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       // not read goes to the Dungeon Master, who may work out what was meant (context.castingIssue).
       if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw refusal(command.error);
       // Dying, words that are not a death save are answered by the game (calmLines.js dyingTelling): no request.
-      {const told=command?.action?null:dyingTelling({hero,game});if(told){await finish(null,told);return;}}
+      {const told=command?.action?null:dyingTelling({hero,game,narrator:storyPreferences().narrator});if(told){await finish(null,told);return;}}
       const body=await request(game,health,command?.error?{castingIssue:command.error}:{});
       if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration,body.retell?null:body);return;}
       if(protocol>=3&&body.recruitment?.length){

@@ -38,7 +38,15 @@ const outcomes={success:{narration:'Halfway down, a name leaps out: Edda Marsh, 
   // moves the scene, never "nothing happens"); one that moves the scene on is kept.
   {const flat={...outcomes,failure:{narration:'You find nothing.',dialogue:[],relationships:[]}},moving={...outcomes,failure:{narration:'The ink has run, but a wet thumbprint on the board is fresh: someone read it before you.',dialogue:[],relationships:[]}};
    p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c,n)=>c.engineResolved?{narration:'(asked after the roll)'}:{narration:'You run a finger down the damp notices.',check:check({dc:30,outcomes:n===1?flat:moving})},{random:()=>0});
-   assert.equal(p.asked.length,2,'asked once more');assert.match(requestParts(p.asked[1]).tail??'',/failure outcome changes nothing/,'with the reason');assert.match(p.out.narration,/someone read it before you/,'the failure moves the scene');}
+   assert.equal(p.asked.length,2,'asked once more');assert.match(requestParts(p.asked[1]).tail??'',/failure outcome ends on nothing/,'with the reason');assert.match(p.out.narration,/someone read it before you/,'the failure moves the scene');
+   // Asked again once at most: a second dead end is kept (no request after the roll); and a failure with a consequence
+   // anywhere in it is never asked again (the project review, 2026-10-22: "You find nothing, and the guard hears you."
+   // and its like cost four requests where one was meant).
+   p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c)=>c.engineResolved?{narration:'(asked after the roll)'}:{narration:'You run a finger down the damp notices.',check:check({dc:30,outcomes:flat})},{random:()=>0});
+   assert.equal(p.asked.length,2,'asked again once at most');assert.equal(p.out.narration,'You run a finger down the damp notices. You find nothing.','the second dead end is kept');
+   for(const failure of ['You find nothing useful, and the clerk notices you rifling the board and sends for the watch.','You search in vain; footsteps sound on the stair.','The clerk eyes you coldly and sends for the watch; you learn nothing more.','The lock holds, and your scraping echoes down the hall. You get nothing for your trouble.']){
+    p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c)=>c.engineResolved?{narration:'(asked after the roll)'}:{narration:'You run a finger down the damp notices.',check:check({dc:30,outcomes:{...outcomes,failure:{narration:failure,dialogue:[],relationships:[]}}})},{random:()=>0});
+    assert.equal(p.asked.length,1,'a failure that moves the scene is kept: '+failure);assert.ok(p.out.narration.endsWith(failure));}}
   // No outcomes: told after the roll, as before.
   p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c)=>c.engineResolved?{narration:'The notices tell you little.'}:{narration:'You look.',check:check()});
   assert.equal(p.asked.length,2,'without outcomes the roll is told by a second request');assert.equal(p.out.narration,'The notices tell you little.');

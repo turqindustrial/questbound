@@ -247,5 +247,5 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
 // A ready journey's own creature (its errand threat, a lair from its story) is painted once for every copy of the
 // journey: the wild fight's subject goes by the journey's artId, as its people do.
 {const src=require('node:fs').readFileSync(require('node:path').join(__dirname,'worldArtRules.js'),'utf8');
- require('node:assert').ok(/if\(game\.wildFight\)\{const w=game\.wildFight;return \{campaignId:artCampaign\(game,true\)/.test(src),'a wild fight in a ready journey shares its picture across copies');
+ require('node:assert').ok(/if\(game\.wildFight\)\{const w=game\.wildFight,called=[^;]*;return \{campaignId:artCampaign\(game,true\),kind:'creature',id:'wild-'\+called\./.test(src),'a wild fight in a ready journey shares its picture across copies, keyed by the name as given ("The …": wildFight.called)');
  console.log('Journey creatures: painted once per ready journey, shared by every player who takes it.');}

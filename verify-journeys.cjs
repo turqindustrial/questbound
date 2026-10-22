@@ -131,8 +131,11 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
    assert.equal(topUpLibrary(e,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:pausing,live:true,spend:{background:()=>({ok:true})}}),true);await e.settled();
    assert.equal(wrote,1,'the fill stopped at its next journey');assert.equal(e.list().length,1);
    const diag=path.join(data,'.questbound-diagnostics.jsonl');assert.ok(!fs.existsSync(diag)||!fs.readFileSync(diag,'utf8').includes('"write"'),'a pause is not a failure');
-   fs.rmSync(flag);assert.equal(libraryPaused(),false);clock+=11*60*1000;
-   assert.equal(topUpLibrary(e,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false}),true,'resumed: writing again');await e.settled();assert.equal(e.list().length,3);
+   // The paused attempt is not a failure: no ten-minute wait after -ResumeLibrary, and it is not counted against the day
+   // (the project review, 2026-10-22).
+   assert.equal(e.info().writesToday,1,'only the journey written counts toward the day');
+   fs.rmSync(flag);assert.equal(libraryPaused(),false);
+   assert.equal(topUpLibrary(e,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false}),true,'resumed: writing again at once');await e.settled();assert.equal(e.list().length,3);
   }finally{if(was===undefined)delete process.env.QUESTBOUND_DATA;else process.env.QUESTBOUND_DATA=was;}
   const ps=fs.readFileSync('launch.ps1','utf8');assert.ok(/\[switch\]\$PauseLibrary,\[switch\]\$ResumeLibrary/.test(ps)&&ps.includes("Join-Path $root '.questbound-library-paused'")&&/if \(\$PauseLibrary\) \{ Set-Content \$libraryPauseFile/.test(ps)&&/if \(\$ResumeLibrary\) \{ Remove-Item \$libraryPauseFile/.test(ps),'Questbound.cmd -PauseLibrary / -ResumeLibrary');
   assert.ok(![...ps].some(ch=>ch.charCodeAt(0)>127),'launch.ps1 stays pure ASCII');}
