@@ -107,7 +107,7 @@ const outcomes={success:{narration:'Halfway down, a name leaps out: Edda Marsh, 
  // ---- 7. The telling of a first arrival carries the moment's first words (a device sends it; no cue after) ----
  {const dm=readText('useDmTurn.js');
   assert.ok(/sceneTrigger\(game,preview\.game,command\.action\)/.test(dm)&&/speakFirst:\{speakerId:cue\.speakerId,cue:cue\.cue\}/.test(dm),'the device asks for the moment\'s first words with the telling');
-  assert.ok(/\(body\.retell\?null:checkTelling\(\{before:game,preview,check:body\.check,reply:body\}\)\)\?\?await request\(/.test(dm),'and tells a check with its outcome before asking (never when the reply was mended: retell)');
+  assert.ok(/\(body\.retell\|\|fresh\?null:checkTelling\(\{before:game,preview,check:body\.check,reply:body\}\)\)\?\?await request\(/.test(dm),'and tells a check with its outcome before asking (never when the reply was mended: retell)');
   const g=r.adventureStep(town.game,null,kara,{type:'travel',destination:ferry},()=>0.5);
   const cue=r.withSceneTrigger(town.game,g.game,{type:'travel',destination:ferry}).sceneCue;assert.equal(cue.speakerId,odo);
   const ctx={...r.dmContext(kara,g.game,g.health,'I go to the ferry.'),engineResolved:g.events,speakFirst:{speakerId:cue.speakerId,cue:cue.cue},conversationParticipants:r.speakingPeople(g.game).map(n=>({id:n.id,name:n.name,role:n.role}))};

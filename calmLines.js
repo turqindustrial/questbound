@@ -1,6 +1,7 @@
 import {npcScene,npcLore} from './npcRules';
 import {mapState,mapLocation,placeName,worldPlaces} from './mapRules';
 import {heroesAtTable} from './playbackRules';
+import {placeColour,pressureSign} from './stagingRules';
 
 // Routine moves away from a fight, told by the game itself (the host, 2026-10-21: "the lowest possible cost per turn"):
 // a rest, a healing draught, a journey back to a place already visited, a search of the fallen, an order to a
@@ -214,13 +215,15 @@ export function calmTelling({hero,before,after,action,events=[],kind=null,narrat
  const friends=scene.filter(n=>n.present&&(n.hp??0)>0&&after.followers?.[n.id]?.status==='following');
  const friend=friends.length?friends[Math.floor(chance()*friends.length)]:null;
  const parts=[],dialogue=[];
+ // A written tale's own lines for the place reached (stagingRules.js placeColour) in place of the narrator's arrivals.
+ const colour=kind==='journey'||kind==='arrive'?placeColour(after,action?.destination):[],arrival=colour.length?colour:voice.arrive;
  if(kind==='journey'){
   const minutes=(mapState(after).minutes??0)-(mapState(before).minutes??0),place=placeName(after,action.destination);
   parts.push(pick('road',minutes>=960?voice.longRoad:voice.road,{place}));
   if(friend&&!brief&&chance()<0.5)parts.push(pick('friend',voice.companionRoad,{name:nameOf(friend.id)}));
-  parts.push(pick('arrive',voice.arrive,{place}));
+  parts.push(pick('arrive',arrival,{place}));
  }else if(kind==='arrive'){
-  parts.push(pick('arrive',voice.arrive,{place:placeName(after,action.destination)}));
+  parts.push(pick('arrive',arrival,{place:placeName(after,action.destination)}));
  }else if(kind==='shortRest'||kind==='longRest'){
   parts.push(pick('rest',voice[kind]));
   if(friend&&!brief&&chance()<0.45)parts.push(pick('friend',voice.companionRest,{name:nameOf(friend.id)}));
@@ -233,6 +236,8 @@ export function calmTelling({hero,before,after,action,events=[],kind=null,narrat
   const here=scene.some(n=>n.id===id&&n.present&&(n.hp??0)>0)||kind==='call';
   if(here&&!brief&&chance()<0.7){const text=pick('bark',calmBarks[kind]);if(text)dialogue.push({speakerId:id,text});}
  }else parts.push(pick(kind,voice[kind]));
+ // The latest sign of a written tale's clock, once: the world goes on while the hero walks or rests (stagingRules.js).
+ if(['journey','shortRest','longRest'].includes(kind)){const sign=pressureSign(after);if(sign&&!(before.playback??[]).some(t=>(t.events??[]).some(e=>String(e.text??'').includes(sign))))parts.push(sign);}
  const narration=parts.filter(Boolean).join(' ').slice(0,1700);
  return narration?{narration,dialogue}:null;
 }

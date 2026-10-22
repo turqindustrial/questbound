@@ -18,12 +18,16 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  if(!question||question.length>1000)throw fail('Describe one action in 1–1,000 characters.');
  const target=greet?request.npcId:r.conversationTarget(game,question,people.some(p=>p.id===request.npcId)?request.npcId:null),talkingTo=people.find(p=>p.id===target);
  const toDm=!greet&&(request.direct===true||/^(?:dm[, :]|\(ooc\))/i.test(question));
+ // A written tale's beat due in a scene rides the request for it (stagingRules.js beatSent); the turn records the beats
+ // its replies carried, or the one the game told in its own words when the Dungeon Master could not (beatTold).
+ const sent=[];
  const post=async(scene=game,hp=health,extra={})=>{
   const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp,question),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...(request.suggest===false?{suggest:false}:{}),...extra}});
-  if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');return body;
+  if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');
+  const carried=r.beatSent(scene,extra);if(carried&&!sent.includes(carried))sent.push(carried);return body;
  };
  function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
-  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(actorSeat?{actorSeat}:{}),...(toDm?{direct:true}:{}),...extra};
+  const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(actorSeat?{actorSeat}:{}),...(toDm?{direct:true}:{}),...(sent.length?{beats:[...sent]}:{}),...extra};
   // The same pipeline as Adventure.act on a device (turnRules.js): the rules, experience for every living hero, the
   // turn recorded, the story log and deeds. Scene cues are not played at a shared table.
   const settled=r.settleTurn({hero,ruled,game,health,action,conversation,random:dice,sceneTrigger:false});if(settled.error)throw fail(settled.error);
@@ -34,11 +38,12 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  }
  async function cast(command,narration,chosen=null){
   const dice=[],draw=()=>{const n=randomImpl();dice.push(n);return n;};
-  const preview=r.adventureStep(r.withAttackIntent(game,question),health,ruled,command.action,draw);if(preview.error)throw fail(preview.error);
+  // A written tale's plan applied to the preview as the commit applies it (stagingRules.js stagedPreview).
+  const preview=r.stagedPreview(game,r.adventureStep(r.withAttackIntent(game,question),health,ruled,command.action,draw),hero,command.action);if(preview.error)throw fail(preview.error);
   if(preview.waiting){
    const body=await post(preview.game,preview.health);if(!body.ruling)throw fail('The DM needs more detail to resolve this spell. Nothing was spent.');
    const action={type:'ai-spell',request:command.action.request,ruling:body.ruling},rolled=[];
-   const resolved=r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:command.normalizedCommand},()=>{const n=randomImpl();rolled.push(n);return n;});if(resolved.error)throw fail(resolved.error);
+   const resolved=r.stagedPreview(game,r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:command.normalizedCommand},()=>{const n=randomImpl();rolled.push(n);return n;}),hero,action);if(resolved.error)throw fail(resolved.error);
    if(body.ruling.decision==='cast'){const reply=await post(resolved.game,resolved.health,{engineResolved:resolved.events});for(const key of ['narration','dialogue','relationships','remember','loot','introduce','suggestions'])body[key]=reply[key];}
    let i=0;return finish(action,body,command.normalizedCommand,()=>rolled[i++]??randomImpl());
   }
@@ -54,9 +59,9 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   let body=told;
   if(!body){const fallback=narration===undefined?r.calmFallback({hero:ruled,before:game,preview,action:command.action,words:question,preferences:preferences(request.storyPreferences)}):null;
    try{body=await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40),...first});}
-   catch(e){if(!fallback)throw e;body=fallback;}}
+   catch(e){if(!fallback)throw e;body=r.withBeatLine(fallback,preview.game);}}
   let i=0;
-  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),body.told==='game'?{told:'game',fightRound:body.fightRound}:{});
+  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),{...(body.told==='game'?{told:'game',fightRound:body.fightRound}:{}),...(body.beatTold?{beatTold:body.beatTold}:{})});
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
  // A greeting is a trigger turn (no player line) in the line the game writes for that person (greetings.js), as on a
@@ -80,11 +85,13 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  if(body.recruitment?.length||body.check){
   const check=body.check?(({outcomes,...rest})=>rest)(body.check):null;
   const action=check?{type:'ai-check',check}:{type:'recruitment',plans:body.recruitment},dice=[];
-  const preview=r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,npcId:target},()=>{const n=randomImpl();dice.push(n);return n;});if(preview.error)throw fail(preview.error);
+  const preview=r.stagedPreview(game,r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,npcId:target},()=>{const n=randomImpl();dice.push(n);return n;}),hero,action);if(preview.error)throw fail(preview.error);
   // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. A check is told with the
-  // outcome the dice decided when the reply wrote both ahead (toldAhead.js), else once rolled, as on a device.
-  const ahead=check&&!body.retell?r.checkTelling({before:game,preview,check:body.check,reply:body}):null;
-  const reply=ahead??(body.check||body.retell||body.recruitment.some(p=>p?.decision==='check')?await post(preview.game,preview.health,{engineResolved:preview.events}):body);let i=0;return finish(action,{...reply,worldEvent:null},undefined,()=>dice[i++]??randomImpl());
+  // outcome the dice decided when the reply wrote both ahead (toldAhead.js), else once rolled, as on a device; a written
+  // tale's beat this move brought due is told with it.
+  const fresh=!!r.beatKey(preview.game)&&r.beatKey(preview.game)!==r.beatKey(game);
+  const ahead=check&&!body.retell&&!fresh?r.checkTelling({before:game,preview,check:body.check,reply:body}):null;
+  const reply=ahead??(body.check||body.retell||fresh||body.recruitment.some(p=>p?.decision==='check')?await post(preview.game,preview.health,{engineResolved:preview.events}):body);let i=0;return finish(action,{...reply,worldEvent:null},undefined,()=>dice[i++]??randomImpl());
  }
  if(body.ruling)return finish({type:'ai-ruling',ruling:body.ruling},body);
  if(body.discovery){const {travel,...place}=body.discovery;return finish({type:'discover',place,travel},body);}

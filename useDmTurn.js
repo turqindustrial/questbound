@@ -29,6 +29,7 @@ import {dyingTelling,calmFallback} from './calmLines';
 import {sceneTrigger} from './sceneTriggers';
 import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure,arrivingTurn} from './dmTurnRules';
 import {dmChoices,mapMoves} from "./dmChoiceRules";
+import {stagedPreview,beatSent,beatKey,withBeatLine} from './stagingRules';
 const endpoints=dmEndpoints();
 // The last service that answered ready; a remounted panel checks it first instead of rescanning every address.
 let lastReady=null;
@@ -186,15 +187,21 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     if(target&&!await openConversation(target)){lock.current=false;setBusy(false);return;}
     const talkingTo=people.find(n=>n.id===target);
     const unchanged=()=>{if(!alive.current)throw Error('The adventure was closed. Nothing was applied.');if(latest.current!==snapshot)throw Error('The scene changed while the DM was thinking. Nothing was applied. Ask again.');};
-    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();return body;};
-    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,turnRecord(question,body,normalizedCommand,target),random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
+    // A written tale's beat due in a scene rides the request for it (stagingRules.js beatSent); the turn records which
+    // beats its replies told (`beats`), or the one the game told in its own words when the Dungeon Master could not be
+    // reached (`beatTold`, withBeatLine), and only those are marked told.
+    const sent=[];
+    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();const carried=beatSent(scene,extra);if(carried&&!sent.includes(carried))sent.push(carried);return body;};
+    const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{...turnRecord(question,body,normalizedCommand,target),...(sent.length?{beats:[...sent]}:{}),...(body.beatTold?{beatTold:body.beatTold}:{})},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration,chosen=null)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.
-      const rolled=[];const preview=adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;});if(preview.error)throw refusal(preview.error);
+      // A written tale's plan is applied to the preview as the commit will apply it (stagingRules.js stagedPreview), so a
+      // beat this very move fires is in this very reply.
+      const rolled=[];const preview=stagedPreview(game,adventureStep(withAttackIntent(game,question),health,hero,command.action,()=>{const value=Math.random();rolled.push(value);return value;}),hero,command.action);if(preview.error)throw refusal(preview.error);
       if(preview.waiting&&protocol>=3){
         const body=await request(preview.game,preview.health);if(!body.ruling)throw Error('The DM did not resolve this spell. Nothing was spent; try again with more detail.');
         const action={type:'ai-spell',request:command.action.request,ruling:body.ruling},dice=[];
-        const resolved=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:normalized},()=>{const value=Math.random();dice.push(value);return value;});
+        const resolved=stagedPreview(game,commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:body.worldEvent,normalizedCommand:normalized},()=>{const value=Math.random();dice.push(value);return value;}),hero,action);
         if(resolved.error)throw refusal(resolved.error);
         if(body.ruling.decision==='cast'){
           const reaction=await request(resolved.game,resolved.health,{engineResolved:engineLines(resolved.game,resolved.events)});
@@ -212,11 +219,13 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
         // A calm move sent to the Dungeon Master only because it follows a milestone or two game-told moves is told by the
         // game when the Dungeon Master cannot answer (calmLines.js calmFallback): a ceiling, a pause, a limit, an outage.
         else{const fallback=narration===undefined?calmFallback({hero,before:game,preview,action:command.action,words:question,preferences:storyPreferences()}):null;
+          // A written tale's beat due when the Dungeon Master cannot tell it: the game tells the move with the beat's own
+          // line (stagingRules.js withBeatLine), so play never waits on it.
           if(connected&&protocol>=3){const cue=sceneTrigger(game,preview.game,command.action),first=cue&&conversationPeople(preview.game).some(n=>n.id===cue.speakerId)?{speakFirst:{speakerId:cue.speakerId,cue:cue.cue}}:{};
             try{body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events),...first});}
-            catch(e){if(!fallback||benignTurnFailure(String(e?.message??e)))throw e;body=fallback;}}
-          else if(fallback)body=fallback;}
-        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
+            catch(e){if(!fallback||benignTurnFailure(String(e?.message??e)))throw e;body=withBeatLine(fallback,preview.game);}}
+          else body=withBeatLine(fallback??body,preview.game);}
+        let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound,beatTold:body.beatTold},normalized,()=>rolled[index++]??0.5);
       }
     };
     let attempted=preset?.action??null;
@@ -233,18 +242,22 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration,body.retell?null:body);return;}
       if(protocol>=3&&body.recruitment?.length){
         const action={type:'recruitment',plans:body.recruitment},dice=[];
-        const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
+        const preview=stagedPreview(game,commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;}),hero,action);
         if(preview.error)throw refusal(preview.error);
-        // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. Only a check is asked again.
-        const resolved=body.retell||body.recruitment.some(p=>p?.decision==='check')?await request(preview.game,preview.health,{engineResolved:preview.events}):body;
+        // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. Only a check is asked
+        // again (or a written tale's beat the join brought due).
+        const fresh=!!beatKey(preview.game)&&beatKey(preview.game)!==beatKey(game);
+        const resolved=body.retell||fresh||body.recruitment.some(p=>p?.decision==='check')?await request(preview.game,preview.health,{engineResolved:preview.events}):body;
         let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
         const {outcomes,...check}=body.check,action={type:'ai-check',check},dice=[];
-        const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
+        const preview=stagedPreview(game,commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;}),hero,action);
         if(preview.error)throw refusal(preview.error);
-        // The reply wrote both outcomes ahead (toldAhead.js): the one the dice decided is told, with no second request.
-        const resolved=(body.retell?null:checkTelling({before:game,preview,check:body.check,reply:body}))??await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
+        // The reply wrote both outcomes ahead (toldAhead.js): the one the dice decided is told, with no second request;
+        // unless the check brought a written tale's beat due (a chapter's truth found), which is told with its outcome.
+        const fresh=!!beatKey(preview.game)&&beatKey(preview.game)!==beatKey(game);
+        const resolved=(body.retell||fresh?null:checkTelling({before:game,preview,check:body.check,reply:body}))??await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
         let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}
