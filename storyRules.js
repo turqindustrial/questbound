@@ -71,7 +71,9 @@ export function storyIntroduction(game){
 }
 // The lines the feed and the journal show, one field to a line: "Where: …".
 export function introductionLines(intro){return intro?introductionFields.map(([k,label])=>label+': '+intro[k]):[];}
-export const introductionCard=intro=>['Your tale begins.',...introductionLines(intro)].join('\n');
+// `only`: the fields the card shows (a written tale's card shows where, what is happening and what to do first: its
+// reading before the first move is kept short; the journal and the Dungeon Master keep all five).
+export const introductionCard=(intro,only=null)=>['Your tale begins.',...introductionLines(intro).filter((l,i)=>!only||only.includes(introductionFields[i][0]))].join('\n');
 // ---------- The errand (Easy to get into) ----------
 // The hero starts with orders in hand: someone with authority (keeper) has sent them to deal with one plain trouble
 // close by. The errand's place is a landmark held by a creature (a lair on the map), and chapter 1 is the errand.
@@ -223,7 +225,7 @@ export function freshStoryGame(hero,written,base){
  const lines=(Array.isArray(said)?said:[]).map(l=>l&&typeof l==='object'&&typeof l.text==='string'&&l.text.trim()?{speakerId:voice(String(l.speakerId)),text:l.text.trim().slice(0,300)}:null).filter(l=>l?.speakerId).filter((l,i,all)=>!all.slice(0,i).some(o=>o.text.toLowerCase()===l.text.toLowerCase())).slice(0,4);
  if(lines.length)story.openingDialogue=lines;
  {const nameOf=id=>story.npcs[id]?.name??game.people[id].name,here=Object.keys(game.people??{}).filter(id=>game.people[id].home==='inn'&&!game.people[id].hidden);
-  game.playback=[{id:1,npcId:null,participants:['keeper','mara',...here],events:[{kind:'effect',text:introductionCard(story.introduction)},{kind:'narration',text:story.opening},...lines.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:nameOf(l.speakerId),text:l.text}))]}];}
+  game.playback=[{id:1,npcId:null,participants:['keeper','mara',...here],events:[{kind:'effect',text:introductionCard(story.introduction,story.staging?['place','trouble','first']:null)},{kind:'narration',text:story.opening},...lines.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:nameOf(l.speakerId),text:l.text}))]}];}
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
  // Everyone has already formed a view of the hero's kind; a written tale's plan is seated (stagingRules.js: chapter 1's
  // set piece armed, its stakes and game.pace), and a tale with no staging is seated exactly as before.

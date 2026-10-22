@@ -45,6 +45,9 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
 {
  const g=seat(copy());
  assert.equal(r.isStaged(g),true);assert.equal(r.validPace(g.pace,g),true,'a sound pace');
+ // A written tale's opening card shows where, what is happening and what to do first (WRITTEN-TALES.md 2.5); the journal
+ // keeps all five.
+ assert.deepEqual(g.playback[0].events[0].text.split('\n').map(l=>l.split(':')[0]),['Your tale begins.','Where','What is happening','What you could do first']);assert.ok(/\nWho is here: /.test(g.journal.entries[0].text));
  const slide=r.worldPlace(g,place(g,'The Log Slide'));assert.equal(slide.danger,'lair');assert.equal(slide.threat.template,'wolf','chapter 1\'s set piece is armed');
  assert.deepEqual(plain(g.pace.stakes),{s1:'holding on',s2:'one sack lost in the dark'},'the stakes as written');assert.equal(g.pace.due,null,'nothing due as the tale begins');
  // The errand's rules: below level 3 a pack becomes one creature and no ally stands beside it; from level 3 the pack.
