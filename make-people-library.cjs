@@ -7,8 +7,20 @@
 //   node make-people-library.cjs              writes the people (text), 20 at a time, into .questbound-people/library.json
 //   node make-people-library.cjs --portraits  paints each person's portrait, one at a time, into .questbound-people/<id>.jpg
 // Options: --limit N (at most N people or portraits this run), --budget D (stop before this run spends D dollars),
-// --plan (write the plan only), --no-desktop (no copy to the Desktop folder). Both phases are resumable: what is done is
-// skipped. Everything is under QUESTBOUND_DATA when that is set (a hosted game), else beside this file.
+// --plan (write the plan and say what is left to do and about what it would cost; nothing is asked of anyone),
+// --batch 2 (the second batch as well: see below), --no-desktop (no copy to the Desktop folder). Both phases are
+// resumable: what is done is skipped. Everything is under QUESTBOUND_DATA when that is set (a hosted game), else beside
+// this file.
+// The second batch (2026-10-22, the host's words: "make about 30 different portraits per race, appealing to all classes
+// and non classes alike, then add them to the roster of character portraits that we already have"), ids np301…np690:
+// thirty people of each species, fifteen trained (every class once, two classes twice) and fifteen ordinary, ten of
+// each gender, each gender's ten spread over the ages (three young adults, two adults, two middle-aged, three old: the
+// first batch had few young and old faces), a calling (secondClassHints and secondOrdinaryRoles, with a twist of its
+// own) and a hook theme (secondThemes and secondAngles) never used before, the nine lands in turn. Its slots give the
+// age, which the writer must keep. Entirely unique against the whole library, as the first batch was. Run, in order:
+//   node make-people-library.cjs --batch 2 --plan        the plan and the expected cost (about $0.03 a portrait)
+//   node make-people-library.cjs --batch 2               writes the 390 people (text, cents in all)
+//   node make-people-library.cjs --portraits             paints every person not yet painted, one at a time
 // The plan (.questbound-people/plan.json, written first and always the same), ids np001…np300: 169 trained people, every
 // class with every species exactly once, genders turning so that each class and each species has all three; and 131
 // ordinary people (no class) spread evenly over the 39 species and gender pairs (three each, four for fourteen of them).
@@ -55,6 +67,53 @@ function planPeople(){
  slots.sort((a,b)=>order(a.key).localeCompare(order(b.key)));
  return slots.map((s,i)=>({slot:'np'+String(i+1).padStart(3,'0'),species:s.species,gender:s.gender,class:s.class,roleHint:s.roleHint,hookTheme:hookThemes[i%hookThemes.length]+' '+hookAngles[Math.floor(i/hookThemes.length)],placeKinds:s.placeKinds.slice(0,3),terrain:lib.terrains[i%lib.terrains.length]}));
 }
+// ---------- The second batch: about thirty more people of each species (np301…np690) ----------
+const secondPerSpecies=30,secondTotal=secondPerSpecies*lib.speciesList.length;
+// Callings never used in the first batch: four more for each class, forty more ordinary ones.
+const secondClassHints={
+ Artificer:[['repairer of mills, pumps and waterwheels',['settlement','water']],['maker of artificial limbs and braces',['settlement']],['salvager who rebuilds old ruin devices',['ruin','camp']],['lamp-and-lens grinder for lighthouses',['water','landmark']]],
+ Barbarian:[['exiled chieftain\'s heir',['wilds','camp']],['avalanche-born mountain guide',['mountain']],['tavern bouncer with a long fuse',['settlement','road']],['raider turned ferryman',['water','wilds']]],
+ Bard:[['puppeteer with a travelling stage',['road','settlement']],['funeral singer',['shrine','settlement']],['satirist hiding from a lord',['settlement','road']],['keeper of a clan\'s songs and lineages',['camp','landmark']]],
+ Cleric:[['bone-setter for a mountain shrine',['shrine','mountain']],['chaplain to a mining crew',['cave','mountain']],['priest of a drowned god at the harbour',['water','shrine']],['caretaker of a roadside chapel',['road','shrine']]],
+ Druid:[['beekeeper of the old hives',['forest','settlement']],['tide-reader of the salt flats',['water','wilds']],['keeper of a sacred spring',['shrine','wilds']],['seed-saver for burned fields',['settlement','wilds']]],
+ Fighter:[['caravan master',['road','camp']],['arena champion gone grey',['settlement']],['bridge warden',['road','water','landmark']],['quartermaster of a frontier fort',['camp','ruin']]],
+ Monk:[['tea-house keeper of a hidden order',['settlement','road']],['ferry pole-master who fights with the pole',['water']],['wandering mediator of feuds',['road','camp']],['lantern-bearer of a mountain stair',['mountain','shrine']]],
+ Paladin:[['protector of a pilgrims\' road',['road','shrine']],['knight of a disbanded order',['ruin','settlement']],['oath-sworn hunter of grave robbers',['ruin','lair']],['champion of a poor parish',['settlement','shrine']]],
+ Ranger:[['falconer of the high passes',['mountain','wilds']],['swamp guide',['wilds','water']],['poacher-catcher for a forest lord',['forest']],['map-runner for caravans',['road','camp']]],
+ Rogue:[['fence for stolen relics',['settlement','ruin']],['card sharp of the river boats',['water','settlement']],['tomb-robber with a conscience',['ruin','cave']],['spy posing as a peddler',['road','settlement']]],
+ Sorcerer:[['wanderer marked by a lightning strike',['wilds','mountain']],['heir to a dragon\'s bargain',['ruin','lair']],['healer whose own magic frightens them',['settlement']],['street performer with true sparks',['settlement','road']]],
+ Warlock:[['pawnbroker with an unseen partner',['settlement']],['lighthouse keeper who hears the deep',['water','landmark']],['oracle bound to a buried thing',['cave','shrine']],['duellist with a borrowed blade-pact',['road','settlement']]],
+ Wizard:[['archivist of a burned library',['ruin','settlement']],['weather-watcher in a stone tower',['landmark','mountain']],['apothecary-scholar',['settlement']],['retired battle mage running an orchard',['settlement','wilds']]],
+};
+const secondOrdinaryRoles=[['laundry keeper',['settlement','water']],['cooper or barrel-maker',['settlement']],['potter',['settlement','road']],['charcoal burner',['forest','camp']],['salt-panner',['water','wilds']],['stable hand',['settlement','road']],['tanner',['settlement']],['net-mender',['water']],['bell-ringer',['shrine','settlement']],['quarry worker',['mountain','cave']],['woodcutter',['forest']],['beekeeper',['forest','settlement']],['peddler of ribbons and needles',['road','settlement']],['cartographer\'s assistant',['settlement','landmark']],['dockhand',['water','settlement']],['goatherd',['mountain','wilds']],['candle-maker',['settlement','shrine']],['rat-catcher',['settlement','cave','lair']],['ferry cook',['water']],['shrine sweeper',['shrine']],['tollbridge clerk',['road','landmark']],['well-digger',['settlement','wilds']],['falconer\'s helper',['wilds','mountain']],['inn cook',['settlement','road']],['bookbinder',['settlement']],['dressmaker',['settlement']],['cheesemaker',['settlement','wilds']],['ropemaker',['settlement','water']],['ruin guide for travellers',['ruin','landmark']],['stew-seller who follows the camps',['camp','road']],['lighthouse lamp-trimmer',['water','landmark']],['grave-tender',['shrine','ruin']],['mushroom forager',['cave','forest']],['pack-mule driver',['road','mountain']],['retired sailor',['water','settlement']],['herb-seller at the market',['settlement']],['town crier',['settlement']],['scrap dealer',['camp','ruin','lair']],['ice-cutter',['mountain','settlement']],['lamp-oil seller',['settlement','road']]];
+// Twists that suit any age, never one of the first batch's.
+const secondTwists=['who keeps a meticulous diary','who never takes off a borrowed ring','who sings while working','who cannot read but hides it','who trusts animals more than people','with a famous relative they dislike','who collects odd buttons','who owes their life to a stranger','with a rival across the road','who is secretly generous','who always bargains','with a nickname they hate','who is training an apprentice','who saw something they should not have','who is saving for a journey','who speaks too plainly'];
+// Hook themes: 26 kinds of trouble, each with 15 angles, 390 in all, none of them the first batch's.
+const secondThemes=['a vanished caravan','a counterfeit relic','a sealed letter','a stolen horse','a midnight bargain','a lost sibling','a broken engagement','a hidden cellar','a poisoned gift','an old map fragment','a disputed boundary stone','a silent bell','a missing ledger page','a borrowed sword','a strange illness','a buried name','a ruined mill','a wrong grave','a bribed judge','a song that summons something','a foundling now grown','a lighthouse that went dark','a debt paid in the wrong coin','a festival that ended in blood','a gift from a dragon','an apprentice who ran away'];
+const secondAngles=['that only they remember','that a neighbour suspects','that the law has forgotten','that is returning tonight','that they were paid to keep quiet','that started with a kindness','that someone is blackmailing them over','that they mean to set right alone','that has a witness nobody believes','that led them to this place','that their family must never learn','that a stranger keeps asking about','that is written down somewhere','that could cost them their trade','that they half believe was a dream'];
+const secondOrder=key=>crypto.createHash('sha256').update('questbound-people-plan-2\n'+key).digest('hex');
+// The second batch's plan: always the same 390 slots, in a mixed order, ids np301…np690.
+function planSecondBatch(){
+ const slots=[],ageSpread=['young','young','young','adult','adult','middle-aged','middle-aged','old','old','old'];
+ let ordinaryIndex=0;
+ lib.speciesList.forEach((species,s)=>{
+  const classes=[...lib.classList,lib.classList[(2*s)%lib.classList.length],lib.classList[(2*s+1)%lib.classList.length]];
+  // Ten of each gender (five trained, five ordinary), each ten spread over the ages, in a mixed but fixed order.
+  const agesOf=Object.fromEntries(lib.genderList.map(g=>[g,ageSpread.map((age,i)=>({age,k:secondOrder('age:'+species+':'+g+':'+i)})).sort((a,b)=>a.k.localeCompare(b.k)).map(x=>x.age)]));
+  const nextAge=g=>agesOf[g].shift();
+  classes.forEach((cls,k)=>{const c=lib.classList.indexOf(cls),extra=k>=lib.classList.length,hints=secondClassHints[cls],[base,placeKinds]=hints[(s+(extra?2:0))%hints.length],gender=lib.genderList[(k+s)%3];slots.push({key:'trained2:'+species+':'+k,species,gender,class:cls,age:nextAge(gender),roleHint:base+', '+secondTwists[(s+3*c+(extra?7:0))%secondTwists.length],placeKinds});});
+  for(let k=0;k<secondPerSpecies-classes.length;k++){const i=ordinaryIndex++,b=i%secondOrdinaryRoles.length,round=Math.floor(i/secondOrdinaryRoles.length),[base,placeKinds]=secondOrdinaryRoles[b],gender=lib.genderList[(k+s+1)%3];slots.push({key:'ordinary2:'+species+':'+k,species,gender,class:null,age:nextAge(gender),roleHint:base+', '+secondTwists[(b+round)%secondTwists.length],placeKinds});}
+ });
+ slots.sort((a,b)=>secondOrder(a.key).localeCompare(secondOrder(b.key)));
+ return slots.map((s,i)=>({slot:'np'+String(total+1+i).padStart(3,'0'),species:s.species,gender:s.gender,class:s.class,age:s.age,roleHint:s.roleHint,hookTheme:secondThemes[i%secondThemes.length]+' '+secondAngles[Math.floor(i/secondThemes.length)],placeKinds:s.placeKinds.slice(0,3),terrain:lib.terrains[i%lib.terrains.length]}));
+}
+// The whole plan for a batch: the first batch, or both.
+const planFor=batch=>batch>=2?[...planPeople(),...planSecondBatch()]:planPeople();
+// What the plan's people look like, a line for each species (trained/ordinary, women/men/other, young/adult/middle-aged/old).
+function planTable(slots){
+ const rows=lib.speciesList.map(species=>{const mine=slots.filter(s=>s.species===species),n=f=>mine.filter(f).length;return '  '+species.padEnd(11)+String(mine.length).padStart(3)+'  trained '+n(s=>s.class)+', ordinary '+n(s=>!s.class)+'  ·  '+lib.genderList.map(g=>n(s=>s.gender===g)).join('/')+'  ·  '+lib.ages.map(a=>n(s=>s.age===a)).join('/');});
+ return ['  people     all  trained, ordinary  ·  women/men/other  ·  young/adult/middle-aged/old',...rows].join('\n');
+}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>=0&&process.argv[i+1]!==undefined?Number(process.argv[i+1]):fallback;};
 function runCost(dataDir,since){
@@ -70,12 +129,24 @@ function writeAtomic(file,text){
 async function main(){
  const dataDir=process.env.QUESTBOUND_DATA||__dirname,dir=path.join(dataDir,'.questbound-people'),dm=process.env.QB_DM_URL||'http://127.0.0.1:8084/dm';
  const desktop=process.argv.includes('--no-desktop')?null:path.join(process.env.USERPROFILE||process.env.HOME||dataDir,'Desktop','Questbound people');
- const limit=arg('--limit',Infinity),budget=arg('--budget',Infinity),started=Date.now();
+ const limit=arg('--limit',Infinity),budget=arg('--budget',Infinity),started=Date.now(),batch=arg('--batch',1);
+ if(![1,2].includes(batch)){console.log('--batch is 1 or 2.');return 1;}
  fs.mkdirSync(dir,{recursive:true});
- const plan=planPeople();writeAtomic(path.join(dir,'plan.json'),JSON.stringify(plan,null,1));
- if(process.argv.includes('--plan')){console.log('Plan written: '+plan.length+' people in '+path.join(dir,'plan.json'));return 0;}
+ const plan=planFor(batch);writeAtomic(path.join(dir,'plan.json'),JSON.stringify(plan,null,1));
  const libraryFile=path.join(dir,'library.json');
  const readLibrary=()=>{try{const list=JSON.parse(fs.readFileSync(libraryFile,'utf8'));return Array.isArray(list)?list.filter(lib.validPerson):[];}catch{return [];}};
+ if(process.argv.includes('--plan')){
+  console.log('Plan written: '+plan.length+' people in '+path.join(dir,'plan.json'));
+  // What is left to do, and about what it would cost: the text at what the people written so far cost (else a
+  // generous guess), each portrait at the painting price.
+  const library=readLibrary(),done=new Set(library.map(p=>p.id)),toWrite=plan.filter(s=>!done.has(s.slot)),toPaint=library.filter(p=>!fs.existsSync(path.join(dir,p.id+'.jpg'))).length+toWrite.length;
+  const price=require('./spending.cjs').paintingPrice,spentText=runCost(dataDir,0),textEach=library.length&&spentText>0?spentText/library.length:0.001;
+  if(batch>=2){const second=planSecondBatch();console.log('The second batch: '+second.length+' people ('+second[0].slot+'…'+second.at(-1).slot+'), '+second.filter(s=>s.class).length+' trained (every class with every species, two classes twice a species) and '+second.filter(s=>!s.class).length+' ordinary:\n'+planTable(second));}
+  console.log('To write: '+toWrite.length+' people (text about $'+(toWrite.length*textEach).toFixed(2)+'). To paint: '+toPaint+' portraits (about $'+(toPaint*price).toFixed(2)+' at $'+price.toFixed(2)+' a portrait). About $'+(toWrite.length*textEach+toPaint*price).toFixed(2)+' in all.');
+  if(toWrite.length)console.log('Next: node make-people-library.cjs'+(batch>=2?' --batch 2':'')+', then node make-people-library.cjs --portraits (both take --limit N and --budget D).');
+  else if(toPaint)console.log('Next: node make-people-library.cjs --portraits (takes --limit N and --budget D).');
+  return 0;
+ }
  const ask=async(context,input,timeout)=>{
   const response=await fetch(dm,{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://localhost:8081'},body:JSON.stringify({input,context:{choices:[],...context}}),signal:AbortSignal.timeout(timeout)});
   const data=await response.json().catch(()=>({}));
@@ -147,4 +218,4 @@ async function main(){
  return 0;
 }
 if(require.main===module)main().then(code=>process.exit(code??0),e=>{console.error(e.message);process.exit(1);});
-module.exports={planPeople,classHints,ordinaryRoles,twists,hookThemes,hookAngles,total,trainedCount};
+module.exports={planPeople,planSecondBatch,planFor,planTable,classHints,ordinaryRoles,twists,hookThemes,hookAngles,secondClassHints,secondOrdinaryRoles,secondTwists,secondThemes,secondAngles,total,secondTotal,secondPerSpecies,trainedCount};

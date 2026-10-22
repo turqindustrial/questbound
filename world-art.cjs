@@ -47,11 +47,13 @@ const sharedTemplate=subject=>subject.kind==='creature'&&subject.template&&subje
 function personMatchFields(value){
  if(!['portrait','creature'].includes(value.kind))return {};
  const fields={};
- if(typeof value.species==='string'&&value.species.trim()){const s=peopleLibraryModule.speciesOf(value.species.slice(0,80));fields.species=s??'unknown';}
+ // A species none of the common peoples is 'unknown', its name kept as `kin` (a plain word), so someone of an invented
+ // people is first given a face painted for that people.
+ if(typeof value.species==='string'&&value.species.trim()){const s=peopleLibraryModule.speciesOf(value.species.slice(0,80));fields.species=s??'unknown';const kin=s?null:peopleLibraryModule.tidyKin(value.species.slice(0,40));if(kin)fields.kin=kin;}
  if(peopleLibraryModule.genderList.includes(value.gender))fields.gender=value.gender;
  if(peopleLibraryModule.classList.includes(value.trained))fields.trained=value.trained;
  if(typeof value.role==='string'&&value.role.trim())fields.role=value.role.replace(/\s+/g,' ').trim().slice(0,200);
- if(Array.isArray(value.avoid)){const avoid=[...new Set(value.avoid.filter(id=>peopleLibraryModule.poolIdPattern.test(String(id))))].slice(0,120);if(avoid.length)fields.avoid=avoid;}
+ if(Array.isArray(value.avoid)){const avoid=[...new Set(value.avoid.filter(id=>peopleLibraryModule.faceIdPattern.test(String(id))))].slice(0,120);if(avoid.length)fields.avoid=avoid;}
  if(typeof value.related==='string'&&value.related.trim().length&&value.related.length<=120)fields.related=value.related;
  if(value.kind==='creature'&&Object.hasOwn(creatureTemplates,value.template))fields.template=value.template;
  return fields;
@@ -225,4 +227,4 @@ function createArtStore({directory=path.join(process.env.QUESTBOUND_DATA||__dirn
  return {request,readyMade,size:()=>jobs.size,places,people,creatures};
 }
 const artStore=createArtStore();
-module.exports={revision:11,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL,creatureCampaign,creatureTemplates,templateSubject};
+module.exports={revision:12,createArtStore,artStore,validateSubject,artKey,artPrompt,DEFAULT_IMAGE_MODEL,creatureCampaign,creatureTemplates,templateSubject};

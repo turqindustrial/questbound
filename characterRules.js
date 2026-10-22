@@ -125,14 +125,15 @@ export function buildError(form) {
 // The hero's portrait (2026-10-17, the host: "Free hero portraits by default: offer each new hero a matching library
 // face right away, with an optional 'paint my own'"): none (a hero from before, or one whose face the server keeps:
 // the hero's own painting if one was made, else a ready-made face chosen to fit them), a face from the host's people
-// library ({library:'np123'}), or the hero's own painting ({painted:<the look it was painted for>}: worldArtRules.js
-// heroPaintingChoice, so a later change of words never paints again by itself).
+// library ({library:'np123'}, or a face only painted in play, {library:'nf012'}), or the hero's own painting
+// ({painted:<the look it was painted for>}: worldArtRules.js heroPaintingChoice, so a later change of words never paints
+// again by itself).
 export function validPortraitChoice(value) {
   if (value === undefined) return true;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const keys = Object.keys(value);
   if (keys.length !== 1) return false;
-  if (keys[0] === 'library') return typeof value.library === 'string' && /^np\d{3}$/.test(value.library);
+  if (keys[0] === 'library') return typeof value.library === 'string' && /^(?:np\d{3}|nf\d{3,4})$/.test(value.library);
   if (keys[0] === 'painted') return typeof value.painted === 'string' && /^[0-9a-z]{1,13}(?:-w)?$/.test(value.painted);
   return false;
 }

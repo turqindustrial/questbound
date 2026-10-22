@@ -3,8 +3,13 @@
 // Checks: anyone shown with a portrait who is not a player's hero and not from the people library (a tale's keeper and
 // mara, its residents, people the Dungeon Master invents, a tale's foe who is a person) gets the face of the library
 // person most like them (species and gender, then training, then age, then calling and look), repeatably, one face to
-// one person in a tale while another fits, kept for good, never in place of a painting made before, with no painting
-// and no usage; heroes, children, ghosts and kinds the library has nobody of are painted as before; a creature of one
+// one person in a tale while another fits and then the least used again (never a painting), kept for good, never in
+// place of a painting made before, with no painting and no usage; someone of an invented people the nearest common
+// people's face (their own people's faces only first, features no common people has only with faces that share them);
+// faces only (faces painted in play, faces.json) shown like any face and never offered to meet; words that only look
+// like a child or a ghost ("fifty-eight-year-old", "skeleton key") no reason to paint; heroes' own paintings, children,
+// ghosts and peoples no face fits are painted as before (2026-10-22, the host: "make sure all unique faces painted are
+// added to the library of potential faces in the game"); a creature of one
 // of the game's own kinds is painted once for every tale and player (a Skirmish painting taken over), from the kind's
 // own look, never a player's words; a tale's own creature keeps its painting; the Dungeon Master is not offered a
 // library person whose face a look-alike already wears; the story writer may cast keeper and mara from the library;
@@ -31,8 +36,24 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   assert.equal(lib.speciesOf('A tall half-elf woman'),'Half-Elf');assert.equal(lib.speciesOf('Middle-aged human innkeeper'),'Human');assert.equal(lib.speciesOf('a dark elf'),'Drow');assert.equal(lib.speciesOf('an elven archer'),'Elf');assert.equal(lib.speciesOf('Lizardfolk'),null);
   const of=extra=>lib.lookAlikeOf({kind:'portrait',campaignId:'t',id:'n1',name:'X',description:'A woman, with a woman\'s face. A broad human fishwife with scaled hands.',setting:'',...extra});
   same(of({}).species,['Human']);assert.equal(of({}).gender,'woman');assert.equal(of({species:'Elf'}).species.length,2,'an elf may look like a high or a wood elf');
-  assert.equal(of({species:'unknown'}),null,'a kind the library has nobody of is painted');
+  // An invented people (2026-10-22): the nearest common people, with the same gender and age; their own people's name
+  // kept as kin; features no common people has (fur, antennae, gills…) match only faces that share them.
+  {const invented=(description,extra={})=>of({species:'unknown',description,...extra});
+   const plainKin=invented('A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 61-year-old mosskin woman, broad and strong, with olive-green skin and rust-red curls.. mosskin. A fish seller.',{kin:'mosskin'});
+   same(plainKin.species,['Orc'],'green skin and broad: an orc\'s face');assert.equal(plainKin.invented,true);assert.equal(plainKin.kin,'mosskin');assert.equal(plainKin.age,'old','"61-year-old" is old');assert.equal(plainKin.gender,'woman');
+   same(invented('A 31-year-old hornkin, tall and wiry, with two blunt ivory horns. Their curls are tied with thread.').species,['Tiefling'],'horns: a tiefling\'s face');
+   same(invented('A man. A 39-year-old korrin man, broad-shouldered, with small lower tusks.').species,['Orc'],'tusks: an orc\'s');
+   same(invented('A 36-year-old saurian man with deep green pebbled scales and a narrow snout.').species,['Dragonborn'],'scales: a dragonborn\'s');
+   same(invented('A woman of 56, tall and broad-shouldered, with iron-gray hair.').species,['Human'],'nothing unlike a human: a human\'s');
+   const moth=invented('A 26-year-old mothkin woman of slight build, with feathery antennae and a soft crest in place of hair.');same(moth.species,[],'antennae: no common people\'s face');same(moth.traits,['antennae']);assert.equal(moth.kin,'mothkin');
+   same(of({description:'A 52-year-old hornkin woman with two curled horns.'}).species,['Tiefling'],'no species sent (an older client): an invented people read from the words');
+   assert.equal(lib.lookAlikeOf({kind:'creature',campaignId:'t',id:'main-foe',name:'X',description:'A tall mosskin woman in a black coat.',setting:'',species:'unknown'}).species[0],'Orc','a tale\'s foe of an invented people, written as a woman, is a person');
+   assert.equal(lib.lookAlikeOf({kind:'creature',campaignId:'t',id:'main-foe',name:'X',description:'A low six-legged burrower with a salt-crusted shell.',setting:'',species:'unknown'}),null,'a creature is not a person');}
   assert.equal(of({description:'A thin boy with a reed rod and bare muddy feet.'}),null,'a child is painted');assert.equal(of({role:'A ghost of the old mill.'}),null,'a ghost is painted');
+  assert.equal(of({description:'A nine-year-old girl in a patched smock.'}),null);assert.equal(of({description:'The ghost of a drowned sailor, translucent and dripping.'}),null);
+  // Words that only look like a child or a ghost: a person all the same (these were painted before, 2026-10-20).
+  for(const description of ['A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A fifty-eight-year-old human woman, broad-shouldered, with iron-gray hair.','A sixty-eight-year-old human woman, small and stooped.','A human locksmith with a skeleton key on a cord.','A human beast-hunter with a dragon tattoo and kid gloves.','A giant of a man, a human smith with a ghost-pale scar.','A human widow whose nine-year-old son runs errands for her.'])assert.ok(of({description}),'a person: '+description);
+  assert.equal(of({description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A fifty-two-year-old human woman.'}).age,'middle-aged');
   assert.equal(lib.lookAlikeOf({kind:'creature',campaignId:'t',id:'main-foe',name:'X',description:'A human bandit.',setting:''}),null,'a creature is a person only when it says its species');
   assert.equal(of({description:'An elderly human widow, white-haired.'}).age,'old');assert.equal(of({description:'A young human courier.'}).age,'young');
   {const people=stock,pick=(match,o={})=>lib.choosePortrait(people,{role:new Set(),look:new Set(),age:null,trained:null,gender:'woman',species:['Dwarf'],...match},{campaignId:'tale',personId:'n1',...o});
@@ -43,10 +64,27 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
    const old=pick({age:'old'}),oldOnes=people.filter(e=>e.species==='Dwarf'&&e.gender==='woman'&&!e.class&&e.age==='old');if(oldOnes.length)assert.equal(old.age,'old','then of their age');
    const second=pick({},{taken:new Set([plain.id])});assert.notEqual(second.id,plain.id,'two people of a tale, two faces');
    const all=new Set(people.filter(e=>e.species==='Dwarf'&&e.gender==='woman').map(e=>e.id));assert.ok(all.has(pick({},{taken:all}).id),'a repeat only once every one of their kind is taken');
+   // Every face that fits taken: the one used least in the tale is shown again (never a painting).
+   {const ids=[...all],uses=new Map(ids.map((id,i)=>[id,i===2?1:3]));assert.equal(pick({},{taken:uses}).id,ids[2],'the least-used face');
+    const twice=new Map(ids.map(id=>[id,2]));twice.set(ids[1],1);twice.set(ids[3],1);assert.ok([ids[1],ids[3]].includes(pick({},{taken:twice}).id),'among the least used, the best');}
    assert.ok(['woman','man','other'].includes(pick({gender:null}).gender),'gender unknown: any of that species');
    assert.equal(lib.choosePortrait(people.filter(e=>e.gender!=='other'),{species:['Gnome'],gender:'other',role:new Set(),look:new Set()}),null,'nobody of that gender: painted, never a face of another');
    const draws=new Set(Array.from({length:30},(_,i)=>pick({},{campaignId:'tale-'+i}).id));assert.ok(draws.size>=2,'tales share the faces out');}
-  console.log('Matching: species and gender, then training (their own class first), then age, then calling and look; the same face for the same person, another for the next while one is free; children, ghosts and unknown kinds painted.');
+  // Faces only (painted in play, people-library.cjs faces.json): a face of an invented people is never shown to a common
+  // one; one with features no common people has only to someone who shares them.
+  {const face=(id,extra)=>({id,faceOnly:true,species:'Human',gender:'woman',age:'adult',class:null,role:'A fish seller.',appearance:'A woman with a broad face and weathered hands, in a patched apron.',kin:null,traits:[],from:null,source:'a'.repeat(64),sha256:id.slice(2).padStart(64,'0'),name:null,painted:null,...extra});
+   const moth=face('nf001',{species:null,kin:'mothkin',traits:['antennae']}),moss=face('nf002',{species:'Orc',kin:'mosskin'}),plainHuman=face('nf003',{age:'old'}),gills=face('nf004',{species:null,kin:'brackling',traits:['gills']});
+   const faces=[moth,moss,plainHuman,gills],base={role:new Set(),look:new Set(),age:null,trained:null,gender:'woman'};
+   same(lib.choosePortrait([...stock,...faces],{...base,species:['Human'],age:'old',invented:false,traits:[]},{taken:new Set(stock.filter(e=>e.species==='Human'&&e.gender==='woman').map(e=>e.id))}).id,'nf003','a face only stands for a common people like any face');
+   assert.ok(!['nf001','nf002','nf004'].includes(lib.choosePortrait([...stock,...faces],{...base,species:['Orc'],invented:false,traits:[]},{taken:new Set(stock.map(e=>e.id))})?.id),'an invented people\'s face is never shown to a common people');
+   assert.equal(lib.choosePortrait([...stock,...faces],{...base,species:[],invented:true,kin:'mothkin',traits:['antennae']}).id,'nf001','a mothkin: their own people\'s face');
+   assert.equal(lib.choosePortrait([...stock,...faces],{...base,species:[],invented:true,kin:'dustwing',traits:['antennae']}).id,'nf001','another people with antennae: the face that shares them');
+   assert.equal(lib.choosePortrait([...stock,...faces],{...base,species:[],invented:true,kin:null,traits:['fur','muzzle']}),null,'fur and a muzzle: nothing fits, painted');
+   assert.equal(lib.choosePortrait([...stock,...faces],{...base,species:['Orc'],invented:true,kin:'mosskin',traits:[]}).id,'nf002','a mosskin: the mosskin face first');
+   const nearest=lib.choosePortrait([...stock,...faces],{...base,species:['Orc'],invented:true,kin:'mosskin',traits:[]},{taken:new Set(['nf002'])});assert.equal(nearest.species,'Orc');assert.equal(nearest.gender,'woman','then an orc woman\'s face (the nearest common people, the same gender)');
+   assert.equal(lib.choosePortrait([...stock,...faces],{...base,species:['Orc'],invented:true,kin:'mosskin',traits:[],age:'old'},{taken:new Set(['nf002'])}).age,stock.some(e=>e.species==='Orc'&&e.gender==='woman'&&e.age==='old'&&!e.class)?'old':nearest.age,'and the same age where one fits');
+   assert.ok(lib.validFace(moth)&&lib.validFace(moss)&&!lib.validFace({...moth,traits:[]})&&!lib.validFace({...moss,id:'np001'})&&!lib.validFace({...moss,species:'Lizardfolk'}),'faces only are checked');}
+  console.log('Matching: species and gender, then training (their own class first), then age, then calling and look; the same face for the same person, another for the next while one is free, then the least used; an invented people as the nearest common people (their own people\'s faces first; fur, antennae and the like only with faces that share them); children and ghosts painted.');
   // ---------- The painter: look-alikes free, kept for good; heroes and paintings made before kept ----------
   const dir=path.join(tmp,'people'),art=path.join(tmp,'art');fs.mkdirSync(dir,{recursive:true});fs.mkdirSync(art,{recursive:true});
   for(const e of stock)fs.writeFileSync(path.join(dir,e.id+'.jpg'),jpeg(e.id));
@@ -84,12 +122,38 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   before=paid;await ask(hero);await waitPaid(before+1);assert.equal(paid,before+1,'the player\'s own hero is painted when they ask');
   before=paid;await ask({...hero,species:'Human',gender:'man'});await new Promise(res=>setTimeout(res,30));assert.equal(paid,before,'(and painted once)');
   before=paid;await ask(person('n11',{campaignId:'tale-d',description:'A thin girl with a reed rod.',role:'A girl fishing.'}));await waitPaid(before+1);assert.equal(paid,before+1,'a child is painted');
-  before=paid;await ask(person('n12',{campaignId:'tale-d',species:'Lizardfolk'}));await waitPaid(before+1);assert.equal(paid,before+1,'a kind the library has nobody of is painted');
+  // An invented people: the nearest common people's face, free (a fishwife with scaled hands: a dragonborn's).
+  before=paid;const lizard=await ask(person('n12',{campaignId:'tale-d',species:'Lizardfolk'}));assert.equal(lizard.status,'ready');assert.equal(stock.find(e=>e.id===lizard.library).species,'Dragonborn');assert.equal(stock.find(e=>e.id===lizard.library).gender,'woman');assert.equal(paid,before,'an invented people is not painted');
+  const greenWoman=await ask(person('n13',{campaignId:'tale-d',species:'Mosskin',description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 61-year-old mosskin woman, broad and strong, with olive-green skin.'}));assert.equal(stock.find(e=>e.id===greenWoman.library).species,'Orc');assert.equal(paid,before);
+  assert.equal(validateSubject(person('n13',{species:'Mosskin'})).kin,'mosskin','the invented people\'s name is kept');assert.equal(validateSubject(person('n13',{species:'Human'})).kin,undefined);
+  // Features no common people has, and no face that shares them: painted.
+  before=paid;await ask(person('n14',{campaignId:'tale-d',species:'Mothkin',description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 26-year-old mothkin woman with feathery antennae.'}));await waitPaid(before+1);assert.equal(paid,before+1,'a people whose features no face shares is painted');
+  // Every Human woman of a tale's taken: the least-used face is shown again, never a painting (2026-10-20/21, two
+  // human women were painted; the cause was "fifty-eight-year-old" read as a child).
+  before=paid;const crowd=[];for(let i=20;i<=29;i++)crowd.push((await ask(person('n'+i,{campaignId:'tale-f'}))).library);
+  assert.equal(paid,before,'ten human women in one tale, no painting');assert.equal(new Set(crowd).size,4,'each of the four faces');
+  const counts=Object.values(crowd.reduce((m,id)=>(m[id]=(m[id]??0)+1,m),{}));assert.ok(Math.max(...counts)-Math.min(...counts)<=1,'shown again in turn, the least used first: '+counts);
+  before=paid;const reeve=await ask(person('keeper-w',{campaignId:'tale-g',description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A fifty-eight-year-old human woman, broad-shouldered, with a blunt nose.'}));assert.equal(reeve.status,'ready');assert.equal(paid,before,'"fifty-eight-year-old" is no child');
+  // Faces only in the library (faces.json): shown like any face, never offered as someone to meet.
+  {const faceOnly=(id,extra)=>({id,faceOnly:true,species:'Human',gender:'woman',age:'old',class:null,role:'A funeral caller.',appearance:'A small stooped woman with soft cheeks, a hooked nose and white hair in a looped bun.',kin:null,traits:[],from:null,source:String(id).padStart(64,'a').slice(-64).replace(/[^0-9a-f]/g,'a'),sha256:String(id).slice(2).padStart(64,'0'),name:'Someone',painted:'2026-10-20T14:29:06.623Z',...extra});
+   const onlyFaces=[faceOnly('nf001',{species:null,kin:'mothkin',traits:['antennae'],age:'adult'}),faceOnly('nf002',{from:'tale-h'}),faceOnly('nf003',{gender:'man',appearance:'A broad old man with a white beard and a blue cap, his hands scarred from nets.'})];
+   for(const f of onlyFaces)fs.writeFileSync(path.join(dir,f.id+'.jpg'),jpeg(f.id));fs.writeFileSync(path.join(dir,'faces.json'),JSON.stringify([...onlyFaces,{id:'nf009',faceOnly:true}]));
+   before=paid;const mothkin=await ask(person('n30',{campaignId:'tale-h',species:'Mothkin',description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 30-year-old mothkin woman with ivory antennae.'}));
+   assert.equal(mothkin.library,'nf001','a mothkin is shown the mothkin face painted in another tale');assert.ok(shown(mothkin).includes('nf001'));assert.equal(paid,before,'free');
+   const again=await ask(person('n31',{campaignId:'tale-h',species:'Mothkin',description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 41-year-old mothkin woman with long antennae.'}));assert.equal(again.library,'nf001','a second one there: the same face again rather than a painting');assert.equal(paid,before);
+   const here=[];for(let i=32;i<=35;i++)here.push((await ask(person('n'+i,{campaignId:'tale-h',description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 68-year-old human woman, small and stooped.'}))).library);
+   assert.ok(!here.includes('nf002'),'a face painted for this very tale is never given to someone else in it while others fit');
+   const elsewhere=[];for(let i=0;i<12;i++)elsewhere.push((await ask(person('n1',{campaignId:'tale-old-'+i,description:'A woman, with a woman\'s face: smooth cheeks and chin, no beard, no moustache, no stubble or facial hair of any kind. A 68-year-old human woman, small and stooped.'}))).library);
+   assert.ok(elsewhere.includes('nf002'),'elsewhere it is one of the faces an old woman may have: '+[...new Set(elsewhere)]);
+   assert.ok((await store.people.takenIn(['tale-h'])).has('nf001'),'a face only is noted in the tale like any face');
+   const shelf=lib.createPeopleLibrary({directory:dir,refreshMs:0});await shelf.refresh();assert.equal(shelf.faces().length,3,'a face only that is not whole is left out');
+   assert.ok(!(await shelf.suited({count:400})).some(e=>/^nf/.test(e.id)),'a face only is never offered as someone to meet');assert.equal(await shelf.get('nf001'),null);
+   fs.rmSync(path.join(dir,'faces.json'));}
   // An older client (no species sent): read from the words.
   const words=await ask({campaignId:'tale-e',kind:'portrait',id:'keeper',name:'Hale',description:'A man. Middle-aged dwarf smith with a soot-black beard.',setting:''});assert.equal(stock.find(e=>e.id===words.library).species,'Dwarf');
   // The library's own painter is never answered with a look-alike.
   assert.equal((await ask(lib.portraitSubject(stock[0]),{host:true})).library,undefined);
-  console.log('The painter: a look-alike\'s portrait at no cost (no painting, no usage), kept across restarts, never the face of a library person in the tale or of the journey\'s own people; paintings made before kept; heroes, children and unknown kinds painted; older clients matched by their words.');
+  console.log('The painter: a look-alike\'s portrait at no cost (no painting, no usage), kept across restarts, never the face of a library person in the tale or of the journey\'s own people; paintings made before kept; an invented people given the nearest common people\'s face (their own people\'s first); a tale\'s people never short of a face (the least used shown again); faces only shown, never offered to meet; heroes, children and peoples no face fits painted; older clients matched by their words.');
   // ---------- Creatures of the game's own kinds: painted once for everyone ----------
   {const foes=Object.fromEntries(r.hostileFoes.map(f=>[f.key,{name:f.foe,look:f.appearance}]));same(creatureTemplates,foes,'world-art.cjs keeps hostileEncounter.js hostileFoes (names and looks)');
    same(Object.keys(creatureTemplates).sort(),[...r.templateKeys].sort(),'every template');
@@ -175,7 +239,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-portraits-'));
   // ---------- Ready journeys written ahead are offered the library's people too ----------
   assert.match(readText('dm-server.cjs'),/const cast=live\?await castFor\(loadPeople\(\)\):null;\s*return require\('\.\/adventure-generator\.cjs'\)\.generateAdventure\(\{[^\n]*ahead:true[^\n]*,cast,/,'the library writer passes the castable people');
   // ---------- Revisions ----------
-  {const dm=readText('dm-server.cjs');assert.equal(lib.revision,2);assert.match(dm,/people-library\.cjs'\)\.revision!==2\)/);assert.equal(require('./world-art.cjs').revision,11);}
+  {const dm=readText('dm-server.cjs');assert.equal(lib.revision,3);assert.match(dm,/people-library\.cjs'\)\.revision!==3\)/);assert.equal(require('./world-art.cjs').revision,12);assert.equal(require('./hero-faces.cjs').revision,2);}
   fs.rmSync(tmp,{recursive:true,force:true});
   console.log('Passed: portraits and creatures without paying for paintings.');
  }catch(e){fs.rmSync(tmp,{recursive:true,force:true});console.error(e);process.exit(1);}

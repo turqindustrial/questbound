@@ -27,8 +27,9 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-hero-face-'));
  try{
   // ---------- The choice on the hero ----------
   const fighter=r.readyHero('fighter'),rogue=r.readyHero('rogue'),cleric=r.readyHero('cleric');
-  for(const ok of [undefined,{library:'np001'},{library:'np300'},{painted:'abc123'},{painted:'16y6pqi-w'}])assert.ok(r.validPortraitChoice(ok),'a portrait choice: '+JSON.stringify(ok));
-  for(const bad of [null,'np001',[],{},{library:'np1'},{library:'np0001'},{library:'np001',x:1},{painted:true},{painted:'ABC'},{painted:'a b'},{painted:'x'.repeat(14)},{library:'np001',painted:'abc'}])assert.ok(!r.validPortraitChoice(bad),'refused: '+JSON.stringify(bad));
+  for(const ok of [undefined,{library:'np001'},{library:'np300'},{library:'np690'},{library:'nf001'},{library:'nf1234'},{painted:'abc123'},{painted:'16y6pqi-w'}])assert.ok(r.validPortraitChoice(ok),'a portrait choice: '+JSON.stringify(ok));
+  for(const bad of [null,'np001',[],{},{library:'np1'},{library:'np0001'},{library:'nf01'},{library:'nf12345'},{library:'nx001'},{library:'np001',x:1},{painted:true},{painted:'ABC'},{painted:'a b'},{painted:'x'.repeat(14)},{library:'np001',painted:'abc'}])assert.ok(!r.validPortraitChoice(bad),'refused: '+JSON.stringify(bad));
+  assert.ok(rules.validPortraitChoice({library:'nf001'}),'the campaign server takes a face only too');
   assert.ok(r.isValidCharacter(fighter)&&fighter.portrait===undefined,'a hero from before has no portrait choice and stays valid');
   assert.ok(r.isValidCharacter({...fighter,portrait:{library:'np012'}}));assert.ok(!r.isValidCharacter({...fighter,portrait:{library:'np12'}}),'the save checks refuse a bad portrait');
   assert.ok(!rules.isValidCharacter({...fighter,portrait:{painted:true}}),'and so does the campaign server');
@@ -105,6 +106,18 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-hero-face-'));
   const guestFace=await ask(r.heroArtSubject({...fighter,name:'Guest Hero'}),{mayPaint:()=>false,apiKey:null});assert.equal(guestFace.status,'ready','faces need no allowance and no key');
   console.log('The painter: a fitting library face with no painting and no usage, the same every time and kept; Another face free; paintings made before kept; Paint my own painted once within the allowance, never again by itself.');
 
+  // ---------- Faces only (painted in play, faces.json) are offered to heroes too ----------
+  {const faceOnly=(id,extra)=>({id,faceOnly:true,species:'Human',gender:'woman',age:'young',class:null,role:'A courier.',appearance:'A lean young woman with a narrow freckled face and cropped pale-gold hair, number '+id+'.',kin:null,traits:[],from:null,source:'c'.repeat(64),sha256:id.slice(2).padStart(64,'0'),name:null,painted:null,...extra});
+   const onlyFaces=[faceOnly('nf001'),faceOnly('nf002',{kin:'vair'}),faceOnly('nf003',{from:'tale-faces-only'}),faceOnly('nf004',{species:null,kin:'mothkin',traits:['antennae']})];
+   for(const f of onlyFaces)fs.writeFileSync(path.join(dir,f.id+'.jpg'),jpeg(f.id));fs.writeFileSync(path.join(dir,'faces.json'),JSON.stringify(onlyFaces));
+   const courier={...fighter,name:'Faces Only'},list=await ask(r.heroArtSubject(courier));
+   assert.ok(list.faces.includes('nf001')&&list.faces.includes('nf003'),'faces painted in play are offered to a hero they fit: '+list.faces);assert.ok(!list.faces.includes('nf002')&&!list.faces.includes('nf004'),'never a face of an invented people');
+   const inTale=await ask(r.heroArtSubject(courier,{...r.newAdventure(courier),story:{id:'tale-faces-only'}}));assert.ok(!inTale.faces.includes('nf003'),'never a face painted for someone in the hero\'s own tale');
+   before=paid;const chosen=await ask(r.heroArtSubject({...courier,portrait:{library:'nf001'}}));assert.equal(chosen.status,'ready');assert.equal(chosen.library,'nf001');assert.ok(shown(chosen).includes('nf001'));assert.equal(paid,before,'chosen, it is shown free');
+   assert.equal(r.heroArtSubject({...courier,portrait:{library:'nf001'}}).face,'nf001');assert.equal(validateSubject(r.heroArtSubject({...courier,portrait:{library:'nf001'}})).face,'nf001','the server keeps a face only\'s id');
+   fs.rmSync(path.join(dir,'faces.json'));
+   console.log('Faces only: offered to heroes they fit (never an invented people\'s, never one painted for the hero\'s own tale), chosen and shown free.');}
+
   // ---------- Two heroes at a table, and the tale's people ----------
   const table={...r.newAdventure(fighter),party:{lead:'seat-b',members:{'seat-a':{character:JSON.stringify({...fighter,portrait:{library:first.library}})},'seat-b':{character:JSON.stringify(fighter)}}}};
   const third={...fighter,name:'Third Blade'},thirdAtTable=r.heroArtSubject(third,table);
@@ -153,7 +166,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-hero-face-'));
   assert.match(party,/<HeroPortrait hero=\{c\.face\} game=\{game\} size=\{20\}\/>/,'each hero at the table shows their own choice');
   assert.match(portrait,/heroArtSubject\(hero,game\)/);
   for(const file of ['HeroFacePicker.js'])assert.ok(!/#[0-9a-f]{3,8}\b/i.test(readText(file).replace(/tint\('#[0-9a-f]+'\)/gi,'')),'colours in tint()');
-  assert.equal(faces.revision,1);assert.equal(require('./world-art.cjs').revision,11);
+  assert.equal(faces.revision,2);assert.equal(require('./world-art.cjs').revision,12);
   console.log('Screens: the builder\'s review and the Character Sheet show the face with Another face and Paint my own; the party cards show each hero\'s own.');
   console.log('Passed: free hero portraits by default, a choice of faces, and Paint my own once.');
  }finally{fs.rmSync(tmp,{recursive:true,force:true});}

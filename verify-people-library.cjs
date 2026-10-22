@@ -4,7 +4,10 @@ const {requestParts,requestScene}=require('./dm-server.cjs');
 // keep in mind every class, race, and gender", then "let's cut that npc amount to 300 for now and make sure they are
 // all entirely unique"). Checks: the plan (300 people: every class with every species once, each class and species
 // with all three genders, the rest ordinary folk spread evenly over species and gender, every calling and hook theme
-// its own), the host-only 'people-batch' mode and how it tidies what the model writes (entirely unique: no name part
+// its own), the second batch (2026-10-22, the host: "make about 30 different portraits per race, appealing to all
+// classes and non classes alike": 390 more, np301…np690, thirty a species, half trained, every class, every gender over
+// every age, every calling and hook theme new), the host-only 'people-batch' mode and how it tidies what the model
+// writes (the slot's age kept when it gives one; entirely unique: no name part
 // reused, no near-identical look, calling or hook), the people offered to the Dungeon Master where the hero is, an
 // introduction from the library filled in whole and kept with its pool id (on a device and at the campaign server),
 // never the same person twice in a game, portraits answered from the library with no painting and no usage, the story
@@ -35,6 +38,23 @@ same(lib.placeKinds,[...r.placeKinds],'people-library.cjs keeps mapRules placeKi
  assert.ok(!plan.some(s=>/\bchild|\bboy\b|\bgirl\b/i.test(s.roleHint)),'no children');
  for(let i=0;i<plan.length;i+=20)assert.ok(writer.validBrief(plan.slice(i,i+20)),'every batch is a brief the mode accepts');
  console.log('Plan: 300 people, every class with every species once (169) with all three genders in each class and species, 131 ordinary folk spread evenly over species and gender, a calling and a hook theme of its own for each, every land and kind of place.');}
+// ---------- The second batch: about thirty more of each species, np301…np690 ----------
+{const {planSecondBatch,planFor}=require('./make-people-library.cjs'),second=planSecondBatch(),first=planPeople(),all=planFor(2);
+ same(second,planSecondBatch(),'always the same');same(planFor(1),first,'the first batch alone unless asked');same(all,[...first,...second],'both batches');
+ assert.equal(second.length,390);same(second.map(s=>s.slot),Array.from({length:390},(_,i)=>'np'+String(301+i)),'ids np301…np690, after the first batch');
+ for(const sp of lib.speciesList){
+  const mine=second.filter(s=>s.species===sp);assert.equal(mine.length,30,sp);assert.equal(mine.filter(s=>s.class).length,15,'half trained: '+sp);
+  same([...new Set(mine.filter(s=>s.class).map(s=>s.class))].sort(),[...lib.classList].sort(),'every class with every species: '+sp);
+  for(const g of lib.genderList){const theirs=mine.filter(s=>s.gender===g);assert.equal(theirs.length,10,sp+' '+g);same(lib.ages.map(a=>theirs.filter(s=>s.age===a).length),[3,2,2,3],'each gender over every age, young and old adults most: '+sp+' '+g);assert.equal(theirs.filter(s=>s.class).length,5);}
+ }
+ for(const c of lib.classList){const theirs=second.filter(s=>s.class===c);assert.equal(theirs.length,15,c);same([...new Set(theirs.map(s=>s.gender))].sort(),[...lib.genderList].sort(),'every class has all three genders: '+c);}
+ assert.equal(new Set(all.map(s=>s.roleHint)).size,690,'every calling its own, across both batches');assert.equal(new Set(all.map(s=>s.hookTheme)).size,690,'every hook theme its own, across both batches');
+ for(const t of lib.terrains){const n=second.filter(s=>s.terrain===t).length;assert.ok(n>=43&&n<=44,'lands spread evenly: '+t+' '+n);}
+ for(const k of lib.placeKinds)assert.ok(second.some(s=>s.placeKinds.includes(k)),'every kind of place: '+k);
+ assert.ok(!second.some(s=>/\bchild|\bboy\b|\bgirl\b/i.test(s.roleHint)),'no children');
+ for(let i=0;i<second.length;i+=20)assert.ok(writer.validBrief(second.slice(i,i+20)),'every batch of the second is a brief the mode accepts');
+ assert.ok(!writer.validBrief([{...second[0],age:'ancient'}]),'an age is one of the four');
+ console.log('Second batch: 390 people (np301…np690), thirty a species, fifteen trained (every class with every species) and fifteen ordinary, ten of each gender over every age (young and old adults most), every calling and hook theme its own across both batches, every land and kind of place.');}
 // A library person as the writer returns them.
 const person=(id,extra={})=>({id,name:'Person '+id,gender:'woman',species:'Human',age:'adult',role:'A ferry keeper.',class:null,appearance:'A tall woman with weathered hands, a grey wool coat, a silver ring in one ear and a long scar over her left brow from an old rope burn.',personality:'Slow to speak, quick to laugh.',motive:'Keep the ferry running until her son comes home.',voice:'Calls everyone "cousin".',hook:'She hides a smuggler\'s ledger under the ferry boards.',placeKinds:['water','road'],terrains:['marsh'],toughness:'common',attitude:'friendly',...extra});
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
@@ -71,6 +91,15 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    // A woman's beard is taken out, whatever the model wrote.
    const w=writer.tidyPeople({people:[{slot:'np001',...person('np001',{name:'Gerta Oakhollow',species:'Dwarf',appearance:'A stout dwarf woman with a braided red beard, a leather apron and bright eyes under heavy brows, her hands scarred from years at the forge and the bellows.'})}]},[{slot:'np001',species:'Dwarf',gender:'woman',class:null,roleHint:'smith',hookTheme:'a sealed door',placeKinds:['settlement'],terrain:'hills'}]);
    assert.equal(w.people.length,1);assert.ok(!/beard/i.test(w.people[0].appearance),w.people[0].appearance);
+   // The second batch's slots give an age: the schema allows only those, the input carries them, and a person of
+   // another age is asked for again.
+   {const aged=require('./make-people-library.cjs').planSecondBatch().slice(0,6),schema=writer.peopleSchema(aged).properties.people.items.properties.age.enum;
+    same(schema,lib.ages.filter(a=>aged.some(s=>s.age===a)),'only the ages asked for');same(writer.peopleSchema(planPeople().slice(0,3)).properties.people.items.properties.age.enum,lib.ages,'a brief without ages allows every age');
+    const slot={slot:'np301',species:'Dwarf',gender:'woman',class:null,age:'young',roleHint:'potter',hookTheme:'a sealed letter',placeKinds:['settlement'],terrain:'hills'};
+    const keep=writer.tidyPeople({people:[{slot:'np301',...person('np301',{name:'Hesk Ormwyn',species:'Dwarf',age:'young'})}]},[slot]);assert.equal(keep.people.length,1);assert.equal(keep.people[0].age,'young');
+    assert.equal(writer.tidyPeople({people:[{slot:'np301',...person('np301',{name:'Hesk Ormwyn',species:'Dwarf',age:'old'})}]},[slot]).refused[0].reason,'age','another age is asked for again');
+    const sent=[];await writer.writePeople({input:'x',context:{mode:'people-batch',brief:[slot]}},{apiKey:'k',model:'m',libraryFile:path.join(tmp,'none.json'),fetchImpl:async(u,o)=>{sent.push(JSON.parse(o.body));return done({people:[{slot:'np301',...person('np301',{name:'Hesk Ormwyn',species:'Dwarf',age:'young'})}]});}});
+    assert.equal(requestScene(sent[0]).brief[0].age,'young','the age is sent');assert.match(requestParts(sent[0]).instructions,/When the slot gives an age, use exactly that age/);}
    // Entirely unique: names by every part (case and accents aside), looks, callings and hooks against the library so far.
    const slot1=[{slot:'np001',species:'Human',gender:'woman',class:null,roleHint:'ferry keeper',hookTheme:'a sealed door',placeKinds:['water'],terrain:'marsh'}],one=(extra,avoid=[],existing=[])=>writer.tidyPeople({people:[{slot:'np001',...person('np001',extra)}]},slot1,avoid,existing);
    assert.equal(one({name:'Sefa Wren'},['Sefa Ashgrove']).refused[0].reason,'name used','a given name already in the library is refused');
@@ -212,7 +241,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    const fake=http.createServer((req,res)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{const body=JSON.parse(raw),c=body.context,send=(s,d)=>{res.writeHead(s,{'Content-Type':'application/json'});res.end(JSON.stringify(d));};
     if(req.headers.origin!=='http://localhost:8081')return send(403,{error:'Origin'});
     if(c.mode==='people-batch'){batches++;
-     const written=c.brief.map((s,i)=>({...person(s.slot,{name:'Ka'+letters(s.slot.slice(2))+' Mor'+letters(s.slot.slice(2)),gender:s.gender,species:s.species,class:s.class,role:'A '+s.roleHint+'.',appearance:'A figure '+own(s.slot,0,20)+'.',hook:own(s.slot,40,8)+' '+s.hookTheme+'.',placeKinds:s.placeKinds,terrains:[s.terrain]}),slot:s.slot,...(i===0&&batches===1?{name:'Gandalf Grey'}:{})}));
+     const written=c.brief.map((s,i)=>({...person(s.slot,{name:'Ka'+letters(s.slot.slice(2))+' Mor'+letters(s.slot.slice(2)),gender:s.gender,species:s.species,class:s.class,age:s.age??'adult',role:'A '+s.roleHint+'.',appearance:'A figure '+own(s.slot,0,20)+'.',hook:own(s.slot,40,8)+' '+s.hookTheme+'.',placeKinds:s.placeKinds,terrains:[s.terrain]}),slot:s.slot,...(i===0&&batches===1?{name:'Gandalf Grey'}:{})}));
      const out=writer.tidyPeople({people:written},c.brief,c.avoidNames);
      // Once, a person the stand-in passes but who looks like someone the script already keeps: the script refuses them.
      if(batches===2&&!copied&&out.people.length){copied=true;const kept=JSON.parse(fs.readFileSync(path.join(data,'.questbound-people','library.json'),'utf8'))[0];out.people[0]={...out.people[0],appearance:kept.appearance};}
@@ -235,9 +264,22 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-people-'));
    a=await run(['--portraits','--limit','3']);assert.equal(paintings,8,'resumed: the painted ones skipped');
    quota=true;a=await run(['--portraits']);assert.equal(a.code,2,'a quota refusal stops cleanly');assert.match(a.out,/Stopped: OpenAI refused the painting for billing, quota or access/);
    a=await run(['--plan']);assert.match(a.out,/Plan written: 300 people/);
+   assert.match(a.out,/To write: \d+ people \(text about \$[\d.]+\)\. To paint: \d+ portraits \(about \$[\d.]+ at \$0\.03 a portrait\)/,'the plan says what is left and about what it costs');
    assert.doesNotMatch(readText('make-people-library.cjs'),/total-budget|reserve/,'no pacing to the game\'s ceilings: the host funds these jobs');
+   // The second batch, once the first is written: --plan with its cost, then the people with the slots' ages.
+   {const data2=path.join(tmp,'data2'),shelf2=path.join(data2,'.questbound-people');fs.mkdirSync(shelf2,{recursive:true});
+    const firstBatch=planPeople().map(s=>person(s.slot,{name:'Fa'+letters(s.slot.slice(2))+' Lo'+letters(s.slot.slice(2)),gender:s.gender,species:s.species,class:s.class,role:'A '+s.roleHint+'.',appearance:'A figure '+own(s.slot,0,20)+'.',hook:own(s.slot,40,8)+'.',placeKinds:s.placeKinds,terrains:[s.terrain]}));
+    fs.writeFileSync(path.join(shelf2,'library.json'),JSON.stringify(firstBatch));for(const p of firstBatch)fs.writeFileSync(path.join(shelf2,p.id+'.jpg'),'x');
+    const run2=args=>new Promise(res=>{const {spawn}=require('node:child_process');const p=spawn(process.execPath,['make-people-library.cjs','--no-desktop',...args],{env:{...process.env,QUESTBOUND_DATA:data2,QB_DM_URL:url},cwd:__dirname});let out='';p.stdout.on('data',d=>out+=d);p.stderr.on('data',d=>out+=d);p.on('close',code=>res({code,out}));});
+    let b=await run2(['--batch','2','--plan']);assert.equal(b.code,0,b.out);assert.match(b.out,/Plan written: 690 people/);assert.match(b.out,/The second batch: 390 people \(np301…np690\)/);assert.match(b.out,/Human\s+30\s+trained 15, ordinary 15\s+·\s+10\/10\/10\s+·\s+9\/6\/6\/9/);
+    assert.match(b.out,/To write: 390 people \(text about \$[\d.]+\)\. To paint: 390 portraits \(about \$11\.70 at \$0\.03 a portrait\)/,'the second batch costs about $0.03 a portrait');
+    const before=batches;b=await run2(['--batch','2','--limit','25']);assert.equal(b.code,0,b.out);assert.ok(batches>before);
+    const added=JSON.parse(fs.readFileSync(path.join(shelf2,'library.json'),'utf8')).filter(p=>Number(p.id.slice(2))>300),plan2=require('./make-people-library.cjs').planSecondBatch();
+    assert.ok(added.length>=20&&added.length<=25,'a limited run writes about that many of the second batch: '+added.length);assert.ok(added.every(p=>p.age===plan2.find(s=>s.slot===p.id).age),'each with the age its slot asked for');
+    b=await run2(['--batch','3']);assert.equal(b.code,1);assert.match(b.out,/--batch is 1 or 2/);
+    b=await run2(['--limit','5']);assert.match(b.out,/All 300 people are written/,'without --batch 2 nothing of the second batch is written');}
    fake.close();
-   console.log('make-people-library.cjs: writes the plan, then the people in batches (refused names and near-duplicates asked again, checked again by the script), resumable; paints one portrait at a time, resumable, whatever the game\'s ceilings; stops cleanly on a quota refusal.');}
+   console.log('make-people-library.cjs: writes the plan (with what is left and about what it costs), then the people in batches (refused names and near-duplicates asked again, checked again by the script), resumable; the second batch only with --batch 2, each person of the age their slot asks; paints one portrait at a time, resumable, whatever the game\'s ceilings; stops cleanly on a quota refusal.');}
   fs.rmSync(tmp,{recursive:true,force:true});
   console.log('Passed: the people library.');
  }catch(e){fs.rmSync(tmp,{recursive:true,force:true});console.error(e);process.exit(1);}

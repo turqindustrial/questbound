@@ -27,8 +27,9 @@ export default function HeroFacePicker({hero,game=null,value,onChange,auto=false
   let current=true;setList(l=>({...l,status:'loading'}));
   askArt(listSubject).then(result=>{
    if(!current||!live.current)return;
-   const faces=Array.isArray(result?.faces)?result.faces.filter(id=>/^np\d{3}$/.test(String(id))):[];
-   const next={status:result?.status==='ready'||faces.length?'ready':'failed',faces,own:result?.own===true,library:/^np\d{3}$/.test(String(result?.library))?result.library:null,error:result?.status==='failed'?String(result.error??''):''};
+   const libraryFace=id=>/^(?:np\d{3}|nf\d{3,4})$/.test(String(id));
+   const faces=Array.isArray(result?.faces)?result.faces.filter(libraryFace):[];
+   const next={status:result?.status==='ready'||faces.length?'ready':'failed',faces,own:result?.own===true,library:libraryFace(result?.library)?result.library:null,error:result?.status==='failed'?String(result.error??''):''};
    setList(next);
    if(!auto)return;
    const now=valueRef.current;

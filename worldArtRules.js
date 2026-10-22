@@ -91,7 +91,8 @@ export function heroArtHash(hero){
 //   campaigns, so the faces given to its people are kept out too and the hero's face is kept out of theirs.
 // None of those fields is part of the art key (only `face` is part of the device's cache key, artClient.js).
 const heroFaceSpecies=hero=>{const s=String(hero.species??hero.race??'');return s==='Elf'&&['High Elf','Wood Elf','Drow'].includes(hero.lineage)?hero.lineage:s==='Dark Elf'?'Drow':s;};
-const faceOf=hero=>/^np\d{3}$/.test(String(hero?.portrait?.library))?hero.portrait.library:null;
+// A library face: a person's (np123) or a face only painted in play (nf012).
+const faceOf=hero=>/^(?:np\d{3}|nf\d{3,4})$/.test(String(hero?.portrait?.library))?hero.portrait.library:null;
 function heroFaceContext(game,hero){
  if(!game)return {};
  const party=game.party?.members?Object.values(game.party.members).map(m=>{try{return faceOf(JSON.parse(m.character));}catch{return null;}}):[];

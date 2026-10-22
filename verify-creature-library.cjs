@@ -158,7 +158,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'qb-creatures-'));
    server.close();}
   console.log('make-creature-library.cjs: says what it would cost, copies the game\'s own template paintings free, paints the rest one at a time through the host\'s Dungeon Master under the library\'s campaign, resumable, a Desktop copy, stops cleanly on a quota refusal.');
   // ---------- Revisions ----------
-  {const dm=fs.readFileSync(path.join(__dirname,'dm-server.cjs'),'utf8'),literals=[...dm.matchAll(/world-art\.cjs'\)\.revision!==(\d+)/g)].map(m=>Number(m[1]));assert.equal(require('./world-art.cjs').revision,11);assert.ok(literals.length>=3&&literals.every(n=>n===11));assert.equal(L.revision,1);
+  {const dm=fs.readFileSync(path.join(__dirname,'dm-server.cjs'),'utf8'),literals=[...dm.matchAll(/world-art\.cjs'\)\.revision!==(\d+)/g)].map(m=>Number(m[1]));assert.equal(require('./world-art.cjs').revision,12);assert.ok(literals.length>=3&&literals.every(n=>n===12));assert.equal(L.revision,1);
    assert.match(fs.readFileSync(path.join(__dirname,'world-art.cjs'),'utf8'),/delete require\.cache\[require\.resolve\('\.\/creature-library\.cjs'\)\]/,'world-art loads the creature library afresh');assert.match(fs.readFileSync(path.join(__dirname,'creature-library.cjs'),'utf8'),/delete require\.cache\[require\.resolve\('\.\/creature-catalogue\.cjs'\)\]/);}
   console.log('Passed: the creature library.');
  }finally{fs.rmSync(tmp,{recursive:true,force:true});}

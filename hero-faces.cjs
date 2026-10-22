@@ -1,7 +1,7 @@
 // Free hero portraits by default (2026-10-17, the host's words: "Free hero portraits by default: offer each new hero a
 // matching library face right away, with an optional 'paint my own' for 3¢"). A hero's portrait subject
 // (worldArtRules.js heroArtSubject) says which face it wants:
-// - `face:'np123'`: that person's ready portrait from the host's people library (people-library.cjs), free; never
+// - `face:'np123'` (or a face only, 'nf012'): that ready portrait from the host's people library (people-library.cjs), free; never
 //   painted (a face missing from the library is refused, and the picker offers another);
 // - `face:'own'`: the hero's own painting, made earlier through Paint my own; shown from disk, never painted again;
 // - `face:'default'` (every hero without a choice, heroes from before included): the hero's own painting when one was
@@ -15,9 +15,12 @@
 // The answer to 'default' also lists every fitting free face (`faces`, for Another face) and says whether the hero has
 // a painting of their own (`own`). Nothing here paints or records usage. world-art.cjs loads this module afresh when
 // it loads: a change here raises world-art's revision and dm-server.cjs's literals together.
+// Faces only (2026-10-22: the faces painted in play, people-library.cjs faces.json, ids nf001…) are offered to heroes
+// too, except a face of an invented people (one with `kin`, or with features no common people has) and a face painted
+// for one of the hero's own tales (`from`: someone there wears it).
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto');
-const revision=1;
-const facePattern=/^np\d{3}$/;
+const revision=2;
+const {faceIdPattern:facePattern,unlikeOf}=require('./people-library.cjs');
 const isHeroCampaign=c=>/^hero-[0-9a-z]{1,13}$/.test(String(c));
 // What world-art.cjs validateSubject keeps of a hero subject beside the usual fields: only known values.
 function heroSubjectFields(value){
@@ -56,7 +59,7 @@ function heroFaceMatch(subject,speciesList){
 // an ordinary one), unless the face is far older or younger than the hero (a 29-year-old is not given a retired
 // soldier's face), then look words, then a hash of the hero.
 function rankHeroFaces(entries,match,{seed='',usable=()=>true}={}){
- const kin=entries.filter(e=>match.species.includes(e.species)&&(!match.gender||e.gender===match.gender)&&usable(e));
+ const kin=entries.filter(e=>match.species.includes(e.species)&&(!match.gender||e.gender===match.gender)&&!e.kin&&!unlikeOf(e.traits).length&&usable(e));
  const score=e=>[(match.trained&&e.class===match.trained?1.5:e.class?0.5:0)+(match.age&&e.age?2-Math.min(2,Math.abs(ages.indexOf(e.age)-ages.indexOf(match.age))):0),overlap(match.look,wordsOf(e.role+' '+e.appearance)),preference(seed,e.id)];
  const better=(a,b)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]>b[i];return false;};
  return kin.map(e=>({e,s:score(e)})).sort((a,b)=>better(a.s,b.s)?-1:better(b.s,a.s)?1:0).map(x=>x.e);
@@ -89,8 +92,9 @@ function createHeroFaces({directory=null,people,speciesList}){
   // The default: the hero's own painting if there is one, else the face kept for them, else the best that fits.
   await people.refresh?.();
   const match=heroFaceMatch(subject,speciesList),previous=await keptFace(subject.campaignId);
-  const ranked=match?rankHeroFaces(people.entries?.()??[],match,{seed:subject.campaignId,usable:e=>people.hasPortrait?.(e.id)??true}):[];
+  const ranked=match?rankHeroFaces(people.allFaces?.()??people.entries?.()??[],match,{seed:subject.campaignId,usable:e=>people.hasPortrait?.(e.id)??true}):[];
   let taken=new Set(subject.avoid??[]);try{for(const id of await people.takenIn?.(subject.tales??[])??[])taken.add(id);}catch{}
+  for(const f of people.faces?.()??[])if(f.from&&subject.tales?.includes(f.from))taken.add(f.id);
   taken.delete(previous);
   const free=ranked.filter(e=>!taken.has(e.id)),faces=(free.length?free:ranked).map(e=>e.id).slice(0,24);
   if(await painted(key))return {...await plain(),own:true,faces};
