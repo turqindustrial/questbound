@@ -14,7 +14,7 @@ let storyEngine;
 function storyChecks(){
  if(storyEngine)return storyEngine;
  const source=rulesSource();
- storyEngine=vm.runInNewContext(source+'\n;({readyHero,newAdventure,freshStoryGame,validStory,validAdventure,adventureSnapshot})',{AsyncStorage:{},console},{timeout:3000});
+ storyEngine=vm.runInNewContext(source+'\n;({readyHero,newAdventure,freshStoryGame,validStory,validAdventure,adventureSnapshot,writtenCheck})',{AsyncStorage:{},console},{timeout:3000});
  return storyEngine;
 }
 module.exports={rules,storyChecks};

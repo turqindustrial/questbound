@@ -551,6 +551,9 @@ const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64
 // ceilings and the guests' pause switch) when the module has it; without it, writing is paced by the library alone.
 // Tests pass a stand-in `library`.
 function loadLibrary(){if(require('./tale-library.cjs').revision!==5)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
+// The Written tales shelf (written-shelf.cjs) stays loaded too: tales written by hand and checked, served for good
+// (never retired), listed and started at no cost. Tests pass a stand-in `written`.
+function loadWritten(){if(require('./written-shelf.cjs').revision!==1)delete require.cache[require.resolve('./written-shelf.cjs')];return require('./written-shelf.cjs').shelf;}
 function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
 // A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
 // adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and
@@ -720,7 +723,7 @@ function cacheKeyFor(body){
  let h=0;for(const ch of who)h=(h*31+ch.charCodeAt(0))>>>0;
  return {prompt_cache_key:'qb-dm-'+(h%cacheBuckets)};
 }
-async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null,moderation=null,people=null,portraits=null,holdCache=null}){
+async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null,written=null,moderation=null,people=null,portraits=null,holdCache=null}){
   if(fetchImpl===fetch)({model,storyModel}=liveModels(model,storyModel));
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
   // only), so misuse by one player is never taken for the host's own. Tests pass a stand-in `spending`.
@@ -738,8 +741,14 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   // that costs nothing, and keeps the library topped up.
   // Only the library writes a journey's brief: a brief sent by a browser is dropped.
   if(body.context.libraryBrief!==undefined)delete body.context.libraryBrief;
-  const shelf=library??(live?loadLibrary():null);
-  if(body.context.mode==='art'&&body.context.journeys==='list'){if(!shelf)return {journeys:[]};try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend});}catch{}return {journeys:shelf.list({cover:journeyCovers()})};}
+  const shelf=library??(live?loadLibrary():null),tales=written??(live?loadWritten():null);
+  // The listing carries the written tales' cards beside the journeys (an older game reads only `journeys`).
+  if(body.context.mode==='art'&&body.context.journeys==='list'){
+   const cover=journeyCovers(),shelved=(()=>{try{return tales?tales.list({cover}):[];}catch{return [];}})();
+   if(!shelf)return {journeys:[],written:shelved};
+   try{topUpLibrary(shelf,{apiKey,storyModel,effort:live?storyEffort(storyReasoning):storyReasoning,fetchImpl,live,spend});}catch{}
+   return {journeys:shelf.list({cover}),written:shelved};
+  }
   if(body.context.mode==='art'){if(require('./world-art.cjs').revision!==12)delete require.cache[require.resolve('./world-art.cjs')];return require('./world-art.cjs').artStore.request(body.context.subject,{apiKey,model,retry:body.context.retry===true,safety,mayPaint,host:!guest,onUnmatched:note=>recordCreatureMiss(note,live,guest),onPainted:(u,imageModel)=>recordUsage('art',model,u,live,guest,{images:1,imageModel,job:hostJobOf(body.context.subject,guest)})});}
   // Only the host checks the AI connection: its answer describes the key's shape.
   if(body.context.mode==='diagnostics'){if(guest)throw Object.assign(Error('Only the host can check the AI connection, on the PC itself.'),{httpStatus:403});return diagnose({apiKey,model,fetchImpl});}
@@ -755,8 +764,12 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   if(check){const typed=typedByPlayer(body);if(typed){const v=await check.check(typed,{apiKey,guest,purpose:'turn'});if(v.action!=='allow')throw Object.assign(Error(v.line),{httpStatus:422});}}
   // Once guests have used the host's daily allowance (or this guest their share), or a ceiling is reached, or the host
   // paused guests, they are refused before anything is asked of the AI. New tales and drafted heroes are counted per guest too.
+  // A written tale's start (a tale on the shelf by its id, or one by chance for a game from before the shelf asking for
+  // Let fate decide or Easy to get into) costs no AI, so it spends no new-tale allowance; the host's ceilings and pause
+  // still apply to it, as to everything a guest asks.
+  const writtenStart=body.context.mode==='adventure'&&!!tales&&!body.context.continuing&&(()=>{try{const j=body.context.journey;return j!==undefined?tales.has(String(j)):!body.context.idea&&['easy','surprise'].includes(String(body.context.introId??'surprise'))&&tales.list().length>0;}catch{return false;}})();
   if(guest&&spend){const verdict=spend.check(guest);if(!verdict.ok)throw Object.assign(Error(verdict.error),{httpStatus:verdict.status??503});
-    const kind=body.context.mode==='adventure'?'tale':body.context.mode==='character'?'hero':null,counted=kind&&spend.allow?spend.allow(guest,kind):null;
+    const kind=writtenStart?null:body.context.mode==='adventure'?'tale':body.context.mode==='character'?'hero':null,counted=kind&&spend.allow?spend.allow(guest,kind):null;
     if(counted&&!counted.ok)throw Object.assign(Error(counted.error),{httpStatus:counted.status??429});}
   // While people play, the library of ready journeys is kept full (one journey at a time, in the background).
   const storyEffortNow=live?storyEffort(storyReasoning):storyReasoning;
@@ -767,6 +780,9 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     // A tale that is not the next in a region may cast residents from the host's ready-made people.
     const castLib=people??(live?loadPeople():null);
     const write=(reasoning,timeout)=>{const go=cast=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,cast,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});return castLib&&!body.context.continuing?castFor(castLib).then(go):go(null);};
+    // A written tale the player chose (or, for a game from before the shelf, a Short one by chance) starts at once:
+    // their own copy, from the shelf, before any journey of the story writer's.
+    if(writtenStart){const j=body.context.journey,copy=j!==undefined?tales.start(String(j)):tales.any('short');if(copy)return {story:copy,ahead:true,journey:true,written:true};}
     // A ready journey the player chose starts at once: their own copy of it (it is not used up). A journey that has just
     // left the library is refused, and the game shows the journeys on offer again.
     if(shelf&&body.context.journey!==undefined&&!body.context.continuing){const copy=shelf.start(String(body.context.journey));try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend});}catch{}if(!copy)throw Object.assign(Error('That journey has just left the library. Choose another; your adventure is unchanged.'),{httpStatus:409});return {story:copy,ahead:true,journey:true};}
@@ -1273,4 +1289,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={standingPrompt,heroPrompt,replySchemaFor,asFields,flatReply,cacheKeyFor,promptLayout,sceneParts,sceneMessages,turnRequest,requestParts,requestScene,phaseFields,hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,libraryPaused,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={loadWritten,standingPrompt,heroPrompt,replySchemaFor,asFields,flatReply,cacheKeyFor,promptLayout,sceneParts,sceneMessages,turnRequest,requestParts,requestScene,phaseFields,hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,libraryPaused,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
