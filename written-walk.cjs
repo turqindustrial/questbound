@@ -8,7 +8,7 @@
 //   walkTale({r, story, hero, heroAt, steps|mode, seed, levelUps}) -> {ok, ending, moves, chapters, levels, log, error}
 // `r` is the rules (rules-files.cjs, run in a context of the caller's own: it must export the names in `needs`).
 'use strict';
-const needs=['freshStoryGame','newAdventure','adventureStep','stagedPreview','settleTurn','commitDmTurn','routineTelling','dmChoices','mapMoves','beatSent','beatKey','stagingIds','validAdventure','adventureSnapshot','withAttackIntent','npcScene','levelUpReady','advancedInPlace','foeForLevel','levelCompanions','combatBasics','standingOffers','mapLocation','worldPlaces','lootError','placeName','storyText'];
+const needs=['dmCommand','freshStoryGame','newAdventure','adventureStep','stagedPreview','settleTurn','commitDmTurn','routineTelling','dmChoices','mapMoves','beatSent','beatKey','stagingIds','validAdventure','adventureSnapshot','withAttackIntent','npcScene','levelUpReady','advancedInPlace','foeForLevel','levelCompanions','combatBasics','standingOffers','mapLocation','worldPlaces','lootError','placeName','storyText'];
 // A small seeded generator (mulberry32): the same seed, the same dice.
 function seeded(seed){let a=(seed>>>0)||1;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
 const plain=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
@@ -125,7 +125,8 @@ function walkTale({r,story,hero,heroAt=null,steps=null,mode='steps',seed=1,level
   if(k!=='fight'&&k!=='confront'&&k!=='attack')settleFights();
   if(done())return;
   if(k==='go')go(place(v));
-  else if(k==='say')talk(v,(s.speakers??[]).map(person));
+  // Words the game reads as a move of its own (an order to a companion, a blow) are that move, as on a device.
+  else if(k==='say'){const command=r.dmCommand(hero,game,v,health,null);if(command?.action)engine(command.action,v);else talk(v,(s.speakers??[]).map(person));}
   else if(k==='fight'){const where=game.wildFight?.place??r.mapLocation(game);fight(false,null,/^p\d/.test(where)?atPlace(where):null);}
   else if(k==='confront'){settleFights();go('bridge');const c=r.dmChoices(hero,game,health).find(x=>x.id==='approach');if(!c)throw new WalkError(game.story.foe+' cannot be confronted here now');engine('approach','I confront '+game.story.foe+'.');fight(v==='subdue',null,atFoe());}
   else if(k==='attack'){const id=person(v.who),home=game.people?.[id]?.home;settleFights();if(!people().some(n=>n.id===id)&&home)go(home);
