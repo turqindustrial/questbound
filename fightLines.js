@@ -331,6 +331,8 @@ function flHeroName(hero,game){
  return first.length>=2&&!others.some(n=>n.split(/\s+/)[0].toLowerCase()===first.toLowerCase())?first:whole;
 }
 // A line in the voice the table needs: the second person alone, the hero's name at a table of several heroes.
+// The shorter half of a pool's lines (at least three), for a brief telling.
+const flShorter=list=>[...list].sort((a,b)=>a.s.length-b.s.length||a.r-b.r).slice(0,Math.max(3,Math.ceil(list.length/2)));
 const flForm=(line,party)=>{const at=line.indexOf('|');return at<0?line:party?line.slice(at+1):line.slice(0,at);};
 // A creature's kind is a common noun ("the goblin raider"); a person or the tale's own foe keeps their name.
 const flCommon=name=>{const n=String(name??'').trim();if(!n)return 'your foe';return 'the '+n.replace(/^(?:the|a|an)\s+/i,'').toLowerCase();};
@@ -392,7 +394,9 @@ function flSpellOf(step,game){
 // The telling of a routine fight move: what the hero did, how friends and foes answered, and a spoken line or two.
 // Seeded by the turn, so every device and the campaign server write the same words; lines used in the last turns are
 // passed over while others are left.
-export function fightTelling({hero,before,after,health,afterHealth,action,events=[],narrator='chronicler',brutality='gritty'}){
+// brief (Not so wordy, storyPreferences.js): each part from the shorter half of its lines, and only the parts that say
+// what happened (no second blow, no pressing foe, no barks or creature sounds).
+export function fightTelling({hero,before,after,health,afterHealth,action,events=[],narrator='chronicler',brutality='gritty',brief=false}){
  const voice=fightLineBook[narrator]??fightLineBook.chronicler,keep=s=>brutality!=='restrained'||!s.startsWith('!');
  // At a table of several heroes the lines name the one acting (their twins), by first name unless another hero there
  // shares it; alone, the second person as ever.
@@ -400,7 +404,8 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
  const turnId=(before.playback?.at(-1)?.id??0)+1,seed=[before.story?.id??'',turnId,JSON.stringify(action)??'',narrator,(events??[]).join('\n')].join('|');
  const recent=(before.playback??[]).map(t=>(t.events??[]).map(e=>e.text).join('\n')),used=new Set();
  const pick=(slot,pool,vars={},plain=false)=>{
-  const rng=flRng(seed+'#'+slot),list=(pool??[]).filter(keep).map(s=>({s:flFill(flForm(s.replace(/^!/,''),party&&!plain),{...vars,...named}),r:rng()})).sort((a,b)=>a.r-b.r);
+  const rng=flRng(seed+'#'+slot),all=(pool??[]).filter(keep).map(s=>({s:flFill(flForm(s.replace(/^!/,''),party&&!plain),{...vars,...named}),r:rng()}));
+  const list=(brief?flShorter(all):all).sort((a,b)=>a.r-b.r);
   let best=null,seen=Infinity;
   for(const c of list){if(used.has(c.s))continue;let at=-1;for(let k=recent.length-1;k>=0;k--)if(recent[k].includes(c.s)){at=k;break;}if(at<seen){best=c;seen=at;}if(at===-1)break;}
   if(!best)return '';used.add(best.s);return best.s;
@@ -424,7 +429,7 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
    const first=blows[0],t=targetOf(first.target),wk=flWeaponKind(first.weapon,first.thrown),v={...vars(t),weapon:first.weapon.replace(/\s*\+\d+/,'').toLowerCase()};
    parts.push(pick('open',move==='offhand'?voice.offhand:voice.swing[wk],v));
    parts.push(first.hit?pick('land',voice.land[flSize(first.dealt,t.max,[0.25,0.5])],v):first.graze?pick('graze',voice.graze,v):pick('miss',voice.miss,v));
-   if(blows[1])parts.push(pick('again',blows[1].hit||blows[1].graze?voice.again.hit:voice.again.miss,vars(targetOf(blows[1].target))));
+   if(blows[1]&&!brief)parts.push(pick('again',blows[1].hit||blows[1].graze?voice.again.hit:voice.again.miss,vars(targetOf(blows[1].target))));
    if(blows.some(r=>r.hit||r.graze)){heroHit=true;struckFoe=t;}
   }
   else if(move==='spell'){
@@ -444,13 +449,13 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
   parts.push(pick('foe',voice.foeMove[kind]??voice.foeMove.monster,vars(f)));
   const size=flSize(onMe[0].dealt,heroMax,[0.15,0.35]);if(onMe[0].hit&&size==='heavy')hurtBad=true;
   parts.push(onMe[0].hit?pick('struck',voice.foeHit[size],vars(f)):pick('spared',voice.foeMiss,vars(f)));
-  if(onMe.length>1)parts.push(pick('press',onMe.slice(1).some(r=>r.hit)?voice.press.hit:voice.press.miss,vars(f)));
+  if(onMe.length>1&&!brief)parts.push(pick('press',onMe.slice(1).some(r=>r.hit)?voice.press.hit:voice.press.miss,vars(f)));
  }
  const other=read.find(r=>r.kind==='other');
  if(other){const f=targetOf(other.actor.replace(/ \d+$/,''));parts.push(pick('other',other.hit?voice.other.hit:voice.other.miss,{...vars(f),name:other.name}));}
  // Voices: someone fighting speaks (or a creature makes its sound), and a friend may call out.
  const enemyPeople=after.npcCombat?.active?scene.filter(n=>n.present&&(n.hp??0)>0&&(after.npcCombat.order??[]).some(o=>o.id===n.id&&o.side==='enemy')):[];
- if(chance()<0.55){
+ if(!brief&&chance()<0.55){
   if(enemyPeople.length){
    const hurt=enemyPeople.find(n=>(sceneBefore.find(x=>x.id===n.id)?.hp??0)>(n.hp??0)),who=hurt??enemyPeople[Math.floor(chance()*enemyPeople.length)];
    const text=pick('bark',hurt?fightBarks.hurt:fightBarks.taunt);if(text)dialogue.push({speakerId:who.id,text});
@@ -460,7 +465,7 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
    else{const text=pick('sound',fightBarks[f.kind]??fightBarks.monster);if(text)parts.push(text);}
   }
  }
- if(friendsHere.length&&dialogue.length<2){
+ if(!brief&&friendsHere.length&&dialogue.length<2){
   const hit=friendsHere.find(n=>(sceneBefore.find(x=>x.id===n.id)?.hp??0)>(n.hp??0)),roll=chance();
   const who=hit??friendsHere[Math.floor(chance()*friendsHere.length)];
   const pool=hit?(roll<0.7?fightBarks.wince:null):hurtBad?(roll<0.6?fightBarks.warn:null):heroHit?(roll<0.4?fightBarks.cheer:null):(roll<0.2?fightBarks.warn:null);
@@ -477,12 +482,13 @@ export function routineTelling({hero,before,preview,health,action,words,preferen
  if(!preview||preview.error)return null;
  // Away from a fight: a rest, a draught, a journey back, a search, an order or the shield, told by calmLines.js.
  if(!flInFight(before)){const calm=routineCalmTurn(before,preview.game,action,words,{events:preview.events,waiting:!!preview.waiting,chosen:!!chosen});if(!calm.routine)return null;
-  if(chosen)return chosenTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator,chosen});
-  const told=calmTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator});return told?{...told,told:'game'}:null;}
+  const brief=preferences?.length==='brief';
+  if(chosen)return chosenTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator,chosen,brief});
+  const told=calmTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator,brief});return told?{...told,told:'game'}:null;}
  if(chosen)return null;
  const verdict=routineFightTurn(before,preview.game,action,words,{hero,health,afterHealth:preview.health,events:preview.events,waiting:!!preview.waiting});
  if(!verdict.routine)return null;
- return {...fightTelling({hero,before,after:preview.game,health,afterHealth:preview.health,action,events:preview.events,narrator:preferences?.narrator,brutality:preferences?.brutality}),told:'game',fightRound:fightRoundKey(before)};
+ return {...fightTelling({hero,before,after:preview.game,health,afterHealth:preview.health,action,events:preview.events,narrator:preferences?.narrator,brutality:preferences?.brutality,brief:preferences?.length==='brief'}),told:'game',fightRound:fightRoundKey(before)};
 }
 // How many different tellings each case has, per narrator, for the checks (Restrained, the smallest set).
 export function fightLineCases(){

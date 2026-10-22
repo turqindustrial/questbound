@@ -2,7 +2,7 @@ const crypto=require('node:crypto');
 const fail=message=>Object.assign(Error(message),{status:400});
 const random=()=>crypto.randomInt(0,0x100000000)/0x100000000;
 // What a client may say about the player's own device settings; anything else is ignored.
-function preferences(p){const out={};if(['restrained','gritty','brutal'].includes(p?.brutality))out.brutality=p.brutality;if(['chronicler','lamplighter','bard'].includes(p?.narrator))out.narrator=p.narrator;return out;}
+function preferences(p){const out={};if(['restrained','gritty','brutal'].includes(p?.brutality))out.brutality=p.brutality;if(['chronicler','lamplighter','bard'].includes(p?.narrator))out.narrator=p.narrator;if(['brief','full'].includes(p?.length))out.length=p.length;return out;}
 async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Adventurer',actorSeat=null}={}){
  const r=require('./rules-engine.cjs').rules(),hero=JSON.parse(snapshot.character),health=snapshot.health;
  // Companions met before they had classes gain one out of a fight (Adventure.js does this on the device when solo).
@@ -50,13 +50,9 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),told?.told==='game'?{told:'game',fightRound:told.fightRound}:{});
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
- // A greeting is a trigger turn (no player line): the Dungeon Master writes it as a scene moment in which only that
- // person speaks, and the stand-in line is used when it cannot be reached or answers with someone else.
- if(greet){
-  let narration=opening.aside,dialogue=[{speakerId:target,text:opening.fallback}],said=null;
-  try{const reply=await post(game,health,{sceneTrigger:{id:'greet:'+target,cue:opening.cue},recruitmentTargets:[]});const lines=(Array.isArray(reply.dialogue)?reply.dialogue:[]).filter(l=>l?.speakerId===target).slice(0,2);if(lines.length){narration=reply.narration;dialogue=lines;said=reply;}}catch{}
-  return finish(null,{narration,dialogue,suggestions:said?.suggestions},undefined,randomImpl,{trigger:true});
- }
+ // A greeting is a trigger turn (no player line) in the line the game writes for that person (greetings.js), as on a
+ // device: no request to the Dungeon Master, who is first asked when the player says something (the host, 2026-10-22).
+ if(greet)return finish(null,{narration:opening.aside,dialogue:[{speakerId:target,text:opening.line}],suggestions:[]},undefined,randomImpl,{trigger:true});
  let command=r.dmCommand(ruled,game,question,health,target);
  if(request.action!==undefined){
   const offered=[...r.dmChoices(ruled,game,health),...r.quickActions(ruled,game,health),...r.attackTargets(ruled,game,health).flatMap(t=>r.attackActions(ruled,game,health,t.key)),...r.attackActions(ruled,game,health,null),...r.spellActions(ruled,game).flatMap(c=>[c,...(c.casts??[])]),...r.mapMoves(game)];

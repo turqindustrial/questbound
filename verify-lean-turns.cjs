@@ -67,8 +67,10 @@ const tailOf=q=>{const last=q.input.at(-1);return last.role==='developer'&&q.inp
   assert.ok(fs.readFileSync('useDmTurn.js','utf8').includes("body.retell||body.recruitment.some(p=>p?.decision==='check')?await request("),'the device does the same');}
 
  // ---- 3. A scene cue is read once ----
- const people=r.conversationPeople(snap.game);let cue=null;for(const p of people){try{await resolveTurn(snap,{greet:true,npcId:p.id},{ask,randomImpl:seq(7)});cue=asked.pop();break;}catch{}}
- assert.ok(cue?.context.sceneTrigger,'a greeting is a scene cue');
+ // (A greeting asks the Dungeon Master nothing since 2026-10-22: the game writes it. A cue the Dungeon Master still
+ // tells, as a device sends it: the people here, the one who speaks first spoken to.)
+ const people=r.conversationPeople(snap.game),greeter=people.find(p=>r.shouldGreet(snap.game,p.id));assert.ok(greeter);const before=asked.length;assert.equal((await resolveTurn(snap,{greet:true,npcId:greeter.id},{ask,randomImpl:seq(7)}),asked.length),before,'a greeting asks nothing');
+ const cue={...open,input:'You wake at the market.',context:{...open.context,conversationWith:{id:people[0].id,name:people[0].name,role:people[0].role,oneOnOne:false},sceneTrigger:{id:'wake',cue:'The player was found lying near death and carried back to the market. They have just woken with 1 HP, weak and battered. The residents react, tell how they found the player, and ask what happened.'},recruitmentTargets:[]}};
  const qCue=await requestOf(cue),sCue=requestScene(qCue).context;
  assert.equal('sceneTrigger' in sCue,false,'the cue\'s words are in the turn\'s note, not again in the scene');assert.ok(tailOf(qCue).includes(cue.context.sceneTrigger.cue.slice(0,60)),'the note says them');
  assert.equal('rulesReference' in sCue,false,'the game\'s own words name no spell (Wren Halloway is not Hallow)');
@@ -89,7 +91,7 @@ const tailOf=q=>{const last=q.input.at(-1);return last.role==='developer'&&q.inp
  {const tokens=s=>{let n=0;for(const m of s.matchAll(/ ?[A-Za-z]+| ?\d{1,3}|\s+| ?[^\sA-Za-z\d]{1,3}/g))n+=m[0].length>10?Math.ceil(m[0].length/7):1;return n;};
   const sceneTokens=q=>q.input.slice(1).filter(m=>m.role==='user').reduce((n,m)=>n+tokens(m.content),0);
   const told1=sceneTokens(await requestOf(told)),cue1=sceneTokens(qCue);
-  assert.ok(told1<=1200,'a check\'s telling within 1200 tokens: '+told1);assert.ok(cue1<=1070,'a greeting within 1070 tokens: '+cue1);}
+  assert.ok(told1<=1200,'a check\'s telling within 1200 tokens: '+told1);assert.ok(cue1<=1070,'a scene cue within 1070 tokens: '+cue1);}
 
  // ---- 5. The standing prompt is the same for every phase ----
  for(const q of [qCue,await requestOf(told),qClosed])assert.equal(q.instructions,qOpen.instructions,'one standing prompt');

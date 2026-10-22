@@ -44,7 +44,12 @@ else{
  // Guests (players on phones and the shared link) and the host's daily allowance for them (spending.cjs).
  const guests=usage.filter(u=>u.guest),guestCost=guests.reduce((n,u)=>n+costOf(u),0);
  if(guests.length)console.log('Guests: '+guests.length+' requests from '+new Set(guests.map(u=>u.guest)).size+' browser(s), about '+money(guestCost)+'.');
- const avg=usage.filter(u=>u.mode==='turn');if(avg.length)console.log('A game turn request averages '+Math.round(avg.reduce((a,u)=>a+u.input,0)/avg.length)+' input tokens, of which '+Math.round(avg.reduce((a,u)=>a+u.cached,0)/avg.length)+' cached, and '+Math.round(avg.reduce((a,u)=>a+u.output,0)/avg.length)+' output tokens.');
+ const avg=usage.filter(u=>u.mode==='turn');
+ // Not so wordy (storyPreferences.js length, 2026-10-22; turn lines carry length:'brief'): what a player's own request
+ // writes, the full telling and Not so wordy apart.
+ {const out=list=>Math.round(list.reduce((a,u)=>a+u.output,0)/Math.max(1,list.length)),first=avg.filter(u=>(u.ask??1)===1&&!u.aside),brief=first.filter(u=>u.length==='brief'),full=first.filter(u=>u.length!=='brief');
+  if(brief.length)console.log('Output a request: the full telling '+out(full)+' tokens ('+full.length+' requests), Not so wordy '+out(brief)+' tokens ('+brief.length+').');}
+ if(avg.length)console.log('A game turn request averages '+Math.round(avg.reduce((a,u)=>a+u.input,0)/avg.length)+' input tokens, of which '+Math.round(avg.reduce((a,u)=>a+u.cached,0)/avg.length)+' cached, and '+Math.round(avg.reduce((a,u)=>a+u.output,0)/avg.length)+' output tokens.');
  // The cache (dm-server.cjs, 2026-10-17): how much of each turn's input the provider reused, and what a turn costs, for
  // turns sent in parts (layout 3), in the cache order (layout 2 in the usage log) and for those from before, so the effect shows after a
  // deploy. The goal is about 85% cached.

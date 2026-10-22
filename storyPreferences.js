@@ -14,11 +14,20 @@ export const narrators=[
  {id:'bard',name:'Sable the Bard',short:'Sable',icon:'lute',description:'A travelling bard who loves a grand moment: warm, theatrical, quick to cheer a triumph and quick to mourn a loss.',sample:'A new name for my songs! Step into the light, friend, and let the tale begin.',voice:{rate:1.02,pitch:1.08}},
 ];
 export const narratorOf=id=>narrators.find(n=>n.id===id)??narrators[0];
+// How much is told each turn (the host, 2026-10-22: "adding a "not so wordy" mode for players to be able to make that
+// choice on their own. it seemed a bit daunting the last time I played"): the full telling, or the essentials in a few
+// short sentences. It reaches the Dungeon Master as this turn's note (dm-instructions.cjs lengthNote) and the game's
+// own tellings of routine moves pick their shorter lines (fightLines.js, calmLines.js). Never a rule or a fact.
+export const tellingLengths=[
+ {id:'full',label:'Full tale',description:'Each turn is told in a few vivid sentences, and people say their piece.'},
+ {id:'brief',label:'Not so wordy',description:'Just the essentials: a line or three of story each turn, and people keep it short.'},
+];
+export const briefTelling=prefs=>prefs?.length==='brief';
 // autoShield: whether the game casts Shield for the hero when it turns a hit into a miss (Settings → Story → Rules).
 // easyStart: whether a new tale begins with the hero's orders in hand (a clear first errand from someone in charge),
 // whatever the opening; on unless the player turns it off (the New Adventure screen). The Skirmish ignores it.
-const defaults={brutality:'gritty',narrator:'chronicler',autoShield:true,easyStart:true};
-function load(){try{const v=JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}');return {...defaults,...(brutalityLevels.some(l=>l.id===v?.brutality)?{brutality:v.brutality}:{}),...(narrators.some(n=>n.id===v?.narrator)?{narrator:v.narrator}:{}),...(typeof v?.autoShield==='boolean'?{autoShield:v.autoShield}:{}),...(typeof v?.easyStart==='boolean'?{easyStart:v.easyStart}:{})};}catch{return {...defaults};}}
+const defaults={brutality:'gritty',narrator:'chronicler',autoShield:true,easyStart:true,length:'full'};
+function load(){try{const v=JSON.parse(globalThis.localStorage?.getItem(KEY)??'{}');return {...defaults,...(brutalityLevels.some(l=>l.id===v?.brutality)?{brutality:v.brutality}:{}),...(narrators.some(n=>n.id===v?.narrator)?{narrator:v.narrator}:{}),...(typeof v?.autoShield==='boolean'?{autoShield:v.autoShield}:{}),...(typeof v?.easyStart==='boolean'?{easyStart:v.easyStart}:{}),...(tellingLengths.some(l=>l.id===v?.length)?{length:v.length}:{})};}catch{return {...defaults};}}
 let prefs=load();const listeners=new Set();
 export const storyPreferences=()=>({...prefs});
 export function subscribeStoryPreferences(fn){listeners.add(fn);return()=>listeners.delete(fn);}
@@ -27,6 +36,7 @@ export function setStoryPreferences(changes){
  if(changes.narrator&&!narrators.some(n=>n.id===changes.narrator))return;
  if(changes.autoShield!==undefined&&typeof changes.autoShield!=='boolean')return;
  if(changes.easyStart!==undefined&&typeof changes.easyStart!=='boolean')return;
+ if(changes.length!==undefined&&!tellingLengths.some(l=>l.id===changes.length))return;
  prefs={...prefs,...changes};try{globalThis.localStorage?.setItem(KEY,JSON.stringify(prefs));}catch{}
  listeners.forEach(fn=>fn(storyPreferences()));
 }

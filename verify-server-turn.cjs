@@ -95,16 +95,14 @@ function byHand(hero,snapshot,action,question,dice,actorName){
  assert.ok(won.events.some(e=>/^Experience: \+\d+ .*Every hero in the party gains experience too\.$/.test(e)));
  assert.ok(won.snapshot.game.storyLog?.length>0,'the story log records the fight');
  assert.equal(r.partyVictory,undefined);
- // People speak first at a table too: the Speak chip sends {greet:true, npcId}; the server works out the opening, asks
- // the Dungeon Master for a moment in which only that person speaks, and plays it as a trigger turn (no player line).
+ // People speak first at a table too: the Speak chip sends {greet:true, npcId}; the server works out the opening and
+ // writes it (greetings.js) with no request to the Dungeon Master, and plays it as a trigger turn (no player line).
  {const bard=r.readyHero('wizard'),tavern=r.adventureSnapshot(bard,r.newAdventure(bard),null,true),greetAsked=[];
   const who=r.conversationPeople(tavern.game)[0].id;assert.ok(r.shouldGreet(tavern.game,who));
-  const said=await resolveTurn(tavern,{question:'ignored',npcId:who,greet:true},{ask:async p=>{greetAsked.push(p);return {narration:'She sets down a cup.',dialogue:[{speakerId:who,text:'Well met, traveller.'},{speakerId:'someone-else',text:'Not me.'}],suggestions:['Hello.']};},randomImpl:seq(5)});
-  assert.equal(greetAsked[0].context.sceneTrigger.id,'greet:'+who,'the Dungeon Master is asked for a greeting');assert.equal(greetAsked[0].input,r.greeting(tavern.game,who,bard).scene,'the opening is the server\'s, not the device\'s words');
-  const events=said.turn.events;assert.ok(!events.some(e=>e.kind==='player'),'no player line: a trigger turn');
-  assert.deepEqual(plain(events.filter(e=>e.kind==='dialogue').map(e=>e.text)),['Well met, traveller.'],'only that person speaks');assert.deepEqual(plain(said.suggestions),['Hello.']);
-  const standIn=await resolveTurn(tavern,{question:'x',npcId:who,greet:true},{ask:async()=>{throw Object.assign(Error('down'),{status:502});},randomImpl:seq(5)});
-  assert.deepEqual(plain(standIn.turn.events.filter(e=>e.kind==='dialogue').map(e=>e.text)),[r.greeting(tavern.game,who,bard).fallback],'the stand-in line when the Dungeon Master cannot be reached');
+  const said=await resolveTurn(tavern,{question:'ignored',npcId:who,greet:true},{ask:async p=>{greetAsked.push(p);return {narration:'She sets down a cup.',dialogue:[{speakerId:who,text:'Well met, traveller.'}],suggestions:['Hello.']};},randomImpl:seq(5)});
+  assert.equal(greetAsked.length,0,'the Dungeon Master is not asked for a greeting');const opening=r.greeting(tavern.game,who,bard);
+  const events=said.turn.events;assert.ok(!events.some(e=>e.kind==='player'),'no player line: a trigger turn');assert.equal(events[0].text,opening.scene,'the opening is the server\'s, not the device\'s words');
+  assert.deepEqual(plain(events.filter(e=>e.kind==='dialogue').map(e=>e.text)),[opening.line],'only that person speaks, in the written line');assert.ok(events.some(e=>e.kind==='narration'&&e.text===opening.aside),'with what they are doing');assert.deepEqual(plain(said.suggestions),[]);
   await assert.rejects(resolveTurn(said.snapshot,{question:'x',npcId:who,greet:true},{ask,randomImpl:seq()}),/waiting to speak first/,'someone who has just spoken does not greet again');
   await assert.rejects(resolveTurn(tavern,{question:'x',npcId:'nobody',greet:true},{ask,randomImpl:seq()}),/waiting to speak first/);}
 

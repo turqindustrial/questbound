@@ -1,6 +1,10 @@
 import {conversationPeople} from './playbackRules';
 import {mapLocation,placeName,placeDescription} from './mapRules';
+import {cueGreeting} from './greetings';
 // Engine-detected moments where present characters speak first. Each trigger fires once per adventure.
+// Coming back to the starting place and the morning after a long rest are greetings written by the game (`written`,
+// with the speaker's line and an aside from greetings.js cueGreeting): no request to the Dungeon Master. The others are
+// told by the Dungeon Master, with `fallback` standing in when it cannot be reached.
 const place=(game,id)=>placeName(game,id);
 const foe=game=>game.story?.foe??'Lantern Wisp';
 export function sceneTrigger(before,after,action){
@@ -20,7 +24,9 @@ export function sceneTrigger(before,after,action){
  if(before.stage==='combat'&&after.stage==='victory')candidates.push({id:'victory',scene:'The '+foe(after)+' falls.',cue:'The player has just defeated the '+foe(after)+' in combat. Companions who witnessed the fight react.',fallback:'It\'s over… that was closer than I\'d like. Are you hurt?'});
  if(action==='long-rest')candidates.push({id:'rest',scene:'Morning comes after a long rest.',cue:'The player wakes after a full night of rest at '+place(after,'inn')+'. The residents greet them in the morning.',fallback:'Morning. You slept like a stone — ready for another day of it?'});
  const trigger=candidates.find(t=>t.id==='wake'||!fired.includes(t.id));
- return trigger?{...trigger,speakerId:trigger.speakerId??speakers[0].id}:null;
+ if(!trigger)return null;
+ const speakerId=trigger.speakerId??speakers[0].id,written=cueGreeting(after,speakerId,trigger.id);
+ return {...trigger,speakerId,...(written?{written:true,fallback:written.line,aside:written.aside}:{})};
 }
 export function withSceneTrigger(before,after,action){
  const trigger=sceneTrigger(before,after,action);
