@@ -1,0 +1,189 @@
+{
+  "format": 1,
+  "id": "7b0e4f2a-5c3d-4e8b-9a61-2f4d8c1e0b37",
+  "slug": "kettle-camp",
+  "edition": 1,
+  "order": 900,
+  "listed": false,
+  "addedAt": "2026-10-22",
+  "length": "short",
+  "minutes": [30, 50],
+  "difficulty": "gentle",
+  "party": "any",
+  "levels": [1, 3],
+  "notes": ["wolves", "woodland"],
+  "shape": {"engine": "camp-defence", "twist": "baited-pack", "endings": ["battle", "bargain", "exodus"]},
+  "pitch": {
+    "hook": "A wolf has carried off the last good sack of meal at Kettle Camp, and the cutters leave the wood at dawn unless the wolves stop.",
+    "blurb": "One night in Ollerby Wood: drive the wolf off at the log slide, follow the trail it came by, and face whoever is drawing the pack to the woodcutters before their carts roll out at first light.",
+    "mood": "Woodland dread · one night",
+    "special": "The camp is the clock: each time the pack comes back, another cart is loaded to leave the wood for good."
+  },
+  "story": {
+    "title": "The Kettle Camp Wolves",
+    "region": "Ollerby Wood",
+    "terrain": "forest",
+    "premise": "Kettle Camp is a woodcutters' camp in the heart of Ollerby Wood, named for the great iron kettle that hangs over its fire. For three nights running wolves have walked into the camp as bold as dogs, and the cutters are ready to give up the season's felling. Tonight a wolf has carried off the last good sack of meal. Someone in the wood wants the cutters gone, and the wolves are how they mean to do it.",
+    "opening": "Night at Kettle Camp, deep in Ollerby Wood. The cook-fire under the great iron kettle is the only light, and a grey wolf has just dragged the last good sack of meal into the dark toward the log slide. Mabry Thorne, who runs the camp, pushes a lantern into your hands. \"You're the only one here who can fight. Bring that sack back before the rest of the pack learns the way!\"",
+    "objective": "Find out who is drawing the wolves to Kettle Camp, and stop them before the cutters abandon Ollerby Wood.",
+    "resolution": "The wolves stop coming once whoever baits them is driven off, beaten or brought to terms, and the cutters decide whether the camp stays.",
+    "secret": "Corran Stell, a poacher who has hunted the old deer park beyond the Split Oak for most of his life, lays deer offal along the felling tracks each dusk to lead the pack to the camp. He wants the cutters gone before their felling opens the deer park to the lord's foresters.",
+    "foe": "Corran Stell",
+    "foeSpecies": "Human",
+    "foeAppearance": "A lean, weathered man in a moss-green hunting coat stitched from old cloaks, with a short hunting spear, a horn on a leather thong and a grey-shot beard cropped close. He moves through the trees without a sound.",
+    "foeDamageType": "Piercing",
+    "foeVoice": "Dry and patient, a hunter's murmur that never rises: \"Every wood has an owner, friend. This one was mine before your cutters came.\"",
+    "hoard": {"item": "boots-of-elvenkind", "name": "Stell's Quiet Boots", "note": "Soft boots of oiled deer-hide that make no sound on dry leaves."},
+    "layout": {"bridge": {"bearing": "N", "miles": 0.9}, "tower": {"bearing": "NE", "miles": 0.4, "from": "inn"}},
+    "locations": {
+      "inn": {"name": "Kettle Camp", "description": "A woodcutters' camp of canvas tents and log stacks around a clearing, with a great iron kettle hung over the cook-fire.", "kind": "camp"},
+      "bridge": {"name": "The Split Oak", "description": "A vast oak split by lightning long ago, standing alone at the edge of the old deer park, with a hunter's lean-to built between its halves.", "kind": "forest"},
+      "tower": {"name": "The Old Sawpit", "description": "An abandoned sawpit under a sagging roof of bark shingles, its long pit half full of sawdust and fallen leaves.", "kind": "ruin"}
+    },
+    "landmarks": [
+      {"name": "The Log Slide", "description": "A steep chute of worn logs where the cutters send timber down to the stream, slick with moss and mud.", "kind": "landmark", "bearing": "S", "miles": 0.2, "from": "inn", "danger": "risky", "feature": "Fresh tracks in the mud at the foot of the slide."},
+      {"name": "Fernmoot Spring", "description": "A clear spring in a hollow of ferns, with a hermit's hut of woven willow beside it.", "kind": "water", "bearing": "W", "miles": 0.6, "from": "inn", "danger": "safe", "feature": "A small bronze bell hangs over the spring on a willow post."},
+      {"name": "The Deer-Park Wall", "description": "A long, tumbled wall of mossy stone that once kept the old deer park, broken in many places.", "kind": "ruin", "bearing": "N", "miles": 0.5, "from": "tower", "danger": "safe", "feature": "Bracken torn up along the wall, as if something heavy has been rooting there."}
+    ],
+    "lands": [],
+    "chapters": [
+      {"title": "The Log Slide", "goal": "Drive the wolf off at the Log Slide, then follow the trail it came by to the Old Sawpit.", "turn": "The wolf was led to the camp along a trail of fresh deer offal, laid by someone who knows the wood."},
+      {"title": "The Split Oak", "goal": "Find whoever lays the bait and face them at the Split Oak before the cutters leave.", "turn": "Corran Stell has baited the pack to drive the cutters out and keep the old deer park for himself."}
+    ],
+    "leads": [
+      {"title": "The hermit's bell", "hook": "Brother Selwyn Ashe at Fernmoot Spring says his bell rings by itself at dusk, and asks someone to sit with him and listen."}
+    ],
+    "npcs": {
+      "keeper": {"name": "Mabry Thorne", "species": "Human", "gender": "woman", "role": "The camp boss, who hires the cutters and keeps the camp's purse.", "motive": "Finish the season's felling and get every cutter home with their wages.", "appearance": "A tall, broad-handed woman of middle years with a sunburnt face, grey-streaked hair tied back with twine, a sawdust-covered leather apron and a hatchet through her belt.", "personality": "Loud, quick and practical, she gives orders without thinking and apologises later.", "class": null, "ties": {"other": "friend", "foe": "enemy", "note": "She took Linnet on when nobody else would, and has twice found Stell's snares on her timber."}},
+      "mara": {"name": "Linnet Spey", "species": "Halfling", "gender": "woman", "role": "A forager who sells mushrooms and herbs to the camp and knows every path in the wood.", "motive": "Keep the camp open, because the cutters are the only buyers she has.", "appearance": "A small, quick halfling woman with a wide-brimmed straw hat, a basket on her back, mud to the knees and a sprig of rowan pinned to her shawl.", "personality": "Cheerful, curious and a little reckless, she talks fast when she is frightened.", "class": null, "ties": {"other": "friend", "foe": "neutral", "note": "Mabry gave her work when she arrived with nothing."}}
+    },
+    "residents": [
+      {"name": "Dob Harker", "species": "Dwarf", "gender": "man", "role": "A sawyer, the best in the camp and the most stubborn.", "appearance": "A stocky dwarf with a braided red beard full of sawdust, a leather cap, forearms like logs and a long crosscut saw over one shoulder.", "personality": "Slow to speak and slower to change his mind.", "motive": "Stay and finish the felling: he has never yet left a job half done.", "toughness": "tough", "attitude": "indifferent", "at": "Kettle Camp", "noticed": true, "foe": "enemy", "tie": {"to": "Mabry Thorne", "kind": "friend"}, "class": null},
+      {"name": "Hester Gale", "species": "Human", "gender": "woman", "role": "The camp's cook, who guards what is left of the meal stores.", "appearance": "A thin, wiry old woman with flour on her sleeves, a red kerchief over white hair and a ladle she carries like a club.", "personality": "Sharp-tongued and kind underneath, she feeds anyone who is polite.", "motive": "Save what is left of the stores so the cutters do not go hungry.", "toughness": "frail", "attitude": "friendly", "at": "Kettle Camp", "noticed": true, "foe": "neutral", "tie": null, "class": null},
+      {"name": "Brother Selwyn Ashe", "species": "Gnome", "gender": "man", "role": "A hermit who keeps the spring and its little bronze bell.", "appearance": "A tiny, white-whiskered gnome in a patched brown habit, barefoot, with spectacles on a cord and burrs caught in his hood.", "personality": "Gentle and absent-minded, he answers questions with stories.", "motive": "Keep the wood quiet and its creatures safe, the wolves included.", "toughness": "frail", "attitude": "friendly", "at": "Fernmoot Spring", "noticed": true, "foe": "neutral", "tie": null, "class": null},
+      {"name": "Nim Corley", "species": "Human", "gender": "other", "role": "A runaway apprentice sawyer hiding from the camp in the old sawpit.", "appearance": "A gangly young person with a shaved head, a too-big oilskin coat, scabbed knuckles and a sling tucked through their belt.", "personality": "Wary and quick to bolt, but loyal once trusted.", "motive": "Avoid being sent home in disgrace, and prove they saw something in the woods at dusk.", "toughness": "common", "attitude": "unfriendly", "at": "The Old Sawpit", "noticed": false, "foe": "neutral", "tie": {"to": "Dob Harker", "kind": "rival"}, "class": null}
+    ],
+    "introduction": {
+      "you": "A traveller who stopped at the camp for the night, and the only one here who can fight.",
+      "place": "Kettle Camp, in Ollerby Wood: tents and log stacks round a great iron kettle.",
+      "trouble": "A wolf has just carried off the last good sack of meal, and the cutters fear the pack will follow it in.",
+      "people": "Mabry Thorne, who runs the camp; Linnet Spey, a forager; Dob Harker, a sawyer; Hester Gale, the cook.",
+      "first": "Take Mabry's lantern and go after the wolf at the Log Slide, just south of the camp."
+    },
+    "openingDialogue": [
+      {"speakerId": "mara", "text": "It went down toward the log slide. I know the path, if you're quick about it."},
+      {"speakerId": "resident2", "text": "That was the last good meal in the camp. Bring it back, or we'll be boiling bark by the week's end!"}
+    ],
+    "staging": {
+      "v": 1,
+      "length": "short",
+      "confrontFrom": 2,
+      "noBeyond": true,
+      "firstSay": ["I take the lantern and go after the wolf.", "How many wolves have you seen tonight?", "Everyone stay close to the fire!"],
+      "stakes": [
+        {"id": "s1", "name": "Kettle Camp", "state": "holding on"},
+        {"id": "s2", "name": "The meal stores", "state": "one sack lost in the dark"}
+      ],
+      "places": {
+        "The Old Sawpit": {"colour": ["Rusted saw blades hang from the rafters, and the floor is soft with old sawdust."]},
+        "Fernmoot Spring": {"colour": ["Ferns crowd the hollow, and the little bronze bell over the spring hangs still."]}
+      },
+      "chapters": [
+        {
+          "where": "At the Old Sawpit, where the bait trail ends; or by searching the Log Slide after the fight; or from Dob Harker, once the slide is clear.",
+          "agenda": "Corran Stell lays fresh offal along the felling tracks each dusk, drawing the pack toward the camp.",
+          "found": {
+            "any": [
+              {"reach": "The Old Sawpit"},
+              {"searched": "The Log Slide"},
+              {"all": [{"clear": "The Log Slide"}, {"spoke": {"who": "Dob Harker", "times": 2}}]}
+            ],
+            "item": {"name": "Strip of Deer Hide", "note": "A bloody strip of deer hide, tied in a hunter's knot."}
+          },
+          "then": {"offer": "Linnet Spey"},
+          "fight": {
+            "at": "The Log Slide",
+            "threat": {"template": "wolf", "name": "The Grey Camp-Raider", "appearance": "A lean grey wolf with a torn ear, meal dust on its muzzle and the sack's cord still caught in its teeth.", "ally": null},
+            "objective": "Drive the wolf off before it drags the sack down into the stream."
+          },
+          "beats": [
+            {"id": "b1", "when": {"clear": "The Log Slide"}, "if": null, "tell": "At the foot of the slide, beside the torn sack, lies a strip of deer offal, fresh and carefully placed, and another beyond it, leading away toward the Old Sawpit.", "line": "Fresh offal lies at the foot of the slide, and more of it leads away toward the Old Sawpit.", "then": {"stake": {"s2": "saved, mostly"}}}
+          ],
+          "pressure": [
+            {"id": "p1", "tell": "Wolves howl close among the trees, and two of the cutters begin loading their cart by lantern light.", "sign": "Two cutters are loading a cart to leave.", "line": "Wolves howl close by, and two cutters start loading a cart to leave.", "then": {"stake": {"s1": "two carts loaded to leave"}}},
+            {"id": "p2", "tell": "A wolf circles the edge of the camp, and someone finds the rope on the meal store cut clean through.", "sign": "The rope on the meal store was cut with a knife.", "line": "A wolf circles the camp, and the rope on the meal store has been cut clean through.", "then": {}},
+            {"id": "p3", "tell": "The pack breaks into the camp in a rush of snapping shadows, and in the chaos you glimpse a hunter's lantern slipping away toward the Old Sawpit.", "sign": "A hunter's lantern was seen slipping away toward the Old Sawpit.", "line": "The pack rushes the camp, and a hunter's lantern slips away toward the Old Sawpit.", "then": {"advance": true}}
+          ]
+        },
+        {
+          "opening": {"tell": "Past the sawpit the offal trail runs on through the old deer park, straight toward the great Split Oak.", "line": "The trail runs on through the old deer park toward the Split Oak."},
+          "where": "At the Split Oak, where the hunter keeps his lean-to; or from Brother Selwyn Ashe, who has watched the hunter come and go at dusk.",
+          "agenda": "Corran Stell readies one last baiting, enough to bring the whole pack down on the camp before dawn.",
+          "found": {
+            "any": [
+              {"foe": "beaten"},
+              {"all": [{"reach": "The Split Oak"}, {"mark": {"stell": "bargain"}}]}
+            ]
+          },
+          "beats": [
+            {"id": "b2", "when": {"reach": "The Old Sawpit"}, "if": null, "tell": "A thin figure in an oversized oilskin coat drops from the sawpit's rafters and holds up empty hands: a runaway apprentice who saw the hunter pass this way at dusk.", "line": "A runaway apprentice drops from the rafters, hands empty, and says the hunter passed this way at dusk.", "then": {"bring": "Nim Corley"}}
+          ],
+          "choice": {
+            "id": "stell",
+            "opens": {"reach": "The Split Oak"},
+            "ask": "Corran Stell offers to call off his baiting if the cutters never fell past the deer-park wall. What do you answer?",
+            "options": [
+              {"id": "bargain", "label": "Accept his terms", "say": "Keep your deer park, and leave the cutters in peace.", "when": null, "then": {"attitude": {"who": "Mabry Thorne", "to": "unfriendly", "memory": "The stranger let the poacher keep his deer park."}, "flag": "bargained"}},
+              {"id": "refuse", "label": "Refuse and drive him out", "say": "No terms. You leave this wood tonight.", "when": null, "then": {"attitude": {"who": "Linnet Spey", "to": "friendly", "memory": "The stranger stood up to the poacher for the camp."}}}
+            ],
+            "late": "refuse"
+          },
+          "pressure": [
+            {"id": "q1", "tell": "Somewhere along the deer-park wall a great boar crashes through the bracken, maddened by the bait.", "sign": "Something big is rooting along the deer-park wall.", "line": "A great boar crashes through the bracken along the deer-park wall.", "then": {"arm": {"at": "The Deer-Park Wall", "template": "boar", "name": "The Old Park Boar", "appearance": "A huge, bristle-backed boar with yellowed tusks and a scarred snout, its hide caked with dried mud.", "ally": null}}},
+            {"id": "q2", "tell": "The cutters' carts stand loaded at the edge of the clearing, and Mabry sends word that they leave at first light.", "sign": "The carts stand loaded at the edge of the clearing.", "line": "The carts stand loaded, and Mabry sends word that they leave at first light.", "then": {"stake": {"s1": "leaving at first light"}}},
+            {"id": "q3", "tell": "Grey light comes up through the trees, and the first cart rolls out of Kettle Camp.", "sign": "The first cart has rolled out of the camp.", "line": "Grey light comes up, and the first cart rolls out of the camp.", "then": {"end": "late"}}
+          ]
+        }
+      ],
+      "leads": [
+        {"id": "l1", "opens": 1, "done": {"all": [{"reach": "Fernmoot Spring"}, {"spoke": {"who": "Brother Selwyn Ashe", "times": 2}}]}}
+      ],
+      "boss": {
+        "bloodied": {"kind": "flee", "tell": "Bloodied, Corran Stell blows a long note on his horn and darts for the trees behind the oak.", "line": "Bloodied, the poacher blows his horn and darts for the trees."}
+      },
+      "endings": [
+        {"id": "terms", "title": "A Hunter's Terms", "if": {"mark": {"stell": "bargain"}}, "text": "Corran Stell keeps his deer park, and the wolves stop coming to Kettle Camp within the week. The cutters finish the season's felling well short of the old wall, grumbling over every tree left standing. Mabry Thorne pays you what she promised and never quite looks you in the eye again; but the camp stays, and on still nights a horn sounds far off among the oaks, and nobody follows it."},
+        {"id": "held", "title": "The Camp Holds", "if": {"all": [{"foe": "beaten"}, {"not": {"flag": "late"}}]}, "text": "With Corran Stell beaten, the baiting stops and the pack drifts back into the deep wood where it belongs. The cutters unload their carts, the kettle is filled again, and Mabry Thorne pours you the first cup. By the season's end the felling is done, every cutter goes home with wages in hand, and Kettle Camp keeps a place by the fire for you."},
+        {"id": "gone", "title": "The Carts Roll Out", "text": "The carts roll out of Kettle Camp one after another into the grey morning, and the clearing is left to the wolves and the man who called them. Some of the cutters thank you for what you tried; Mabry Thorne only shakes your hand and says the wood was never worth a life. Behind you, a horn sounds once among the oaks."}
+      ]
+    }
+  },
+  "walkthrough": {
+    "golden": {
+      "ending": "held",
+      "steps": [
+        {"go": "The Log Slide"},
+        {"fight": true},
+        {"search": true},
+        {"go": "The Old Sawpit"},
+        {"say": "Whoever laid this trail knows the wood. Where does it lead?", "speakers": ["Linnet Spey"]},
+        {"go": "The Split Oak"},
+        {"choose": {"stell": "refuse"}},
+        {"confront": "slay"}
+      ]
+    },
+    "endings": {
+      "terms": [
+        {"go": "The Log Slide"},
+        {"fight": true},
+        {"go": "The Old Sawpit"},
+        {"go": "The Split Oak"},
+        {"choose": {"stell": "bargain"}}
+      ],
+      "gone": [
+        {"say": "I'll wait by the fire and see what comes.", "speakers": ["Hester Gale"]},
+        {"wait": 60}
+      ]
+    }
+  }
+}

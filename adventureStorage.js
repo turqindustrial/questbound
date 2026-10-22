@@ -1,4 +1,5 @@
 import {validStory} from './storyRules';
+import {validPace} from './stagingRules';
 import {validFollowers,validJoinOffers} from './followerRules';
 import {validSkillTraining} from './skillRules';
 import {validNpcState,npcIdsOf,npcMaxHP} from './npcRules';
@@ -85,6 +86,8 @@ export function validAdventure(value,hero) {
     && (g.worldFacts===undefined||(Array.isArray(g.worldFacts)&&g.worldFacts.length<=60&&g.worldFacts.every(t=>typeof t==='string'&&t.length>0&&t.length<=800)))
     && (g.npcHP===undefined||(g.npcHP&&typeof g.npcHP==='object'&&!Array.isArray(g.npcHP)&&Object.entries(g.npcHP).every(([id,hp])=>npcIdsOf(g).includes(id)&&integerBetween(hp,0,npcMaxHP(id,g)))))
     && (g.story===undefined||validStory(g.story))
+    // Where a written tale stands (stagingRules.js): world state, only with a staged story.
+    && (g.pace===undefined||validPace(g.pace,g))
     && validSkillTraining(g.skillTraining,hero)
     && validPeople(g)
     && validNpcState(g)

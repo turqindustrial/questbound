@@ -3,6 +3,7 @@ import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,place
 import {genders,npcClassList,companionLevelFor} from './npcRules';
 import {magicItems} from './lootRules';
 import {heroXp,xpForLevel} from './experienceRules';
+import {validStaging,validWrittenTag} from './stagingRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
  const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -30,7 +31,11 @@ export function validStory(s){
   &&(s.introduction===undefined||validIntroduction(s.introduction))
   // A ready journey (tale-library.cjs): the journey this copy came from, and the art id its own places and people are
   // painted under, once for every player of it (worldArtRules.js taleArtId).
-  &&(s.libraryId===undefined||/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.libraryId))&&(s.artId===undefined||(typeof s.artId==='string'&&s.artId==='journey-'+s.libraryId));
+  &&(s.libraryId===undefined||/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.libraryId))&&(s.artId===undefined||(typeof s.artId==='string'&&s.artId==='journey-'+s.libraryId))
+  // A written tale (WRITTEN-TALES.md, stagingRules.js): its plan for the engine, how its foe speaks, and the tag of the
+  // shelf tale this copy came from. All optional: every story from before is valid as it was, and a build from before
+  // ignores them (it plays the tale as an ordinary chaptered story).
+  &&(s.staging===undefined||validStaging(s))&&(s.foeVoice===undefined||text(s.foeVoice,300))&&(s.written===undefined||validWrittenTag(s.written));
 }
 // ---------- The introduction ----------
 // Every tale, however it begins (a written opening, Let fate decide, Easy to get into, the player's own idea, the next
