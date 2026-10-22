@@ -32,7 +32,7 @@ assert.equal(places.kindTerrainComplete(JSON.parse(fs.readFileSync(path.join(pla
 // Writes a tale to a fresh folder (under its slug's name unless told) and checks it. The walkthroughs (check 5, played
 // through the rules) are played for the fixture itself; the variants below test the format, so they skip them.
 let n=0;
-function check(tale,{name,options={}}={}){const d=dir('tale-'+(++n)),file=path.join(d,name??((typeof tale.slug==='string'&&/^[a-z0-9-]{3,28}$/.test(tale.slug)?tale.slug:'bad')+'.json'));fs.writeFileSync(file,JSON.stringify(tale,null,1));return checkTale(file,{...libs,walks:false,...options});}
+function check(tale,{name,options={}}={}){const d=dir('tale-'+(++n)),file=path.join(d,name??((typeof tale.slug==='string'&&/^[a-z0-9-]{3,28}$/.test(tale.slug)?tale.slug:'bad')+'.json'));fs.writeFileSync(file,JSON.stringify(tale,null,1));return checkTale(file,{...libs,walks:false,balance:false,...options});}
 const show=rep=>rep.errors.map(e=>'  '+e.check+' '+e.where+': '+e.message).join('\n');
 
 // ---------- 1. The fixture passes, seated for every ready-made hero and party ----------
@@ -258,18 +258,19 @@ for(const [name,mutate,checkNo,where,message] of variants){
  }
  // The tale itself on the shelf (checked again after it went live) is never compared with itself.
  const self=shelfWith(fixture);fs.renameSync(path.join(self,'kettle-camp.json'),path.join(self,'kettle-camp.json'));
- const again=checkTale(path.join(self,'kettle-camp.json'),{...libs,shelf:self});assert.ok(again.ok,'a tale on the shelf passes against its own shelf:\n'+show(again));
+ const again=checkTale(path.join(self,'kettle-camp.json'),{...libs,shelf:self,balance:false});assert.ok(again.ok,'a tale on the shelf passes against its own shelf:\n'+show(again));
 }
 
 // ---------- 4. The command line: exit 0 on a pass, 1 on a failure, a report people can read and JSON ----------
 {
  const args=['--people',people,'--creatures',creatures,'--places',placeArt,'--shelf',emptyShelf];
- const ok=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json',...args],{encoding:'utf8'});
- assert.equal(ok.status,0,ok.stdout+ok.stderr);assert.match(ok.stdout,/PASS/);assert.match(ok.stdout,/5 Walkthroughs \.+ ok/);assert.match(ok.stdout,/8 Balance \.+ TODO/);assert.match(ok.stdout,/Played through the rules: golden "held" in \d+ moves/);
+ // (check 8 with six fights a cell: the report's shape, not the numbers; verify-fight-shape.cjs plays the fights)
+ const ok=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--balance','6',...args],{encoding:'utf8'});
+ assert.equal(ok.status,0,ok.stdout+ok.stderr);assert.match(ok.stdout,/PASS/);assert.match(ok.stdout,/5 Walkthroughs \.+ ok/);assert.doesNotMatch(ok.stdout,/8 Balance \.+ (?:TODO|FAIL)/);assert.match(ok.stdout,/Fights simulated \(check 8\): \d+ cells of 6 fights each/);assert.match(ok.stdout,/Played through the rules: golden "held" in \d+ moves/);
  // One walkthrough told move by move (--walk): what was said, where the hero stood, what was due and what was told.
- const walked=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--walk','golden',...args],{encoding:'utf8'});
+ const walked=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--walk','golden','--no-balance',...args],{encoding:'utf8'});
  assert.equal(walked.status,0,walked.stdout+walked.stderr);assert.match(walked.stdout,/ move +I travel to The Log Slide\. \| combat at p1/);assert.match(walked.stdout,/engine +Ending: The Camp Holds\./);
- const json=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--json',...args],{encoding:'utf8'});
+ const json=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--json','--no-balance',...args],{encoding:'utf8'});
  const parsed=JSON.parse(json.stdout);assert.equal(parsed.ok,true);assert.equal(parsed.checks['2'].status,'pass');
  const t=clone(fixture);ch(t,0).found.any=[{reach:'The Old Sawpit'}];const file=path.join(dir('cli'),'kettle-camp.json');fs.writeFileSync(file,JSON.stringify(t));
  const bad=spawnSync(process.execPath,['check-written-tale.cjs',file,...args],{encoding:'utf8'});

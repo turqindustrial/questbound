@@ -20,10 +20,14 @@
 //   7 Text               the opening, the reading load before the first move, no digits or rule talk (in its rule
 //                        sense: ruleTalk) in what the game tells, no rule talk in what the player reads from the
 //                        staging, overused words.
-//   8 Balance            TODO (needs the staging engine and balance-check.cjs --tale).
-//   9 Experience         TODO (needs the walkthrough runner).
+//   8 Balance            each set piece and the tale's foe for the ready-made Fighter, Rogue, Wizard and Cleric at the
+//                        tale's lowest, middle and highest level, alone and with one more hero (tale-balance.cjs,
+//                        seeded dice): against the targets as warnings (provisional); a fight the Fighter alone at the
+//                        tale's lowest level wins less than half the time, or dies in one fight in five or more, is an error.
+//   9 Experience         the levels the golden path gives (warnings).
 // Usage (from a checkout or worktree of the build branch, never the live checkout):
 //   node check-written-tale.cjs <tale.json> [--json] [--people <dir>] [--creatures <dir>] [--places <dir>] [--shelf <dir>]
+//                               [--balance <fights a cell, default 40>] [--no-balance]
 // The folders default to the live data folders (.questbound-people, .questbound-creatures, .questbound-place-art,
 // .questbound-written) under QUESTBOUND_DATA, this checkout, or the main checkout of this git repository. They are only
 // read. Exit 0 when the tale passes (warnings allowed), 1 when it fails or cannot be checked.
@@ -96,7 +100,7 @@ const plural=(n,word)=>n+' '+word+(n===1?'':'s');
 let engine=null;
 function rules(){
  if(engine)return engine;
- engine=vm.runInNewContext(rulesSource()+'\n;({readyHero,readyHeroes,blankBuild,makeCharacter,isValidCharacter,automaticSpells,spellLimits,spellsForClass,subclassOptions,newAdventure,freshStoryGame,tidyStory,validStory,validAdventure,adventureSnapshot,startParty,joinParty,partyView,partyInTale,validHoard,validTies,validIntroduction,introductionFields,placeKinds,terrains,templateKeys,attitudeLevels,genders,npcClassList,tieKinds,foeTieKinds,magicItems,stagingProblems,stagingIds,stagingNamesUsed,stagingMechanical,stagingEvents,stagingPacing,writtenLengths,validWrittenTag,beatHolds,openingPace,metPerson,maxLandmarks,maxResidents,rarityAllowed,'+require('./written-walk.cjs').needs.join(',')+'})',{AsyncStorage:{},console},{timeout:10000});
+ engine=vm.runInNewContext(rulesSource()+'\n;({readyHero,readyHeroes,blankBuild,makeCharacter,isValidCharacter,automaticSpells,spellLimits,spellsForClass,subclassOptions,newAdventure,freshStoryGame,tidyStory,validStory,validAdventure,adventureSnapshot,startParty,joinParty,partyView,partyInTale,validHoard,validTies,validIntroduction,introductionFields,placeKinds,terrains,templateKeys,attitudeLevels,genders,npcClassList,tieKinds,foeTieKinds,magicItems,stagingProblems,stagingIds,stagingNamesUsed,stagingMechanical,stagingEvents,stagingPacing,writtenLengths,validWrittenTag,beatHolds,openingPace,metPerson,maxLandmarks,maxResidents,rarityAllowed,'+[...new Set([...require('./written-walk.cjs').needs,...require('./tale-balance.cjs').needs])].join(',')+'})',{AsyncStorage:{},console},{timeout:10000});
  return engine;
 }
 
@@ -748,8 +752,24 @@ function checkTale(file,options={}){
   for(const [where,v] of proseDigits.slice(0,5))warn(7,where,'has a number written in digits ("'+v.match(/\S*\d\S*/)[0]+'"): spell it out or leave it out');
  }
 
- // ===== 8 and 9: need the staging engine =====
- todo(8,'TODO(balance): each set piece and the boss for the Fighter, Rogue, Wizard and Cleric at the tale\'s levels, solo and with two heroes (gentle 90%, steady 80%, hard 70% won; the boss solo 50-80% of hit points, 5-15% falls, under 3% deaths), with balance-check.cjs --tale once it exists.');
+ // ===== 8. Balance: the tale's fights, simulated (tale-balance.cjs; balance-check.cjs --tale prints the same) =====
+ if(options.balance===false)todo(8,'TODO(balance): not played (balance: false).');
+ else if(report.errors.some(e=>e.check<=4))todo(8,'TODO(balance): not played until the tale passes checks 1 to 4.');
+ else{
+  const TB=require('./tale-balance.cjs'),fights=Number.isInteger(options.balanceFights)&&options.balanceFights>0?options.balanceFights:40;
+  // Seeded dice, so the same tale gives the same report.
+  let seed=20261022;const random=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
+  const fightAt=c=>c.kind==='boss'?'story.staging.boss':'story.staging.chapters['+(c.chapter-1)+'].fight';
+  let out=null;try{out=TB.taleBalance({r,story:startCopy(tale,'written-balance'),heroAt,levels:TB.taleLevels(tale),party:[1,2],fights,random});}catch(e){fail(8,'story.staging','the fights could not be played: '+e.message);}
+  if(out){
+   for(const p of out.problems)fail(8,'story.staging','the rules refused a move in a fight: '+p);
+   const lowest=TB.taleLevels(tale)[0],difficulty=['gentle','steady','hard'].includes(tale.difficulty)?tale.difficulty:'steady';
+   for(const c of out.cells.filter(c=>!c.none&&c.key==='fighter'&&c.size===1&&c.level===lowest))if(c.win<0.5||c.death>=0.2)fail(8,fightAt(c),c.label+': the ready-made Fighter alone at level '+lowest+' wins '+Math.round(100*c.win)+'% and dies in '+Math.round(100*c.death)+'%: lighten it (a lighter creature, fromLevel and otherwise, no ally, fewer minions)');
+   const byLabel=new Map(out.cells.map(c=>[c.label,c]));
+   for(const f of TB.balanceFindings(out.cells,difficulty))warn(8,fightAt(byLabel.get(f.where)??{kind:'boss'}),f.where+': '+f.message);
+   report.balance={fights,cells:out.cells.filter(c=>!c.none).map(c=>({fight:c.label,kind:c.kind,class:c.cls,level:c.level,party:c.size,win:Math.round(100*c.win),fall:Math.round(100*c.fall),death:Math.round(100*c.death),...(c.cost!==null?{cost:Math.round(100*c.cost)}:{})}))};
+  }
+ }
  return finish();
 }
 
@@ -793,6 +813,7 @@ function talesCreatures(story){
  arr(st.chapters).forEach((c,i)=>{const w='story.staging.chapters['+i+'].fight';if(plain(c?.fight)){add(c.fight.threat,c.fight.at,w+'.threat');add(c.fight.otherwise,c.fight.at,w+'.otherwise');}});
  for(const [where,v] of stagingEffects(st,'story.staging'))if(v.kind==='arm'&&plain(v.value)){const {at,fromLevel,otherwise,...a}=v.value;add(a,at,where);add(otherwise,at,where+'.otherwise');}
  (Array.isArray(st.boss?.minions)?st.boss.minions:[]).forEach((m,i)=>{if(plain(m))out.push({name:m.name,appearance:m.appearance,template:m.template,where:'story.staging.boss.minions['+i+']',role:'minion'});});
+ {const a=st.boss?.bloodied?.ally;if(plain(a))out.push({name:a.name,appearance:a.appearance,template:a.template,where:'story.staging.boss.bloodied.ally',role:'minion'});}
  return out;
 }
 // Every word of the tale a player or the Dungeon Master could read (the walkthrough is the checker's own).
@@ -826,9 +847,10 @@ function textReport(rep){
  if(rep.seated)lines.push('Seated: '+rep.seated.heroes+' ready-made heroes at the tale\'s levels, and '+rep.seated.parties+' of '+rep.seated.tried+' parties of 2 and 4 heroes.');
  if(rep.readingLoad!==undefined)lines.push('Reading before the first move: '+rep.readingLoad+' of 900 characters.');
  if(rep.walks)lines.push('Played through the rules: '+Object.entries(rep.walks).filter(([,x])=>x).map(([k,x])=>k+' '+(x.ok?(x.ending?'"'+x.ending+'" ':'')+'in '+x.moves+' moves'+(x.seed!==1?' (seed '+x.seed+')':''):'did not finish')+(k==='golden'&&Number.isInteger(x.levelsGained)?', +'+plural(x.levelsGained,'level'):'')).join('; ')+'.');
+ if(rep.balance)lines.push('Fights simulated (check 8): '+rep.balance.cells.length+' cells of '+rep.balance.fights+' fights each (node balance-check.cjs --tale prints them).');
  if(rep.walkTrace)for(const l of rep.walkTrace)lines.push('   '+String(l.move).padStart(3)+' '+l.kind.padEnd(6)+' '+l.text);
  lines.push('Libraries: '+Object.entries(rep.libraries).map(([k,v])=>k+' '+(v??'(not found)')).join('; '));
- lines.push(rep.ok?'Result: PASS'+(rep.warnings.length?' with '+plural(rep.warnings.length,'warning')+' (read them)':'')+'. Check 8 runs once the fight-shape step lands.':'Result: FAIL, '+plural(rep.errors.length,'error')+(rep.warnings.length?' and '+plural(rep.warnings.length,'warning'):'')+'. Fix the errors (x) and run the checker again.');
+ lines.push(rep.ok?'Result: PASS'+(rep.warnings.length?' with '+plural(rep.warnings.length,'warning')+' (read them)':'')+'.':'Result: FAIL, '+plural(rep.errors.length,'error')+(rep.warnings.length?' and '+plural(rep.warnings.length,'warning'):'')+'. Fix the errors (x) and run the checker again.');
  return lines.join('\n');
 }
 function main(argv){
@@ -838,7 +860,9 @@ function main(argv){
   if(a==='--json')json=true;
   else if(a==='--walk'){if(!argv[i+1]){console.error('check-written-tale: --walk needs golden, passive, violent or an ending\'s id');return 1;}opts.walk=argv[++i];}
   else if(['--people','--creatures','--places','--shelf'].includes(a)){if(!argv[i+1]){console.error('check-written-tale: '+a+' needs a folder');return 1;}opts[a.slice(2)]=argv[++i];}
-  else if(a==='--help'||a==='-h'){console.log('Usage: node check-written-tale.cjs <tale.json> [--json] [--people <dir>] [--creatures <dir>] [--places <dir>] [--shelf <dir>]');return 0;}
+  else if(a==='--no-balance')opts.balance=false;
+  else if(a==='--balance'){const n=Number(argv[i+1]);if(!Number.isInteger(n)||n<1){console.error('check-written-tale: --balance needs the number of fights a cell');return 1;}opts.balanceFights=n;i++;}
+  else if(a==='--help'||a==='-h'){console.log('Usage: node check-written-tale.cjs <tale.json> [--json] [--people <dir>] [--creatures <dir>] [--places <dir>] [--shelf <dir>] [--balance <fights>] [--no-balance]');return 0;}
   else if(a.startsWith('--')){console.error('check-written-tale: unknown option '+a);return 1;}
   else files.push(a);
  }

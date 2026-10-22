@@ -14,10 +14,71 @@
 //                      default with --day 3): their win rates should sit within about 12 points of each other
 //  --class A,B         with --subclass: only these classes
 //  --quiet (flags and summary only)
+//  --alone off         creatures meet a hero alone as written, whatever the class (encounterRules.js foeScaling.alone
+//                      off): to compare with how they were before 2026-10-22
+//  --tale <file>       a written tale (WRITTEN-TALES.md): each chapter's set piece and the tale's foe, for the ready-made
+//                      Fighter, Rogue, Wizard and Cleric (--classes a,b) at the tale's lowest, middle and highest level
+//                      (--levels lo,mid,hi or numbers), alone and with one more hero (--party 1,2), against the targets
+//                      of check 8 (tale-balance.cjs; --fights defaults to 100 here)
+//  --tale <file>       a written tale (WRITTEN-TALES.md): each chapter's set piece and the tale's foe, for the ready-made
+//                      Fighter, Rogue, Wizard and Cleric (--classes a,b) at the tale's lowest, middle and highest level
+//                      (--levels lo,mid,hi or numbers), alone and with one more hero (--party 1,2), against the targets
+//                      of check 8 (tale-balance.cjs; --fights defaults to 100 here)
 const fs=require('fs'),vm=require('vm');
 const {rulesSource}=require('./rules-files.cjs');
 const source=rulesSource({extra:['worldArtRules.js']});
-const r=vm.runInNewContext(source+'\n({gearedHero,npcClassList,readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics,surgeReady,subclassOptions,subclassAction,subclassUses,classes,abilities,standardArray,knownSpells,automaticEffects,startParty,joinParty,partyView,settleParty,adventureSnapshot,makeMagicItem})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({gearedHero,npcClassList,readyHeroes,makeCharacter,blankBuild,hostileEncounterGame,hostileFoes,foeStatsFor,storyFoeStats,encounterFoe,newAdventure,adventureStep,dmCommand,attackOptions,combatBasics,surgeReady,subclassOptions,subclassAction,subclassUses,classes,abilities,standardArray,knownSpells,automaticEffects,startParty,joinParty,partyView,settleParty,adventureSnapshot,makeMagicItem,freshStoryGame,startWildFight,stagedThreat,stagingIds,readyHero,automaticSpells,spellLimits,spellsForClass,worldPlaces,foeScaling,bossShape})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+if(process.argv.includes('--alone')&&process.argv[process.argv.indexOf('--alone')+1]==='off')for(const k of Object.keys(r.foeScaling.alone))delete r.foeScaling.alone[k];
+// --tale: a written tale's own fights (tale-balance.cjs), and nothing else.
+function taleMode(){
+ const tb=require('./tale-balance.cjs'),argOf=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
+ const file=argOf('--tale',null);if(!file){console.error('balance-check: --tale needs a tale file');process.exitCode=1;return;}
+ const tale=JSON.parse(fs.readFileSync(file,'utf8')),lv=tb.taleLevels(tale),spec=String(argOf('--levels','lo,mid,hi'));
+ const lvls=[...new Set(spec.split(',').map(x=>x==='lo'?lv[0]:x==='mid'?lv[Math.floor(lv.length/2)]:x==='hi'?lv[lv.length-1]:Number(x)).filter(n=>Number.isInteger(n)&&n>=1&&n<=20))];
+ const classes=String(argOf('--classes','fighter,rogue,wizard,cleric')).split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+ const party=String(argOf('--party','1,2')).split(',').map(Number).filter(n=>n>=1&&n<=4);
+ const n=Math.max(10,Number(argOf('--fights',100))||100),t0=Date.now();
+ const out=tb.taleBalance({r,story:tb.taleCopy(tale,'balance-tale'),heroAt:tb.readyHeroAt(r),classes,levels:lvls,party,fights:n});
+ const pct=v=>String(Math.round(100*v)).padStart(3)+'%';
+ console.log((tale.story?.title??file)+' ('+(tale.length??'?')+', '+(tale.difficulty??'?')+', levels '+lv[0]+'-'+lv[lv.length-1]+'): '+n+' fights a cell');
+ let label=null;
+ for(const c of out.cells){
+  if(c.label!==label){label=c.label;console.log('\n'+label+':');}
+  const who=(c.cls+' L'+c.level+(c.size>1?' +'+(c.size-1):'')).padEnd(16);
+  if(c.none){console.log('  '+who+' no fight at this level');continue;}
+  console.log('  '+who+pct(c.win)+' win '+pct(c.fall)+' fall '+pct(c.death)+' die ~'+c.rounds.toFixed(1).padStart(5)+' steps'+(c.cost!==null?' '+pct(c.cost)+' HP spent':''));
+ }
+ const found=tb.balanceFindings(out.cells,tale.difficulty??'steady');
+ console.log('\nAgainst the targets ('+found.length+'):');for(const f of found)console.log('  '+f.where+': '+f.message);if(!found.length)console.log('  all within them.');
+ if(out.problems.length){console.log('\nEngine problems:');for(const p of out.problems)console.log('  '+p);process.exitCode=1;}
+ console.log('\n('+Math.round((Date.now()-t0)/1000)+' s)');
+}
+if(process.argv.includes('--tale')){taleMode();process.exit(process.exitCode??0);}
+// --tale: a written tale's own fights (tale-balance.cjs), and nothing else.
+function taleMode(){
+ const tb=require('./tale-balance.cjs'),argOf=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
+ const file=argOf('--tale',null);if(!file){console.error('balance-check: --tale needs a tale file');process.exitCode=1;return;}
+ const tale=JSON.parse(fs.readFileSync(file,'utf8')),lv=tb.taleLevels(tale),spec=String(argOf('--levels','lo,mid,hi'));
+ const lvls=[...new Set(spec.split(',').map(x=>x==='lo'?lv[0]:x==='mid'?lv[Math.floor(lv.length/2)]:x==='hi'?lv[lv.length-1]:Number(x)).filter(n=>Number.isInteger(n)&&n>=1&&n<=20))];
+ const classes=String(argOf('--classes','fighter,rogue,wizard,cleric')).split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+ const party=String(argOf('--party','1,2')).split(',').map(Number).filter(n=>n>=1&&n<=4);
+ const n=Math.max(10,Number(argOf('--fights',100))||100),t0=Date.now();
+ const out=tb.taleBalance({r,story:tb.taleCopy(tale,'balance-tale'),heroAt:tb.readyHeroAt(r),classes,levels:lvls,party,fights:n});
+ const pct=v=>String(Math.round(100*v)).padStart(3)+'%';
+ console.log((tale.story?.title??file)+' ('+(tale.length??'?')+', '+(tale.difficulty??'?')+', levels '+lv[0]+'-'+lv[lv.length-1]+'): '+n+' fights a cell');
+ let label=null;
+ for(const c of out.cells){
+  if(c.label!==label){label=c.label;console.log('\n'+label+':');}
+  const who=(c.cls+' L'+c.level+(c.size>1?' +'+(c.size-1):'')).padEnd(16);
+  if(c.none){console.log('  '+who+' no fight at this level');continue;}
+  console.log('  '+who+pct(c.win)+' win '+pct(c.fall)+' fall '+pct(c.death)+' die ~'+c.rounds.toFixed(1).padStart(5)+' steps'+(c.cost!==null?' '+pct(c.cost)+' HP spent':''));
+ }
+ const found=tb.balanceFindings(out.cells,tale.difficulty??'steady');
+ console.log('\nAgainst the targets ('+found.length+'):');for(const f of found)console.log('  '+f.where+': '+f.message);if(!found.length)console.log('  all within them.');
+ if(out.problems.length){console.log('\nEngine problems:');for(const p of out.problems)console.log('  '+p);process.exitCode=1;}
+ console.log('\n('+Math.round((Date.now()-t0)/1000)+' s)');
+}
+if(process.argv.includes('--tale')){taleMode();process.exit(process.exitCode??0);}
 // A written story's main foe, alongside the creature templates.
 const storyFoe={key:'story',foe:'Story Foe',species:'Unknown',type:'Slashing',appearance:'The main foe of a written story.',story:true};
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0&&process.argv[i+1]!==undefined?process.argv[i+1]:fallback;};
@@ -25,7 +86,9 @@ const fights=Math.max(10,Number(arg('--fights',200))||200),levels=String(arg('--
 const subclassMode=arg('--subclass',null),partySize=Math.max(1,Math.min(4,Number(arg('--party',1))||1)),day=Math.max(1,Math.min(6,Number(arg('--day',subclassMode?3:1))||1));
 const magic=String(arg('--magic','')).split(',').filter(Boolean);
 if(magic.some(m=>!['weapon+1','cloak','ring'].includes(m))){console.error('Unknown magic item: use weapon+1, cloak or ring.');process.exit(1);}
-const heroAt=(entry,level)=>r.makeCharacter({...r.blankBuild(),...entry.form,level,advancements:[],spellSelectionVersion:2});
+// A ready-made hero at a level, as the checks make one: its own spells, then the class's list to the level's limits
+// (tale-balance.cjs readyHeroAt; until 2026-10-22 a caster kept only its level-1 spells at every level).
+const readyAt=require('./tale-balance.cjs').readyHeroAt(r),heroAt=(entry,level)=>readyAt(entry.key,level);
 // The hero's magic items, attuned (lootRules.js).
 function withMagic(g,hero){
  if(!magic.length)return g;
@@ -38,43 +101,9 @@ function fightWith(hero,f){
  const g=r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stats=f.story?r.storyFoeStats(hero.level,f.type):r.foeStatsFor(f,hero.level);
  return withMagic({...g,story:{...g.story,id:'hostile-encounter-'+f.key,title:'Balance: '+f.foe,foe:f.foe,foeSpecies:f.species,foeAppearance:f.appearance,foeDamageType:f.type,foeStats:stats},enemyHP:stats.maximum},hero);
 }
-// The best damaging spell to cast now: a slot spell while the foe has enough left to be worth it, else the best
-// cantrip. Expected damage is reckoned roughly from the dice (an attack hits about two times in three; a save spell
-// does its half on a success).
-const cantripDice=level=>1+(level>=5)+(level>=11)+(level>=17);
-function bestCast(hero,g,h,foeLeft){
- const cast=words=>{const c=r.dmCommand(hero,g,words,h);return c?.action&&!c.error?c.action:null;};
- const options=r.knownSpells(hero).map(s=>({s,e:r.automaticEffects[s.id]})).filter(({s,e})=>e&&(e.attack||e.save)&&!e.heal&&!e.chooseType&&(s.castingTime==='Action'||e.asAction)).map(({s,e})=>{
-  const dice=s.level===0?cantripDice(hero.level):(e.count??1),each=(e.die+1)/2*dice*(e.rays??1)+(e.then?(e.then.count??1)*(e.then.die+1)/2:0);
-  return {s,expected:each*(e.attack?0.65:e.half?0.75:0.55)};
- });
- const cantrips=options.filter(o=>o.s.level===0).sort((a,b)=>b.expected-a.expected),best=cantrips[0]?.expected??0;
- const slots=options.filter(o=>o.s.level>0&&o.expected>best*1.3&&foeLeft>o.expected*0.6).sort((a,b)=>b.expected-a.expected);
- for(const o of [...slots,...cantrips]){const c=cast('I cast '+o.s.name+' at the '+g.story.foe);if(c)return c;}
- return null;
-}
-const casters=['Wizard','Sorcerer','Warlock','Druid','Bard','Cleric','Artificer'];
-// A plain player: heal or drink when low, spend spell slots on the strongest damaging spell while they last, then
-// cantrips, then the main weapon.
-function choose(hero,g,h,max){
- const cur=h?.current??max,low=cur<=max*0.35,cast=words=>{const c=r.dmCommand(hero,g,words,h);return c?.action&&!c.error?c.action:null;};
- const weapon=()=>{const weapons=r.attackOptions(r.gearedHero(hero,g)),w=weapons.find(x=>!x.unarmed&&!x.ranged)??weapons[0];return {type:'encounter-attack',weapon:w.name};};
- // A draught or Second Wind is a bonus action: taken when low, alongside the action. Once the action is spent
- // (the turn waits for a bonus action), anything not worth using is skipped with End turn.
- if(!g.bonusUsed&&low&&(g.potions??0)>0)return 'potion';
- // The subclass's own action while it has uses: a bonus action before the action (healing only when low, temporary
- // hit points only when there are none), an action in place of the attack.
- const feat=r.subclassAction(hero),featLeft=feat?r.subclassUses(hero,feat.uses)-(g.resources?.feat??0):0;
- if(feat&&featLeft>0&&!g.actionUsed&&(feat.bonus?!g.bonusUsed&&(feat.effect.heal?low&&cur<max:feat.effect.temp?!(h?.temp>0):true):true))return 'class:'+feat.id;
- if(!g.bonusUsed&&low&&hero.class==='Fighter'&&(g.resources?.wind??0)<(hero.level>=10?4:hero.level>=4?3:2))return 'class:wind';
- // A Fighter's Action Surge, while it is ready: one more action this turn.
- if(g.actionUsed&&r.surgeReady(hero,g))return 'class:surge';
- if(g.actionUsed)return 'end-turn';
- // Healing when low: a healing spell on yourself (a bonus-action one first).
- if(low&&cur<max){const heal=r.knownSpells(hero).filter(s=>r.automaticEffects[s.id]?.heal&&!s.id.startsWith('mass-')).sort((a,b)=>(b.castingTime==='Bonus Action')-(a.castingTime==='Bonus Action'));for(const s of heal){const c=cast('I cast '+s.name+' on myself');if(c)return c;}}
- if(casters.includes(hero.class)){const spell=bestCast(hero,g,h,g.enemyHP);if(spell)return spell;}
- return weapon();
-}
+// A plain player's tactics (fight-tactics.cjs): heal or drink when low, the strongest damaging spell while slots last,
+// then cantrips, then the main weapon.
+const {choose}=require('./fight-tactics.cjs').fightTactics(r);
 const flags=[],problems=new Set(),only=arg('--foe',null),companion=arg('--companion',null),cells=[];
 if(companion&&!r.npcClassList.includes(companion)){console.error('Unknown class: '+companion);process.exit(1);}
 // A companion travelling with the hero (followerRules.js): one level below them, fighting by their class.
