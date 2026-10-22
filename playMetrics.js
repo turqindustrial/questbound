@@ -72,7 +72,8 @@ function resumedSession(now){
   const n=v=>Number.isFinite(v)&&v>=0;
   if(!s||typeof s.id!=='string'||!/^[0-9a-f]{16}$/.test(s.id)||!n(s.started)||!n(s.lastActive)||!n(s.active)||!n(s.seq)||!n(s.turns)||now-s.lastActive>INSIGHT_NEW_SESSION||s.lastActive>now+60000)return null;
   const w=s.wait&&typeof s.wait==='object'?s.wait:{};
-  return {id:s.id,started:s.started,lastActive:s.lastActive,active:s.active,seq:s.seq,turns:s.turns,failed:s.failed&&typeof s.failed==='object'?Object.fromEntries(Object.entries(s.failed).filter(([,v])=>n(v))):{},place:typeof s.place==='string'?s.place:'title',tale:typeof s.tale==='string'?s.tale:null,easy:typeof s.easy==='boolean'?s.easy:null,
+  const told=s.story&&typeof s.story==='object'?s.story:null,storyOk=told&&['chapter','ending','beats','quietMax'].every(k=>n(told[k]))&&typeof told.finished==='boolean';
+  return {...(storyOk?{story:{chapter:told.chapter,finished:told.finished,ending:told.ending,beats:told.beats,quietMax:told.quietMax}}:{}),id:s.id,started:s.started,lastActive:s.lastActive,active:s.active,seq:s.seq,turns:s.turns,failed:s.failed&&typeof s.failed==='object'?Object.fromEntries(Object.entries(s.failed).filter(([,v])=>n(v))):{},place:typeof s.place==='string'?s.place:'title',tale:typeof s.tale==='string'?s.tale:null,easy:typeof s.easy==='boolean'?s.easy:null,
    wait:{started:n(w.started)?w.started:0,done:n(w.done)?w.done:0,failed:n(w.failed)?w.failed:0,waited:n(w.waited)?w.waited:0,since:n(w.since)?w.since:null},sent:typeof s.sent==='string'?s.sent:null,first:s.first===true,form:['phone','tablet','desktop'].includes(s.form)?s.form:formOf()};
  }catch{return null;}
 }
@@ -99,6 +100,16 @@ export function notePlace(place){current().place=place;}
 export function noteTalking(on){talkingNow=!!on;}
 export const talking=()=>talkingNow;
 export function noteTale(introId,easy){const s=current();s.tale=typeof introId==='string'?introId:null;s.easy=typeof easy==='boolean'?easy:null;}
+// A written tale under way (App.js, after each turn): the tale as w-<slug>, the chapter reached, whether it is finished
+// and with which ending (its place in the tale's list, 1 to 4), how many story beats were told, and the longest stretch
+// of quiet (game.pace, in half moves). Counts only: never a name, a word of the tale or what anyone typed.
+export function noteTaleState(game){
+ const st=game?.story,w=st?.written;if(!w||typeof w.slug!=='string'||!/^[a-z0-9-]{3,28}$/.test(w.slug))return;
+ const s=current(),p=game.pace&&typeof game.pace==='object'?game.pace:{},cap=(n,max)=>Number.isFinite(n)?Math.max(0,Math.min(max,Math.floor(n))):0;
+ const endings=Array.isArray(st.staging?.endings)?st.staging.endings:[],at=endings.findIndex(e=>e?.id===p.ending);
+ s.tale='w-'+w.slug;
+ s.story={chapter:cap((Number.isInteger(st.chapter)?st.chapter:0)+1,6),finished:st.status==='complete',ending:at>=0?cap(at+1,4):0,beats:cap(Array.isArray(p.told)?p.told.length:0,200),quietMax:Math.max(s.story?.quietMax??0,cap(p.quietMax,200))};
+}
 export function noteStoryWait(state,now=Date.now()){
  const w=current().wait;
  if(state==='start'){w.started++;w.since=now;return;}
@@ -118,7 +129,9 @@ export function playRecord(now=Date.now(),{store=insightStore(),created=null}={}
  if(!i.counts||!i.device)return null;
  const cap=(n,max)=>Math.max(0,Math.min(max,Math.floor(n)));
  const span=cap((now-s.started)/1000,86400),place=s.place==='explore'&&talkingNow?'talk':s.place;
- return {v:1,device:i.device,session:s.id,seq:cap(s.seq,500),first:created??s.first,build:pageBuild(),form:s.form??formOf(),active:Math.min(cap(sessionSeconds(now),86400),span+60),span,turns:cap(s.turns,5000),
+ // A written tale's counts (noteTaleState) make it a version 2 record; play-metrics.cjs accepts both.
+ const told=s.story?{chapter:cap(s.story.chapter,6),finished:s.story.finished===true,ending:cap(s.story.ending,4),beats:cap(s.story.beats,200),quietMax:cap(s.story.quietMax,200)}:null;
+ return {v:told?2:1,...(told?told:{}),device:i.device,session:s.id,seq:cap(s.seq,500),first:created??s.first,build:pageBuild(),form:s.form??formOf(),active:Math.min(cap(sessionSeconds(now),86400),span+60),span,turns:cap(s.turns,5000),
   failed:Object.fromEntries(Object.entries(s.failed).map(([k,v])=>[k,cap(v,5000)])),ended:place,tale:s.tale,easy:s.easy,
   wait:{started:cap(s.wait.started,50),done:cap(s.wait.done,50),failed:cap(s.wait.failed,50),waited:cap(s.wait.waited,86400),pending:s.wait.since==null?0:cap(Math.max(1,(now-s.wait.since)/1000),86400)}};
 }

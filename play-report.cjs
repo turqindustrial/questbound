@@ -56,8 +56,19 @@ function playSummary({dir=__dirname,days=14,now=Date.now(),host=false}={}){
   const list=sessions.filter(r=>r.at.startsWith(day)),rated=ratings.filter(r=>r.at.startsWith(day)),t=sum(list,r=>r.turns);
   return {day,sessions:list.length,devices:new Set(list.map(r=>r.device)).size,medianMinutes:list.length?round(median(list.map(r=>r.active??0))/60):null,turns:t,failedPer200:t?round(sum(list,r=>sum(turnFailures,k=>r.failed?.[k]))*200/t):null,ratings:rated.length,averageRating:rated.length?round(sum(rated,r=>scores[r.rating])/rated.length,2):null};
  }).filter(d=>d.day>=since.slice(0,10));
+ // Written tales (sessions counted as w-<slug>, version 2 records): per tale, the sessions, how far they got (the most a
+ // device reached), how many finished and with which ending, beats told and the median longest quiet.
+ const written={};
+ for(const r of sessions.filter(r=>typeof r.tale==='string'&&r.tale.startsWith('w-'))){
+  const t=written[r.tale]??={sessions:0,devices:new Set(),reached:{},finished:0,endings:{},beats:0,quiet:[]};
+  t.sessions++;t.devices.add(r.device);
+  if(Number.isInteger(r.chapter)){const best=t.reached[r.device]??0;t.reached[r.device]=Math.max(best,r.chapter);}
+  if(r.finished===true){t.finished++;if(r.ending)t.endings[r.ending]=(t.endings[r.ending]??0)+1;}
+  t.beats+=r.beats??0;if(Number.isInteger(r.quietMax))t.quiet.push(r.quietMax);
+ }
+ const writtenTales=Object.fromEntries(Object.entries(written).sort((a,b)=>b[1].sessions-a[1].sessions).map(([k,t])=>{const reached=Object.values(t.reached);return [k,{sessions:t.sessions,devices:t.devices.size,pastChapter1:reached.filter(c=>c>=2).length,finished:t.finished,endings:t.endings,beats:t.beats,medianQuietMax:median(t.quiet)}];}));
  return {
-  days,since,until:new Date(now).toISOString(),sessions:sessions.length,leftOutFromThisPc:leftOut,
+  days,since,until:new Date(now).toISOString(),sessions:sessions.length,leftOutFromThisPc:leftOut,writtenTales,
   devices:{active:devices.length,new:devices.filter(d=>firstSeen.get(d)>=since).length,cameBack:devices.filter(d=>(daysOf.get(d)?.size??0)>=2).length},
   length:{medianMinutes:active.length?round(median(active)/60):null,p25Minutes:active.length?round(quantile(active,.25)/60):null,p75Minutes:active.length?round(quantile(active,.75)/60):null,totalHours:round(sum(active,x=>x)/3600),distribution:Object.fromEntries(buckets.map(([label,top],i)=>[label,active.filter(s=>s<top&&s>=(i?buckets[i-1][1]:0)).length]))},
   ended:count(sessions,r=>r.ended),noTurns:sessions.filter(r=>!r.turns).length,
@@ -86,6 +97,7 @@ function printReport(s,print){
  for(const [place,n] of Object.entries(s.ended))print('  '+place.padEnd(14)+String(n).padStart(4)+'  '+pct(n,s.sessions));
  print('Turns: '+s.turns.total+'; failed per 200 turns: '+(s.turns.failedPer200??'-')+' ('+Object.entries(s.turns.per200).map(([k,v])=>k+' '+(v??'-')).join(', ')+'); saves that failed '+s.turns.failed.save+', faults the Dungeon Master admitted '+s.turns.failed.reported+'.');
  print('Story waits: '+s.storyWaits.started+' started, '+s.storyWaits.done+' finished (about '+(s.storyWaits.averageDoneSeconds??'-')+' s each), '+s.storyWaits.failed+' failed, '+s.storyWaits.abandoned+' abandoned'+(s.storyWaits.medianAbandonedSeconds!=null?' (after a median '+s.storyWaits.medianAbandonedSeconds+' s)':'')+'.');
+ if(Object.keys(s.writtenTales??{}).length){print('Written tales (devices that got past chapter 1, finished sessions, endings by their place in the tale, the median longest quiet in half moves):');for(const [k,t] of Object.entries(s.writtenTales))print('  '+k.slice(2).padEnd(28)+' '+t.sessions+' session(s) on '+t.devices+' device(s); past chapter 1 '+t.pastChapter1+'; finished '+t.finished+(Object.keys(t.endings).length?' ('+Object.entries(t.endings).map(([e,n])=>'ending '+e+': '+n).join(', ')+')':'')+'; beats told '+t.beats+'; quiet '+(t.medianQuietMax??'-')+'.');}
  print('Openings: '+(Object.entries(s.openings).map(([k,v])=>k+' '+v).join(', ')||'none')+'; Easy start on in '+s.easyStart+'.');
  print('Devices: '+(Object.entries(s.forms).map(([k,v])=>k+' '+v).join(', ')||'none')+'. Builds: '+(Object.entries(s.builds).slice(0,5).map(([k,v])=>k+' '+v).join(', ')||'none')+'.');
  print('');

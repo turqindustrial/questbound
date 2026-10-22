@@ -19,13 +19,19 @@ const metricsForms=['phone','tablet','desktop'];
 // Tale openings: the ids in adventureIntros.json, 'next' for the next tale in a region; anything else counts as 'other'.
 const metricsOpenings=(()=>{try{const list=JSON.parse(fs.readFileSync(path.join(__dirname,'adventureIntros.json'),'utf8'));return new Set([...(Array.isArray(list)?list:[]).map(i=>i?.id).filter(id=>typeof id==='string'),'next']);}catch{return new Set(['next']);}})();
 const metricsKeys=['v','device','session','seq','first','build','form','active','span','turns','failed','ended','tale','easy','wait'];
+// A version 2 record (a session of a written tale) adds the tale's counts: the chapter reached (1-6), finished, the
+// ending taken (its place in the tale's list, 0 for none), story beats told and the longest quiet (half moves).
+const metricsTaleKeys=['chapter','finished','ending','beats','quietMax'];
+// A written tale is counted by its slug as w-<slug> (written-shelf.cjs).
+const writtenTaleId=/^w-[a-z0-9-]{3,28}$/;
 const isCount=(value,max)=>Number.isInteger(value)&&value>=0&&value<=max;
 // The record as kept, or {error}. `from` is the server's own word for where it came from (link, desktop, hosted).
 function metricsRecord(body,{now=Date.now(),from='link'}={}){
  const fail=error=>({error});
  if(!body||typeof body!=='object'||Array.isArray(body))return fail('Not a record.');
- for(const key of Object.keys(body))if(!metricsKeys.includes(key))return fail('Unknown field.');
- if(body.v!==1)return fail('Unknown version.');
+ if(body.v!==1&&body.v!==2)return fail('Unknown version.');
+ for(const key of Object.keys(body))if(!metricsKeys.includes(key)&&!(body.v===2&&metricsTaleKeys.includes(key)))return fail('Unknown field.');
+ if(body.v===2&&(!isCount(body.chapter,6)||typeof body.finished!=='boolean'||!isCount(body.ending,4)||!isCount(body.beats,200)||!isCount(body.quietMax,200)))return fail('Bad tale counts.');
  if(typeof body.device!=='string'||!/^[0-9a-f]{32}$/.test(body.device))return fail('Bad device.');
  if(typeof body.session!=='string'||!/^[0-9a-f]{16}$/.test(body.session))return fail('Bad session.');
  if(!isCount(body.seq,500))return fail('Bad sequence.');
@@ -47,7 +53,8 @@ function metricsRecord(body,{now=Date.now(),from='link'}={}){
   device:crypto.createHash('sha256').update('questbound-metrics-v1:'+body.device).digest('hex').slice(0,16),
   session:body.session,seq:body.seq,first:body.first,build:body.build,form:body.form,active:body.active,span:body.span,turns:body.turns,
   failed:Object.fromEntries(metricsFailures.map(k=>[k,failed[k]??0])),ended:body.ended,
-  tale:body.tale===null?null:metricsOpenings.has(body.tale)?body.tale:'other',easy:body.easy,
+  tale:body.tale===null?null:metricsOpenings.has(body.tale)||writtenTaleId.test(body.tale)?body.tale:'other',easy:body.easy,
+  ...(body.v===2?{chapter:body.chapter,finished:body.finished,ending:body.ending,beats:body.beats,quietMax:body.quietMax}:{}),
   wait:{started:wait.started,done:wait.done,failed:wait.failed,waited:wait.waited,pending:wait.pending},
  }};
 }
@@ -73,4 +80,4 @@ function metricsWriter(file,{now=Date.now,days=metricsRetentionDays}={}){
   fs.appendFileSync(file,JSON.stringify(record)+'\n');return true;
  };
 }
-module.exports={metricsRecord,metricsWriter,pruneMetrics,metricsFileIn,metricsPlaces,metricsFailures,metricsForms,metricsRetentionDays,METRICS_BODY_LIMIT};
+module.exports={metricsTaleKeys,metricsRecord,metricsWriter,pruneMetrics,metricsFileIn,metricsPlaces,metricsFailures,metricsForms,metricsRetentionDays,METRICS_BODY_LIMIT};
