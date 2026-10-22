@@ -1,6 +1,6 @@
 import catalog from './spellCatalog.json';
 import progression from './spellProgression.json';
-import {speciesLineages,fixedLineage,heroSpecies} from './characterRules';
+import {speciesLineages,fixedLineage,heroSpecies,currentSubclass} from './characterRules';
 export const spellLibrary=catalog;
 export function spellLimits(hero) {
   const level=hero.level ?? 1;
@@ -43,7 +43,7 @@ export function automaticSpells(hero) {
   const base=hero.class==='Artificer'?['mending']:hero.class==='Druid'?['speak-with-animals']:hero.class==='Ranger'?["hunters-mark"]:[];
   if(hero.class==='Paladin' && hero.level>=2)base.push('divine-smite');
   if(hero.class==='Warlock' && hero.level>=9)base.push('contact-other-plane');
-  if(hero.level>=3 && subclassSpellClass[hero.plannedSubclass]===hero.class)for(const [level,ids] of Object.entries(subclassSpells[hero.plannedSubclass]??{}))if(hero.level>=Number(level))base.push(...ids);
+  if(hero.level>=3 && subclassSpellClass[currentSubclass(hero.plannedSubclass)]===hero.class)for(const [level,ids] of Object.entries(subclassSpells[currentSubclass(hero.plannedSubclass)]??{}))if(hero.level>=Number(level))base.push(...ids);
   return [...new Set(base)].filter(id=>spellLibrary.some(s=>s.id===id));
 }
 // Spells a hero's species or lineage grants (SRD 5.2): a cantrip at once, and spells at character levels 3 and 5. Each
