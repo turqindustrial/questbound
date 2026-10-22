@@ -586,7 +586,8 @@ function stgApplyChoice(state,choice,opt,how){
  stgFire(state,'chosen:'+choice.id);if(how==='lapsed')stgFire(state,'lapsed:'+choice.id);
  state.happened=true;
  stgLog(state,(how==='lapsed'?'Left to fate: ':'You chose: ')+stgClean(opt.label,80).replace(/[.\s]+$/,'')+'.');
- stgThen(state,opt.then,'opt:'+choice.id+':'+opt.id);
+ // (what closes the chapter through an option is named by its choice: a pace id stays within 32 characters)
+ stgThen(state,opt.then,'opt:'+choice.id);
 }
 // A chapter begins: its counters start again, its set piece is armed and its opening's effects apply.
 function stgOpenChapter(state,i){

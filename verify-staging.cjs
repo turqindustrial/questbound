@@ -209,6 +209,10 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  const settled=seat(copy(s=>{ch(s,0).choice={id:'trail',opens:null,ask:'Follow the trail or guard the camp?',options:[{id:'follow',label:'Follow the trail',say:'I follow the trail.',if:null,when:{reach:'Fernmoot Spring'},then:{flag:'followed'}},{id:'guard',label:'Guard the camp',say:'I stay and guard.',if:{flag:'never-set'},when:null,then:{}}],late:'follow'};ch(s,1).then={flag:'never-set'};}));
  let t=talk(settled).game;assert.equal(r.paceDueKey(t.pace.due),'choice:trail','a choice that opens as the chapter begins');assert.deepEqual(r.stagingChoices(kara,t).map(c=>c.id),['tale-choice:trail:follow'],'an option whose if does not hold is not offered');
  t=travel(t,'p2',{beats:told(t)}).game;assert.equal(t.pace.marks.trail,'follow','settled by its when');assert.ok(t.pace.flags.includes('followed'));
+ // An option that closes the chapter: the truth is due, named by its choice (ids of the longest shape stay valid).
+ const longIds=seat(copy(s=>{ch(s,0).choice={id:'a-turning-point-long-id1',opens:null,ask:'Run for the sawpit now, or stay?',options:[{id:'an-option-with-long-id1',label:'Run for the sawpit',say:'I run for the sawpit.',if:null,when:null,then:{advance:true}},{id:'stay',label:'Stay',say:'I stay.',if:null,when:null,then:{}}]};ch(s,1).then={};}));
+ let lid=talk(longIds).game;lid=settle(lid,'tale-choice:a-turning-point-long-id1:an-option-with-long-id1',{question:'I run for the sawpit.',narration:'You run.',dialogue:[],npcId:null,beats:told(lid)}).game;
+ assert.equal(lid.story.chapter,1,'an option that closes the chapter');assert.equal(r.paceDueKey(lid.pace.due),'turn:opt:a-turning-point-long-id1','its truth due, named by its choice');
  // In a fight no choice is offered.
  let fightChoice=travel(settled,'p1').game;assert.equal(r.stagingChoices(kara,fightChoice).length,0,'none in a fight');
 }
