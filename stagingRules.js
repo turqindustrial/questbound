@@ -667,6 +667,19 @@ export function bossOpen(game){
  const from=stagingInt(st.confrontFrom,1,99)?st.confrontFrom:st.chapters.length,cond=st.boss?.if;
  return (game.story.chapter??0)+1>=from&&(cond===undefined||cond===null||beatHolds(game,cond));
 }
+// The Dungeon Master's story-advance in a written tale (WRITTEN-TALES.md 4.4, step 3) is offered only once the chapter's
+// own part is behind the player: its set piece, when one was armed, beaten; its choice, when it has one, made. Until
+// then the game closes the chapter (its finds, the clock), and the scene carries no truth to tell early (dmSceneRules.js).
+export function stagingAdvanceOpen(game){
+ const st=stgStaging(game);if(!st)return true;
+ const p=game.pace;if(!stagingPlain(p)||game.story.status!=='active'||stgFighting(game))return false;
+ const ch=Number.isInteger(p.ch)?p.ch:game.story.chapter??0,c=st.chapters[ch]??{};
+ if(stagingPlain(c.fight)&&typeof c.fight.at==='string'){
+  const id=stagingIds(game).place(c.fight.at);
+  if(id&&stgList(p.fired).includes('arm:'+id+':'+(ch+1))&&!worldPlaces(game).find(x=>x?.id===id)?.cleared&&!stgList(p.seen).includes('won:'+id))return false;
+ }
+ return !(stagingPlain(c.choice)&&typeof c.choice.id==='string'&&Array.isArray(c.choice.options)&&!p.marks?.[c.choice.id]);
+}
 // The engine's refusal of a move against the foe held back to its chapter (approach, or an attack at the stronghold).
 export function bossBlocked(game,action){
  if(!stgStaging(game)||game.stage!=='bridge'||!(game.enemyHP>0)||game.story.status!=='active')return null;
@@ -709,7 +722,9 @@ export function seatStaging(game,hero){
 // One move of a written tale, after the step (WRITTEN-TALES.md 4.4): told, counters, a chapter closed outside, found,
 // beats, the choice, the clock (then leads by their conditions and offers that wait). Returns the game, the lines it
 // adds to the turn's events, and what is due. A different tale (a new one being seated) is left alone.
-export function withBeats(before,after,hero,{action=null,conversation=null}={}){
+// `stepped`: the game as the rules left it, before the reply's own additions (a person met, gold handed over, a grudge:
+// dmContext.js commitDmTurn); what this move brings due is decided from what the engine did, as the preview decided it.
+export function withBeats(before,after,hero,{action=null,conversation=null,stepped=null}={}){
  const none={game:after,events:[],beat:null};
  try{
   const st=stgStaging(after);
@@ -738,8 +753,11 @@ export function withBeats(before,after,hero,{action=null,conversation=null}={}){
   if(action?.type==='loot'){const at=mapLocation(after);if(named.has(at))seen('searched:'+at);}
   if(action?.type==='ai-check'){const at=mapLocation(before);if(named.has(at))seen('checked:'+at);}
   const rested=action==='long-rest';if(rested)seen('rest');
-  if(conversation&&conversation.told!=='game')for(const id of new Set(stgList(conversation.dialogue).map(l=>l?.speakerId)))if((id==='keeper'||id==='mara'||isPersonId(id))&&(Object.hasOwn(p.spoke,id)||Object.keys(p.spoke).length<100))p.spoke[id]=Math.min(999,(Number.isInteger(p.spoke[id])?p.spoke[id]:0)+1);
-  {const lines=fighting?[]:storyEvents(before,after,hero,{action}).filter(([kind,text])=>kind!=='rest'&&!(kind==='travel'&&/^Returned to /.test(text)));
+  // Who spoke: a move of talk alone (no preview) counts at once; the reply to a move counts once this move's beats are
+  // decided (the preview of the move had no reply), so the commit brings due what the preview brought due.
+  const spoken=()=>{if(conversation&&conversation.told!=='game')for(const id of new Set(stgList(conversation.dialogue).map(l=>l?.speakerId)))if((id==='keeper'||id==='mara'||isPersonId(id))&&(Object.hasOwn(p.spoke,id)||Object.keys(p.spoke).length<100))p.spoke[id]=Math.min(999,(Number.isInteger(p.spoke[id])?p.spoke[id]:0)+1);};
+  if(action===null)spoken();
+  {const lines=fighting?[]:storyEvents(before,stagingPlain(stepped)?stepped:after,hero,{action}).filter(([kind,text])=>kind!=='rest'&&!(kind==='travel'&&/^Returned to /.test(text)));
    // Talk: words with someone (they answer, or the player turned to them); a move without it (a look, a wait) is any other.
    const talk=action===null&&!!conversation&&(!!conversation.npcId||stgList(conversation.dialogue).length>0);
    if(fighting||lines.length)p.quiet=0;else p.quiet=Math.min(9999,p.quiet+(talk?1:2));}
@@ -767,6 +785,9 @@ export function withBeats(before,after,hero,{action=null,conversation=null}={}){
   }
   // 4. Found: a route that holds closes the chapter (or completes the tale), replacing a beat due but untold.
   if(calm()&&stgList(st.chapters[p.ch]?.found?.any).some(r=>beatHolds(state.game,r,p)))stgClose(state,'found:'+(p.ch+1));
+  // What the preview of this move fired and its request carried fires now as it fired then (after the find, as there),
+  // whatever the reply added.
+  if(calm())stgCarried(state,carried);
   // 5. Beats: when nothing is due, the first unfired beat whose `when` and `if` hold.
   if(calm()&&!p.due)for(const b of stgList(st.chapters[p.ch]?.beats)){
    if(!stagingPlain(b)||typeof b.id!=='string'||p.fired.includes(b.id)||!beatHolds(state.game,b.when,p)||(b.if!==undefined&&b.if!==null&&!beatHolds(state.game,b.if,p)))continue;
@@ -791,15 +812,7 @@ export function withBeats(before,after,hero,{action=null,conversation=null}={}){
     if(!done&&p.step<steps.length){
      p.clockAt=p.turns;state.happened=true;if(p.owed>0)p.owed--;
      if(p.held>0)p.held--;
-     else{const s=steps[p.step];p.step++;
-      if(stagingPlain(s)&&typeof s.id==='string'){
-       const spared=s.if!==undefined&&s.if!==null&&p.step<steps.length&&!beatHolds(state.game,s.if,p);
-       stgFire(state,s.id);p.due={kind:'pressure',id:s.id};
-       if(spared){stgFire(state,'spared:'+s.id);if(stagingText(s.spared?.sign,stagingLimits.sign))p.sign=s.spared.sign;}
-       else{if(stagingText(s.sign,stagingLimits.sign))p.sign=s.sign;stgThen(state,s.then,s.id);}
-      }
-      if(p.step>=steps.length&&!state.closed)stgClose(state,typeof s?.id==='string'?s.id:'clock:'+(p.ch+1),{late:true});
-     }
+     else stgNextStep(state,steps);
     }
    }
   }
@@ -809,9 +822,37 @@ export function withBeats(before,after,hero,{action=null,conversation=null}={}){
    const lead=stgList(state.game.story.leads).find(x=>x?.id===l.id);
    if(lead&&!lead.done&&leadOpenNow(state.game,l.id,p)&&beatHolds(state.game,l.done,p))stgCloseLead(state,l.id);
   }
+  if(action!==null&&!state.closed)spoken();
   stgOffers(state);
   return finish();
  }catch{return none;}
+}
+// The clock's next pressure step: fired (or spared while its if does not hold), and the last one closes the chapter.
+function stgNextStep(state,steps){
+ const p=state.pace,s=steps[p.step];p.step++;
+ if(stagingPlain(s)&&typeof s.id==='string'){
+  const spared=s.if!==undefined&&s.if!==null&&p.step<steps.length&&!beatHolds(state.game,s.if,p);
+  stgFire(state,s.id);p.due={kind:'pressure',id:s.id};
+  if(spared){stgFire(state,'spared:'+s.id);if(stagingText(s.spared?.sign,stagingLimits.sign))p.sign=s.spared.sign;}
+  else{if(stagingText(s.sign,stagingLimits.sign))p.sign=s.sign;stgThen(state,s.then,s.id);}
+ }
+ if(p.step>=steps.length&&!state.closed)stgClose(state,typeof s?.id==='string'?s.id:'clock:'+(p.ch+1),{late:true});
+}
+// A beat, complication, pressure step or choice of the chapter under way that a request of this move carried (the
+// preview fired it, and the Dungeon Master was given its words) and that has not fired: it fires now as it fired in
+// the preview (a chapter's truth or the ending carried names what closed it). Nothing else is due by then.
+function stgCarried(state,carried){
+ const p=state.pace,c=state.staging.chapters[p.ch]??{};
+ for(const key of carried){
+  if(state.closed||p.due)return;
+  const at=key.indexOf(':'),kind=at>0?key.slice(0,at):'',id=at>0?key.slice(at+1):'';
+  if(kind==='choice'){const ch=c.choice;if(stagingPlain(ch)&&ch.id===id&&Array.isArray(ch.options)&&!p.marks[id]&&!p.fired.includes('choice:'+id)){stgFire(state,'choice:'+id);p.due={kind:'choice',id};state.happened=true;}continue;}
+  if(!['beat','complication','pressure','turn','ending'].includes(kind))continue;
+  const f=stgFind(state.staging,id);if(!f||f.chapter!==p.ch||p.fired.includes(id))continue;
+  if(f.kind==='beat'){stgFire(state,id);p.due={kind:'beat',id};state.happened=true;stgThen(state,f.item.then,id);}
+  else if(f.kind==='complication'){stgFire(state,id);p.due={kind:'complication',id};p.clockAt=p.turns;state.happened=true;stgThen(state,f.item.then,id);}
+  else{const steps=stgList(c.pressure);if(steps[p.step]?.id!==id)continue;p.clockAt=p.turns;state.happened=true;if(p.owed>0)p.owed--;stgNextStep(state,steps);}
+ }
 }
 // The same, applied to a preview of a move (useDmTurn.js and server-turn.cjs, before the game tells a routine move and
 // before a request is built), so a beat this move fires is in this very reply.
@@ -1099,6 +1140,8 @@ export function writtenCheck(story,{hero=null}={}){
    if(stagingPlain(then.place)&&starting.includes(ids.place(then.place.at)))problems.push(path+'.place: a starting place changed');
    for(const k of ['bring','send']){const who2=k==='bring'?then.bring:then.send?.who;if(typeof who2==='string'&&['keeper','mara'].includes(ids.person(who2)))problems.push(path+'.'+k+': keeper and mara are never moved');}};
   stgList(s.staging.chapters).forEach((c,i)=>{if(!stagingPlain(c))return;const p='staging.chapters['+i+']';
+   // The clock's steps are what close a chapter nobody pursues: without one it could stall for ever.
+   if(!stgList(c.pressure).some(x=>stagingPlain(x)&&typeof x.id==='string'))problems.push(p+'.pressure: a chapter needs pressure steps, or it can stall for ever');
    if(stagingPlain(c.fight)&&starting.includes(ids.place(c.fight.at)))problems.push(p+'.fight: a fight at a starting place');
    walk(c.then,p+'.then');walk(c.opening?.then,p+'.opening.then');for(const kind of ['beats','complications','pressure'])stgList(c[kind]).forEach((b,j)=>walk(b?.then,p+'.'+kind+'['+j+'].then'));stgList(c.choice?.options).forEach((o,j)=>walk(o?.then,p+'.choice.options['+j+'].then'));});
  }catch(e){problems.push('the tale does not seat: '+String(e?.message??e));}

@@ -19,7 +19,7 @@
 'use strict';
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const {rulesSource}=require('./rules-files.cjs'),W=require('./written-walk.cjs');
-const names=[...new Set([...W.needs,'readyHero','freshStoryGame','newAdventure','withBeats','stagedPreview','seatStaging','beatHolds','taleNow','endingOf','stagingChoices','writtenCheck','beatKey','beatSent','beatDue','withBeatLine','beatLineOf','taleSayLines','placeColour','pressureSign','stagingQuest','bossOpen','bossBlocked','leadOpenNow','isStaged','validPace','validAdventure','adventureSnapshot','dmChoices','quickActions','offeredChoices','mapMoves','beyondError','introducePerson','dmContext','validStaging','stagingIds','upgradeCharacter','upgradeAdventure','startParty','joinParty','partyInTale','partyView','routineTelling','paceDueKey','calmTelling','worldPlace'])];
+const names=[...new Set([...W.needs,'readyHero','freshStoryGame','newAdventure','withBeats','stagedPreview','seatStaging','beatHolds','taleNow','endingOf','stagingChoices','writtenCheck','beatKey','beatSent','beatDue','withBeatLine','beatLineOf','taleSayLines','placeColour','pressureSign','stagingQuest','bossOpen','bossBlocked','leadOpenNow','isStaged','validPace','validAdventure','adventureSnapshot','dmChoices','quickActions','offeredChoices','mapMoves','beyondError','introducePerson','dmContext','validStaging','stagingIds','upgradeCharacter','upgradeAdventure','startParty','joinParty','partyInTale','partyView','routineTelling','paceDueKey','calmTelling','worldPlace','noteLead'])];
 const r=vm.runInNewContext(rulesSource()+'\n;({'+names.join(',')+'})',{AsyncStorage:{},console},{timeout:20000});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'written-fixture.json'),'utf8'));
@@ -63,6 +63,8 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  assert.deepEqual(plain(r.writtenCheck(copy())),{ok:true,problems:[]});
  const bad=r.writtenCheck(copy(s=>{ch(s,0).fight.at='Kettle Camp';ch(s,0).beats[0].then={bring:'Mabry Thorne',arm:{at:'The Split Oak',template:'boar',name:'A Boar',appearance:'A boar with tusks and mud.',ally:null}};ch(s,0).found.any[0]={reach:'Nowhere Mere'};}));
  assert.equal(bad.ok,false);for(const p of [/fight: a fight at a starting place/,/bring: keeper and mara are never moved/,/arm: a fight at a starting place/,/"Nowhere Mere" names nothing/])assert.ok(bad.problems.some(x=>p.test(x)),'writtenCheck: '+p);
+ // A chapter with no pressure steps could stall for ever: the shelf refuses it (the review of 2026-10-22).
+ {const stall=r.writtenCheck(copy(s=>{delete ch(s,0).pressure;}));assert.equal(stall.ok,false);assert.ok(stall.problems.some(x=>/chapters\[0\]\.pressure: a chapter needs pressure steps/.test(x)),'writtenCheck: a chapter without pressure steps');}
 }
 
 // ---------- 2. Events kept for the chapter, who spoke, quiet ----------
@@ -155,6 +157,21 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  for(const k of ['fired','seen','stakes','marks','flags','offers','leads','step','owed','held','ch','turns'])assert.deepEqual(plain(commit.pace[k]),plain(preview.game.pace[k]),'preview and commit agree: '+k);
  assert.deepEqual(plain(commit.world),plain(preview.game.world),'and on the world');assert.deepEqual(plain(commit.people),plain(preview.game.people),'and on the people');
  assert.ok(commit.pace.told.includes('b1')&&commit.pace.due===null,'the commit marks the carried beat told');
+ // The reply's own additions (gold handed over, words spoken) never change what the move brings due (the review of
+ // 2026-10-22: a pressure step fired on quiet in the preview and was told, then the commit, counting the reply's gold
+ // as something happening, fired nothing; with the last steps it closed no chapter whose truth had been told).
+ for(const fired of [0,2]){
+  let q=seat(copy());const steps=ch(fixture.story,0).pressure.map(p=>p.id);
+  if(fired)q={...q,pace:{...q.pace,step:fired,fired:[...q.pace.fired,...steps.slice(0,fired)],told:[...q.pace.told,...steps.slice(0,fired)]}};
+  for(let i=0;i<2;i++)q=talk(q,{words:'I wait.'}).game;
+  const hp=r.combatBasics(kara).hp,health={current:hp-5,maximum:hp,temp:0},act='short-rest';
+  const pv=r.stagedPreview(q,r.adventureStep(q,health,kara,act,()=>0.5),kara,act),key=r.beatSent(pv.game,{engineResolved:true});
+  assert.ok(key,'the preview of the rest brings the clock\'s step due ('+fired+' fired)');
+  const here=r.npcScene(q).filter(n=>n.present&&(n.hp??0)>0).map(n=>n.id).slice(0,1);
+  const done=settle(q,act,{question:'I rest.',narration:'You rest; a few coins glint in the straw.',dialogue:here.map(id=>({speakerId:id,text:'Rest while you can.'})),npcId:null,loot:{gold:3,items:[],reason:'Coins in the straw.'},beats:[key]},{health}).game;
+  for(const k of ['fired','step','ch','stakes'])assert.deepEqual(plain(done.pace[k]),plain(pv.game.pace[k]),'with gold and words in the reply, the commit still agrees with the preview ('+fired+' fired): '+k);
+  assert.equal(done.story.chapter,pv.game.story.chapter,'and closes the chapter the preview closed');assert.equal(done.pace.due,null,'what the request carried is told');
+ }
  // With nothing due, the same journey back is told by the game.
  const quiet=seat(copy());let v=travel(quiet,'p2').game;v=travel(v,'inn').game;
  const back={type:'travel',destination:'p2'},pv=r.stagedPreview(v,r.adventureStep(v,null,kara,back,()=>0.5),kara,back);
@@ -230,6 +247,19 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  assert.match(r.adventureStep(g,null,kara,'approach',()=>0.5).error,/beyond your reach for now/,'and the engine refuses it');
  assert.ok(r.dmContext(kara,g,null,'x').quest.bossLater===true);
  assert.match(r.beyondError(g,'N'),/keeps to its own land/,'no road beyond the map before the last chapter');
+ // The Dungeon Master is offered story-advance only once the chapter's set piece is beaten (and its choice made, when it
+ // has one): before that the scene carries no truth to tell early, and the move is refused (the review of 2026-10-22:
+ // a story-advance on the first move skipped the set piece and paid the chapter's experience).
+ assert.ok(!r.dmChoices(kara,g,null).some(c=>c.id==='story-advance'),'no story-advance before the set piece is beaten');
+ assert.equal(r.dmContext(kara,g,null,'x').quest.truth,undefined,'and no truth in the scene to tell early');
+ assert.match(r.settleTurn({hero:kara,game:g,health:null,action:'story-advance',conversation:{question:'I tell them what I found.',narration:'The truth comes out.',dialogue:[],npcId:null},random:()=>0.5}).error,/no longer available/,'the move is refused at the commit');
+ {const choiceTale=seat(copy(s=>{s.landmarks[0].danger='safe';s.staging.chapters[0].choice={id:'test',opens:null,ask:'Which way?',options:[{id:'a',label:'Go left',say:'I go left.',if:null,when:null,then:null},{id:'b',label:'Go right',say:'I go right.',if:null,when:null,then:null}]};})),at=place(choiceTale,ch(fixture.story,0).fight.at);
+  const beaten={...choiceTale,world:{...choiceTale.world,places:choiceTale.world.places.map(p=>p.id===at?{...p,cleared:true}:p)}};
+  assert.ok(!r.dmChoices(kara,beaten,null).some(c=>c.id==='story-advance'),'nor while the chapter\'s choice is still to be made');
+  const chosen={...beaten,pace:{...beaten.pace,marks:{test:'a'},fired:[...beaten.pace.fired,'choice:test','chosen:test']}};
+  assert.ok(r.dmChoices(kara,chosen,null).some(c=>c.id==='story-advance'),'then it is offered');assert.ok(r.dmContext(kara,chosen,null,'x').quest.truth,'with the truth to tell');}
+ g={...g,world:{...g.world,places:g.world.places.map(p=>p.id===place(g,ch(fixture.story,0).fight.at)?{...p,cleared:true}:p)}};
+ assert.ok(r.dmChoices(kara,g,null).some(c=>c.id==='story-advance'),'the set piece beaten (a chapter with no choice): offered');
  // The Dungeon Master's story-advance closes the chapter as the engine does: the chapter's find given, its then and
  // its choice's late, the next chapter's opening due.
  const adv=settle(g,'story-advance',{question:'I tell them what I found.',narration:'The truth comes out.',dialogue:[],npcId:null}).game;
@@ -237,6 +267,16 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  assert.ok(adv.pack.items.some(i=>i.name==='Strip of Deer Hide'),'the find\'s item, however the chapter closes');assert.ok(adv.pace.offers.includes('mara')||adv.joinOffers?.mara,'the chapter\'s then');
  assert.equal(r.bossOpen(adv),true,'and from chapter 2 the foe can be met');
  assert.ok(!r.dmChoices(kara,adv,null).some(c=>c.id==='story-complete'),'a written tale ends where the engine finds it ends: no story-complete');
+ // A brawl at the stronghold: the foe is not offered as a target (the engine would leave it untouched and the commit
+ // refuse the move: the review of 2026-10-22).
+ {const at={...adv,stage:'bridge'},brawl={...at,npcCombat:{active:true,order:[{id:'keeper',side:'enemy',init:10}],turn:0,round:1}};
+  assert.ok(r.dmChoices(kara,at,null).some(c=>c.id.startsWith('encounter-attack')),'the foe is a target at the stronghold');
+  assert.ok(!r.dmChoices(kara,brawl,null).some(c=>/^encounter-(?:attack|throw)/.test(c.id)),'but not during a brawl there');}
+ // A lead that opens in a later chapter is neither shown nor ticked before it (noteLead refuses it).
+ {const later=seat(copy(s=>{s.staging.leads[0].opens=2;}));
+  assert.equal(r.leadOpenNow(later,'l1'),false);assert.equal(r.noteLead(later,'l1'),later,'a lead not yet open cannot be ticked');
+  assert.ok(!(r.dmContext(kara,later,null,'x').quest?.openLeads??[]).some(l=>l.id==='l1'),'nor told to the Dungeon Master');
+  const open=seat(copy());assert.notEqual(r.noteLead(open,'l1'),open,'an open lead can');}
 }
 
 // ---------- 9. What the Dungeon Master reads; the opening turn ----------

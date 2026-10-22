@@ -88,6 +88,9 @@ export function dmContext(hero,game,health,input='') {
 export function commitDmTurn(hero,game,health,action,conversation,random=Math.random){
   let result=resolveDmTurn(hero,game,health,action,conversation,random);
   if(result.error)return result;
+  // The game as the rules left it, before the reply's own additions below (a written tale decides what this move brings
+  // due from it: stagingRules.js withBeats, through turnRules.js settleTurn).
+  const stepped=result.game;
   // How the turn touched people, as the Dungeon Master recorded it (gratitude, offence, a debt or a grudge).
   // A note about someone who died this turn is dropped; the engine has already recorded what a killing means.
   const deeds=(Array.isArray(conversation.relationships)?conversation.relationships:[]).filter(d=>validDeeds([d],result.game));
@@ -105,7 +108,7 @@ export function commitDmTurn(hero,game,health,action,conversation,random=Math.ra
   if(Array.isArray(conversation.remember)&&conversation.remember.length)result={...result,game:rememberFacts(result.game,conversation.remember,{newId:result.introduced??null}).game};
   const present=npcScene(result.game).filter(n=>n.present&&n.hp>0).map(n=>n.id);
   if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId)))return {game,health,error:'The reply included a character who cannot join this conversation.'};
-  return result;
+  return result.game===stepped?result:{...result,stepped};
 }
 function resolveDmTurn(hero,game,health,action,conversation,random){
   if(!conversation||typeof conversation.question!=='string'||!conversation.question.trim()||conversation.question.length>1000||typeof conversation.narration!=='string'||!conversation.narration.trim()||conversation.narration.length>1800)return {game,health,error:'Invalid DM conversation.'};

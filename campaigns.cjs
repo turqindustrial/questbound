@@ -251,7 +251,9 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    else if(b.kind==='portrait'){const hero=JSON.parse(snapshot.character),portrait=b.portrait===null?undefined:b.portrait;if(!r.validPortraitChoice(portrait))throw fail(400,'Choose a ready-made face or your own painting for your portrait.');const next={...hero};if(portrait===undefined)delete next.portrait;else next.portrait=portrait;if(!r.isValidCharacter(next))throw fail(400,'That portrait could not be kept.');snapshot={...snapshot,character:JSON.stringify(next)};}
    // A lead ticked by hand is the player's own note (storyRules.js noteLead, the stories spec Phase A7): no experience;
    // only the tale sees a lead through (the Dungeon Master's lead-done, in a turn), paid once.
-   else if(b.kind==='lead'){if(typeof b.id!=='string'||!game.story?.leads?.some(l=>l.id===b.id))throw fail(400,'Unknown quest lead.');snapshot={...snapshot,game:r.noteLead(game,b.id)};}
+   else if(b.kind==='lead'){if(typeof b.id!=='string'||!game.story?.leads?.some(l=>l.id===b.id))throw fail(400,'Unknown quest lead.');const noted=r.noteLead(game,b.id);
+    // A written tale's lead that opens in a later chapter is not before the table yet (stagingRules.js leadOpenNow).
+    if(noted===game&&!game.story.leads.find(l=>l.id===b.id)?.done)throw fail(400,'That lead is not open yet.');snapshot={...snapshot,game:noted};}
    else throw fail(400,'That campaign edit is not allowed.');
    return {...advance(c,snapshot,user),...(gained?{xp:gained}:{})};
   },

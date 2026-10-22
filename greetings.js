@@ -2,6 +2,7 @@ import {npcScene,npcLore} from './npcRules';
 import {speciesRegard} from './relationshipRules';
 import {seededRandom,mapLocation,knownPlaceIds,travelRoute,placeName,travelError} from './mapRules';
 import {heroesAtTable} from './playbackRules';
+import {leadOpenNow} from './stagingRules';
 // Turning to someone: they speak first, in a line written here, with no request to the Dungeon Master (the host,
 // 2026-10-22, approving it: the first request comes when the player says something). The line fits what they hold
 // against the hero or owe them, how they feel, how they take to the hero's kind, whether they know the hero already,
@@ -321,7 +322,7 @@ export function replyIdeas(game,hero,personId=null){
   if(mood==='grudge')return ideaPick(ideaPools.grudge,seed);
   if(['hostile','unfriendly','wary','scornful'].includes(mood))return ideaPick(ideaPools.cold,seed);
   if(mood==='forgiven'||mood==='following')return ideaPick(ideaPools[mood],seed);
-  const foe=game.story?.foe,lead=(game.story?.leads??[]).find(l=>l&&!l.done);
+  const foe=game.story?.foe,lead=(game.story?.leads??[]).find(l=>l&&!l.done&&leadOpenNow(game,l.id));
   const leadName=lead?plain(lead.title).replace(/^(The|A|An) /,w=>w.toLowerCase()):null;
   // Things to ask this person in particular: about the trouble, what they do here, who they are, so two people
   // turned to one after the other are not asked the same three things.

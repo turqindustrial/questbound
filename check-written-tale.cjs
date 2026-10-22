@@ -685,6 +685,7 @@ function checkTale(file,options={}){
    if(golden){if(golden.moves>tier.moves)fail(5,'walkthrough.golden','takes '+golden.moves+' moves played through the rules (fights included): a '+tale.length+' tale\'s golden path is at most '+tier.moves);else if(golden.moves<tier.movesLeast)warn(5,'walkthrough.golden','takes '+golden.moves+' moves played through the rules: a '+tale.length+' tale\'s golden path is '+tier.movesLeast+' to '+tier.moves);}
    if(plain(w.endings))for(const [id,list] of Object.entries(w.endings))path(id,list,id,'walkthrough.endings.'+id);
    // The passive player: the clock must carry each chapter to its close within the tier's stall bound (and a little for
+    {const skipped=(got.good.res.log??[]).filter(l=>l.kind==='skipped').length;if(skipped)warn(5,where,'moves '+plural(skipped,'chapter')+' on ({"advance": true}) before the chapter\'s set piece is beaten and its choice made: the Dungeon Master is offered story-advance only after them, so no player can take this path (play the chapters through, or let the clock close them)');}
    // what is told on the way).
    {const got=run({name:'passive',mode:'passive'},res=>res.ok);report.walks.passive=summary(got.good??got.first);if(options.walk==='passive')report.walkTrace=(got.good??got.first).res.log;
     if(!got.good)fail(5,'walkthrough','a passive player (who only talks, rests and wanders) never reaches an ending: '+got.first.res.error);

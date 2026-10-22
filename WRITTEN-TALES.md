@@ -361,7 +361,7 @@ What the engine does after every move (the runtime's `withBeats`; written here s
    game told its `line`.
 2. **Counters** (`game.pace`, section 14): the chapter's moves, quiet moves, who spoke, and what happened (events: an
    arrival, a fight won, a search, a check, a long rest) for the chapter.
-3. **A chapter closed outside** (the Dungeon Master's story-advance): closed as below.
+3. **A chapter closed outside** (the Dungeon Master's story-advance, offered only once the chapter's set piece is beaten and its choice made): closed as below.
 4. **Found.** A route that holds closes the chapter (or completes the tale). It replaces a beat that is due but untold.
 5. **Beats.** If nothing is due, the first beat whose `when` and `if` hold fires.
 6. **Choice.** An option whose `when` (and `if`) holds is settled; otherwise the choice opens when `opens` holds and
@@ -504,7 +504,7 @@ A step is an object with **exactly one** of these keys (`say` may add `speakers`
 | choose | `{"choose": {"<choice id>": "<option id>"}}` | The player's words clearly choose that option; the Dungeon Master records it. |
 | join | `{"join": "<person>"}` | Someone joins the hero. |
 | find | `{"find": "<person>"}` | The player searches or asks, and the Dungeon Master brings a hidden person into the scene. |
-| advance | `{"advance": true}` | The Dungeon Master closes the chapter (story-advance). |
+| advance | `{"advance": true}` | The Dungeon Master closes the chapter (story-advance; offered only once the chapter's set piece is beaten and its choice made: before that the checker plays it as a skip and warns). |
 | lead | `{"lead": "l1"}` | The Dungeon Master closes a lead (lead-done). |
 | wait | `{"wait": 10}` or `{"wait": {"moves": 10, "talk": true}}` | That many quiet moves (1–200) in which nothing happens: moves of talk (`talk`: true, half a quiet move each) or not (the default). |
 
@@ -858,7 +858,7 @@ the listing gives cards only; a start is a copy with its own id, `libraryId`, `a
   long rest owes a step only with `ticks.rest`.
 - **Choices.** A choice made applies its option's `then` once; `decide` and `late` apply theirs too and are told "Left
   to fate: <label>." (the story log and the feed), a choice made "You chose: <label>.". A written tale offers no
-  `story-complete`: it ends where the engine finds it ends (the DM's `story-advance` still closes a chapter, as below).
+  `story-complete`: it ends where the engine finds it ends (the DM's `story-advance` still closes a chapter, as below, once the chapter's set piece is beaten and its choice made: the review of 2026-10-22).
 - **Leads.** A lead whose `opens` is a later chapter is not told to the Dungeon Master (nor offered as `lead-done`) before
   it, unless an effect opened it.
 - **The fight shape** (the same day, `withFightShape` after every step, `verify-fight-shape.cjs`): the foe of a written

@@ -18,7 +18,7 @@ import {livingAllies} from "./encounterRules";
 import {combatBasics} from "./combatRules";
 import {bonusChoices,brawlBonusChoices,brawlFeatChoices,sustainActions,featChoices} from "./turnResourceRules";
 import {partyOthers} from "./dmContext";
-import {bossOpen,isStaged,leadOpenNow,stagingChoices} from "./stagingRules";
+import {bossOpen,isStaged,leadOpenNow,stagingChoices,stagingAdvanceOpen} from "./stagingRules";
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
 const attackChoices=hero=>{const all=attackOptions(hero);return [...all.filter(w=>!w.unarmed).slice(0,3),...all.filter(w=>w.unarmed)];};
 // Weapons the hero can throw right now (a dagger, handaxe, javelin or spear still in hand).
@@ -85,7 +85,8 @@ export function dmChoices(hero,game,health=null) {
   // The action is spent this turn: a bonus action, or the end of the turn, is all that remains.
   if(game.stage==='combat'&&game.actionUsed){add('end-turn','End your turn');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);return choices;}
   // A written tale's foe is held back to its chapter (stagingRules.js bossOpen): no attack on it at the stronghold before.
-  if(game.stage==='bridge'&&game.enemyHP>0&&bossOpen(game)){for(const w of attackChoices(hero))add('encounter-attack:'+w.name,'Attack '+(game.story?.foe??'Lantern Wisp')+' with '+w.name,{type:'encounter-attack',weapon:w.name});for(const w of throwChoices(hero))add('encounter-throw:'+w.name,'Throw '+w.name+' at '+(game.story?.foe??'Lantern Wisp'),{type:'encounter-attack',weapon:w.name,thrown:true});}
+  // Never in a brawl there: the people fighting come first (the engine would leave the foe untouched).
+  if(game.stage==='bridge'&&game.enemyHP>0&&bossOpen(game)&&!game.npcCombat?.active){for(const w of attackChoices(hero))add('encounter-attack:'+w.name,'Attack '+(game.story?.foe??'Lantern Wisp')+' with '+w.name,{type:'encounter-attack',weapon:w.name});for(const w of throwChoices(hero))add('encounter-throw:'+w.name,'Throw '+w.name+' at '+(game.story?.foe??'Lantern Wisp'),{type:'encounter-attack',weapon:w.name,thrown:true});}
   // Anyone present and not dead can be attacked; someone lying unconscious can be finished off.
   const victims=npcScene(game).filter(n=>n.present&&n.fate!=='dead');
   // An Unarmed Strike can grapple or shove (prone) a creature no more than one size larger than the hero.
@@ -118,7 +119,8 @@ export function dmChoices(hero,game,health=null) {
       // A written tale (stagingRules.js) ends where the engine finds it ends, takes only leads already open, and offers
       // each option of a choice that is open (never a chip): the player commits, the Dungeon Master selects it.
       if(game.story.status==='active'){const q=questState(game),staged=isStaged(game);
-        if(q.current&&!q.last)add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is done: its truth found where the goal points, told in this reply (never before)');
+        // A written tale's chapter is closed by the Dungeon Master only once its set piece and choice are behind the player.
+        if(q.current&&!q.last&&(!staged||stagingAdvanceOpen(game)))add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is done: its truth found where the goal points, told in this reply (never before)');
         else if(!staged)add('story-complete','Conclude the adventure ONLY when the story resolution conditions have actually been achieved');
         for(const l of q.openLeads)if(leadOpenNow(game,l.id))add('lead-done:'+l.id,'Lead seen through ("'+l.title.slice(0,60)+'"): ONLY when the player has actually resolved it',{type:'lead-done',id:l.id});
         for(const c of stagingChoices(hero,game,health))add(c.id,c.label,c.action);}}

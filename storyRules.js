@@ -3,7 +3,7 @@ import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,place
 import {genders,npcClassList,companionLevelFor} from './npcRules';
 import {magicItems} from './lootRules';
 import {heroXp,xpForLevel} from './experienceRules';
-import {validStaging,validWrittenTag,seatStaging,fightShape} from './stagingRules';
+import {validStaging,validWrittenTag,seatStaging,fightShape,leadOpenNow} from './stagingRules';
 import {appendJournal,journalForGame} from './journalRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
@@ -118,7 +118,8 @@ export function validLeads(s){
 // ticked, writes a note in the journal; no experience, story-log line or deed. Only the tale closes a lead (the Dungeon
 // Master's lead-done), paid once. A lead seen through stays so.
 export function noteLead(game,id){
- const lead=(game?.story?.leads??[]).find(l=>l.id===id);if(!lead||lead.done)return game;
+ // A written tale's lead that opens in a later chapter is not before the player yet (stagingRules.js leadOpenNow).
+ const lead=(game?.story?.leads??[]).find(l=>l.id===id);if(!lead||lead.done||!leadOpenNow(game,id))return game;
  const on=!lead.noted,leads=game.story.leads.map(l=>l.id!==id?l:on?{...l,noted:true}:(({noted:_n,...rest})=>rest)(l));
  return {...game,story:{...game.story,leads},...(on?{journal:appendJournal(journalForGame(game),'note',('Your note: '+lead.title).slice(0,100),('Marked for yourself: '+lead.hook).slice(0,3000))}:{})};
 }

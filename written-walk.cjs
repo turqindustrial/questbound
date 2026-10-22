@@ -153,7 +153,13 @@ function walkTale({r,story,hero,heroAt=null,steps=null,mode='steps',seed=1,level
    const sent=[];record(sent,game);settle(action,{question,narration:'The Dungeon Master tells their answer.',npcId:id,dialogue:[],...(sent.length?{beats:sent}:{})},random);}
   else if(k==='find'){const id=person(v),p=game.people?.[id];if(!p)throw new WalkError(v+' cannot be found');if(r.mapLocation(game)!==p.home)go(p.home);
    talk('I search for anyone hiding here.',[],{introduce:{name:p.name,species:p.species??'',role:p.role,appearance:p.appearance,personality:p.personality??'',toughness:p.toughness,attitude:'indifferent',foe:p.foe??'neutral',tie:null,class:null}});}
-  else if(k==='advance'){const c=r.dmChoices(hero,game,health).find(x=>x.id==='story-advance');if(!c)throw new WalkError('no chapter can be moved on now');chosenMove(c.action,'I tell them what I found.');}
+  // The Dungeon Master is offered story-advance in a written tale only once the chapter's set piece and choice are
+  // behind the player (stagingRules.js stagingAdvanceOpen). A path that moves a chapter on before then is played as an
+  // outside close (the engine's own story-advance, as a host would skip it) and noted, so check 5 warns that it is no
+  // path a player can take.
+  else if(k==='advance'){const c=r.dmChoices(hero,game,health).find(x=>x.id==='story-advance');if(c){chosenMove(c.action,'I tell them what I found.');return;}
+   if(game.story.status!=='active'||(game.story.chapter??0)>=(game.story.chapters?.length??0)-1||fighting(game))throw new WalkError('no chapter can be moved on now');
+   note('skipped','Chapter '+((game.story.chapter??0)+1)+' moved on before its set piece and choice were behind the player.');settle('story-advance',null,random);}
   else if(k==='lead'){const c=r.dmChoices(hero,game,health).find(x=>x.id==='lead-done:'+v);if(!c)throw new WalkError('the lead '+v+' cannot be closed now');chosenMove(c.action,'I see it through.');}
   else if(k==='wait'){const n=Number.isInteger(v)?v:v.moves,chat=plain(v)&&v.talk===true;for(let i=0;i<n&&!done();i++){settleFights();if(done())break;const here=people()[0]?.id;chat&&here?talk('I talk with '+nameOf(here)+' for a while.',[here]):talk('I wait and watch.');}}
   else throw new WalkError('unknown step '+k);

@@ -2,6 +2,7 @@ import {useSceneTransition} from './SceneTransition';
 import {sceneArtSubjects} from './worldArtRules';
 import {EntityText as Text,useEncounter} from './EncounterOverlay';
 import {storyText,questState,noteLead} from './storyRules';
+import {leadOpenNow} from './stagingRules';
 import TaleState from './TaleState';
 import {cue} from './cinematics';
 import {quickActions} from './quickActions';
@@ -69,7 +70,7 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
  const lastTurn=game.playback?.at(-1)?.id??0;
  useEffect(()=>{setTab('story');},[lastTurn,game.sceneCue?.id]);
  // Armor class with the hero's magic counted (a ring, a cloak, magic armour); hit points are the hero's own.
- const stats=combatBasics(gearedHero(hero,game)),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game);
+ const stats=combatBasics(gearedHero(hero,game)),foe=encounterFoe(hero,game),map=mapState(game),campaign=campaignState(game),quest=questState(game),leadsNow=(quest?.leads??[]).filter(l=>leadOpenNow(game,l.id));
  const [inConversation,setInConversation]=useState(false);
  const [sideTab,setSideTab]=useState('quest');
  const [folded,setFoldedState]=useState(sideFolded),setFolded=value=>{playSound('page');setFoldedState(value);rememberSide(value);};
@@ -211,10 +212,11 @@ export default function Adventure({hero,game,setGame,health,setHealth,table,layo
    <Text style={s.scene}>{game.npcCombat?.active?'Combat erupts. Nearby defenders take their turns.':game.stage==='dying'?'You lie unconscious, bleeding out.':game.stage==='dead'?'Your hero has died.':game.story?(game.stage==='combat'?'You face the '+(foe.group?.plural??(game.wildFight?foe.name:game.story.foe))+'.':game.stage==='wild'?placeDescription(game,mapLocation(game)):game.story.locations[game.stage]?.description??'The encounter has ended. Describe what you do next.'):game.dungeon?.active?dungeonRooms[game.dungeon.room].text:scenes[game.stage]}</Text>
   </View>
   {/* Leads: side errands heard of along the way, ticked off as they are seen through. */}
-  {!!quest?.leads.length&&<View dataSet={{qb:'plate'}} style={s.people}>
-   <View style={s.labelRow}><Icon name="search" size={14} color={colors.goldMid}/><PlainText style={s.label}>Leads</PlainText><PlainText style={s.leadCount}>{quest.leads.filter(l=>l.done).length} of {quest.leads.length}</PlainText></View>
+  {/* A written tale's leads that open in a later chapter are not shown before it (stagingRules.js leadOpenNow). */}
+  {!!leadsNow.length&&<View dataSet={{qb:'plate'}} style={s.people}>
+   <View style={s.labelRow}><Icon name="search" size={14} color={colors.goldMid}/><PlainText style={s.label}>Leads</PlainText><PlainText style={s.leadCount}>{leadsNow.filter(l=>l.done).length} of {leadsNow.length}</PlainText></View>
    {/* The Dungeon Master closes a lead when the tale sees it through; the player's own tick is a note to themselves. */}
-   {quest.leads.map(l=><View key={l.id} style={s.leadRow}>
+   {leadsNow.map(l=><View key={l.id} style={s.leadRow}>
     <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!(l.done||l.noted),disabled:!!l.done}} aria-checked={!!(l.done||l.noted)} aria-disabled={l.done?true:undefined} disabled={!!l.done} accessibilityLabel={(l.done?'Seen through: ':l.noted?'Untick your note on the lead ':'Tick the lead as a note to yourself: ')+l.title} hitSlop={10} onPress={()=>{playSound('click');markLead(l.id);}} style={[s.leadMark,(l.done||l.noted)&&s.leadMarkDone,l.noted&&!l.done&&s.leadMarkNoted]}>{(l.done||l.noted)&&<Icon name="check" size={11} color={tint('#fff4f5')} strokeWidth={2.6}/>}</Pressable>
     <View style={{flex:1,minWidth:0}}><PlainText style={[s.leadTitle,l.done&&s.leadTitleDone]}>{l.title}{l.noted&&!l.done?' · your note':''}</PlainText>{!l.done&&<Text style={s.leadHook}>{l.hook}</Text>}</View>
    </View>)}

@@ -265,7 +265,9 @@ const strictProblems=(s,at,out=[])=>{
   // Raised again on 2026-10-22 by the WRITTEN TALES paragraph (the written-tales spec's 3.4: the game paces a written
   // tale; its agenda, beats, the foe beyond reach, the choices, what is at stake, the foe's voice): 9015 → 9159 in the
   // standing prompt (cached), the budget raised by what it needs (9101 → 9160) and no more.
-  assert.ok(measured.standing<=9160,'the standing prompt within 9160 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A, 9015 before written tales): '+measured.standing);
+  // Raised again on 2026-10-22 by the written tales' review (a chapter's truth told only as its beat or with story-advance
+  // once offered; the foe heard only in narration): 9159 → 9184, the budget raised by that much (9160 → 9185) and no more.
+  assert.ok(measured.standing<=9185,'the standing prompt within 9185 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A, 9015 before written tales, 9159 before their review): '+measured.standing);
   assert.ok(measured.schema<=2800,'the reply schema within 2800 tokens (2021 with every effect spelled out, 2226 before the tellings written ahead): '+measured.schema);
   // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
   measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));
