@@ -155,7 +155,7 @@ assert.ok(!/survivalOdds|sparedBlow/.test(readText('fightLines.js')),'the hidden
  const dm=['DungeonMaster.js','useDmTurn.js','dmTurnRules.js'].map(readText).join(' '),branch=dm.slice(dm.indexOf("else {let body={narration:narration??command.narration"));
  assert.ok(/import \{routineTelling\} from '\.\/fightLines';/.test(dm),'DungeonMaster.js uses the shared rule');
  assert.ok(branch.indexOf('routineTelling(')>=0&&branch.indexOf('routineTelling(')<branch.indexOf('await request('),'a routine move is told before any request');
- assert.ok(/else if\(connected&&protocol>=3\)body=await request\(/.test(branch),'and only a move that is not routine asks the Dungeon Master');
+ assert.ok(/else if\(connected&&protocol>=3\)(?:\{[^\n]*?)?body=await request\(/.test(branch),'and only a move that is not routine asks the Dungeon Master');
  assert.ok(/told:'game',fightRound:body\.fightRound/.test(dm),'the device marks the game-told turn as the server does');
  assert.ok(/r\.routineTelling\(/.test(readText('server-turn.cjs')),'server-turn.cjs uses the same rule');
 

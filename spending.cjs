@@ -26,7 +26,7 @@
 // campaign and when it was made; the usage line follows within seconds), so they drop out of the sums too.
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs);
 // bump `revision` when it changes (and the literal in dm-server.cjs loadSpending) and the server loads it afresh.
-const revision=5;
+const revision=6;
 const fs=require('node:fs'),path=require('node:path');
 delete require.cache[require.resolve('./alerts.cjs')];
 const {createAlerts}=require('./alerts.cjs'),{createLimiter}=require('./rate-limit.cjs');
@@ -52,10 +52,16 @@ const count=v=>Number.isFinite(v)&&v>0?v:0;
 // The host's own jobs (by the campaign an art subject was painted under) and whether a usage line is one.
 const hostJobs=['people-library','place-library','creature-library'];
 const jobOfCampaign=campaignId=>typeof campaignId!=='string'?null:campaignId.startsWith('questbound-people-library')?'people-library':campaignId.startsWith('questbound-place-library')?'place-library':campaignId.startsWith('questbound-creature-library')?'creature-library':null;
+// Input the provider wrote to its prompt cache is billed at a write rate on the newer models (OpenAI's prompt caching
+// guide, read 2026-10-22): 1.25 times the uncached price for the default 30 minutes, 2.5 times for 12 hours. A usage
+// line names those tokens when the provider reports them (written, and written12h of them for 12 hours: dm-server.cjs
+// recordUsage); lines without them are priced as before.
+const writeRate={short:1.25,long:2.5};
 function costOf(entry){
  if(!entry||typeof entry!=='object')return 0;
  const p=prices[entry.model]??unknownPrice,input=count(entry.input),cached=Math.min(count(entry.cached),input);
- return ((input-cached)*p[0]+cached*p[1]+count(entry.output)*p[2])/1e6+count(entry.images)*paintingPrice;
+ const written=Math.min(count(entry.written),input-cached),long=Math.min(count(entry.written12h),written);
+ return ((input-cached-written)*p[0]+(written-long)*p[0]*writeRate.short+long*p[0]*writeRate.long+cached*p[1]+count(entry.output)*p[2])/1e6+count(entry.images)*paintingPrice;
 }
 // The host's calendar day and month (the PC's own time zone).
 const dayOf=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -173,4 +179,4 @@ function createSpending({dir=process.env.QUESTBOUND_DATA||__dirname,now=Date.now
  return {check,allow,mayPaint,background,summary,paused};
 }
 const spending=createSpending();
-module.exports={revision,hostJobs,jobOfCampaign,prices,paintingPrice,defaultBudget,defaultTotal,defaultMonth,guestShare,guestCounts,words,pausedFile,costOf,dayOf,monthOf,readBudget,createSpending,spending};
+module.exports={revision,writeRate,hostJobs,jobOfCampaign,prices,paintingPrice,defaultBudget,defaultTotal,defaultMonth,guestShare,guestCounts,words,pausedFile,costOf,dayOf,monthOf,readBudget,createSpending,spending};

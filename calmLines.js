@@ -202,7 +202,10 @@ export function chosenTelling({hero,before,after,action,events=[],kind=null,narr
  else if(kind==='longRest'&&!/\b(?:sleep|slept|asleep|dawn|morning|wake|woke|night passes)\b/i.test(said))more=calmTelling({hero,before,after,action,events,kind,narrator,brief})?.narration??'';
  else if(kind==='shortRest'&&!/\b(?:breath|bandag\w*|bind\w*|ache\w*|rest(?:s|ed)?)\b/i.test(said))more=calmTelling({hero,before,after,action,events,kind,narrator,brief})?.narration??'';
  const narration=(said+(more?' '+more:'')).slice(0,1700);
- return {narration,dialogue:Array.isArray(chosen.dialogue)?chosen.dialogue:[],relationships:chosen.relationships??[],remember:chosen.remember??[],suggestions:chosen.suggestions??[],worldEvent:chosen.worldEvent??null,loot:null,introduce:null};
+ // Only those still here once the move is made can be heard (a farewell from someone left behind on a journey would
+ // make the game refuse the whole turn: commitDmTurn holds every line to who is present after it).
+ const here=new Set(npcScene(after).filter(n=>n.present&&(n.hp??0)>0).map(n=>n.id));
+ return {narration,dialogue:(Array.isArray(chosen.dialogue)?chosen.dialogue:[]).filter(l=>l&&here.has(l.speakerId)),relationships:chosen.relationships??[],remember:chosen.remember??[],suggestions:chosen.suggestions??[],worldEvent:chosen.worldEvent??null,loot:null,introduce:null};
 }
 // How many different tellings each case has, per narrator, for the checks.
 export function calmLineCases(){

@@ -24,6 +24,8 @@ import {deedById} from './deedRules';
 import {cue} from './cinematics';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
+import {checkTelling} from './toldAhead';
+import {sceneTrigger} from './sceneTriggers';
 import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure,arrivingTurn} from './dmTurnRules';
 import {dmChoices,mapMoves} from "./dmChoiceRules";
 const endpoints=dmEndpoints();
@@ -205,7 +207,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
         // A routine calm move the Dungeon Master chose keeps its own reply (calmLines.js chosenTelling): no second request.
         const told=narration===undefined||chosen?routineTelling({hero,before:game,preview,health,action:command.action,words:question,preferences:storyPreferences(),chosen}):null;
         if(told)body=told;
-        else if(connected&&protocol>=3)body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
+        // A moment in which people speak first (arriving somewhere new, a fight won) is told in this same telling.
+        else if(connected&&protocol>=3){const cue=sceneTrigger(game,preview.game,command.action),first=cue&&conversationPeople(preview.game).some(n=>n.id===cue.speakerId)?{speakFirst:{speakerId:cue.speakerId,cue:cue.cue}}:{};body=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events),...first});}
         let index=0;await finish(command.action,{narration:body.narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions,told:body.told,fightRound:body.fightRound},normalized,()=>rolled[index++]??0.5);
       }
     };
@@ -218,7 +221,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       // not read goes to the Dungeon Master, who may work out what was meant (context.castingIssue).
       if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw refusal(command.error);
       const body=await request(game,health,command?.error?{castingIssue:command.error}:{});
-      if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration);return;}
+      if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration,body.retell?null:body);return;}
       if(protocol>=3&&body.recruitment?.length){
         const action={type:'recruitment',plans:body.recruitment},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
@@ -228,10 +231,11 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
         let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.check){
-        const action={type:'ai-check',check:body.check},dice=[];
+        const {outcomes,...check}=body.check,action={type:'ai-check',check},dice=[];
         const preview=commitDmTurn(hero,game,health,action,{question,narration:body.narration,worldEvent:null,npcId:target},()=>{const value=Math.random();dice.push(value);return value;});
         if(preview.error)throw refusal(preview.error);
-        const resolved=await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
+        // The reply wrote both outcomes ahead (toldAhead.js): the one the dice decided is told, with no second request.
+        const resolved=(body.retell?null:checkTelling({before:game,preview,check:body.check,reply:body}))??await request(preview.game,preview.health,{engineResolved:engineLines(preview.game,preview.events)});
         let index=0;await finish(action,toldReply(resolved),undefined,()=>dice[index++]??0.5);return;
       }
       if(protocol>=3&&body.ruling){await finish({type:'ai-ruling',ruling:body.ruling},body);return;}

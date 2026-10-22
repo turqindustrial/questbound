@@ -28,7 +28,20 @@ export function sceneTrigger(before,after,action){
  const speakerId=trigger.speakerId??speakers[0].id,written=cueGreeting(after,speakerId,trigger.id);
  return {...trigger,speakerId,...(written?{written:true,fallback:written.line,aside:written.aside}:{})};
 }
-export function withSceneTrigger(before,after,action){
- const trigger=sceneTrigger(before,after,action);
- return trigger?{...after,sceneCue:trigger,firedTriggers:[...new Set([...(after.firedTriggers??[]),trigger.id])].slice(-20)}:after;
+// Whether the people a moment would have speak first already spoke in the turn that brought it (2026-10-22, the host:
+// "merge telling into first call"): the telling of the move, or the reply that wrote the arrival ahead, gave them their
+// first words, so no cue (a request of its own) is played for them. Arriving where people live, one of them must have
+// spoken (a companion's remark does not greet the newcomer); otherwise anyone here. turn: the turn recorded.
+export function cueSpoken(trigger,after,turn){
+ if(!trigger||!turn)return false;
+ const spoke=new Set((turn.events??[]).filter(e=>e?.kind==='dialogue'&&typeof e.speakerId==='string').map(e=>e.speakerId));
+ if(!spoke.size)return false;
+ const here=conversationPeople(after),to=mapLocation(after);
+ const local=trigger.id.startsWith('arrive:')?here.filter(n=>after.people?.[n.id]?.home===to&&after.followers?.[n.id]?.status!=='following'):[];
+ return (local.length?local:here).some(n=>spoke.has(n.id));
+}
+export function withSceneTrigger(before,after,action,turn=null){
+ const trigger=sceneTrigger(before,after,action);if(!trigger)return after;
+ const fired=[...new Set([...(after.firedTriggers??[]),trigger.id])].slice(-20);
+ return cueSpoken(trigger,after,turn)?{...after,firedTriggers:fired}:{...after,sceneCue:trigger,firedTriggers:fired};
 }

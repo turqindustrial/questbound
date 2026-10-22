@@ -384,7 +384,7 @@ function briefer(scene,body){
 const tellingLimits={journal:2,taleLines:2};
 function tellingOnly(scene,body){
  const c=body.context??{},cue=!!c.sceneTrigger,fight=fightingNow(scene);
- for(const k of ['shortRests','recruitmentTargets','sceneTrigger','levelReady','castingIssue','choices'])delete scene[k];
+ for(const k of ['shortRests','recruitmentTargets','sceneTrigger','speakFirst','levelReady','castingIssue','choices'])delete scene[k];
  if(Array.isArray(scene.now))scene.now=scene.now.filter(l=>typeof l!=='string'||!/^(?:The player may set out at once|Any travel choice offered may be taken)/.test(l));
  if(fight)return;
  for(const k of ['attackOptions','joinOffers','peopleElsewhere'])delete scene[k];
@@ -447,12 +447,14 @@ function turnRequest(body,options,tail){
 // together again, the player's words and this turn's note.
 function requestParts(q){
  if(typeof q?.input==='string'){let json={};try{json=JSON.parse(q.input);}catch{}return {instructions:String(q.instructions??''),scene:json.context??{},input:json.input,tail:'',hero:''};}
- const items=Array.isArray(q?.input)?q.input:[],notes=items.filter(m=>m?.role==='developer').map(m=>String(m.content)),scene={};let input;
+ const items=(Array.isArray(q?.input)?q.input:[]).map(m=>({...m,content:messageText(m?.content)})),notes=items.filter(m=>m?.role==='developer').map(m=>String(m.content)),scene={};let input;
  for(const m of items.filter(m=>m?.role==='user')){const text=String(m.content),json=JSON.parse(text.slice(text.indexOf('\n')+1));
   for(const [k,v] of Object.entries(json.context??{}))scene[k]=k in scene&&v&&typeof v==='object'&&!Array.isArray(v)?{...scene[k],...v}:v;if('input' in json)input=json.input;}
  const tail=items.length&&items.at(-1)?.role==='developer'&&items.length>1?String(items.at(-1).content):'';
  return {instructions:[String(q?.instructions??''),...notes].join('\n'),scene,input,tail,hero:notes[0]??''};
 }
+// A message's words, sent as a string or as content blocks (a cache breakpoint sits on a block: cacheHoldFor).
+const messageText=c=>typeof c==='string'?c:Array.isArray(c)?c.map(b=>typeof b?.text==='string'?b.text:'').join(''):String(c??'');
 // The scene and the player's words of a turn request, as one object ({context, input}), the way it used to be sent.
 const requestScene=q=>{if(typeof q?.input==='string')return JSON.parse(q.input);const p=requestParts(q);return {context:p.scene,input:p.input};};
 // One OpenAI safety identifier per player, for their turns and for tales written ahead at their cost.
@@ -502,7 +504,7 @@ function storyEffort(fallback,read=chosenModel){const chosen=read('.questbound-s
 function turnEffort(fallback,read=chosenModel){const chosen=read('.questbound-dm-effort');return ['none','minimal','low','medium','high'].includes(chosen)?chosen:fallback;}
 // Stories in the making are kept in a module of their own, which stays loaded while this file is reloaded.
 // The day's spending and the host's ceilings on it (spending.cjs) also stay loaded between requests.
-function loadSpending(){if(require('./spending.cjs').revision!==5)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
+function loadSpending(){if(require('./spending.cjs').revision!==6)delete require.cache[require.resolve('./spending.cjs')];return require('./spending.cjs').spending;}
 // A guest's label: the phone gateway (phone-server.cjs) adds it to every request from a paired browser, replacing
 // anything the browser sent. The host's own browser on this PC has none.
 // A paired browser's label is a hex hash; an account player's table turn comes from the account service as account-<id>.
@@ -642,6 +644,45 @@ const turnBudget=80000,retryFloor=12000,turnRoom=3000;
 // instructions, and the scene holds what players wrote (their hero's story, their earlier words): kept out of the
 // instructions on purpose.
 const promptLayout=3,cacheBuckets=8;
+// Keeping the cache warm across pauses (2026-10-22, the host: "keep the cache warm across pauses"; OpenAI's prompt
+// caching guide and Responses reference, read that day). Live, a turn after a pause of more than about three minutes got
+// nothing cached (usage log, 2026-10-16 to 22), so it paid the standing instructions and schema (about 15,000 tokens)
+// in full again. How a cache is held depends on the model:
+//  - GPT-5.6 and later (gpt-6-luna, which plays now): prompt_cache_retention is deprecated there; a cache lives for its
+//    ttl (30 minutes by default, 12 hours on request in the Responses API) at breakpoints. The implicit breakpoint is
+//    the end of the last user message (this turn's part, new every turn), and the guide's gotcha is exactly what was
+//    measured: "without a breakpoint after static content, a changing suffix can prevent reuse of the shared prefix".
+//    So two explicit breakpoints are added (prompt_cache_breakpoint on a content block; a request may write four):
+//    after this hero's features (the instructions, schema and hero, the same for every turn: held 12 hours, written at
+//    2.5 times the input price once and read at a tenth after), and after the last part of the scene that does not
+//    change from turn to turn (what lasts the tale, the land, who is here: the request's own 30 minutes). Tokens
+//    written are billed at the write rates (spending.cjs costOf prices them from the usage line).
+//    prompt_cache_retention is not sent to these: the reference maps it to the request's ttl, and a request-level 12 hours
+//    would bill every turn's new scene at 2.5 times instead of 1.25.
+//  - Earlier models: prompt_cache_retention '24h' (no write charge there).
+// .questbound-cache-hold (read live, like .questbound-dm-effort): 12h (the default), 30m (the breakpoints, the hero's for
+// 30 minutes) or off. A provider 400 naming a parameter drops it for this DM process and asks again at once, as with
+// prompt_cache_key: a 12-hour ttl refused (globalThis.__questboundNoLongTtl) falls back to the breakpoints for 30 minutes,
+// breakpoints refused (globalThis.__questboundNoCacheBreakpoints) to prompt_cache_retention
+// '24h', and that refused (globalThis.__questboundNoCacheRetention) to nothing. Usage lines carry hold: what was sent
+// (12h or 30m for breakpoints, 24h for retention).
+const newerCaching=model=>/^gpt-(?:5\.(?:[6-9]|\d{2,})|[6-9]|\d{2,})(?![\d])/.test(String(model??''));
+function cacheHoldFor(model,setting){
+ if(!['12h','30m'].includes(setting))return null;
+ const retain=setting==='12h'&&!globalThis.__questboundNoCacheRetention?{label:'24h',kind:'retention',params:{prompt_cache_retention:'24h'},apply:q=>q}:null;
+ if(!newerCaching(model)||globalThis.__questboundNoCacheBreakpoints)return retain;
+ const block=(text,mark)=>[{type:'input_text',text,prompt_cache_breakpoint:mark}];
+ const long=setting==='12h'&&!globalThis.__questboundNoLongTtl;
+ return {label:long?'12h':'30m',kind:'breakpoints',params:{},apply:q=>{
+  const input=q.input.map(m=>({...m})),users=input.map((m,i)=>m.role==='user'?i:-1).filter(i=>i>=0);
+  if(input[0]?.role==='developer'&&typeof input[0].content==='string')input[0].content=block(input[0].content,long?{mode:'explicit',ttl:'12h'}:{mode:'explicit'});
+  // The last part before this turn's that stays from turn to turn (the story so far changes with every turn's journal).
+  const steady=users.slice(0,-1).filter(i=>typeof input[i].content==='string'&&!input[i].content.startsWith('Scene: the story so far.')).at(-1);
+  if(steady!==undefined)input[steady].content=block(input[steady].content,{mode:'explicit'});
+  return {...q,input};
+ }};
+}
+function cacheHold(fallback,read=chosenModel){const chosen=read('.questbound-cache-hold');return ['12h','30m','off'].includes(chosen)?chosen:fallback;}
 // One prompt_cache_key per share of the players (by tale and hero), the same for every kind of reply, so a hero's turns
 // and their tellings meet the provider machine that saw the last one, and no one machine is asked too often.
 function cacheKeyFor(body){
@@ -649,7 +690,7 @@ function cacheKeyFor(body){
  let h=0;for(const ch of who)h=(h*31+ch.charCodeAt(0))>>>0;
  return {prompt_cache_key:'qb-dm-'+(h%cacheBuckets)};
 }
-async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null,moderation=null,people=null,portraits=null}){
+async function generate(body,{apiKey,model,storyModel=model,reasoning='none',storyReasoning='medium',fetchImpl=fetch,onNarration=null,spending=null,library=null,moderation=null,people=null,portraits=null,holdCache=null}){
   if(fetchImpl===fetch)({model,storyModel}=liveModels(model,storyModel));
   // A guest's requests are counted against the host's daily allowance, and OpenAI is told which guest asked (by label
   // only), so misuse by one player is never taken for the host's own. Tests pass a stand-in `spending`.
@@ -711,7 +752,7 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     return write(['medium','high','xhigh'].includes(effort)?'low':effort);
   }
   if(body.context.mode==='character'){delete require.cache[require.resolve('./character-generator.cjs')];return require('./character-generator.cjs').generateCharacter(body,{apiKey,model:storyModel,reasoning:storyReasoning,fetchImpl,safety,onUsage:u=>recordUsage('character',storyModel,u,live,guest)});}
-  return playTurn(body,{apiKey,model,reasoning,fetchImpl,onNarration,live,guest,safety,people,portraits});
+  return playTurn(body,{apiKey,model,reasoning,fetchImpl,onNarration,live,guest,safety,people,portraits,holdCache});
 }
 // A game turn, in phases: what this turn allows (turnPlan), the request to the model with its waits (turnAsker),
 // reading the reply, mending it and, as a last resort, rescuing what can be used (replyReader), asking again until
@@ -743,9 +784,15 @@ async function turnPlan(body,{fetchImpl,reasoning,live,people,portraits}){
   const withId=body.context.conversationWith?.id,alone=body.context.conversationWith?.oneOnOne===true&&speakers.includes(withId)&&!body.context.sceneTrigger,allowedSpeakers=alone?[withId]:speakers;
   const voices=[...allowedSpeakers,...(canIntroduce&&!alone?['new']:[])];
   const sceneTrigger=body.context.sceneTrigger&&typeof body.context.sceneTrigger.cue==='string'?body.context.sceneTrigger.cue.slice(0,800):null;
+  // A moment in which people would speak first (a first arrival, a return, a fight won: sceneTriggers.js), told in the
+  // telling of the move that brought it, so it is not asked about in a request of its own (2026-10-22, the host:
+  // "merge telling into first call"). The device sends it with the engine's lines (useDmTurn.js cast); the game then
+  // sees who spoke and plays no cue for them (withSceneTrigger).
+  const firstWords=body.context.engineResolved&&body.context.speakFirst&&typeof body.context.speakFirst.cue==='string'&&speakers.includes(body.context.speakFirst.speakerId)?body.context.speakFirst:null;
+  const firstWordsNote=firstWords?' PEOPLE SPEAK FIRST: '+firstWords.cue.slice(0,600)+' So after the engine\'s results, '+String((body.context.conversationParticipants??[]).find(n=>n.id===firstWords.speakerId)?.name??firstWords.speakerId).slice(0,60)+' ['+firstWords.speakerId+'] speaks first in dialogue (one or two lines, to the player), and others present may add one, each saying something different.':'';
   // The player speaking to the DM directly, out of character: an answer, and perhaps the last turn taken back.
   const ooc=!!body.context.outOfCharacter&&!body.context.engineResolved&&!resolvingSpell&&!sceneTrigger;
-  const phaseInstructions=sceneTrigger?'\nSCENE TRIGGER: The player has not spoken. '+sceneTrigger+' Present conversationParticipants speak first, in character, reacting to this moment and addressing the player. Give one to three short dialogue lines, each speaker saying something different (never two greetings alike), and in narration exactly one short sentence of what is seen or done as they speak (never empty, never the spoken words). Do not decide the player\'s words or actions. effects empty.':resolvingSpell?'\nCURRENT PHASE: Adjudicate pendingSpell now. Return a ruling (cast, deny or clarify) and no castCommand, actionId or check. If details are missing, use clarify and ask the specific question in narration and note; all effects must be zero. A narrative answer alone does not resolve the spell. Prefer cast or deny; use clarify only when the target is truly missing. Damage on a cast is never more than pendingSpell.damageMost, the most the dice of the spell can deal.':body.context.engineResolved?'\nCURRENT PHASE: Narrate the already resolved engine results. No actionId, castCommand, ruling, check, discovery, ambush, recruitment or worldEvent.'+(errandPaidTurn(body.context)?' The errand in context.story.errand is done: keeper hands over the promised reward ('+String(body.context.story.errand.reward??'').slice(0,160)+') now, with loot in this reply, within the loot limits.':''):ooc?'\nOUT OF CHARACTER: The player is speaking to you directly, player to Dungeon Master, outside the story: about a ruling, something that went wrong, what they meant to do, or how the game works. Answer plainly in your own voice, as a friendly human Dungeon Master talking across the table, in two to five sentences: no story narration, no NPC speech, and do not advance the scene. Speak of "the rules", "the dice" and "the game"; never mention an engine, fields, schemas, data or anything about how the game is built. Be fair and specific: explain what the rules or the game did, using context.outOfCharacter.lastTurn (what they said and what the game resolved); admit it when their words were misread or a rule was applied wrongly; say what they can do now. If the last turn went wrong because their words were misread, the game did something they clearly did not intend, or a rule was misapplied, and context.outOfCharacter.canRewind is true, set rewind to true: the game then takes that whole turn back (hit points, dice, position, everything) so they can say what they meant, and tell them so. Never rewind because the dice went badly, a fight is going poorly, a risk they chose did not pay off, or the hero died fairly: say no kindly and explain why. When canRewind is false and they ask to undo something, explain that the turn cannot be taken back any more and suggest what they can do instead. Set fault to true when the player tells you the game would not let them do something the rules allow, did something other than what they asked, or showed something wrong, or when you admit a rule was applied wrongly: the game then offers to send a short note to the host so it can be fixed. Leave it out for questions about the rules, plans, or the dice going against them. You cannot change hit points, gold, items or the story here: effects hold only rewind or fault, and dialogue is empty.':''+suggestionNote(body);
+  const phaseInstructions=sceneTrigger?'\nSCENE TRIGGER: The player has not spoken. '+sceneTrigger+' Present conversationParticipants speak first, in character, reacting to this moment and addressing the player. Give one to three short dialogue lines, each speaker saying something different (never two greetings alike), and in narration exactly one short sentence of what is seen or done as they speak (never empty, never the spoken words). Do not decide the player\'s words or actions. effects empty.':resolvingSpell?'\nCURRENT PHASE: Adjudicate pendingSpell now. Return a ruling (cast, deny or clarify) and no castCommand, actionId or check. If details are missing, use clarify and ask the specific question in narration and note; all effects must be zero. A narrative answer alone does not resolve the spell. Prefer cast or deny; use clarify only when the target is truly missing. Damage on a cast is never more than pendingSpell.damageMost, the most the dice of the spell can deal.':body.context.engineResolved?'\nCURRENT PHASE: Narrate the already resolved engine results. No actionId, castCommand, ruling, check, discovery, ambush, recruitment or worldEvent.'+firstWordsNote+(errandPaidTurn(body.context)?' The errand in context.story.errand is done: keeper hands over the promised reward ('+String(body.context.story.errand.reward??'').slice(0,160)+') now, with loot in this reply, within the loot limits.':''):ooc?'\nOUT OF CHARACTER: The player is speaking to you directly, player to Dungeon Master, outside the story: about a ruling, something that went wrong, what they meant to do, or how the game works. Answer plainly in your own voice, as a friendly human Dungeon Master talking across the table, in two to five sentences: no story narration, no NPC speech, and do not advance the scene. Speak of "the rules", "the dice" and "the game"; never mention an engine, fields, schemas, data or anything about how the game is built. Be fair and specific: explain what the rules or the game did, using context.outOfCharacter.lastTurn (what they said and what the game resolved); admit it when their words were misread or a rule was applied wrongly; say what they can do now. If the last turn went wrong because their words were misread, the game did something they clearly did not intend, or a rule was misapplied, and context.outOfCharacter.canRewind is true, set rewind to true: the game then takes that whole turn back (hit points, dice, position, everything) so they can say what they meant, and tell them so. Never rewind because the dice went badly, a fight is going poorly, a risk they chose did not pay off, or the hero died fairly: say no kindly and explain why. When canRewind is false and they ask to undo something, explain that the turn cannot be taken back any more and suggest what they can do instead. Set fault to true when the player tells you the game would not let them do something the rules allow, did something other than what they asked, or showed something wrong, or when you admit a rule was applied wrongly: the game then offers to send a short note to the host so it can be fixed. Leave it out for questions about the rules, plans, or the dice going against them. You cannot change hit points, gold, items or the story here: effects hold only rewind or fault, and dialogue is empty.':''+suggestionNote(body);
   // A new place can be revealed only on an ordinary turn of a written story, when the player is free to set out.
   const canDiscover=!!body.context.world?.canDiscover&&!body.context.engineResolved&&!resolvingSpell&&!sceneTrigger&&!ooc;
   const canAmbush=!!body.context.world?.canAmbush&&!body.context.engineResolved&&!resolvingSpell&&!sceneTrigger&&!ooc;
@@ -769,7 +816,7 @@ async function turnPlan(body,{fetchImpl,reasoning,live,people,portraits}){
   const begun=Date.now(),left=()=>turnBudget-(Date.now()-begun);
   return {choices,resolvingSpell,speakers,canIntroduce,roster,offered,recruitable,offerable,recruitIds,withId,alone,allowedSpeakers,voices,sceneTrigger,ooc,phaseInstructions,canDiscover,canAmbush,canRelate,engineSpoils,canLoot,noCheck,shape,replySchema,turnReasoning,begun,left,state:{lastReply:null,asks:0,quiet:false,aside:false}};
 }
-function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySchema,left,state},{apiKey,model,fetchImpl,onNarration,live,guest,safety}){
+function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySchema,left,state},{apiKey,model,fetchImpl,onNarration,live,guest,safety,holdCache}){
   // One request to the model: `note` (a retry's or second look's) goes into this turn's note after the scene, so the
   // instructions and the scene before it stay cached. The provider's
   // completed response is kept beside the text so an unreadable reply can be described (replyShape). Each request
@@ -784,14 +831,18 @@ function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySche
   // does not know it is asked again without it.
   const cacheKey=cacheKeyFor(body),request=turnRequest(body,{canDiscover,canAmbush},phaseInstructions+note+narratorVoice(body));
   for(let waits=0;;waits++){
-  const keyed=!globalThis.__questboundNoCacheKey?cacheKey:{};
+  const keyed=!globalThis.__questboundNoCacheKey?cacheKey:{},held=cacheHoldFor(model,holdCache??(live?cacheHold('12h'):'off')),sent=held?held.apply(request):request;
   // A provider that refuses the effects list (its anyOf items) is asked with every effect spelled out as a field, as
   // before 2026-10-21, for the rest of this DM process; flatReply reads either shape.
   const schema=globalThis.__questboundSpelledOut?spelledOutSchema():replySchema;
-  response=await fetchImpl('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(Math.max(1000,Math.min(limit,providerTimeout(effort),left()))),body:JSON.stringify({...modelOptions(model,effort),...(safety??{}),...keyed,...(onNarration?{stream:true}:{}),store:false,...request,max_output_tokens:outputBudget(room,effort),text:{format:{type:'json_schema',name:'dm_reply',strict:true,schema}}})});
+  response=await fetchImpl('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(Math.max(1000,Math.min(limit,providerTimeout(effort),left()))),body:JSON.stringify({...modelOptions(model,effort),...(safety??{}),...keyed,...(held?.params??{}),...(onNarration?{stream:true}:{}),store:false,...sent,max_output_tokens:outputBudget(room,effort),text:{format:{type:'json_schema',name:'dm_reply',strict:true,schema}}})});
+  state.held=held?.label??null;
   if(response.ok)break;
-  if(response.status===400&&(keyed.prompt_cache_key||!globalThis.__questboundSpelledOut)){let data=null;try{data=await response.json();}catch{}
+  if(response.status===400&&(keyed.prompt_cache_key||held||!globalThis.__questboundSpelledOut)){let data=null;try{data=await response.json();}catch{}
    const said=JSON.stringify(data??'');
+   if(held?.label==='12h'&&/\bttl\b|12h/.test(said)){globalThis.__questboundNoLongTtl=true;waits--;continue;}
+   if(held?.kind==='breakpoints'&&/prompt_cache_(?:breakpoint|options)|\bttl\b|input_text/.test(said)){globalThis.__questboundNoCacheBreakpoints=true;waits--;continue;}
+   if(held?.kind==='retention'&&/prompt_cache_retention/.test(said)){globalThis.__questboundNoCacheRetention=true;waits--;continue;}
    if(keyed.prompt_cache_key&&/prompt_cache_key/.test(said)){globalThis.__questboundNoCacheKey=true;waits--;continue;}
    if(!globalThis.__questboundSpelledOut&&/anyOf|json_schema|text\.format|schema/i.test(said)){globalThis.__questboundSpelledOut=true;waits--;continue;}
    throw await providerError({status:400,json:async()=>data??{}});}
@@ -803,7 +854,7 @@ function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySche
   if(left()<wait+10000)throw failure;
   await new Promise(resolve=>setTimeout(resolve,wait));
   }
-  const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{}),...(body.context?.storyPreferences?.length==='brief'?{length:'brief'}:{})});};
+  const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{}),...(state.held?{hold:state.held}:{}),...(body.context?.storyPreferences?.length==='brief'?{length:'brief'}:{})});};
   if(onNarration)return streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage,c=>{state.lastReply=c;});
   const data=await response.json();state.lastReply=data;usage(data.usage);
   // Cut short (the output limit, or the provider stopping): what was written is kept on the error for the last resort.
@@ -841,6 +892,13 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
    // A choice id copied with the brackets the choices are listed in ("[flee]") is that id.
    if(typeof result.actionId==='string'&&!choices.includes(result.actionId)){const bare=result.actionId.trim().replace(/^\[\s*(.*?)\s*\]$/,'$1').replace(/^["'`](.*)["'`]$/,'$1');if(bare!==result.actionId&&choices.includes(bare)){result.actionId=bare;noted('choice id','brackets removed');}}
    if(typeof result.actionId==='string'&&!choices.includes(result.actionId)){const want=result.actionId.trim().toLowerCase(),match=choices.find(id=>id.toLowerCase()===want);if(match){result.actionId=match;noted('choice id','matched');}else if(['','null','none'].includes(want)){result.actionId=null;noted('choice id','empty');}}
+   // A known place given by its bare id ("inn" for travel-inn) is the journey there (seen in the diagnostics, 2026-10-21).
+   if(typeof result.actionId==='string'&&!choices.includes(result.actionId)){const there=choices.find(id=>id.toLowerCase()==='travel-'+result.actionId.trim().toLowerCase());if(there){result.actionId=there;noted('choice id','place id');}}
+   // A search of the fallen when nothing here is left to search (no spoils, no fight: the game offers no loot choice):
+   // the game says so plainly rather than asking again (seen in the diagnostics, 2026-10-21: four of the last day's
+   // replies asked again). The reply's own telling may tell of finds that were never there, so it gives way.
+   if(result.actionId==='loot'&&!choices.includes('loot')&&!fightingNow(body.context)&&!body.context.pendingSpell&&!(Array.isArray(body.context.spoils)&&body.context.spoils.length)){
+    result.actionId=null;result.narration='You look again, but there is nothing left here to search.';result.dialogue=[];result.loot=null;result.worldEvent=null;result.introduce=null;noted('search with nothing to search','told plainly');}
    if(Array.isArray(result.dialogue)&&result.dialogue.length){
     const byName=new Map((body.context.conversationParticipants??[]).filter(n=>n&&typeof n.name==='string').map(n=>[n.name.trim().toLowerCase(),n.id]));
     const named=result.dialogue.map(l=>l&&typeof l==='object'&&typeof l.speakerId==='string'&&!voices.includes(l.speakerId)&&voices.includes(byName.get(l.speakerId.trim().toLowerCase()))?{...l,speakerId:byName.get(l.speakerId.trim().toLowerCase())}:l);
@@ -912,6 +970,17 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   if(!validDiscovery(discovery)||(discovery&&!canDiscover))throw Error('The DM described a new place the map could not use. Nothing was applied.');
   if(!validCreature(ambush)||(ambush&&!canAmbush))throw Error('The DM described a creature the game could not use. Nothing was applied.');
   if(discovery)discovery.miles=Math.round(Math.min(discovery.region?300:12,Math.max(0.1,discovery.miles))*10)/10;
+  // Tellings written ahead (2026-10-22, the host: "merge telling into first call"): a check's two outcomes and a
+  // journey's arrival somewhere not yet visited. The device and the campaign server show them only when the rules turned
+  // out as foreseen (toldAhead.js), else they ask for the telling as before; anything unsound here is left out (the
+  // telling is then asked for after the roll or the road), never a reason to ask again.
+  const aheadText=t=>typeof t==='string'&&t.trim()?checkedHp(t.trim().length>900?tellingCut(t.trim(),900):t.trim(),body.context):null;
+  const aheadLines=(lines,max,ok)=>distinctDialogue((Array.isArray(lines)?lines:[]).filter(l=>l&&typeof l==='object'&&ok(l.speakerId)&&typeof l.text==='string'&&l.text.trim()&&l.text.length<=700).slice(0,max).map(l=>({speakerId:l.speakerId,text:checkedHp(l.text.trim(),body.context)})));
+  const aheadOutcome=o=>{if(!o||typeof o!=='object')return null;const told=aheadText(o.narration);if(!told)return null;const rel=canRelate?(Array.isArray(o.relationships)?o.relationships:[]).slice(0,1).filter(d=>validRelationships([d],body.context)):[];return {narration:told,dialogue:aheadLines(o.dialogue,2,id=>allowedSpeakers.includes(id)),relationships:rel};};
+  if(check&&check.outcomes!=null){const won=aheadOutcome(check.outcomes?.success),lost=aheadOutcome(check.outcomes?.failure),kept=won&&lost&&!fightingNow(body.context)?{success:won,failure:lost}:null;if(!kept)noted('check outcomes','told after the roll');check={...check,outcomes:kept};}
+  let arrival=null;
+  if(result.arrival!=null){const told=aheadText(result.arrival?.narration),journey=typeof result.actionId==='string'&&result.actionId.startsWith('travel-')&&choices.includes(result.actionId);
+   if(told&&journey)arrival={narration:told,dialogue:aheadLines(result.arrival.dialogue,3,id=>personId(id))};else noted('arrival','dropped');}
   // The player has to name the spell; an unnamed cast becomes a question instead.
   if(castCommand&&!spellNamed(body.input,body.context)){const known=(body.context.spellReference??[]).map(s=>s.name).slice(0,4);castCommand=null;narration='Which spell do you cast? Name it'+(known.length?' — for example '+known.join(', ')+'.':'.');}
   // Someone new: only alongside narration (or a place revealed), never with another game action; their lines go with them.
@@ -940,7 +1009,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   if(!introduce)remember=remember.map(f=>({...f,about:f.about.filter(id=>id!=='new')}));
   // retell: the narration may tell what did not happen (a journey that now waits for a join, loot left out), so the
   // device and the campaign server ask for the telling of what the engine resolved even where the reply could serve.
-  const reply={...(result.retell?{retell:true}:{}),narration,dialogue,recruitment,relationships,remember,loot,introduce,actionId:result.actionId,castCommand,ruling,worldEvent,check,discovery,ambush,rewind:ooc&&result.rewind===true&&body.context.outOfCharacter?.canRewind===true,suggestions:ooc?[]:cleanSuggestions(result.suggestions,body.input,body.context),fault:ooc&&result.fault===true};
+  const reply={...(result.retell?{retell:true}:{}),narration,dialogue,recruitment,relationships,remember,loot,introduce,actionId:result.actionId,castCommand,ruling,worldEvent,check,discovery,ambush,arrival,rewind:ooc&&result.rewind===true&&body.context.outOfCharacter?.canRewind===true,suggestions:ooc?[]:cleanSuggestions(result.suggestions,body.input,body.context),fault:ooc&&result.fault===true};
   // Hit points stated in the telling must be the game's own.
   reply.narration=checkedHp(reply.narration,body.context);reply.dialogue=reply.dialogue.map(l=>({...l,text:checkedHp(l.text,body.context)}));
   validateGroundedReply(body.context,reply);
@@ -954,7 +1023,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   // ruling is asked about again (clarify: nothing is spent); a resolved turn keeps the engine's results with a plain
   // line if its telling is lost. Nothing the checks refuse is ever applied.
   const clarifying={decision:'clarify',note:'The ruling on this spell was not settled. Say again how you cast it, and at whom or what.',damage:0,selfDamage:0,healing:0,temporaryHP:0};
-  const mechanical=['actionId','castCommand','ruling','check','discovery','ambush','worldEvent','loot','introduce'];
+  const mechanical=['actionId','castCommand','ruling','check','discovery','ambush','worldEvent','loot','introduce','arrival'];
   const plainOf=r=>{
    const out={...r};for(const k of mechanical)out[k]=null;out.recruitment=[];out.relationships=[];out.rewind=null;out.fault=null;
    out.dialogue=ooc?[]:(Array.isArray(r.dialogue)?r.dialogue:[]).filter(l=>l&&allowedSpeakers.includes(l.speakerId)&&typeof l.text==='string'&&l.text.trim()&&l.text.length<=700).slice(0,4);
@@ -1033,12 +1102,16 @@ async function answered(body,{turnReasoning,left,state},{live},ask,{read,judge,r
 async function secondLooked(body,{canDiscover,turnReasoning,left,state},{live},ask,{digest},first){
   const fault=secondLook(body,first,{canDiscover});
   if(!fault)return first;
+  // An unmistakable request (sure: a whole place name, a plain rest or draught...) is acted on by the game at once, with
+  // the reply's own telling when it tells that move (dm-intent.cjs settled), instead of asking the model again first
+  // (2026-10-22, the host: "fewer retries and second looks"; the model acted on the second ask anyway).
+  if(fault.sure){recordSecondLook(fault.kind,'the game acted at once',body,live);return settled(fault,first);}
   let second=null;
   if(left()>=retryFloor){state.aside=true;try{second=digest(await ask('\nLOOK AGAIN: '+fault.note,turnReasoning==='none'?'low':turnReasoning,40000));}catch{}finally{state.aside=false;}}
   const still=second?secondLook(body,second,{canDiscover}):fault,sure=[still,fault].find(f=>f?.sure)??null;
   recordSecondLook(fault.kind,second&&!still?'the model acted':sure?'the game acted':'left as answered',body,live);
   if(second&&!still)return second;
-  if(sure)return settled(sure);
+  if(sure)return settled(sure,second??first);
   return second??first;
 }
 // Token use per request (mode, model, input, cached and output tokens, paintings, and the guest's label when a guest
@@ -1048,7 +1121,9 @@ function recordUsage(mode,model,usage,live=true,guest=null,extra=null){
  if(!live||((!usage||typeof usage!=='object')&&!extra))return;usage=usage&&typeof usage==='object'?usage:{};
  try{
   const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-usage.jsonl');
-  const entry={at:new Date().toISOString(),mode,model:String(model??''),input:usage.input_tokens??0,cached:usage.input_tokens_details?.cached_tokens??0,output:usage.output_tokens??0,reasoning:usage.output_tokens_details?.reasoning_tokens??0,...(guest?{guest}:{}),...(extra??{})};
+  // Cache writes, on the models that report them (priced at the write rates by spending.cjs costOf).
+  const written=usage.input_tokens_details?.cache_write_tokens,long=usage.input_tokens_details?.cache_write_tokens_details?.ttl_12h_tokens;
+  const entry={at:new Date().toISOString(),mode,model:String(model??''),input:usage.input_tokens??0,cached:usage.input_tokens_details?.cached_tokens??0,...(Number.isFinite(written)&&written>0?{written,...(Number.isFinite(long)&&long>0?{written12h:long}:{})}:{}),output:usage.output_tokens??0,reasoning:usage.output_tokens_details?.reasoning_tokens??0,...(guest?{guest}:{}),...(extra??{})};
   if(fs.existsSync(file)&&fs.statSync(file).size>5e6)fs.renameSync(file,file+'.old');
   fs.appendFileSync(file,JSON.stringify(entry)+'\n');
  }catch{}
@@ -1070,7 +1145,7 @@ function recordRejection(error,result,body,live=true,shape=null,extra=null){
  try{
   const fs=require('node:fs'),file=require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-diagnostics.jsonl');
   const r=result??{},entry={at:new Date().toISOString(),guest:guestOf(body),error:String(error).slice(0,300),...(shape?{shape}:{}),...(extra??{}),context:{stage:body.context?.stage??null,pendingSpell:!!body.context?.pendingSpell,engineResolved:!!body.context?.engineResolved,sceneTrigger:!!body.context?.sceneTrigger,recruitmentTargets:body.context?.recruitmentTargets??[],participants:(body.context?.conversationParticipants??[]).map(p=>p.id)},
-   reply:{actionId:r.actionId??null,castCommand:r.castCommand?String(r.castCommand).slice(0,120):null,ruling:r.ruling??null,check:r.check?{...r.check,reason:undefined,success:undefined,failure:undefined}:null,recruitment:(r.recruitment??[]).map(p=>({npcId:p?.npcId,decision:p?.decision,dc:p?.dc,reasonLength:p?.reason?.length??0,termsLength:p?.terms?.length??0})),dialogueSpeakers:(r.dialogue??[]).map(l=>l?.speakerId),narrationLength:typeof r.narration==='string'?r.narration.length:null,worldEventLength:typeof r.worldEvent==='string'?r.worldEvent.length:null,...(r.discovery&&typeof r.discovery==='object'?{discovery:{kind:r.discovery.kind??null,bearing:r.discovery.bearing??null,miles:r.discovery.miles??null,travel:r.discovery.travel??null,danger:r.discovery.danger??null,region:!!r.discovery.region,lair:r.discovery.lair?.template??null,ally:r.discovery.lair?.ally?.template??null,nameLength:typeof r.discovery.name==='string'?r.discovery.name.length:null,descriptionLength:typeof r.discovery.description==='string'?r.discovery.description.length:null,featureLength:typeof r.discovery.feature==='string'?r.discovery.feature.length:null,canDiscover:!!body.context?.world?.canDiscover}}:{})}};
+   reply:{actionId:r.actionId??null,castCommand:r.castCommand?String(r.castCommand).slice(0,120):null,ruling:r.ruling??null,check:r.check?{...r.check,reason:undefined,success:undefined,failure:undefined,outcomes:r.check.outcomes!=null?true:undefined}:null,arrival:r.arrival!=null?true:undefined,recruitment:(r.recruitment??[]).map(p=>({npcId:p?.npcId,decision:p?.decision,dc:p?.dc,reasonLength:p?.reason?.length??0,termsLength:p?.terms?.length??0})),dialogueSpeakers:(r.dialogue??[]).map(l=>l?.speakerId),narrationLength:typeof r.narration==='string'?r.narration.length:null,worldEventLength:typeof r.worldEvent==='string'?r.worldEvent.length:null,...(r.discovery&&typeof r.discovery==='object'?{discovery:{kind:r.discovery.kind??null,bearing:r.discovery.bearing??null,miles:r.discovery.miles??null,travel:r.discovery.travel??null,danger:r.discovery.danger??null,region:!!r.discovery.region,lair:r.discovery.lair?.template??null,ally:r.discovery.lair?.ally?.template??null,nameLength:typeof r.discovery.name==='string'?r.discovery.name.length:null,descriptionLength:typeof r.discovery.description==='string'?r.discovery.description.length:null,featureLength:typeof r.discovery.feature==='string'?r.discovery.feature.length:null,canDiscover:!!body.context?.world?.canDiscover}}:{})}};
   if(fs.existsSync(file)&&fs.statSync(file).size>2e6)fs.renameSync(file,file+'.old');
   fs.appendFileSync(file,JSON.stringify(entry)+'\n');
  }catch{}

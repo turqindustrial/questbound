@@ -7,6 +7,7 @@ import {storyText} from './storyRules';
 import {creatureNature} from "./spellDamageRules";
 import {heroesAtTable} from "./playbackRules";
 import {routineCalmTurn,calmTelling,chosenTelling} from './calmLines';
+import {aheadTelling,presentAfter} from './toldAhead';
 
 // Routine fight moves told by the game itself (the host, 2026-10-17: "Let the game narrate routine fight moves: a plain
 // attack, Dodge or 'end my turn' currently asks the AI to describe it, even though the dice cards already show what
@@ -480,12 +481,25 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
 // what the dice and the road decided (calmLines.js chosenTelling), instead of asking again only to tell it.
 export function routineTelling({hero,before,preview,health,action,words,preferences={},chosen=null}){
  if(!preview||preview.error)return null;
- // Away from a fight: a rest, a draught, a journey back, a search, an order or the shield, told by calmLines.js.
- if(!flInFight(before)){const calm=routineCalmTurn(before,preview.game,action,words,{events:preview.events,waiting:!!preview.waiting,chosen:!!chosen});if(!calm.routine)return null;
+ // Away from a fight: a rest, a draught, a journey back, a search, an order or the shield, told by calmLines.js; a
+ // journey somewhere new or an offer taken up that the reply choosing it already told (toldAhead.js).
+ if(!flInFight(before)){const calm=routineCalmTurn(before,preview.game,action,words,{events:preview.events,waiting:!!preview.waiting,chosen:!!chosen});if(!calm.routine)return chosen?aheadTelling({before,after:preview.game,action,events:preview.events,chosen}):null;
   const brief=preferences?.length==='brief';
   if(chosen)return chosenTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator,chosen,brief});
   const told=calmTelling({hero,before,after:preview.game,action,events:preview.events,kind:calm.kind,narrator:preferences?.narrator,brief});return told?{...told,told:'game'}:null;}
- if(chosen)return null;
+ // A fight move the Dungeon Master chose from the player's own words (2026-10-22, the host: "merge telling into first
+ // call"): its reply told the attempt in those words; when the result is routine the game tells it after that reply,
+ // instead of asking the Dungeon Master again (a fight's start or end, a kill, a critical hit and the rest still go to
+ // it). It is not marked as told by the game: the Dungeon Master spoke in it.
+ if(chosen){
+  // (A spell the Dungeon Master is to describe, a sensing or everyday one, is told by it after the cast.)
+  const said=String(chosen.narration??'').trim();if(!said||(preview.events??[]).some(t=>/\. The Dungeon Master describes /.test(String(t))))return null;
+  const verdict=routineFightTurn(before,preview.game,action,'I attack.',{hero,health,afterHealth:preview.health,events:preview.events,waiting:!!preview.waiting});
+  if(!verdict.routine)return null;
+  const told=fightTelling({hero,before,after:preview.game,health,afterHealth:preview.health,action,events:preview.events,narrator:preferences?.narrator,brutality:preferences?.brutality,brief:preferences?.length==='brief'});
+  const here=presentAfter(preview.game),lines=[...(Array.isArray(chosen.dialogue)?chosen.dialogue:[]),...(told?.dialogue??[])].filter(l=>l&&here.has(l.speakerId)).slice(0,4);
+  return {narration:(said+' '+(told?.narration??'')).trim().slice(0,1700),dialogue:lines,relationships:[],remember:[],suggestions:chosen.suggestions??[],worldEvent:null,loot:null,introduce:null};
+ }
  const verdict=routineFightTurn(before,preview.game,action,words,{hero,health,afterHealth:preview.health,events:preview.events,waiting:!!preview.waiting});
  if(!verdict.routine)return null;
  return {...fightTelling({hero,before,after:preview.game,health,afterHealth:preview.health,action,events:preview.events,narrator:preferences?.narrator,brutality:preferences?.brutality,brief:preferences?.length==='brief'}),told:'game',fightRound:fightRoundKey(before)};
