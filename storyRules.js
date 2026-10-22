@@ -227,5 +227,6 @@ export function freshStoryGame(hero,written,base){
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
  // Everyone has already formed a view of the hero's kind; a written tale's plan is seated (stagingRules.js: chapter 1's
  // set piece armed, its stakes and game.pace), and a tale with no staging is seated exactly as before.
- return seatStaging(firstImpressions(game,hero),hero);
+ const met=firstImpressions(game,hero);
+ return story.staging===undefined?met:seatStaging(met,hero);
 }

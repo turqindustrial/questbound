@@ -47,7 +47,10 @@ assert.ok(after.storyLog.some(e=>e.text.startsWith('Met Old Nettle')));assert.ok
 {const crowded={...chapel.game,people:{...chapel.game.people,n40:{...chapel.game.people[byName['Brother Pell'].id],name:'Sister Ash'},n41:{...chapel.game.people[byName['Brother Pell'].id],name:'Sister Bryn'}}};
  assert.equal(r.canMeetPeople(crowded),true,'the hermit can still be found');assert.equal(r.roomForSomeoneNew(crowded),false);
  assert.ok(r.introducePerson(crowded,{name:'A Stranger',species:'Human',role:'A stranger here.',appearance:'A tall stranger in a long coat.',personality:'Quiet.',toughness:'common',attitude:'indifferent',foe:'neutral',tie:null},hero).error,'nobody new at a full place');
- assert.equal(r.introducePerson(crowded,{name:'Old Nettle',species:'Human',role:'A hermit.',appearance:'A bent woman in sacking.',personality:'Whispers.',toughness:'frail',attitude:'unfriendly',foe:'neutral',tie:null},hero).error,undefined,'the hermit is found');}
+ assert.equal(r.introducePerson(crowded,{name:'Old Nettle',species:'Human',role:'A hermit.',appearance:'A bent woman in sacking.',personality:'Whispers.',toughness:'frail',attitude:'unfriendly',foe:'neutral',tie:null},hero).error,undefined,'the hermit is found');
+ // The tale's main foe is never one of its people (a written tale brings it on by beats): its name is refused, with
+ // or without "The", whatever its case.
+ for(const name of [crowded.story.foe,'The '+crowded.story.foe.toUpperCase()])assert.match(r.introducePerson(crowded,{name,species:'Human',role:'Someone here.',appearance:'A figure in a long coat.',personality:'Quiet.',toughness:'common',attitude:'indifferent',foe:'neutral',tie:null},hero).error,/your foe/,'the foe is no person: '+name);}
 // A first arrival is greeted by someone in plain sight, never by someone hiding.
 const cue=r.sceneTrigger(game,chapel.game,{type:'travel',destination:'tower'});assert.ok(!cue||cue.speakerId!==nettle.id);
 // ---- New ids: the first free one (a forgotten land frees them) ----

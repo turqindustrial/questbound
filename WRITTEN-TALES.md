@@ -2,10 +2,10 @@
 
 This is the authoritative format of a **written tale**: a tale written by hand (by a writer agent or a person), checked,
 and put on the permanent **Written tales** shelf, grouped Short, Medium and Long. A writer authors from this document
-and the brief of their tale (its catalogue entry and its line of the name register, given with it). The engine that
-plays the staging (`withBeats`, `seatStaging`) and the shelf that serves tales (`written-shelf.cjs`) come in the next
-step (section 17 says what they must do); the format, its validators (`stagingRules.js`) and the checker
-(`check-written-tale.cjs`) are frozen now so that writing can begin.
+and the brief of their tale (its catalogue entry and its line of the name register, given with it). The format, its
+validators (`stagingRules.js`) and the checker (`check-written-tale.cjs`) were frozen first so that writing could
+begin; the engine that plays the staging (`seatStaging`, `withBeats`, the same file) has landed since (section 17), and
+the shelf that serves tales (`written-shelf.cjs`) comes next.
 
 - **Format version:** `"format": 1`, staging `"v": 1`.
 - **Where tales live:** one file per tale, `.questbound-written/<slug>.json` (git-ignored; under `QUESTBOUND_DATA` when
@@ -477,8 +477,8 @@ option. `advance` only outside the last chapter, `end` only in it. Never in a ch
 ## 7. The walkthrough
 
 `walkthrough` is read by the checker only. It scripts the authored path (`golden`) and a path to every other ending.
-Until the staging engine lands the checker checks its shape and names (check 5); then it plays them through the game's
-rules with seeded dice and scripted Dungeon Master replies, and also plays a **passive** player (only talks, rests and
+The checker checks its shape and names, then plays them through the game's rules (`written-walk.cjs`, check 5) with
+seeded dice and scripted Dungeon Master replies, and also plays a **passive** player (only talks, rests and
 wanders) and a **violent** one (kills each resident the tale names), which need no script.
 
 ```jsonc
@@ -703,11 +703,11 @@ fails** or cannot be checked. Each error names the path of the field (`story.sta
 | 2 Seating | The ready-made Fighter, Rogue, Wizard and Cleric at the lowest, middle and highest level, and parties of 2 and 4 at the lowest and highest (`partyInTale`): the tale seats and makes a valid adventure every time; every resident lives where `at` says; the opening lines, landmarks and lands are all kept; tidying changed nothing written. |
 | 3 Names | Every name the staging uses resolves; names unique in the tale and across the shelf; the avoid and deny lists; the ready-made heroes' names; people cast from the library. |
 | 4 Structure | Finds (5.2: two different routes, one mechanical, talk as 5.2 says; no route that holds as its chapter opens, chapter 1's read against every seated hero; none that can never hold in its chapter; `clear` of a place armed earlier only when armed again); beats and choices that never get their turn (a beat or a choice's `opens` that is one of its chapter's routes; a condition that can never hold there, two things that cannot hold together among them; beats waiting for their own or each other's telling; an option settled as the chapter opens); leads that hold at once or never; endings never chosen (behind an earlier one, or after one that always holds) or never holding; the clock (each chapter's steps × `drift` within the tier's stall bound, `quiet` within its limit, a hard tale's `ticks.rest`); the staging's size; the tier's budgets; chapter 1's fight (and its `otherwise` when it waits for a level); set pieces and `arm` off the three starting places, a place armed at most once a chapter; `place` never at a starting place; `bring` and `send` never keeper or mara; `clear` and `won` only where something is fought; `firstSay`; difficulty (warnings); the shelf's ids, Start here tale and variety. |
-| 5 Walkthroughs | Today the walkthrough's shape and names. **TODO:** golden, passive, violent and every ending played through the rules, once the staging engine lands. |
+| 5 Walkthroughs | The walkthrough's shape and names; then the golden path, every ending's path, a passive player and a violent one played through the rules (`written-walk.cjs`: settleTurn, the staging engine, a device's own way of telling moves and carrying beats, seeded dice, scripted Dungeon Master replies), by the ready-made Fighter at the tale's lowest level taking each level as it comes. Errors: a path that does not reach its ending, a golden path past the tier's moves (fights included), a passive player's chapter the clock does not close near the stall bound, a violent player who cannot finish. Warnings: a path that only some dice reach (seeds 1 to 3), a golden path under the tier's moves, a violent player who dies each time. A step `choose` is said again (up to eight times) while something else is due; a fight lost is fought again after a rest (up to four tries). `--walk <golden\|passive\|violent\|ending id>` prints one walk move by move. |
 | 6 Pictures | Section 10. |
 | 7 Text | Section 9: the opening, the reading load, digits and rule talk in what the game tells (errors), rule talk in what the player reads from the staging (errors) and elsewhere (warnings), overused words. |
 | 8 Balance | **TODO:** each set piece and the boss for four classes at the tale's levels, solo and with two heroes (gentle 90%, steady 80%, hard 70% won; the boss solo costs 50–80% of hit points with 5–15% falls and under 3% deaths), with `balance-check.cjs --tale`. |
-| 9 Experience | **TODO:** the levels gained along the golden path stay within the tier's range. |
+| 9 Experience | The levels the golden path gives (the walk takes each as it comes): Short 1–2, Medium 3–4, Long 5–7 (a new hero ends near 2–3, 4–5, 6–8); outside that, a warning. |
 
 The loop: the writer writes; the checker runs (fix and run again, up to 5 times); both critics score; pass, or revise from
 both reports (up to 3 critic rounds), then escalate to the main session.
@@ -728,14 +728,14 @@ never a hero field, never carried into the next tale. `validPace(pace, game)` (s
          "marks": {}, "flags": [],    // choice id -> option id; the tale's flags, "late" with them (at most 25)
          "stakes": {}, "spoke": {},   // stake id -> its state now; person id -> DM-told turns they spoke in this chapter
          "offers": [], "leads": [],   // people offered who were not with the hero yet; leads opened by an effect
-         "sign": null, "fight": null, "ending": null}
+         "sign": null, "fight": null, "ending": null, "clockAt": 0}
 ```
 
 | Key | What it is |
 |---|---|
 | `v` | The pace's version (1). |
 | `ch` | The chapter under way (0-based, as `story.chapter`). |
-| `turns` | Moves made in this chapter (it starts again with each chapter). |
+| `turns` | Moves made in this chapter out of a fight (a fight's rounds are no stall; it starts again with each chapter). Drift owes a step each time it reaches a multiple of `drift`. |
 | `quiet`, `quietMax` | Quiet since something last happened, in half moves (a move of talk adds 1, any other quiet move 2), and the most it has reached this chapter. Something happening sets it to 0: a story-log line other than a rest or a return, a beat told, a stake changed, a choice made, a fight begun or ended. |
 | `since`, `day` | The tale's clock (map minutes) when the chapter began, and the day (minutes ÷ 1440) last counted for `ticks.days`. |
 | `step` | Pressure steps fired in this chapter. |
@@ -751,6 +751,7 @@ never a hero field, never carried into the next tale. `validPace(pace, game)` (s
 | `sign` | The latest pressure sign (the Quest tab's "Out of sight"). |
 | `fight` | A set piece's or the boss's timer (Phase C): `{"turns", "rounds"?}`. |
 | `ending` | The ending taken. |
+| `clockAt` | `turns` when the clock last acted, so two clock beats are at least two moves apart (added with the runtime; a pace without it is read as 0). |
 
 **Every build accepts the tales and saves of later builds.** A later version only adds kinds and keys: it never changes
 what an existing kind or key means, never removes a pace key and never changes an id's shape. So the validators on
@@ -836,13 +837,31 @@ The catalogue entries of the build specification need these changes as written (
 
 ---
 
-## 17. For the runtime (the next step)
+## 17. For the runtime
 
-What the engine and the shelf must do before any written tale is served, so this format holds in play:
+What the engine and the shelf must do before any written tale is served, so this format holds in play. The engine's part
+landed on 2026-10-22 (`stagingRules.js` seatStaging, withBeats, stagedPreview, taleNow, endingOf, stagingChoices,
+writtenCheck; the Dungeon Master's side in dmSceneRules.js and dm-server.cjs; `verify-staging.cjs`); the shelf
+(`written-shelf.cjs`) is still to come. As built:
+- **Which beat a reply told.** Each request names the beat its scene carries (`beatSent`: none on a scene cue, out of
+  character or for a spell awaiting its ruling, none in a fight); a device and the campaign server record those keys in
+  the turn's conversation (`beats`, or `beatTold` for the game's own `line` when the Dungeon Master cannot answer), and
+  withBeats marks exactly those told: before the move (the beat due before it) and after it (the beat this very move
+  brought due, when the request was built from the staged preview).
+- **Not in a fight.** Nothing fires, opens or ticks in a fight; what is due waits, and is not carried, until it ends. The
+  chapter's moves (`turns`, drift, the clock's two-move gap) count only moves out of a fight.
+- **Rests and the tale's time.** A rest does not move the map's clock, so `days` and `ticks.days` count the road only; a
+  long rest owes a step only with `ticks.rest`.
+- **Choices.** A choice made applies its option's `then` once; `decide` and `late` apply theirs too and are told "Left
+  to fate: <label>." (the story log and the feed), a choice made "You chose: <label>.". A written tale offers no
+  `story-complete`: it ends where the engine finds it ends (the DM's `story-advance` still closes a chapter, as below).
+- **Leads.** A lead whose `opens` is a later chapter is not told to the Dungeon Master (nor offered as `lead-done`) before
+  it, unless an effect opened it.
+Kept from the format's own list:
 - **The Dungeon Master never reads the staging.** `storyWorld` (dmSceneRules.js) and `sceneFor` (dm-server.cjs) leave
   `staging` and `written` out of `context.story` (the request is refused past 64,000 bytes, and a long staging alone is
-  up to 48,000 characters), and verify-dm-trim measures a full-size staged Long tale. (Until then a staging reaches no
-  game: nothing serves written tales, and a story a table's host posts keeps no staging or shelf tag.)
+  up to 48,000 characters), and verify-dm-trim measures a full-size staged Long tale (done). A story a table's host posts
+  still keeps no staging or shelf tag: written tales come by their journey id, from the shelf.
 - **The shelf checks the tidied copy.** `writtenCheck` validates the copy `freshStoryGame` makes (lead ids are given when
   the story is tidied), and runs the checker's name resolution and placement checks (every name resolves, no `arm` or
   `place` at the three starting places, no `bring` or `send` of keeper or mara).

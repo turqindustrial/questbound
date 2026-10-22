@@ -722,7 +722,8 @@ export function withBeats(before,after,hero,{action=null,conversation=null}={}){
   const rested=action==='long-rest';if(rested)seen('rest');
   if(conversation&&conversation.told!=='game')for(const id of new Set(stgList(conversation.dialogue).map(l=>l?.speakerId)))if((id==='keeper'||id==='mara'||isPersonId(id))&&(Object.hasOwn(p.spoke,id)||Object.keys(p.spoke).length<100))p.spoke[id]=Math.min(999,(Number.isInteger(p.spoke[id])?p.spoke[id]:0)+1);
   {const lines=fighting?[]:storyEvents(before,after,hero,{action}).filter(([kind,text])=>kind!=='rest'&&!(kind==='travel'&&/^Returned to /.test(text)));
-   const talk=action===null&&!!conversation;
+   // Talk: words with someone (they answer, or the player turned to them); a move without it (a look, a wait) is any other.
+   const talk=action===null&&!!conversation&&(!!conversation.npcId||stgList(conversation.dialogue).length>0);
    if(fighting||lines.length)p.quiet=0;else p.quiet=Math.min(9999,p.quiet+(talk?1:2));}
   {const left=()=>Math.max(0,stgList(st.chapters[p.ch]?.pressure).length-p.step),day=Math.floor((mapState(after).minutes??0)/1440);
    if(day>p.day){if(pace.days>0)p.owed=Math.min(left(),p.owed+(day-p.day)*pace.days);p.day=day;}
