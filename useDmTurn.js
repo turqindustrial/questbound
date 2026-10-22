@@ -21,7 +21,7 @@ import {greeting,shouldGreet} from './greetings';
 import {turnOrderView} from './encounterRules';
 import {noteProblem} from './problemLog';
 import {deedById} from './deedRules';
-import {cue} from './cinematics';
+import {cue,setFeedPlaying} from './cinematics';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
 import {checkTelling} from './toldAhead';
@@ -41,6 +41,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
   const transition=useSceneTransition();
   const openConversation=async id=>{try{await transition.prepare(conversationPeople(game).map(n=>npcArtSubject(game,n.id)));setConversationId(id);setError('');return true;}catch(e){setError(e.message);return false;}};
   const [conversationId,setConversationId]=useState(null),[animateId,setAnimateId]=useState(null),[playing,setPlaying]=useState(false);
+  // The feed's playback, for whoever waits on it (cinematics.js setFeedPlaying: App.js's completion card).
+  useEffect(()=>{setFeedPlaying(playing);return()=>setFeedPlaying(false);},[playing]);
   const people=conversationPeople(game),person=people.find(n=>n.id===conversationId);
   useEffect(()=>{if(conversationId&&!person)setConversationId(null);onConversationChange(!!person);noteTalking(!!person);},[conversationId,!!person,onConversationChange]);
   // Just you two: with others about, the one turned to answers alone unless the player opens the talk to everyone here.

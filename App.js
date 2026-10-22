@@ -1,6 +1,6 @@
 import {findDmEndpoint,writeStory} from './dmConnection';
 import {loadShelf,playedJourneys,journeysToOffer,rememberJourney,taleRecords,noteTaleRecord,savedShelfTab,saveShelfTab} from './journeyLibrary';
-import {shelfDefault,shelfTabFor,shelfTab as shelfTabCards,writtenChoice,shelfFinishCard} from './shelfRules';
+import {shelfDefault,shelfTabFor,shelfTab as shelfTabCards,writtenChoice,shelfFinishCard,shelfTiersShown} from './shelfRules';
 import TaleFinished from './TaleFinished';
 import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory,playScreenFor,tableSnapshot} from './startTale';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
@@ -43,7 +43,7 @@ import {classIcons} from './iconPaths';
 import CinematicLayer from './CinematicLayer';
 import StoryLoading from './StoryLoading';
 import {shortcutsBlocked} from './keyboard';
-import {cue,useCue} from './cinematics';
+import {cue,useCue,useFeedPlaying} from './cinematics';
 import {withDeeds,deedById} from './deedRules';
 import {AudioToggle} from './AudioControls';
 import {FullscreenToggle} from './DisplayControls';
@@ -145,6 +145,9 @@ function QuestboundApp() {
   // The saved adventure is this hero's: if it ended in death, the hero cannot be played again.
   const heroFallen=!!hero&&characterChosen&&game.stage==='dead';
   const canContinue=!!hero&&characterChosen&&!heroFallen&&canContinueRegion(game),continuingNow=continueRegion&&canContinue;
+  // The next tale goes on in this region by default only after a tale the story writer wrote and the hero finished: after
+  // a written tale, or one left part-way, the New Adventure screen opens on Somewhere new (the shelf, ready at once).
+  useEffect(()=>{setContinueRegion(!game?.story?.written&&game?.story?.status==='complete');},[game?.story?.id,game?.story?.status]);
   // Ready journeys (journeyLibrary.js, tale-library.cjs): asked for whenever the New Adventure screen opens. A journey
   // this device has played, or whose title the hero has already lived, is never offered. Null: the library could not
   // be reached, and the written openings are offered as before.
@@ -163,7 +166,7 @@ function QuestboundApp() {
   // With written tales on the shelf, the choice is a written tale (shelfDefault: Start here on a new device, else the
   // first unfinished tale of the tab used last) unless the player chose Your own tale, Let fate decide, the Skirmish or a
   // journey still on offer.
-  useEffect(()=>{const id=String(selectedIntro),cards=writtenOnShelf??[];if(!cards.length||id==='hostile'&&table.joined)return;if(['idea','surprise','hostile'].includes(id)||cards.some(c=>writtenChoice(c.id)===id)||journeysOnOffer?.some(j=>'journey:'+j.id===id))return;const first=shelfDefault(cards,taleRecs,shelfTab);if(first)setSelectedIntro(writtenChoice(first));},[writtenOnShelf,journeysOnOffer,selectedIntro,taleRecs,table.joined]);
+  useEffect(()=>{const id=String(selectedIntro),cards=writtenOnShelf??[];if(!cards.length||id==='hostile'&&table.joined)return;if(['idea','surprise','hostile'].includes(id)||cards.some(c=>writtenChoice(c.id)===id)||journeysOnOffer?.some(j=>'journey:'+j.id===id))return;const shelf=shelfFor(),first=shelfDefault(cards,taleRecs,shelfTab,{titles:shelf.titles,current:shelf.current});if(first)setSelectedIntro(writtenChoice(first));},[writtenOnShelf,journeysOnOffer,selectedIntro,taleRecs,table.joined,game?.story?.id]);
   useEffect(()=>{const id=String(selectedIntro),skirmish=id==='hostile'&&table.joined;if(writtenOnShelf?.length&&!skirmish)return;if(id.startsWith('written:')){setSelectedIntro(journeysOnOffer?.length?'journey:'+journeysOnOffer[0].id:'easy');return;}if(!journeysOnOffer?.length){if(id.startsWith('journey:')||skirmish)setSelectedIntro('easy');return;}if(['idea','surprise'].includes(id)||(id==='hostile'&&!skirmish)||journeysOnOffer.some(j=>'journey:'+j.id===id))return;setSelectedIntro('journey:'+journeysOnOffer[0].id);},[journeysOnOffer,writtenOnShelf,selectedIntro,table.joined]);
   // A hero who has died and cannot be brought back (deathRules.js deathIsFinal; or whose player lets them go) is laid
   // to rest: a memorial line in the graveyard, and the hero and their adventure leave this device's save, so they can
@@ -426,12 +429,16 @@ function QuestboundApp() {
   // endings found), solo and at a table alike (applyRemote changes `game` too), and its play counts (playMetrics.js).
   // When its last scene is played here, the completion card says how long it took and which ending was found.
   const [taleDone,setTaleDone]=useState(null),taleStatus=useRef(null);
+  // The card waits until the last scene has been played in the feed (and a moment after, so a playback that starts just
+  // after the card was made still holds it back).
+  const feedPlaying=useFeedPlaying(),[taleShown,setTaleShown]=useState(false);
+  useEffect(()=>{if(!taleDone||feedPlaying){setTaleShown(false);return;}const t=setTimeout(()=>setTaleShown(true),1500);return()=>clearTimeout(t);},[taleDone,feedPlaying]);
   useEffect(()=>{
     const story=game?.story;if(!story?.written||!hero)return;
     noteTaleState(game);
     const was=taleStatus.current;taleStatus.current=story.id+':'+story.status;
     noteTaleRecord(game,hero,{seconds:deviceSeconds()}).then(all=>{if(!all)return;setTaleRecs(all);
-      if(story.status==='complete'&&was===story.id+':active'){const card=(writtenOnShelf??[]).find(c=>c.id===story.libraryId)??null;setTaleDone(shelfFinishCard(card,all[story.libraryId],game));}});
+      if(story.status==='complete'&&was===story.id+':active'){const card=(writtenOnShelf??[]).find(c=>c.id===story.libraryId)??null;setTaleDone(shelfFinishCard(card,all[story.libraryId],game,{tiers:writtenOnShelf?.length?shelfTiersShown(writtenOnShelf):null}));}});
   },[game?.story?.id,game?.story?.chapter,game?.story?.status,game?.pace?.ending,hero?.name]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:tint('#ffd49a')}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
@@ -480,7 +487,10 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
-  {!!taleDone&&playing&&<TaleFinished card={taleDone} top={wideGame?76:68} onClose={()=>setTaleDone(null)} onShelf={()=>{setTaleDone(null);setContinueRegion(false);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}} onContinue={canContinue&&!table.joined?()=>{setTaleDone(null);setContinueRegion(true);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}:null}/>}
+  {!!taleDone&&playing&&taleShown&&<TaleFinished card={taleDone} top={wideGame?76:68} onClose={()=>setTaleDone(null)} onShelf={()=>{const t=taleDone.nextTier;setTaleDone(null);setContinueRegion(false);
+    // The length the card suggests opens, with its first tale not yet finished here chosen.
+    if(t&&(writtenOnShelf??[]).some(c=>c.length===t)){setShelfTabState(t);saveShelfTab(t);const cards=shelfTabCards(writtenOnShelf,t,taleRecs),first=cards.find(c=>!taleRecs[c.id]?.finished)??cards[0];if(first)setSelectedIntro(writtenChoice(first.id));}
+    setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}} onContinue={canContinue&&!table.joined?()=>{setTaleDone(null);setContinueRegion(true);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}:null}/>}
   {rating&&!(taleDone&&playing)&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
   {storyCover&&<StoryLoading introId={continuingNow?'surprise':/^(?:journey|written):/.test(String(selectedIntro))?'easy':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
   <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>

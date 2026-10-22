@@ -125,12 +125,19 @@ write('plays.json','{}');
   const records=h.cleanTaleRecords({[fixture.id]:fin,'nope':fin});same(Object.keys(records),[fixture.id]);
   same(h.shelfTab(clean,'short',records).map(c=>c.slug),['kettle-camp']);
   assert.equal(h.shelfDefault([...clean,{...clean[0],id:'7e5d0a62-8f91-42b3-8edf-4a5b6c7d8e9f',slug:'short-two',order:9}],records,'short'),'7e5d0a62-8f91-42b3-8edf-4a5b6c7d8e9f','a finished tale gives way to one not finished');
-  // Lived: by its title among the hero's tales, or the copy under way.
-  assert.equal(h.shelfLived(clean[0],{titles:[fixture.story.title.toUpperCase()]}),'lived');assert.equal(h.shelfLived(clean[0],{current:game.story}),'playing');assert.equal(h.shelfLived(clean[1],{titles:[fixture.story.title]}),null);
+  // Lived: by its title among the hero's tales once this device finished it, or the copy under way. A tale only tried
+  // and left part-way (the review of 2026-10-22: two minutes of it locked the tale for good) can be begun again, and
+  // its card says where it was left; the default choice passes over a tale the hero cannot begin.
+  assert.equal(h.shelfLived(clean[0],{titles:[fixture.story.title.toUpperCase()],records}),'lived');assert.equal(h.shelfLived(clean[0],{current:game.story}),'playing');assert.equal(h.shelfLived(clean[1],{titles:[fixture.story.title]}),null);
+  assert.equal(h.shelfLived(clean[0],{titles:[fixture.story.title],records:{[fixture.id]:rec}}),null,'a tale left part-way is not lived');
+  assert.equal(h.shelfStatus(clean[0],rec,{id:'another-tale'}).text,'Left at chapter 1 of 2','a copy left part-way');assert.equal(h.shelfStatus(clean[0],rec,game.story).kind,'playing');
+  {const other={...clean[0],id:'7e5d0a62-8f91-42b3-8edf-4a5b6c7d8e9f',slug:'short-two',order:9};
+   assert.equal(h.shelfDefault([clean[0],other],{[fixture.id]:fin,[other.id]:{...rec,copy:'x'}},'short',{titles:[fixture.story.title],current:null}),other.id,'never the tale the hero has lived while another can be begun');}
+  assert.equal(h.shelfFinishCard(clean[0],fin,done,{tiers:['short']}).next,'Try another written tale?','no Medium tab: no Medium suggested');assert.equal(h.shelfFinishCard(clean[0],fin,done,{tiers:['short','medium']}).nextTier,'medium');
   // Let fate decide: one not played, from the open tab; never one the hero lived.
   assert.equal(h.fateWritten(clean,{records,tab:'short',random:()=>0}).slug,'hidden-copy','a tale not played comes first');
   assert.equal(h.fateWritten(clean,{records:{},tab:'long',random:()=>0}).slug,'long-one','from the open tab');
-  assert.equal(h.fateWritten([clean[0]],{titles:[fixture.story.title]}),null,'never a tale the hero lived');
+  assert.equal(h.fateWritten([clean[0]],{titles:[fixture.story.title],records}),null,'never a tale the hero lived');
   // The Quest tab and Say: the tale's state as it stands, the first lines on the opening turn.
   const view=h.taleQuestView(game);assert.equal(view.tier,'Short tale');assert.ok(view.stakes.length>0);same(view.choices,[]);assert.equal(view.ending,null);
   same(h.taleSayLines(game),fixture.story.staging.firstSay.slice(0,3),'the tale\'s first lines on its opening turn');
@@ -173,7 +180,7 @@ write('plays.json','{}');
  // ---- 7. The screens: the shelf first, Easy start hidden for a written tale, nothing sideways ----
  {const screen=read('AdventureIntros.js'),app=read('App.js');
   assert.ok(screen.includes('function TaleShelf')&&screen.includes('function TaleCard')&&screen.includes("{shelfOn&&<TaleShelf ")&&screen.includes('More journeys from the story writer')&&screen.includes('Or write a new one'),'written tales first; the journeys folded under them');
-  assert.ok(screen.includes("selected!=='hostile'&&!writtenChosen&&<EasyStart"),'Easy start hidden for a written tale');
+  assert.ok(screen.includes("selected!=='hostile'&&!writtenChosen&&!(shelfOn&&selected==='surprise')&&<EasyStart"),'Easy start hidden for a written tale, and for Let fate decide among them');
   assert.ok(screen.includes("screenWidth<360?'':' '+cards.filter(c=>c.length===t).length")&&!/horizontal|overflowX/.test(screen),'counts hidden under 360 px; nothing scrolls sideways');
   assert.ok(app.includes("['Home','Adventure Opening'].includes(screen)")&&app.includes('refreshShelf('),'the shelf is fetched on the title screen too');
   assert.ok(app.includes('noteTaleRecord(game,hero,{seconds:deviceSeconds()})')&&app.includes('<TaleFinished '),'progress per tale, and the completion card');}

@@ -62,10 +62,12 @@ export function nextTaleRecord(prev,game,hero,{now=Date.now(),seconds=null}={}){
  const same=was&&['slug','copy','chapter','of','hero','done','finished'].every(k=>was[k]===next[k])&&was.endings.join()===next.endings.join();
  return same?null:next;
 }
-// What a card says of the device's history with the tale: New, Chapter n of m with Kara, Finished (k of n endings).
-export function shelfStatus(card,record){
+// What a card says of the device's history with the tale: New, Chapter n of m with Kara (the copy under way), Left at
+// chapter n of m (a copy left part-way: another tale has been begun since), Finished (k of n endings). `current` is the
+// story the device holds now.
+export function shelfStatus(card,record,current=null){
  const r=cleanTaleRecord(record);
- if(r&&!r.done&&r.copy)return {kind:'playing',text:'Chapter '+r.chapter+' of '+r.of+(r.hero?', with '+r.hero:'')};
+ if(r&&!r.done&&r.copy){if(current&&current.id!==r.copy)return {kind:'left',text:'Left at chapter '+r.chapter+' of '+r.of};return {kind:'playing',text:'Chapter '+r.chapter+' of '+r.of+(r.hero?', with '+r.hero:'')};}
  if(r?.finished)return {kind:'finished',text:'Finished · '+Math.min(r.endings.length||1,card?.endings??4)+' of '+(card?.endings??r.endings.length)+(card?.endings===1?' ending':' endings')};
  return {kind:'new',text:'New'};
 }
@@ -83,35 +85,39 @@ export function shelfTabFor(cards,saved){
  const shown=shelfTiersShown(cards);return shown.includes(saved)?saved:shown[0]??'short';
 }
 // Which written tale is chosen when the screen opens: on a device with no tale record, the Start here tale (else the
-// first Short); otherwise the first unfinished tale of the tab used last. Never an AI journey, never the newest card.
-export function shelfDefault(cards,records={},tab=null){
- const list=Array.isArray(cards)?cards:[];if(!list.length)return null;
+// first Short); otherwise the first unfinished tale of the tab used last. Never an AI journey, never the newest card,
+// and never one the hero cannot begin (`hero`: {titles, current}, as shelfLived reads them) while another can be.
+export function shelfDefault(cards,records={},tab=null,hero=null){
+ const all=Array.isArray(cards)?cards:[];if(!all.length)return null;
+ const open=hero?all.filter(c=>!shelfLived(c,{...hero,records})):all,list=open.length?open:all;
  if(!records||!Object.keys(records).length){const first=list.find(c=>c.firstTale)??shelfTab(list,shelfTabFor(list,'short'))[0]??list[0];return first.id;}
  const t=shelfTabFor(list,tab),tabbed=shelfTab(list,t,records);
  return (tabbed.find(c=>!records[c.id]?.finished||records[c.id]?.copy&&!records[c.id]?.done)??tabbed[0]??list[0]).id;
 }
-// The hero has lived this tale (its title among their tales, or the copy under way): they cannot begin it again.
-export function shelfLived(card,{titles=[],current=null}={}){
+// The hero has lived this tale (they finished it: its title among their tales and this device's record of it
+// finished; or the copy under way): they cannot begin it again. A tale only tried and left part-way can be begun again.
+export function shelfLived(card,{titles=[],current=null,records=null}={}){
  const t=String(card?.title??'').trim().toLowerCase();
  if(current?.libraryId===card?.id)return current?.status==='complete'?'lived':'playing';
- return titles.some(x=>typeof x==='string'&&x.trim().toLowerCase()===t)?'lived':null;
+ return titles.some(x=>typeof x==='string'&&x.trim().toLowerCase()===t)&&cleanTaleRecord(records?.[card?.id])?.finished?'lived':null;
 }
 // Let fate decide, with written tales: one the device has not played, from the open tab (else any tab), by chance;
 // a tale the hero has lived is never chosen. Null when none fits (the screen then falls back to the journeys).
 export function fateWritten(cards,{records={},tab='short',titles=[],current=null,random=Math.random}={}){
- const list=(Array.isArray(cards)?cards:[]).filter(c=>!shelfLived(c,{titles,current}));
+ const list=(Array.isArray(cards)?cards:[]).filter(c=>!shelfLived(c,{titles,current,records}));
  const fresh=list.filter(c=>!records?.[c.id]),pools=[fresh.filter(c=>c.length===tab),fresh,list.filter(c=>c.length===tab),list];
  const pool=pools.find(p=>p.length)??[];
  return pool.length?pool[Math.floor(random()*pool.length)%pool.length]:null;
 }
-// The card shown when a written tale is finished: how long it took, the ending found and how many of how many.
-export function shelfFinishCard(card,record,game){
+// The card shown when a written tale is finished: how long it took, the ending found and how many of how many, and the
+// next length to try (`nextTier`, only one the shelf has: `tiers`, when given).
+export function shelfFinishCard(card,record,game,{tiers=null}={}){
  const r=cleanTaleRecord(record),tier=shelfTierWords[card?.length??game?.story?.written?.length]??shelfTierWords.short;
  const endings=card?.endings??(Array.isArray(game?.story?.staging?.endings)?game.story.staging.endings.length:null);
  const ending=game?.story?.staging?.endings?.find?.(e=>e?.id===game?.pace?.ending)?.title??null;
- const next={short:'Medium',medium:'Long',long:null}[card?.length??game?.story?.written?.length]??null;
+ const nextTier={short:'medium',medium:'long',long:null}[card?.length??game?.story?.written?.length]??null,shown=nextTier&&(!Array.isArray(tiers)||tiers.includes(nextTier))?nextTier:null,next=shown?shelfTierWords[shown].tab:null;
  const article=/^[AEIOU]/.test(tier.tab)?'an ':'a ';
  return {title:'Tale complete',line:'You finished '+article+tier.tab+' tale'+(r?.took?' in '+(r.took<120?r.took+(r.took===1?' minute':' minutes'):Math.round(r.took/6)/10+' hours'):'')+'.',
   ending:ending?'Ending found: '+String(ending).replace(/[.\s]+$/,'')+(endings&&r?.endings.length?' ('+r.endings.length+' of '+endings+')':'')+'.':null,
-  next:next?'Try '+(next==='Medium'?'a ':'a ')+next+' tale next?':'Try another written tale?'};
+  next:next?'Try a '+next+' tale next?':'Try another written tale?',nextTier:shown};
 }

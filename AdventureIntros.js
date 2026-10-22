@@ -12,7 +12,8 @@ import {shelfTierWords,shelfDifficulties,shelfTab,shelfTiersShown,shelfTabFor,sh
 const icons={hostile:'swords',surprise:'compass',idea:'quill',easy:'flag',crown:'crown',drowned:'wave',sunforge:'flame',winter:'frost',deep:'door',names:'eye',oath:'shield'};
 // With a story behind them, a hero can carry on in the same region (the next chapter) or set out somewhere new.
 function Continuation({continuation,continuing,onContinuing,busy}){
- return <View style={s.choice}>{[[true,'map','Continue in this region','The next tale begins a few miles from '+continuation.place+'. Everyone you met, the places you found, every grudge and debt, your companions and your pack come with you, and the country you know keeps its own map.'],[false,'compass','Somewhere new','Leave '+continuation.place+' behind. Your companions and your pack come with you; the rest of the world is new.']].map(([value,icon,title,copy])=>{const chosen=continuing===value;return <Pressable key={title} accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onContinuing(value);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:'gold'}} style={[s.card,s.option,chosen&&s.selected]}>
+ // With written tales on the shelf, Somewhere new is where they are (the shelf shows once it is chosen).
+ return <View style={s.choice}>{[[true,'map','Continue in this region','The next tale begins a few miles from '+continuation.place+'. Everyone you met, the places you found, every grudge and debt, your companions and your pack come with you, and the country you know keeps its own map.'],[false,'compass',continuation.shelf?'Somewhere new: a written tale or a new one':'Somewhere new','Leave '+continuation.place+' behind'+(continuation.shelf?' for a written tale, ready at once, or a new one':'')+'. Your companions and your pack come with you; the rest of the world is new.']].map(([value,icon,title,copy])=>{const chosen=continuing===value;return <Pressable key={title} accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onContinuing(value);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:'gold'}} style={[s.card,s.option,chosen&&s.selected]}>
   <View style={s.top}><Crest icon={icon} size={40} color={colors.goldBright}/><Text style={[s.title,{flex:1,fontSize:19}]}>{title}</Text>{chosen&&<View style={s.check}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
   <Text style={s.copy}>{copy}</Text></Pressable>;})}</View>;
 }
@@ -77,19 +78,19 @@ export const lengthBadge=card=>{const tier=shelfTierWords[card?.length]??shelfTi
  const lo=Math.round(m[0]/60),hi=Math.round(m[1]/60);return tier.badge+' · '+(card.length==='long'&&hi>=10?lo+' HOURS OR MORE':lo===hi?'ABOUT '+lo+' HOURS':lo+'–'+hi+' HOURS');};
 const beginWords=card=>{const m=card?.minutes;if(!m)return 'Begin this tale';if(card.length==='short')return 'Begin · about '+Math.round((m[0]+m[1])/20)*10+' minutes';const lo=Math.round(m[0]/60),hi=Math.round(m[1]/60);return 'Begin · '+(lo===hi?'about '+lo+' hours':lo+' to '+hi+' hours');};
 function Pips({level}){const d=shelfDifficulties[level]??shelfDifficulties.steady;return <View accessibilityLabel={'Difficulty: '+d.word} style={s.pips}>{[1,2,3].map(i=><View key={i} style={[s.pip,i<=d.pips&&s.pipOn]}/>)}<Text style={s.tagText}>{d.word.toUpperCase()}</Text></View>;}
-function TaleCard({card:c,chosen,busy,onSelect,onStart,error,record,lived,heroName,narrow,wide}){
- const status=shelfStatus(c,record),fresh=shelfFresh(c);
+function TaleCard({card:c,chosen,busy,onSelect,onStart,error,record,lived,heroName,narrow,wide,current=null}){
+ const status=shelfStatus(c,record,current),fresh=shelfFresh(c),startHere=c.firstTale&&status.kind!=='finished';
  const head=<>
   {c.cover?<DynamicArt subject={c.cover} quiet style={[s.cover,{height:narrow?(chosen?80:96):wide?(chosen?150:120):(chosen?136:110)}]} dataSet={{qb:'tale-cover'}}/>:<View style={[s.cover,s.coverBlank]}><Icon name={terrainIcons[c.terrain]??'compass'} size={22} color={colors.goldDeep}/>{!!c.terrain&&<Text style={s.coverWord}>{c.terrain.toUpperCase()}</Text>}</View>}
   <View style={s.top}><View style={{flex:1,minWidth:0}}>
-   <View style={s.tags}><Text style={s.badge}>{lengthBadge(c)}</Text>{!!c.mood&&<Text style={s.tone}>{c.mood.toUpperCase()}</Text>}<Pips level={c.difficulty}/>{c.firstTale&&<JourneyTag icon="flag" text="START HERE"/>}{fresh&&status.kind==='new'&&<JourneyTag icon="star" text="NEW"/>}</View>
+   <View style={s.tags}><Text style={s.badge}>{lengthBadge(c)}</Text>{!!c.mood&&<Text style={s.tone}>{c.mood.toUpperCase()}</Text>}<Pips level={c.difficulty}/>{startHere&&<JourneyTag icon="flag" text="START HERE"/>}{fresh&&status.kind==='new'&&<JourneyTag icon="star" text="NEW"/>}</View>
    <Text style={[s.title,narrow&&{fontSize:19}]}>{c.title}</Text>
    {!!(c.region||c.terrain)&&<View style={s.land}><Icon name={terrainIcons[c.terrain]??'map'} size={12} color={colors.goldMid}/><Text style={s.landText}>{[c.region,c.terrain].filter(Boolean).join(' · ')}</Text></View>}
   </View>{chosen&&<View style={s.check}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
   <Text style={[s.setting,narrow&&{fontSize:15.5,lineHeight:22},!chosen&&{marginBottom:2}]}>{c.hook}</Text>
  </>;
- // Collapsed, the card is one tap target; chosen, it opens in place, with Begin (on a phone right under the hook, so the
- // first tale's Begin is in view without scrolling; elsewhere after the details).
+ // Collapsed, the card is one tap target; chosen, it opens in place, with Begin (on a phone, and for the Start here tale at
+ // every width, right under the hook, so the first tale's Begin is in view without scrolling; elsewhere after the details).
  if(!chosen)return <Pressable accessibilityRole="radio" accessibilityState={{checked:false,disabled:busy}} accessibilityLabel={c.title+'. '+c.hook} disabled={busy} onPress={()=>{playSound('select');onSelect(writtenChoice(c.id));}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:'false',tone:'gold',written:c.slug}} style={[s.card,s.journey]}>
   {head}{status.kind!=='new'&&<Text style={s.status}>{status.text}</Text>}
  </Pressable>;
@@ -100,7 +101,7 @@ function TaleCard({card:c,chosen,busy,onSelect,onStart,error,record,lived,heroNa
  </View>;
  return <View accessibilityRole="radio" accessibilityState={{checked:true}} accessibilityLabel={c.title+'. '+c.hook} dataSet={{qb:'card',selected:'true',tone:'gold',written:c.slug}} style={[s.card,s.journey,s.selected]}>
   {head}
-  {narrow&&begin}
+  {(narrow||startHere)&&begin}
   {!!c.blurb&&<Text style={s.copy}>{c.blurb}</Text>}
   {!!c.special&&<View style={s.special}><Icon name="star" size={13} color={colors.goldBright}/><Text style={s.specialText}>{c.special}</Text></View>}
   <View style={s.meta}>
@@ -108,7 +109,7 @@ function TaleCard({card:c,chosen,busy,onSelect,onStart,error,record,lived,heroNa
    {!!c.notes.length&&<Text style={s.metaText}>{'Content: '+c.notes.join(' · ')}</Text>}
    <Text style={[s.status,{marginTop:0}]}>{status.text}</Text>
   </View>
-  {!narrow&&begin}
+  {!narrow&&!startHere&&begin}
  </View>;
 }
 function TaleShelf({written,selected,onSelect,onStart,busy,error,narrow}){
@@ -120,14 +121,14 @@ function TaleShelf({written,selected,onSelect,onStart,busy,error,narrow}){
   {tiers.length<=1&&narrow&&<View style={s.shelfHead}><Icon name="scroll" size={14} color={colors.goldMid}/><Text style={s.shelfTitle}>Written tales</Text></View>}
   <Text style={s.shelfNote}>{shelfTierWords[tab].sub}</Text>
   <View onLayout={e=>setWidth(Math.floor(e.nativeEvent.layout.width))} dataSet={{qb:'tales'}} style={s.grid}>{list.map(c=><View key={c.id} style={[s.cell,cell?{width:cell}:{width:'100%'}]}>
-   <TaleCard card={c} chosen={selected===writtenChoice(c.id)} busy={busy} onSelect={onSelect} onStart={onStart} error={error} record={records[c.id]} lived={shelfLived(c,{titles:written.titles??[],current:written.current})} heroName={written.heroName} narrow={narrow} wide={two}/>
+   <TaleCard card={c} chosen={selected===writtenChoice(c.id)} busy={busy} onSelect={onSelect} onStart={onStart} error={error} record={records[c.id]} lived={shelfLived(c,{titles:written.titles??[],current:written.current,records})} heroName={written.heroName} narrow={narrow} wide={two} current={written.current}/>
   </View>)}</View>
  </View>;
 }
 // Let fate decide, with journeys ready: one of them, chosen by chance.
 const fateCopy={setting:'One of the ready journeys, chosen for you by chance. You find out which when it begins.',conflict:'Its land, its people and its trouble stay a surprise until the first scene, and it starts at once.',journey:null,stakes:null,tone:'Any journey',arrival:'Ready at once'};
 // Let fate decide, with written tales: one this device has not played, from the open tab, by chance.
-const fateWrittenCopy={setting:'A written tale you haven’t played, chosen by chance from the tab that is open. You find out which when it begins.',conflict:'It starts at once, with a clear first step.',journey:null,stakes:null,tone:'Any written tale',arrival:'Ready at once'};
+const fateWrittenCopy={setting:'A written tale you haven’t played, chosen by chance from the tab that is open (from another tab once you have played them all). You find out which when it begins.',conflict:'It starts at once, with a clear first step.',journey:null,stakes:null,tone:'Any written tale',arrival:'Ready at once'};
 const firstTime=()=>{try{return !globalThis.localStorage?.getItem('questbound.tips.v1');}catch{return false;}};
 export default function AdventureIntros({selected,onSelect,onStart,busy,error,continuation=null,continuing=false,onContinuing,idea='',onIdea=()=>{},journeys=null,forTable=null,written=null}){
  const narrow=useWindowDimensions().width<420;
@@ -152,16 +153,17 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
   {!!forTable?.replacing&&<Text accessibilityRole="alert" style={s.first}>This replaces <Text style={s.firstStrong}>{forTable.replacing}</Text> for everyone at the table once the new tale begins.</Text>}
  {/* A first-time player (the in-game "How to play" card not yet dismissed) is told where to start. */}
   {!!firstTale&&!forTable&&!narrow&&<Text style={s.first}>New here? Start with <Text style={s.firstStrong}>{firstTale.title}</Text>: {lengthBadge(firstTale).split(' · ')[1]?.toLowerCase()??'a short tale'}, ready at once.</Text>}
+  {!!continuation&&shelfOn&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
   {shelfOn&&<TaleShelf written={written} selected={selected} onSelect={onSelect} onStart={onStart} busy={busy} error={error} narrow={narrow}/>}
   {!shelfOn&&!continuation&&!forTable&&firstTime()&&library&&<Text style={s.first}>First time here? Pick any <Text style={s.firstStrong}>ready journey</Text> below: each starts at once, with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
   {!shelfOn&&!continuation&&!forTable&&firstTime()&&!library&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
-  {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
-  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/>{selected!=='hostile'&&!writtenChosen&&<EasyStart always={selected==='easy'||ready} journey={ready} busy={busy}/>}</View>
+  {!!continuation&&!shelfOn&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
+  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/>{selected!=='hostile'&&!writtenChosen&&!(shelfOn&&selected==='surprise')&&<EasyStart always={selected==='easy'||ready} journey={ready} busy={busy}/>}</View>
   {shelfOn&&<View style={s.shelfHead}><Icon name="quill" size={14} color={colors.goldMid}/><Text style={s.shelfTitle}>Or write a new one</Text></View>}
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {shown.map(listed=>{const intro=shelfOn&&listed.id==='surprise'?{...listed,...fateWrittenCopy}:library&&listed.id==='surprise'?{...listed,...fateCopy}:listed,chosen=selected===intro.id,hot=!!intro.local,quick=(library||shelfOn)&&intro.id==='surprise';return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>
  <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?tint('#ffb39e'):colors.goldBright}/><View style={{flex:1,minWidth:0}}>
-  <View style={s.tags}><Text style={[s.tone,hot&&{color:tint('#ff9f86')}]}>{intro.tone.toUpperCase()}</Text>{intro.scale==='saga'&&<View style={s.tag}><Icon name="scroll" size={10} color={colors.gold}/><Text style={s.tagText}>LONG TALE</Text></View>}{intro.errand&&<View style={s.tag}><Icon name="flag" size={10} color={colors.gold}/><Text style={s.tagText}>CLEAR START</Text></View>}{hot&&<View style={[s.tag,s.tagHot]}><Icon name="bolt" size={10} color={tint('#ffb39e')}/><Text style={[s.tagText,{color:tint('#ffb39e')}]}>INSTANT</Text></View>}{quick&&<JourneyTag icon="bolt" text="READY NOW"/>}</View>
+  <View style={s.tags}><Text style={[s.tone,hot&&{color:tint('#ff9f86')}]}>{intro.tone.toUpperCase()}</Text>{intro.scale==='saga'&&!(shelfOn&&intro.id==='surprise')&&<View style={s.tag}><Icon name="scroll" size={10} color={colors.gold}/><Text style={s.tagText}>LONG TALE</Text></View>}{intro.errand&&<View style={s.tag}><Icon name="flag" size={10} color={colors.gold}/><Text style={s.tagText}>CLEAR START</Text></View>}{hot&&<View style={[s.tag,s.tagHot]}><Icon name="bolt" size={10} color={tint('#ffb39e')}/><Text style={[s.tagText,{color:tint('#ffb39e')}]}>INSTANT</Text></View>}{quick&&<JourneyTag icon="bolt" text="READY NOW"/>}</View>
   <Text style={[s.title,narrow&&{fontSize:19}]}>{intro.title}</Text></View>{chosen&&<View style={[s.check,hot&&{backgroundColor:colors.bloodBright,borderColor:tint('#ffd2c2')}]}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
  <Text style={[s.setting,narrow&&{fontSize:16,lineHeight:23}]}>{intro.setting}</Text>
  {/* The chosen opening tells what is wrong, where the road leads and what is at stake. */}
