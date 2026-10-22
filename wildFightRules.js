@@ -95,6 +95,9 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
   // A written tale's hold (stagingRules.js fightFloor): until it has been held, the foe cannot be brought below 1 HP.
   const floor = fightFloor(game);
   let heldUp = false;
+  // "Knock it out" is one action's intent (game.subdue); it holds for the rest of this turn (a bonus action, End turn), so
+  // companions who strike as the turn ends take the foe alive too.
+  if (game.subdue && !turnOptions.enemyOnly && game.stage === 'combat') next.subdueTurn = true;
   const holdUp = () => { if (floor > 0 && next.enemyHP < floor) { next.enemyHP = floor; if (!heldUp) { heldUp = true; entries.push('The ' + foe.name.replace(/^the /i, '') + ' reels but will not go down yet.'); } } };
   if (hp.current === 0) return {
     game: {
@@ -412,7 +415,7 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
     }
     // Companions follow the hero's lead: a foe the hero set out to take alive is beaten, not slain.
     if (next.enemyHP === 0) {
-      next.foeFate = game.subdue ? 'subdued' : 'slain';
+      next.foeFate = game.subdue || next.subdueTurn ? 'subdued' : 'slain';
       next.stage = 'victory';
       entries.push('The wisp settles into the lantern. You have restored the crossing!');
     }

@@ -49,8 +49,9 @@ export function spellNickname(known,phrase){
   const stem=first.replace(/s$/,''),byWord=known.filter(s=>s.name.toLowerCase().split(/[^a-z]+/).some(w=>w.length>=4&&(w===stem||w.startsWith(stem))));
   return byWord.length===1?{spell:byWord[0],rest}:null;
 }
-// Setting out to knock someone out rather than kill them: a finishing melee blow then leaves them alive.
-export const subdueIntent=text=>/\bknock (?:\w+ )?(?:out|unconscious|senseless|cold)\b|\bsubdue|\bnon-?lethal|\bspare (?:him|her|them|it)\b|\bwithout killing\b|\b(?:take|capture) (?:him|her|them|it) alive\b|\bpommel\b|\bflat of (?:my|the) blade\b/i.test(String(text??''));
+// Setting out to knock someone out rather than kill them: a finishing melee blow then leaves them alive. A name of up to
+// four words may come between (2026-10-22: "I knock Brother Ebbe Crane out" was read as a blow to kill).
+export const subdueIntent=text=>/\bknock (?:[\w'’-]+ ){0,4}?(?:out|unconscious|senseless|cold)\b|\bsubdue|\bnon-?lethal|\bspare (?:him|her|them|it)\b|\bwithout killing\b|\b(?:take|capture) (?:him|her|them|it) alive\b|\bpommel\b|\bflat of (?:my|the) blade\b/i.test(String(text??''));
 export const withAttackIntent=(game,text)=>subdueIntent(text)?{...game,subdue:true}:game;
 // Two moves in one sentence ("I attack the bandit, then drink a potion"): where the second begins, when it starts with
 // something a turn can be spent on. Returns [first, second] (the second as "I …"), or null.

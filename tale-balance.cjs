@@ -104,19 +104,22 @@ function taleBalance({r,story,heroAt,classes=['fighter','rogue','wizard','cleric
  return {cells,problems:[...problems]};
 }
 // What the cells say against the targets: [{level:'warn', where, message}] (`difficulty`: gentle, steady or hard).
+// One finding a fight, class, side and measure, its levels together: "Wizard alone at levels 1 and 2 wins 60% to 80%".
 function balanceFindings(cells,difficulty){
- const out=[],pct=v=>Math.round(100*v)+'%',want=balanceTargets.won[difficulty]??balanceTargets.won.steady;
+ const pct=v=>Math.round(100*v)+'%',want=balanceTargets.won[difficulty]??balanceTargets.won.steady,groups=new Map();
+ const note=(c,measure,value,target)=>{const k=[c.label,c.cls,c.size,measure].join('');if(!groups.has(k))groups.set(k,{c,measure,target,levels:[],values:[]});const g=groups.get(k);g.levels.push(c.level);g.values.push(value);};
  for(const c of cells){
   if(c.none)continue;
-  const who=c.cls+' level '+c.level+(c.size>1?' with '+(c.size-1)+' more':' alone');
-  if(c.win<want)out.push({where:c.label,message:who+' wins '+pct(c.win)+' (a '+difficulty+' tale: at least '+pct(want)+')'});
+  if(c.win<want)note(c,'wins',c.win,'a '+difficulty+' tale: at least '+pct(want));
   if(c.kind==='boss'&&c.size===1){
-   if(c.cost!==null&&(c.cost<balanceTargets.bossCost[0]||c.cost>balanceTargets.bossCost[1]))out.push({where:c.label,message:who+': the fight costs '+pct(c.cost)+' of their hit points (50% to 80%)'});
-   if(c.fall<balanceTargets.bossFalls[0]||c.fall>balanceTargets.bossFalls[1])out.push({where:c.label,message:who+' falls in '+pct(c.fall)+' of fights (5% to 15%)'});
-   if(c.death>=balanceTargets.bossDeaths)out.push({where:c.label,message:who+' dies in '+pct(c.death)+' of fights (under 3%)'});
+   if(c.cost!==null&&(c.cost<balanceTargets.bossCost[0]||c.cost>balanceTargets.bossCost[1]))note(c,'spends',c.cost,'50% to 80%');
+   if(c.fall<balanceTargets.bossFalls[0]||c.fall>balanceTargets.bossFalls[1])note(c,'falls in',c.fall,'5% to 15%');
+   if(c.death>=balanceTargets.bossDeaths)note(c,'dies in',c.death,'under 3%');
   }
  }
- return out;
+ const and=list=>list.length>1?list.slice(0,-1).join(', ')+' and '+list.at(-1):String(list[0]);
+ return [...groups.values()].map(g=>{const lo=Math.min(...g.values),hi=Math.max(...g.values);
+  return {where:g.c.label,message:g.c.cls+(g.c.size>1?' with '+(g.c.size-1)+' more':' alone')+' at level'+(g.levels.length>1?'s ':' ')+and(g.levels)+' '+g.measure+' '+(lo===hi?pct(lo):pct(lo)+' to '+pct(hi))+(g.measure==='spends'?' of their hit points':g.measure==='wins'?'':' of fights')+' ('+g.target+')'};});
 }
 // A ready-made hero at any level, as the checks make one (through the developer options): its own spells first, then
 // the class's list to the level's limits, and the class's first subclass.

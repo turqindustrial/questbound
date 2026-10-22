@@ -15,7 +15,7 @@
 'use strict';
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const {rulesSource}=require('./rules-files.cjs'),tb=require('./tale-balance.cjs');
-const names=[...new Set([...tb.needs,...tb.heroNeeds,'readyHero','validAdventure','settleTurn','stagingIds','beatKey','beatDue','taleNow','storyBossStats','storyFoeStats','bossShape','foeScaling','fightShape','scaledFoe','aloneFoe','encounterFoe','foeForLevel','partyInTale','validStory','routineTelling','fightFloor','bossRaged','withFightShape','worldPlaces','mapLocation','foeOffense','fightingCompanions'])];
+const names=[...new Set([...tb.needs,...tb.heroNeeds,'readyHero','validAdventure','settleTurn','stagingIds','beatKey','beatDue','taleNow','storyBossStats','storyFoeStats','bossShape','foeScaling','fightShape','scaledFoe','aloneFoe','encounterFoe','foeForLevel','partyInTale','validStory','routineTelling','fightFloor','bossRaged','withFightShape','worldPlaces','mapLocation','foeOffense','fightingCompanions','subdueIntent'])];
 const r=vm.runInNewContext(rulesSource({extra:['worldArtRules.js']})+'\n;({'+names.join(',')+'})',{AsyncStorage:{},console,weaponIcon:()=>'sword'},{timeout:20000});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'written-fixture.json'),'utf8'));
@@ -190,6 +190,13 @@ const swing=(g,hero,dice=()=>0.7)=>step(g,hero,{type:'encounter-attack',weapon:h
  const s=r.adventureStep(withMara,null,hero,{type:'encounter-attack',weapon:'Greatsword'},(()=>{let n=0;return()=>n++<1?0.02:0.99;})());
  assert.ok(s.events.some(t=>/^Linnet Spey attacks/.test(t)),'the companion strikes: '+s.events.join(' | '));
  assert.equal(s.game.stage,'victory');assert.equal(s.game.foeFate,'subdued','a companion\'s blow takes the foe alive when the hero set out to');
+ // ... for the whole turn: the hero's blow waits for a bonus action, and the companion strikes as the turn ends.
+ const paused=r.adventureStep({...withMara,resources:{}},null,hero,{type:'encounter-attack',weapon:'Greatsword'},()=>0.02);
+ assert.equal(paused.game.actionUsed,true,'the turn waits for a bonus action');assert.equal(paused.game.subdueTurn,true,'the intent is kept for the turn');
+ const {subdue:_s,...after}=paused.game,ended=r.adventureStep(after,paused.health,hero,'end-turn',()=>0.99);
+ assert.equal(ended.game.foeFate,'subdued','the companion\'s blow as the turn ends takes the foe alive');assert.equal(ended.game.subdueTurn,undefined,'and the intent goes with the turn');
+ // A name of several words between "knock" and "out" is still the intent (dmCommands.js subdueIntent).
+ assert.equal(r.subdueIntent('I knock Brother Ebbe Crane out.'),true);assert.equal(r.subdueIntent('I knock the door open and run out.'),false);
  // Protect: someone who lives where the fight is and stands with the hero fights in it (encounterRules.js fightingCompanions).
  {const kara=heroAt('fighter',3),tale=copy(),seated=r.freshStoryGame(kara,tale,r.newAdventure(kara)),at=r.stagingIds(seated).place(tale.staging.chapters[0].fight.at),id=Object.keys(seated.people)[0];
   const home={...seated,people:{...seated.people,[id]:{...seated.people[id],home:at}},npcMemory:{...seated.npcMemory,[id]:{...(seated.npcMemory?.[id]??{}),allegiance:'player',attitude:'friendly'}}};
