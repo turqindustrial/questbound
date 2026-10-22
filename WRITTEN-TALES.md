@@ -243,6 +243,7 @@ warning (the Dungeon Master may bring that person into play later).
   "boss": { "if": null, "objective": "≤160", "minions": [ /* 0-2 creatures */ ],
             "bloodied": {"kind": "call", "tell": "≤160", "line": "≤160"},
             "deadline": {"turns": 3, "tell": "≤160", "then": {}}, "hold": {"rounds": 3, "tell": "≤160", "then": {}} },  // optional, every key optional
+                                     // (bloodied may add "ally": one creature that answers a "call")
   "endings": [ /* 2-4, the last with no "if" (4.3) */ ]
 }
 ```
@@ -256,9 +257,9 @@ warning (the Dungeon Master may bring that person into play later).
 | `leads` | For a story lead (by id): `opens`, the chapter from which it is open (default 1), and `done`, the condition that closes it (paid once). A lead with no entry closes only when the Dungeon Master says so (a warning). |
 | `boss.if` | "Confront <foe>" is offered (from `confrontFrom`) only while this holds: a foe met "only if you raced", "only once the deed is out". `null` or left out: always. |
 | `boss.objective` | What the boss fight is for ("keep him from the fuse"); the Dungeon Master reads it in the fight. |
-| `boss.minions` | Up to two creatures at the foe's side when it is confronted, each `{"template", "name" ≤60, "appearance" ≤400}`. Played from the fight-shape step (Phase C); accepted now. |
-| `boss.bloodied` | What the foe does once at half its hit points: `call` (help arrives), `flee` (it breaks for a second place) or `rage` (it fights harder). Phase C; accepted now. |
-| `boss.deadline`, `boss.hold` | As a set piece's (4.1): win within `turns`, or hold out `rounds` before the foe can be beaten. Phase C; accepted now. |
+| `boss.minions` | Up to two creatures at the foe's side when it is confronted, each `{"template", "name" ≤60, "appearance" ≤400}`. They stand beside it as the fight with it begins, from level 2 (a pack is one of its kind, the orc a goblin below level 3; only `bandit`, `wolf`, `goblin`, `skeleton`, `boar`, `spider` and `orc` can stand beside it), each a creature four levels below the hero (never below level 1) at three fifths of its kind's hit points (more at a table: the side's scaling); the foe gives up a fifth of its own hit points for each, and its turn at half (a rage, a call) some more (`storyBossStats`), so foe and minions are one fight. They scatter once the foe falls; a hero who runs meets them again with the foe, unless they were all beaten (then the foe comes alone). |
+| `boss.bloodied` | What the foe does once, the first time it is at half its hit points or less: `call` (help arrives: `ally`, one creature `{"template", "name", "appearance"}` (optional, `call` only; without it the first minion comes again), from level 2, in a free place beside the foe), `flee` (it breaks away: the fight is over, the foe has at least seven tenths of its hit points when met again (it binds its wounds) and its minions go with it; the hero goes after it with Approach at its stronghold, and it does not break away again) or `rage` (one more blow a turn). Its `tell` is the next telling, in the fight (the move that bloodies it already goes to the Dungeon Master); `line` when the game tells it. |
+| `boss.deadline`, `boss.hold` | As a set piece's (4.1): win within `turns`, or hold out `rounds` before the foe can be beaten. The foe's own effects never `advance` or `end` (the foe beaten is how its chapter closes). |
 
 **Ids.** Every id is a lower-case letter, then up to 23 letters, digits or hyphens. Beat, complication, pressure-step,
 choice and ending ids are unique across the whole tale. Option ids are unique within their choice. Stake ids are `s1`
@@ -282,8 +283,8 @@ to `s4`, each once. Lead ids are the story's (`l1` for its first lead).
              "threat": {"template", "name": "≤60", "appearance": "≤400", "ally": null},
              "objective": "≤160",
              "fromLevel": 3, "otherwise": {"template", "name", "appearance", "ally": null},   // optional
-             "deadline": {"turns": 3, "tell": "≤160", "then": {}},                            // optional; Phase C
-             "hold": {"rounds": 3, "tell": "≤160", "then": {}} },                             // optional; Phase C
+             "deadline": {"turns": 3, "tell": "≤160", "then": {}},                            // optional
+             "hold": {"rounds": 3, "tell": "≤160", "then": {}} },                             // optional
   "choice": { "id": "c1", "opens": null, "ask": "≤200",
               "options": [ {"id": "hide", "label": "≤80", "say": "≤110", "if": null, "when": null, "then": {}} ],   // 2-4 (tier)
               "late": "hide" }                                                                                     // optional
@@ -300,7 +301,7 @@ to `s4`, each once. Lead ids are the story's (`l1` for its first lead).
 | `beats` | Authored moments **of this chapter**. When nothing else is due, the first unfired beat whose `when` (and `if`, when given) holds fires: its `then` applies and the Dungeon Master tells `tell` in the next reply that goes to it. One beat is due at a time; none fire in a fight (they wait). A beat whose chapter closes before it fires is dropped. **The find comes first**: a beat whose `when` is one of the chapter's own routes never fires (the checker refuses it): give that moment to the next chapter (where the hero stands counts as reached as it opens) or to the chapter's `then`. |
 | `complications` | Fired only when play goes quiet (`quiet` quiet moves), before the next pressure step; one with an `if` only while it holds (else the next is tried). |
 | `pressure` | **The antagonist's clock.** A step fires when a tick is owed (a long rest when `ticks.rest`, each day of the tale's time per `ticks.days`, a `{"clock": 1}`), every `drift` chapter moves, or when play goes quiet. It applies `then`, and its `sign` becomes the Quest tab's "Out of sight" line. A step with an `if` happens only while it holds; otherwise it is **spared**: the clock still moves, its `then` does not apply, and `spared` is told instead (its `sign`, when given, is shown). **The last step always happens (no `if`) and always closes the chapter: `{"advance": true}`** (the truth told at a cost), **and in the last chapter it ends the tale: `{"end": "late"}`.** So a chapter can never stall for ever. (The engine also closes a chapter whose steps have all fired, whatever they say.) |
-| `fight` | The chapter's **set piece**: when the chapter begins, the place `at` becomes a lair held by `threat` (a fight on arrival). `at` is a landmark or a far place, never inn, bridge or tower. `objective` is what the fight is for (the Dungeon Master reads it in the fight). Chapter 1's fight is 0.1–0.3 mile from the start. `fromLevel`: the set piece is armed only for heroes of that level or more (at a table, the table's level); below it `otherwise` is armed instead (or nothing). Chapter 1's set piece needs `otherwise` when its `fromLevel` is above the tale's lowest level. `deadline` (win within `turns` of the hero's) and `hold` (hold out `rounds` before it can be won): Phase C, accepted now. |
+| `fight` | The chapter's **set piece**: when the chapter begins, the place `at` becomes a lair held by `threat` (a fight on arrival). `at` is a landmark or a far place, never inn, bridge or tower. `objective` is what the fight is for (the Dungeon Master reads it in the fight). Chapter 1's fight is 0.1–0.3 mile from the start. `fromLevel`: the set piece is armed only for heroes of that level or more (at a table, the table's level); below it `otherwise` is armed instead (or nothing). Chapter 1's set piece needs `otherwise` when its `fromLevel` is above the tale's lowest level. `deadline`: the fight's rounds are counted (a round is the hero's turn and the foe's; at a table, the turn order's round); once `turns` have passed and the fight is not won, its `tell` is told in the fight and its `then` applies at once, except `advance` or `end`, which close the chapter (or end the tale) as soon as the fight is over, however it ended. `hold`: its `tell` is told as the fight begins; until `rounds` rounds have passed the creature cannot be brought below 1 hit point, and then its `then` applies (the same rule for `advance` and `end`). A deadline or hold fires once, even if the hero runs and comes back. |
 | A second set piece | Medium and Long chapters have one or two set pieces: the second is an `arm` in a beat, a complication or a pressure step. |
 | `choice` | **A turning point.** Opens when `opens` holds (`null`: as the chapter begins) and nothing else is due, and **stays open** until it is decided or the chapter closes; the Dungeon Master puts `ask` to the player inside the scene. While it is open (out of fights) Say offers each option's `say` line. Choices are never buttons: the player types, and the Dungeon Master records the option only when the player's words or deeds clearly choose it. Each option: `label` (what the player commits to, ≤80, no full stop), `say` (≤110, a full sentence in the player's voice), `if` (`null` or a condition: the option can be chosen only while it holds, as "settle: needs the deed exposed and the foe bloodied"), `when` (`null` or a condition: the engine settles the option itself when it holds), `then` (effects; every option should cost something). `late`: the option applied if the chapter closes undecided (optional: without it, no option is recorded); it has no `if`, and no `advance` or `end` in its `then` (the chapter is closing already). |
 
@@ -464,7 +465,7 @@ writes at most one story-log line.
 | clock | `{"clock": 1}` or `{"clock": -1}` | `1`: the next pressure step is owed now ("pressure +1 now": it fires as soon as nothing else is due). `-1`: the next step that would fire is held back once ("the clock stops one step"). |
 | advance | `{"advance": true}` | Closes the chapter now: its truth becomes the due beat, told at a cost. |
 | end | `{"end": "late"}` | In the last chapter only: the tale completes with the flag `late`. |
-| boss | `{"boss": {"minions": false}}` or `{"boss": {"hurt": true}}` | The boss loses its minions, or comes to the fight hurt (Phase C). |
+| boss | `{"boss": {"minions": false}}` or `{"boss": {"hurt": true}}` | The boss loses its minions (they leave its side now, and never stand beside it), or comes to the fight hurt (a quarter of its hit points gone when the fight with it first begins). |
 
 **Where `advance` and `end` may go:** a beat, a complication, a pressure step, a fight's deadline or hold, or a choice's
 option. `advance` only outside the last chapter, `end` only in it. Never in a chapter's own `then` or an `opening`'s.
@@ -706,7 +707,7 @@ fails** or cannot be checked. Each error names the path of the field (`story.sta
 | 5 Walkthroughs | The walkthrough's shape and names; then the golden path, every ending's path, a passive player and a violent one played through the rules (`written-walk.cjs`: settleTurn, the staging engine, a device's own way of telling moves and carrying beats, seeded dice, scripted Dungeon Master replies), by the ready-made Fighter at the tale's lowest level taking each level as it comes. Errors: a path that does not reach its ending, a golden path past the tier's moves (fights included), a passive player's chapter the clock does not close near the stall bound, a violent player who cannot finish. Warnings: a path that only some dice reach (seeds 1 to 3), a golden path under the tier's moves, a violent player who dies each time. A step `choose` is said again (up to eight times) while something else is due; a fight lost is fought again after a rest (up to four tries). `--walk <golden\|passive\|violent\|ending id>` prints one walk move by move. |
 | 6 Pictures | Section 10. |
 | 7 Text | Section 9: the opening, the reading load, digits and rule talk in what the game tells (errors), rule talk in what the player reads from the staging (errors) and elsewhere (warnings), overused words. |
-| 8 Balance | **TODO:** each set piece and the boss for four classes at the tale's levels, solo and with two heroes (gentle 90%, steady 80%, hard 70% won; the boss solo costs 50–80% of hit points with 5–15% falls and under 3% deaths), with `balance-check.cjs --tale`. |
+| 8 Balance | Each chapter's set piece (by its level rules) and the foe (its minions, its turn at half, its hold) for the ready-made Fighter, Rogue, Wizard and Cleric at the tale's lowest, middle and highest level, alone and with one more hero, 40 fights a cell with seeded dice (`tale-balance.cjs`; `node balance-check.cjs --tale <file>` prints the table; `--balance N`, `--no-balance`). Warnings against the targets (provisional): fights won (gentle 90%, steady 80%, hard 70%); the foe alone costs 50–80% of hit points with 5–15% falls and under 3% deaths. Error: the ready-made Fighter alone at the tale's lowest level wins a fight less than half the time or dies in one fight in five or more (lighten it). |
 | 9 Experience | The levels the golden path gives (the walk takes each as it comes): Short 1–2, Medium 3–4, Long 5–7 (a new hero ends near 2–3, 4–5, 6–8); outside that, a warning. |
 
 The loop: the writer writes; the checker runs (fix and run again, up to 5 times); both critics score; pass, or revise from
@@ -749,7 +750,7 @@ never a hero field, never carried into the next tale. `validPace(pace, game)` (s
 | `offers` | People an `offer` named who were not with the hero when it fired: offered as soon as they are. |
 | `leads` | Leads an effect opened. |
 | `sign` | The latest pressure sign (the Quest tab's "Out of sight"). |
-| `fight` | A set piece's or the boss's timer (Phase C): `{"turns", "rounds"?}`. |
+| `fight` | The staged fight under way (the chapter's set piece or the foe; any other fight has none): `{"turns", "src", "due", "close"}`, all whole numbers. `turns`: its rounds so far; `src`: 1 the foe, 0 the set piece; `due`: what the fight has to tell now (1 its deadline, 2 its hold, 3 the foe bloodied; 0 nothing), told in the fight and cleared when a request carried it; `close`: a deadline's (1) or hold's (2) `advance` or `end` owed once the fight is over (then only `turns`, `src` and `close` stay until it applies). `null` out of a staged fight. |
 | `ending` | The ending taken. |
 | `clockAt` | `turns` when the clock last acted, so two clock beats are at least two moves apart (added with the runtime; a pace without it is read as 0). |
 
@@ -860,6 +861,12 @@ the listing gives cards only; a start is a copy with its own id, `libraryId`, `a
   `story-complete`: it ends where the engine finds it ends (the DM's `story-advance` still closes a chapter, as below).
 - **Leads.** A lead whose `opens` is a later chapter is not told to the Dungeon Master (nor offered as `lead-done`) before
   it, unless an effect opened it.
+- **The fight shape** (the same day, `withFightShape` after every step, `verify-fight-shape.cjs`): the foe of a written
+  tale is its own stat block (`storyBossStats`: sized by level, by the hero's class when met alone, and by its shape:
+  minions and a rage or a call take from its hit points; a second blow a turn only against those who stand in front),
+  minions stand beside it from level 2 as creatures three levels below the hero, it turns once at half its hit points,
+  holds and deadlines count the fight's rounds (`pace.fight`), and a fight's own due thing is told in the fight. See the
+  tables of 4 and 14 for what each key does; check 8 measures it.
 Kept from the format's own list:
 - **The Dungeon Master never reads the staging.** `storyWorld` (dmSceneRules.js) and `sceneFor` (dm-server.cjs) leave
   `staging` and `written` out of `context.story` (the request is refused past 64,000 bytes, and a long staging alone is
