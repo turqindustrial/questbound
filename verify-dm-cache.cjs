@@ -245,7 +245,9 @@ const strictProblems=(s,at,out=[])=>{
    assert.ok(typeof calm.quest.where==='string'&&typeof calm.quest.agenda==='string'&&calm.quest.pace==='Short tale, chapter 1 of 2.'&&calm.quest.bossLater===true,'the chapter\'s where, agenda and pace');
    const fightScene=requestScene(at('written: fight, words')).context;assert.ok(!('where' in (fightScene.quest??{}))&&!('agenda' in (fightScene.quest??{})),'not in a fight');assert.equal(fightScene.encounter?.objective,fx.story.staging.chapters[0].fight.objective,'where the set piece\'s objective is read');
    const tail=requestParts(at('written: a beat due')).tail;assert.match(tail,/STORY BEAT THIS TURN: At the foot of the slide, beside the torn sack[^\n]*It happens now, whatever the player did/);assert.match(tail,/\nNARRATOR THIS TURN: [^\n]*$/,'the narrator still last');
-   for(const label of ['written: calm','written: fight, words'])assert.ok(!requestParts(at(label)).tail.includes('STORY BEAT'),label+': no beat note when nothing is due');}
+   for(const label of ['written: calm','written: fight, words'])assert.ok(!requestParts(at(label)).tail.includes('STORY BEAT'),label+': no beat note when nothing is due');
+   // Not so wordy still lets a story beat be told in up to four sentences.
+   {const {lengthNote}=require('./dm-instructions.cjs');assert.match(lengthNote({context:{storyPreferences:{length:'brief'},taleNow:{beat:{kind:'beat',tell:'x'}}}}),/up to four when a STORY BEAT is told/);assert.doesNotMatch(lengthNote({context:{storyPreferences:{length:'brief'}}}),/STORY BEAT/);}}
   // Measured on 2026-10-22: the fixture's calm turn 2097 tokens (its story, four people at the camp and the chapter's
   // where and agenda are fuller than the ready journey's: about 100 of them the written chapter's own) and a fight's 989.
   const budgets={'written: calm':2270,'written: fight, words':1070,'fighter: to the mill':775,'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':865,'fighter: fight, words':880,'fighter: brawl':1435,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};

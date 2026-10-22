@@ -92,7 +92,8 @@ const narratorVoices={
 const lengthNotes={
  brief:`\nLENGTH THIS TURN: the player chose Not so wordy. narration: one to three short sentences, the essentials only (what happens, what changed, what matters now); no scenery for its own sake, no recap; the narrator's voice in a few words within them. dialogue: only who must speak, each line one or two short sentences (up to four when the player asks to hear more). A death is still told precisely, in a sentence. Out of character: one to three sentences.`,
 };
-const lengthNote=body=>lengthNotes[body?.context?.storyPreferences?.length]??'';
+// A written tale's story beat is told more fully (up to four sentences), even when the player chose Not so wordy.
+const lengthNote=body=>{const n=lengthNotes[body?.context?.storyPreferences?.length]??'',beat=body?.context?.taleNow?.beat;return n&&beat&&typeof beat==='object'&&!body.context.sceneTrigger&&!body.context.outOfCharacter?n.replace('one to three short sentences','one to three short sentences (up to four when a STORY BEAT is told)'):n;};
 // The close of every turn's note: how much to write, then the narrator's voice, the very last thing the model reads
 // (dm-server.cjs adds it after the phase and any retry or second look).
 const narratorVoice=body=>lengthNote(body)+(narratorVoices[body?.context?.storyPreferences?.narrator]??'');
