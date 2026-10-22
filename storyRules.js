@@ -169,7 +169,14 @@ export function storyFoeStats(level=1,type='Slashing'){
 // `alone` by class (levels 1 to 12, the last for every level after), from balance-check.cjs runs of the ready-made
 // heroes (2026-10-22): the second blow only for those who stand in front (a Rogue, a Wizard or a Cleric alone fell in
 // most fights against two blows a turn), and hit points that keep each class within the targets as nearly as one
-// stat block can. Classes with no ready-made hero take the nearest one's.
+// stat block can. Classes with no ready-made hero take the nearest one's, except the Warlock, Bard and Monk, whose own
+// damage the engine plays (the Rogue's table is low because it plays no Sneak Attack): the review of 2026-10-22 found
+// the Rogue's table made the foe a formality for them (all won, 3 to 25% of hit points spent at levels 5 to 12), so
+// they have tables of their own from tale-balance runs (40 fights a cell, levels 1 to 12, three drafts: a steady
+// short tale with a minion and a rage, a hard short tale, a steady long one; heroes built as the checks build casters):
+// from level 5 won 80 to 100% with 18 to 62% spent (before: 98 to 100% with 3 to 25%); at levels 3 and 4 a steady
+// tale's raging foe with a minion is won 38 to 68%, as with the old table (30 to 72%). Still provisional; a ready-made
+// hero of each would let check 8 measure them.
 // A foe with a shape spends some of its strength on it (`budget`: its minions, a rage or help it calls are part of the
 // same fight, not a second one): its hit points shrink by `minion` for each minion that stands beside it at this level,
 // and by `rage` or `call` for its turn at half.
@@ -177,7 +184,9 @@ export function storyFoeStats(level=1,type='Slashing'){
 // own: two blows a turn, scaled for a party of two, made four, and a pair with a Wizard lost nearly every fight.
 export const bossShape={hp:[1,1.1,1.2],secondFrom:99,alone:{},minion:0.2,rage:0.85,call:0.9};
 {const front={hp:[2.5,2.5,1.6,1.6,2.5,1.6,1.5,1.3,1.15,1,1,1.1],second:3},quick={hp:[1.1,1.6,1.6,1.3,1.1,0.7,0.7,0.7,0.6,0.5,0.4,0.3],second:99},learned={hp:[0.9,0.9,1.3,1.1,1.3,0.8,0.8,0.75,0.7,0.65,0.65,0.65],second:99},faithful={hp:[0.9,1.1,1.3,1.3,1.6,1.3,1.3,1.2,1.2,1.2,0.8,0.5],second:99};
- Object.assign(bossShape.alone,{Fighter:front,Barbarian:front,Paladin:front,Rogue:quick,Monk:quick,Bard:quick,Warlock:quick,Wizard:learned,Sorcerer:learned,Cleric:faithful,Druid:faithful,Artificer:faithful,Ranger:faithful});}
+ const own=hp=>({hp,second:99});
+ Object.assign(bossShape.alone,{Warlock:own([0.9,0.9,1.2,1.2,1.4,1.5,1.4,1.3,1.3,1.25,1.2,1.2]),Bard:own([0.9,0.9,1.3,1.4,1.7,1.6,1.4,1.3,1.4,1.7,1.6,1.6]),Monk:own([0.9,1,1.1,1.2,1.6,1.5,1.3,1.2,1.1,0.95,0.9,0.85])});
+ Object.assign(bossShape.alone,{Fighter:front,Barbarian:front,Paladin:front,Rogue:quick,Wizard:learned,Sorcerer:learned,Cleric:faithful,Druid:faithful,Artificer:faithful,Ranger:faithful});}
 export function bossBudget(staging,level=1){
  const b=staging?.boss;if(!b||typeof b!=='object')return 1;
  const n=level>=fightShape.minionsFrom&&Array.isArray(b.minions)?Math.min(2,b.minions.length):0,kind=b.bloodied?.kind;

@@ -24,6 +24,7 @@
 //                        tale's lowest, middle and highest level, alone and with one more hero (tale-balance.cjs,
 //                        seeded dice): against the targets as warnings (provisional); a fight the Fighter alone at the
 //                        tale's lowest level wins less than half the time, or dies in one fight in five or more, is an error.
+//                        The Start here tale's chapter-1 set piece won under 80%, or a death in one fight in ten, by any of the four alone is an error.
 //   9 Experience         the levels the golden path gives (warnings).
 // Usage (from a checkout or worktree of the build branch, never the live checkout):
 //   node check-written-tale.cjs <tale.json> [--json] [--people <dir>] [--creatures <dir>] [--places <dir>] [--shelf <dir>]
@@ -35,6 +36,8 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),{execFileSync}=require('node:child_process');
 const {rulesSource}=require('./rules-files.cjs');
 
+// The Start here tale's first fight, for each ready-made hero alone at its lowest level (check 8, an error below it).
+const firstFight={won:0.8,death:0.1};
 const checkNames={1:'Shape and limits',2:'Seating',3:'Names',4:'Structure',5:'Walkthroughs',6:'Pictures',7:'Text',8:'Balance',9:'Experience'};
 // ---------- Lists ----------
 // Overused or clashing names (SPEC 4.2): never a whole word of any name in a tale; no place name with "glass" in it.
@@ -585,7 +588,9 @@ function checkTale(file,options={}){
   // Difficulty.
   const effective=t=>lowest>=3?t:(singleOf[t]??t),minions=Array.isArray(staging.boss?.minions)?staging.boss.minions.length:0;
   if(tale.difficulty==='gentle'){
-   if(minions)warn(4,'story.staging.boss.minions','a gentle tale\'s boss fights alone');
+   // A gentle tale meets single creatures and a foe with nobody at its side (the stories spec, 1.3).
+   if(minions)fail(4,'story.staging.boss.minions','a gentle tale\'s foe fights alone: no minions');
+   if(staging.boss?.bloodied?.kind==='call')fail(4,'story.staging.boss.bloodied.kind','a gentle tale\'s foe fights alone: it calls no help (flee or rage)');
    for(const c of creatures.filter(x=>x.role==='threat'))if(packTemplates.includes(effective(c.template)))warn(4,c.where,'a gentle tale meets single creatures: "'+c.name+'" is a pack at level '+lowest);
    for(const c of creatures.filter(x=>x.role==='ally'))if(highest>=2)warn(4,c.where,'a gentle tale meets single creatures: "'+c.name+'" stands beside another from level 2');
   }
@@ -680,12 +685,12 @@ function checkTale(file,options={}){
     if(options.walk===name)report.walkTrace=(got.good??got.first).res.log;
     if(!got.good){fail(5,where,'played through the rules, '+why(got.first.res,ending)+(got.first.res.moves?' (after '+got.first.res.moves+' moves)':''));return null;}
     if(got.good.seed!==1)warn(5,where,'with the dice of seed 1 '+why(got.first.res,ending)+'; with seed '+got.good.seed+' it reaches "'+ending+'": a path the dice can spoil');
+    {const skipped=(got.good.res.log??[]).filter(l=>l.kind==='skipped').length;if(skipped)warn(5,where,'moves '+plural(skipped,'chapter')+' on ({"advance": true}) before the chapter\'s set piece is beaten and its choice made: the Dungeon Master is offered story-advance only after them, so no player can take this path (play the chapters through, or let the clock close them)');}
     return got.good.res;};
    const golden=plain(w.golden)?path('golden',w.golden.steps,w.golden.ending,'walkthrough.golden'):null;
    if(golden){if(golden.moves>tier.moves)fail(5,'walkthrough.golden','takes '+golden.moves+' moves played through the rules (fights included): a '+tale.length+' tale\'s golden path is at most '+tier.moves);else if(golden.moves<tier.movesLeast)warn(5,'walkthrough.golden','takes '+golden.moves+' moves played through the rules: a '+tale.length+' tale\'s golden path is '+tier.movesLeast+' to '+tier.moves);}
    if(plain(w.endings))for(const [id,list] of Object.entries(w.endings))path(id,list,id,'walkthrough.endings.'+id);
    // The passive player: the clock must carry each chapter to its close within the tier's stall bound (and a little for
-    {const skipped=(got.good.res.log??[]).filter(l=>l.kind==='skipped').length;if(skipped)warn(5,where,'moves '+plural(skipped,'chapter')+' on ({"advance": true}) before the chapter\'s set piece is beaten and its choice made: the Dungeon Master is offered story-advance only after them, so no player can take this path (play the chapters through, or let the clock close them)');}
    // what is told on the way).
    {const got=run({name:'passive',mode:'passive'},res=>res.ok);report.walks.passive=summary(got.good??got.first);if(options.walk==='passive')report.walkTrace=(got.good??got.first).res.log;
     if(!got.good)fail(5,'walkthrough','a passive player (who only talks, rests and wanders) never reaches an ending: '+got.first.res.error);
@@ -765,6 +770,11 @@ function checkTale(file,options={}){
   if(out){
    for(const p of out.problems)fail(8,'story.staging','the rules refused a move in a fight: '+p);
    const lowest=TB.taleLevels(tale)[0],difficulty=['gentle','steady','hard'].includes(tale.difficulty)?tale.difficulty:'steady';
+   // The Start here tale is a newcomer's first: its first fight must not be a likely death for any ready-made hero alone
+   // (firstFight: won at least 80%, deaths under 10%; the gentle target of 90% stays a warning, since no creature meets
+   // it for a level-1 Wizard: measured 2026-10-22, a bandit 80% won, a skeleton 83%, a goblin 50%, a wolf 68% with 13%
+   // deaths).
+   if(tale.firstTale===true)for(const c of out.cells.filter(c=>!c.none&&c.kind!=='boss'&&c.chapter===1&&c.size===1&&c.level===lowest))if(c.win<firstFight.won||c.death>=firstFight.death)fail(8,fightAt(c),c.label+': the Start here tale\'s first fight: the ready-made '+c.cls+' alone at level '+lowest+' wins '+Math.round(100*c.win)+'% and dies in '+Math.round(100*c.death)+'% (a newcomer\'s first fight: at least '+Math.round(100*firstFight.won)+'% won and under '+Math.round(100*firstFight.death)+'% deaths for every class): lighten it (a lighter creature, such as a lone bandit, through fromLevel and otherwise)');
    for(const c of out.cells.filter(c=>!c.none&&c.key==='fighter'&&c.size===1&&c.level===lowest))if(c.win<0.5||c.death>=0.2)fail(8,fightAt(c),c.label+': the ready-made Fighter alone at level '+lowest+' wins '+Math.round(100*c.win)+'% and dies in '+Math.round(100*c.death)+'%: lighten it (a lighter creature, fromLevel and otherwise, no ally, fewer minions)');
    const byLabel=new Map(out.cells.map(c=>[c.label,c]));
    for(const f of TB.balanceFindings(out.cells,difficulty))warn(8,fightAt(byLabel.get(f.where)??{kind:'boss'}),f.where+': '+f.message);
