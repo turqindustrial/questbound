@@ -832,10 +832,10 @@ export function stagedPreview(before,preview,hero,action){
 // with balance-check.cjs --tale; survivalOdds and foeEase (deathRules.js, storyRules.js) are never touched.
 // `minionsFrom`: the level from which the foe's minions stand beside it (a gentle tale's foe fights alone anyway);
 // `callFrom` the same for help it calls; `hurt`: the share of its hit points a foe that comes hurt has lost; `fledShare`:
-// the least share of its hit points a foe that breaks away keeps when met again (it binds its wounds).
+// the least share of its hit points a foe that breaks away has when met again (it binds its wounds).
 // `minionShare`: a minion's hit points against its kind met alone; `minionDrop`: it is a creature of that many levels
 // below the hero (its blows and its hit points), so the foe's side is one fight, not three.
-export const fightShape={minionsFrom:2,callFrom:2,hurt:0.25,fledShare:0.5,minionShare:0.6,minionDrop:4};
+export const fightShape={minionsFrom:2,callFrom:2,hurt:0.25,fledShare:0.7,minionShare:0.6,minionDrop:4};
 const stgFightKinds=['','deadline','hold','bloodied'],stgPackSingles={zombies:'skeleton',wolves:'wolf'};
 // Which staged fight is on: 1 the tale's foe at its stronghold, 0 the chapter's own set piece, null any other (a
 // creature by the road, a place armed by an effect, a brawl, the vault). In a party a hero who is down sees the
