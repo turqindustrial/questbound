@@ -4,8 +4,8 @@ This is the authoritative format of a **written tale**: a tale written by hand (
 and put on the permanent **Written tales** shelf, grouped Short, Medium and Long. A writer authors from this document
 and the brief of their tale (its catalogue entry and its line of the name register, given with it). The format, its
 validators (`stagingRules.js`) and the checker (`check-written-tale.cjs`) were frozen first so that writing could
-begin; the engine that plays the staging (`seatStaging`, `withBeats`, the same file) has landed since (section 17), and
-the shelf that serves tales (`written-shelf.cjs`) comes next.
+begin; the engine that plays the staging (`seatStaging`, `withBeats`, the same file) and the shelf that serves tales
+(`written-shelf.cjs`, with the New Adventure screen's Written tales) have landed since (section 17).
 
 - **Format version:** `"format": 1`, staging `"v": 1`.
 - **Where tales live:** one file per tale, `.questbound-written/<slug>.json` (git-ignored; under `QUESTBOUND_DATA` when
@@ -841,8 +841,11 @@ The catalogue entries of the build specification need these changes as written (
 
 What the engine and the shelf must do before any written tale is served, so this format holds in play. The engine's part
 landed on 2026-10-22 (`stagingRules.js` seatStaging, withBeats, stagedPreview, taleNow, endingOf, stagingChoices,
-writtenCheck; the Dungeon Master's side in dmSceneRules.js and dm-server.cjs; `verify-staging.cjs`); the shelf
-(`written-shelf.cjs`) is still to come. As built:
+writtenCheck; the Dungeon Master's side in dmSceneRules.js and dm-server.cjs; `verify-staging.cjs`), and the shelf the
+same day (`written-shelf.cjs`: a file is served only when its own fields are sound and its copy passes `writtenCheck`,
+checked once per file time and size, read again within 30 s of a change, never retired, starts counted in `plays.json`;
+the listing gives cards only; a start is a copy with its own id, `libraryId`, `artId:'journey-'+id` and `written`;
+`verify-written-tales.cjs`). As built:
 - **Which beat a reply told.** Each request names the beat its scene carries (`beatSent`: none on a scene cue, out of
   character or for a spell awaiting its ruling, none in a fight); a device and the campaign server record those keys in
   the turn's conversation (`beats`, or `beatTold` for the game's own `line` when the Dungeon Master cannot answer), and
