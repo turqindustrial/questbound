@@ -4,7 +4,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // hero, what they do and where they live (no request to the Dungeon Master), and someone who has only just spoken is
 // not made to greet again.
 const source=rulesSource({extra:['worldArtRules.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,greeting,standInGreetings,npcScene,shouldGreet,greetingPools,greetingRoles,greetingRoleAsides,greetingHomes,greetingAsides,cueGreeting,writtenCues,startParty,joinParty,partyView,commitDmTurn,recordedTurn,conversationPeople,validAdventure,adventureSnapshot,replyIdeas,speakingPeople,adventureStep})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,greetingAgenda,newAdventure,hostileEncounterGame,greeting,standInGreetings,npcScene,shouldGreet,greetingPools,greetingRoles,greetingRoleAsides,greetingHomes,greetingAsides,cueGreeting,writtenCues,startParty,joinParty,partyView,commitDmTurn,recordedTurn,conversationPeople,validAdventure,adventureSnapshot,replyIdeas,speakingPeople,adventureStep})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('fighter');
 const fight=r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),game={...fight,stage:'inn',enemyHP:0,foeFate:'slain'};delete game.openingAttackAvailable;
 const people=r.conversationPeople(game);assert.ok(people.length>=2,'Two people are here to talk to');
@@ -112,4 +112,18 @@ assert.equal(brawl.error,undefined,brawl.error);assert.equal(brawl.game.npcComba
 assert.deepEqual(JSON.parse(JSON.stringify(r.conversationPeople(brawl.game))),[]);assert.ok(r.speakingPeople(brawl.game).some(n=>n.id===first.id&&n.name===name),'The one you are fighting can shout back');
 assert.deepEqual(JSON.parse(JSON.stringify(r.speakingPeople({...game,stage:'combat',enemyHP:5}))),[]);assert.deepEqual(r.speakingPeople(game).map(n=>n.id),people.map(n=>n.id));
 console.log('Passed: things to say next stand in for the Dungeon Master (fitting a grudge, coldness, a companion, forgiveness or a plain talk; never in a fight), people in a brawl may speak, and someone who forgave you greets you civilly.');
+// ---- Someone met for the first time shows what they are after (the stories spec, Phase A8, 2026-10-22) ----
+// The game's written greeting took the place of the Dungeon Master's, which was where a person's agenda surfaced: the
+// aside now carries their hook (its first clause) or their motive, with no request; never once they have talked with the
+// hero, never from someone set against them, never "you".
+{const agenda=r.greeting(game,first.id,hero).aside;assert.ok(/ is plainly hoping to /.test(agenda),'a first meeting carries the motive: '+agenda);
+ const talked={...game,playback:[{id:7,npcId:first.id,events:[{kind:'dialogue',speakerId:first.id,text:'We have met.'}]},{id:8,npcId:null,events:[{kind:'narration',text:'Time passes.'}]}]};
+ assert.ok(!/plainly/.test(r.greeting(talked,first.id,hero).aside),'not once they have talked');
+ assert.ok(!/plainly/.test(r.greeting({...game,npcMemory:{...game.npcMemory,[first.id]:{attitude:'hostile',memories:[]}}},first.id,hero).aside),'not from the hostile');
+ const lib={...game,people:{...(game.people??{}),n1:{name:'Elaris Venn',role:'Shrine grave-keeper',motive:'They want to learn why one grave is tended.',hook:'A missing villager\'s grave is being tended in secret, and Elaris cannot report it without exposing their own part.',home:game.world?.at??'inn',appearance:'A thin figure in a grey shawl.',species:'Human',gender:'other',personality:'Quiet.'}}};
+ assert.equal(r.greetingAgenda(lib,'n1'),'Something is plainly on Elaris\'s mind: a missing villager\'s grave is being tended in secret.','a library person\'s hook, its first clause');
+ const motive=m=>r.greetingAgenda({...game,story:{...game.story,npcs:{...game.story.npcs,[first.id]:{...game.story.npcs[first.id],motive:m}}}},first.id);
+ assert.match(motive('Find her brother before the frost.'),/ is plainly hoping to find her brother before the frost\.$/);assert.match(motive('He wants to sell enough maps to go home.'),/hoping to sell enough maps to go home\.$/);
+ for(const m of ['Mend.','Wants the road safe.','Why should I help you?','Keep you safe.'])assert.equal(motive(m),'','no agenda from '+m);
+ for(const [id,p] of Object.entries(lib.people))assert.ok(!/\byou\b/i.test(r.greetingAgenda(lib,id)));}
 console.log('Passed: people speak first when turned to (never in a fight, never twice running), the line is written by the game (no request) and fits a grudge, hostility, friendship, a companion or their view of the hero\'s kind, and the greeting is saved as a turn without putting words in the player\'s mouth.');

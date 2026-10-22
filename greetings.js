@@ -160,7 +160,27 @@ export function greeting(game,id,hero){
  // The same person does not say the same line twice running, and nobody says another's line.
  const said=new Set((game?.playback??[]).slice(-2).flatMap(t=>t.events.filter(e=>e.kind==='dialogue').map(e=>e.text)));
  const {mood,line}=standInGreetings(game,hero)[id]??poolLine(game,id,hero,said);
- return {mood,scene:'You turn to '+name+'.',aside:greetingAside(game,id,hero,mood),line};
+ // Someone the hero has never talked with, and not set against them, shows what they are after (greetingAgenda).
+ const aside=greetingAside(game,id,hero,mood),agenda=openMoods.includes(mood)&&mood!=='following'&&!spokeBefore(game,id)?greetingAgenda(game,id):'';
+ return {mood,scene:'You turn to '+name+'.',aside:agenda?aside+' '+agenda:aside,line};
+}
+// What someone met for the first time is after, in the aside (the stories spec, Phase A8, 2026-10-22: the game's written
+// greeting took the place of the Dungeon Master's, which was where a person's agenda used to surface): the first clause of
+// their hook (the people library's), else their motive ("They want to …", "Wants to …", or the story writer's "Find her
+// brother."), said of them by name, so the Dungeon Master's first reply, which reads the feed, carries it on. Nothing when
+// neither says enough; never "you".
+const agendaStarts=/^(?:a|an|the|one|some|someone|something|his|her|their|its|old|an old|word|rumou?rs?)\b/i;
+const motiveNotVerb=/^(?:a|an|the|his|her|their|its|my|our|your|they|he|she|it|i|we|someone|something|nothing|no|not|to|for|wants?|needs?|is|was|has|had|being|only|just|very|more|most)\b/i;
+export function greetingAgenda(game,id){
+ const lore=npcLore(game,id),whole=String(lore?.name??'').trim();if(!whole)return '';
+ const called=ideaName(whole),own=called+'\'s',fits=t=>t.length>=12&&t.length<=150&&!/\byou\b/i.test(t);
+ const hook=String(lore?.hook??'').replace(/\s+/g,' ').trim().split(/;|:|\.\s|,\s+(?:and|but|so|yet|while|though)\s+/)[0].replace(/[.!?,]+$/,'').trim();
+ if(hook.length>=20&&fits(hook))return 'Something is plainly on '+own+' mind: '+(agendaStarts.test(hook)?hook[0].toLowerCase()+hook.slice(1):hook)+'.';
+ const motive=String(lore?.motive??'').replace(/\s+/g,' ').trim().replace(/[.!]+$/,'');
+ if(/[?;:]/.test(motive))return '';
+ const wants=/^(?:(?:they|he|she|[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)?)\s+)?(?:wants?|hopes?|needs?|means|longs?|aims?|plans?)\s+(to\s+.+)$/i.exec(motive);
+ const aim=wants?wants[1]:/^[A-Za-z]+\s+\S+\s+\S/.test(motive)&&!motiveNotVerb.test(motive)&&!/^[A-Z][a-z]+\s+[A-Z]/.test(motive)?'to '+motive[0].toLowerCase()+motive.slice(1):'';
+ return aim&&fits(aim)?called+' is plainly hoping '+aim+'.':'';
 }
 // ---------- Greetings at moments the game notices (sceneTriggers.js) ----------
 // Coming back to the tale's starting place, and the morning after a long rest: the people there speak first in a line

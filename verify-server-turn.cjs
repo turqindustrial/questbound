@@ -145,5 +145,20 @@ function byHand(hero,snapshot,action,question,dice,actorName){
   if(slung.snapshot.game.stage==='combat')assert.ok(slung.events.some(t=>new RegExp('vs your AC '+ac).test(t))||slung.snapshot.game.actionUsed,'the foe answers at the new armor class');
   const inn=r.adventureSnapshot(cleric,{...r.newAdventure(cleric),shieldAway:true},null,true),raised=await resolveTurn(inn,{question:'I take up my shield.'},{ask,randomImpl:seq(8)});
   assert.equal(raised.snapshot.game.shieldAway,undefined,'taken up again, out of a fight');assert.ok(!raised.events.some(t=>/takes your action/.test(t)),'and free there');}
+ // The errand closes where it is found at a table too (the stories spec, Phase A3, 2026-10-22): the telling of the lair
+ // won is asked for with the find in what the engine resolved; the reward stays owed until keeper hands it over.
+ {const {journeyStory}=require('./journey-fixtures.cjs'),kara=r.readyHero('fighter'),story={...journeyStory(1),errand:{...journeyStory(1).errand,reward:'30 gold from the reeve'}};
+  let g=plain(r.freshStoryGame(kara,story,r.newAdventure(kara)));g={...g,map:{...g.map,accepted:true}};
+  let snap=r.adventureSnapshot(kara,g,null,true);const lair=g.story.errand.place,heard=[],dm=async p=>{heard.push(p);return {narration:'The table hears it.',actionId:null,suggestions:[]};};
+  const go=r.dmChoices(kara,snap.game,null).find(c=>c.action?.type==='travel'&&c.action.destination===lair);
+  let t=await resolveTurn(snap,{question:'I travel there.',action:go.action},{ask:dm,randomImpl:()=>.99});snap=t.snapshot;assert.equal(snap.game.stage,'combat');
+  for(let i=0;i<12&&snap.game.stage==='combat';i++){const c=chip(kara,snap.game,snap.health,/^attack:/);t=await resolveTurn(snap,{question:'I attack.',action:c.action},{ask:dm,randomImpl:()=>.95});snap=t.snapshot;}
+  assert.equal(snap.game.story.chapter,1,'chapter 1 closed at the table');assert.equal(snap.game.story.errand.rewardDue,true,'the reward owed');
+  assert.ok((heard.at(-1)?.context?.engineResolved??[]).some(l=>/^Chapter 1 complete: /.test(l)),'the telling of the lair won holds the find');
+  const home=r.dmChoices(kara,snap.game,snap.health).find(c=>c.action?.type==='travel'&&c.action.destination==='inn');
+  t=await resolveTurn(snap,{question:'I go back to town.',action:home.action},{ask:dm,randomImpl:()=>.5});snap=t.snapshot;assert.equal(snap.game.story.errand.rewardDue,true,'still owed on the road');
+  const pay=async()=>({narration:'The reeve counts out the coins.',actionId:null,loot:{gold:30,items:[],reason:'The promised reward.'},suggestions:[]});
+  t=await resolveTurn(snap,{question:'The mill is clear. My reward?',npcId:'keeper'},{ask:pay,randomImpl:()=>.5});
+  assert.equal(t.snapshot.game.story.errand.rewardDue,undefined,'paid by keeper at the table');}
  console.log('Server turns: the shield said in words (the action in a fight, free out of one); a skirmish won at the table pays '+snap.game.xp+' XP and leaves spoils, ideas and cues come back, device settings reach the rules unsaved, hard cast refusals stop before the Dungeon Master, any Attack… target works, companions are classed out of a fight, a party turn settles the same on the server and the device, people speak first at a table too (the server works out the greeting, a trigger turn with no player line), and the campaign lets anyone pass an absent or slow player’s turn, keeps out-of-turn talk to direct:true, and spends the day’s allowance only on kept turns (never the host’s desktop).');
 })().catch(e=>{console.error(e);process.exitCode=1;});

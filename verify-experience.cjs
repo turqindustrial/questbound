@@ -4,7 +4,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // tale, the Skirmish closed past level 2, every party member's own award, old saves read lazily, levels taken where
 // the hero stands, and the pace (a seeded simulation of play).
 const source=rulesSource({extra:['worldArtRules.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,levelUpReady,dmChoices,dmContext,commitDmTurn,adventureStep,dmCommand,worldPlaces,mapRegions,hostileEncounterGame,startWildFight,startParty,joinParty,partyView,settleParty,canonicalParty,validParty,carriedBase,withStoryLog,xpThresholds,xpForLevel,levelForXp,xpPace,xpAwards,xpTaleLimits,xpCap,heroXp,experienceView,fightEnding,experienceEvents,withExperience,validExperience,advancedInPlace,validNpcCombat})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,levelUpReady,dmChoices,dmContext,commitDmTurn,adventureStep,dmCommand,worldPlaces,mapRegions,hostileEncounterGame,startWildFight,startParty,joinParty,partyView,settleParty,canonicalParty,validParty,carriedBase,withStoryLog,xpThresholds,xpForLevel,levelForXp,xpPace,xpAwards,xpTaleLimits,xpCap,heroXp,experienceView,fightEnding,experienceEvents,withExperience,validExperience,advancedInPlace,validNpcCombat,noteLead,validStory})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('fighter'),hp=null,plain=v=>JSON.parse(JSON.stringify(v));
 const person=(name,gender)=>({name,species:'Human',gender,role:'A resident of the refuge.',motive:'Wants the road safe.',appearance:'A weathered face under a wool hood, with a scar across one brow.',personality:'Plain-spoken and watchful.',regard:{stance:'curious',reason:'I have never met one of your kind.'},ties:{other:'friend',foe:'enemy',note:'They share the refuge.'}});
 const written={id:'saga-1',status:'active',title:'The Seal Beneath the Snow',premise:'An heir is missing and a pretender marches.',opening:'A seal is pressed into your hand at the gate.',objective:'Find the heir and settle the succession.',resolution:'The truth of the succession is known and the war averted or faced.',secret:'The heir chose to vanish.',foe:'Kestrel of the Notch',foeSpecies:'Human',foeAppearance:'A lean swordsman in a grey cloak with a hawk mask.',foeDamageType:'Slashing',region:'Veyr',terrain:'mountains',
@@ -83,6 +83,13 @@ t=r.commitDmTurn(hero,g,hp,{type:'lead-done',id:'l1'},say,()=>.5);x=r.withExperi
 // Unticked by hand and ticked again: nothing more.
 const unticked={...x.game,story:{...x.game.story,leads:x.game.story.leads.map(l=>l.id==='l1'?{id:l.id,title:l.title,hook:l.hook}:l)}};const u=r.withExperience(x.game,unticked,hero);assert.equal(u.gained,0);
 const reticked={...u.game,story:{...u.game.story,leads:u.game.story.leads.map(l=>l.id==='l1'?{...l,done:true}:l)}};assert.equal(r.withExperience(u.game,reticked,hero).gained,0,'a lead pays once');
+// A lead ticked by hand is the player's own note (the stories spec, Phase A7, 2026-10-22): it pays nothing, writes no
+// story-log line, keeps the lead open, and the Dungeon Master's lead-done still pays it once afterwards.
+{const noted=r.noteLead(g,'l2');assert.equal(noted.story.leads.find(l=>l.id==='l2').noted,true);assert.ok(!noted.story.leads.find(l=>l.id==='l2').done);assert.ok(r.validStory(noted.story));
+ assert.equal(r.withExperience(g,noted,hero).gained,0,'a tick pays nothing');assert.ok(noted.journal.entries.at(-1).kind==='note'&&/^Your note: /.test(noted.journal.entries.at(-1).title));
+ assert.ok(r.dmChoices(hero,noted,hp).some(c=>c.id==='lead-done:l2'),'still open to the tale');assert.equal(r.dmContext(hero,noted,hp).quest.openLeads.find(l=>l.id==='l2').ticked,true,'the Dungeon Master reads it as ticked');
+ const closed=r.commitDmTurn(hero,noted,hp,{type:'lead-done',id:'l2'},say,()=>.5);assert.equal(r.withExperience(noted,closed.game,hero).gained,worth(r.xpAwards.lead,1),'seen through in play: paid once');
+ assert.equal(r.noteLead(noted,'l2').story.leads.find(l=>l.id==='l2').noted,undefined,'unticked');assert.equal(r.noteLead(closed.game,'l2'),closed.game,'a lead seen through stays so');}
 const ending=r.withExperience({...g,xp:0},{...g,xp:0,story:{...g.story,status:'complete'}},hero);assert.equal(ending.gained,worth(r.xpAwards.tale,1));
 assert.equal(r.withExperience({...g,xpTally:ending.game.xpTally},{...g,story:{...g.story,status:'complete'}},hero).gained,0,'the tale ends once');
 

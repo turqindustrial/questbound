@@ -25,6 +25,7 @@ import {cue} from './cinematics';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
 import {checkTelling} from './toldAhead';
+import {dyingTelling} from './calmLines';
 import {sceneTrigger} from './sceneTriggers';
 import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure,arrivingTurn} from './dmTurnRules';
 import {dmChoices,mapMoves} from "./dmChoiceRules";
@@ -220,6 +221,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       // A rule's refusal (no slot, not in a fight, already concentrating...) is shown as it is; only a cast the game could
       // not read goes to the Dungeon Master, who may work out what was meant (context.castingIssue).
       if(command?.error&&(protocol<3||(/^(?:I )?cast\s/i.test(question.trim())&&!command.soft)))throw refusal(command.error);
+      // Dying, words that are not a death save are answered by the game (calmLines.js dyingTelling): no request.
+      {const told=command?.action?null:dyingTelling({hero,game});if(told){await finish(null,told);return;}}
       const body=await request(game,health,command?.error?{castingIssue:command.error}:{});
       if(protocol>=3&&body.castCommand){const interpreted=dmCommand(hero,game,body.castCommand,health);if(!interpreted?.action||interpreted.error||interpreted.action.type!=='spell')throw Error(interpreted?.error||'The spell interpretation was invalid.');await cast(interpreted,body.castCommand,body.narration,body.retell?null:body);return;}
       if(protocol>=3&&body.recruitment?.length){

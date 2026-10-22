@@ -17,6 +17,11 @@ assert.equal(found.error,undefined);assert.equal(found.game.stage,'combat');asse
 assert.equal(r.mapLocation(found.game),'p1');assert.equal(found.game.world.places[0].feature,'A half-buried satchel lies under the webs.');assert.ok(found.events.some(t=>t.startsWith('A Grey Widow bursts out at Widow Hollow!')));
 assert.ok(valid(found.game));assert.equal(r.creatureArtSubject(found.game).name,'Grey Widow');
 assert.equal(r.dmContext(kara,found.game,big).encounter.name,'Grey Widow');assert.equal(r.dmContext(kara,found.game,big).encounter.signatureMove.name,'Web');
+// A creature named with its own "The" (the stories spec, Phase A6): "The Tallow Walkers bursts out", never "A The …",
+// and the lines after it say "the Tallow Walkers"; a name with a vowel takes "An".
+{const walkers=r.adventureStep(camp,big,kara,{type:'discover',place:{...lair,name:'Tallow Hollow',lair:{...lair.lair,name:'The Tallow Walkers'}},travel:true},()=>0.5);
+ assert.ok(walkers.events.some(t=>t.startsWith('The Tallow Walkers bursts out at Tallow Hollow!')),walkers.events.join(' | '));assert.ok(!walkers.events.some(t=>/\bA The\b|\bthe The\b/.test(t)));assert.equal(walkers.game.wildFight.name,'Tallow Walkers');assert.ok(valid(walkers.game));
+ const ash=r.adventureStep(camp,big,kara,{type:'discover',place:{...lair,name:'Ash Hollow',lair:{...lair.lair,name:'Ashen Widow'}},travel:true},()=>0.5);assert.ok(ash.events.some(t=>t.startsWith('An Ashen Widow bursts out')),ash.events.join(' | '));}
 // Win: back at the place, the story's foe untouched, the lair cleared.
 let g=found.game,h=big,last;for(let i=0;i<30&&g.stage==='combat';i++){last=r.adventureStep(g,h,kara,'attack:Greatsword',()=>0.75);g=last.game;h=last.health;}
 assert.equal(g.stage,'wild');assert.equal(g.wildFight,undefined);assert.equal(g.enemyHP,storyHP);assert.equal(g.foeFate,undefined);assert.equal(g.world.places[0].cleared,true);assert.equal(g.world.places[0].threat,undefined);

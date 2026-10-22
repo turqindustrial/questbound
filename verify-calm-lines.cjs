@@ -51,6 +51,32 @@ notable('a rest with a plan',/words/,back.game,hurt,kara,'short-rest','I take a 
 {const g={...back.game,followers:{mara:{status:'following',location:'inn',reason:'Test.',terms:''}},npcHP:{...back.game.npcHP,mara:0},npcFate:{...(back.game.npcFate??{}),mara:'unconscious'}};
  notable('a companion who comes round',null,g,hurt,kara,'long-rest','I take a long rest.');}
 
+// ---- 2b. Moves with story weight go to the Dungeon Master (the stories spec, Phase A4, 2026-10-22) ----
+// The walk back after something that mattered (a fight won, a chapter, lead or tale closed, a death) and the first long
+// rest after it are the Dungeon Master's; so is a journey or a rest after two calm moves in a row told by the game.
+{const log=back.game.storyLog??[],next=log.at(-1)?.id??0,line=(kind,text,i=1)=>({id:next+i,kind,text});
+ const won={...back.game,storyLog:[...log,line('victory','Slew the Mill wolf.')]},chaptered={...back.game,storyLog:[...log,line('quest','Finished chapter 1: The Mill.')]};
+ notable('the walk back from a lair won',/mattered/,won,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the walk after a chapter closed',/mattered/,chaptered,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the first night after it',/mattered/,won,hurt,kara,'long-rest','I take a long rest.');
+ routine('a draught after it is still the game\'s',won,hurt,kara,'potion','I drink a healing draught.');
+ const walked={...won,storyLog:[...won.storyLog,line('travel','Returned to Saltmarsh Chapel.',2)]};
+ routine('the next walk is the game\'s again',walked,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the night after the walk is still the first since',/mattered/,walked,hurt,kara,'long-rest','I take a long rest.');
+ const slept={...walked,storyLog:[...walked.storyLog,line('rest','Took a long rest at Stillwater Market.',3)]};
+ routine('the second night is the game\'s',slept,hurt,kara,'long-rest','I take a long rest.');
+ const told=t=>({id:t,npcId:null,told:'game',events:[{kind:'narration',text:'You walk on.'}]}),last=back.game.playback?.at(-1)?.id??1;
+ assert.equal(back.game.playback.at(-1).told,'game','the journey back was told by the game');const twice={...back.game,playback:[...(back.game.playback??[]),told(last+1)]},once=back.game;
+ notable('a third calm move in a row (a journey)',/in a row/,twice,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('a third calm move in a row (a rest)',/in a row/,twice,hurt,kara,'short-rest','I take a short rest.');
+ routine('a draught is never sent for it',twice,hurt,kara,'potion','I drink a healing draught.');
+ routine('after one, the game tells it',once,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ // A move the Dungeon Master chose is told by its own reply either way.
+ assert.equal(x.routineCalmTurn(won,preview(won,back.health,kara,{type:'travel',destination:'tower'}).game,{type:'travel',destination:'tower'},'Back we go.',{events:preview(won,back.health,kara,{type:'travel',destination:'tower'}).events,chosen:true}).routine,true,'chosen: its own telling');}
+// No line announces that nothing happened: the game's calm lines are movement, never "without incident".
+{const flat=/without incident|unremarkable|uneventful|much as (?:you|they|\{hero\}) left|unchanged|nothing (?:happens|attacks|tries|bothers)|as dull as|a quiet one|just as (?:you|they) remember|just as before|has not missed|never change|as unimpressed|right where (?:you|\{hero\}) left|Nobody (?:bothers|throws)|underwhelming|not burned down|asks nothing|without trouble|passes quietly|Things are quiet|Still standing/i;
+ for(const [voice,book] of Object.entries(x.calmLineBook))for(const [kind,lines] of Object.entries(book))if(!/^search/.test(kind))for(const l of lines)assert.ok(!flat.test(l),voice+' '+kind+' says nothing happened: '+l);}
+
 // ---- 3. Searching the fallen ----
 {const here=x.sceneLocation(atChapel.game),alone={...atChapel.game,spoils:[{kind:'creature',template:'wolf',name:'Mill wolf',count:1,place:here}]};
  const watchers=x.npcScene(alone).filter(n=>n.present&&(n.hp??0)>0);

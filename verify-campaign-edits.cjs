@@ -52,17 +52,19 @@ try{
  assert.equal(attuned.length,3,'three at most');assert.ok(attuned.includes(items[3].name)&&!attuned.includes(items[0].name),'the oldest bond gives way');
  assert.ok(/attune/i.test(out.snapshot.game.log[0]),'the log says so');
 
- // 4. A lead ticked at the table pays experience once; reopening and ticking again pays nothing more.
+ // 4. A lead ticked at the table is the player's own note (the stories spec, Phase A7, 2026-10-22): no experience, the
+ // lead still open for the tale to settle; ticked again it is unticked. (Only the Dungeon Master's lead-done pays.)
  const leads=[{id:'l1',title:'The ferryman',hook:'He saw the lights.'},{id:'l2',title:'The mill',hook:'Flour on the bridge.'}];
  const written={id:'test-road',status:'active',title:'The Test Road',premise:'A quiet inn.',opening:'You arrive.',objective:'Find the thief.',resolution:'Catch them.',secret:'The keeper knows.',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'The Lamp',description:'An inn.'},bridge:{name:'The Ford',description:'A ford.'},tower:{name:'The Mill',description:'A mill.'}},npcs:{keeper:{name:'Ivo Brask',species:'Human',role:'Innkeeper',motive:'Keep the peace.',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera Vane',species:'Elf',role:'Scribe',motive:'Learn the truth.',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',ties:{other:'friend',foe:'neutral',note:'n'}}},chapters:[{title:'The Lamp',goal:'Find who saw the thief.',turn:'The ferryman names the mill.'},{title:'The Mill',goal:'Catch the thief.',turn:'The hag is unmasked.'}],chapter:0,leads};
  const tale=r.freshStoryGame?r.freshStoryGame(fighter,written,base):null;
  at=solo(fighter,tale??{...base,story:written});
  refused(()=>edit(A,at,{kind:'lead',id:'l9'}),/Unknown quest lead/);
  const ticked=edit(A,at,{kind:'lead',id:'l1'});
- const paid=ticked.snapshot.game.xp??0;assert.ok(ticked.xp?.amount>0&&paid>0,'a closed lead pays experience');assert.ok(ticked.snapshot.game.story.leads[0].done);
- const reopened=edit(A,{id:at.id,version:ticked.version},{kind:'lead',id:'l1'});assert.ok(!reopened.snapshot.game.story.leads[0].done,'reopened');
+ const before=(tale??{}).xp??0;assert.equal(ticked.xp,undefined,'a tick pays nothing');assert.equal(ticked.snapshot.game.xp??0,before);assert.equal(ticked.snapshot.game.story.leads[0].noted,true,'a note');assert.ok(!ticked.snapshot.game.story.leads[0].done,'still open');
+ assert.ok(ticked.snapshot.game.journal.entries.some(e=>e.kind==='note'&&e.title==='Your note: The ferryman'),'written in the journal');assert.ok(!(ticked.snapshot.game.storyLog??[]).some(e=>/Saw a lead through/.test(e.text)),'not seen through');
+ const reopened=edit(A,{id:at.id,version:ticked.version},{kind:'lead',id:'l1'});assert.equal(reopened.snapshot.game.story.leads[0].noted,undefined,'unticked');
  const again=edit(A,{id:at.id,version:reopened.version},{kind:'lead',id:'l1'});
- assert.equal(again.snapshot.game.xp,paid,'no second payment');assert.equal(again.xp,undefined);
+ assert.equal(again.snapshot.game.xp??0,before,'never paid');assert.equal(again.xp,undefined);
 
  // 5. A level earned by experience at a two-hero table: taken where the hero stands.
  const host=c.create(A,{snapshot:snapshotOf(fighter,joined.game),party:true,name:'Al'});
@@ -152,5 +154,5 @@ try{
   assert.equal(m.join(C,{invite:fresh,snapshot:snapshotOf(r.readyHero('cleric'),r.newAdventure(r.readyHero('cleric'))),name:'Cy'}).members.length,2,'others still join');
   assert.throws(()=>m.unban(C,{campaignId:made.campaignId,ref:out.banned[0].ref}),e=>e.status===403);
   assert.deepEqual(m.unban(A,{campaignId:made.campaignId,ref:out.banned[0].ref}).banned,[]);assert.equal(m.join(B,{invite:fresh,snapshot:snapshotOf(wizard,r.newAdventure(wizard)),name:'Bo'}).members.length,3,'let back, he may rejoin');}
- console.log('Campaign edits: the host removes, bans and lets back a member; a member reports another; the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead pays once, a level by experience keeps the party, the XP and the companions, every table a party (an old one-hero table asks its other members to bring their own heroes, never sending them the host’s), an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
+ console.log('Campaign edits: the host removes, bans and lets back a member; a member reports another; the shield on the back or on the arm (a hero field, never in a fight), send for a companion, take along an offer (not without one or in a fight), attune (three at most), a lead ticked by hand is a note to self (no experience), a level by experience keeps the party, the XP and the companions, every table a party (an old one-hero table asks its other members to bring their own heroes, never sending them the host’s), an older or missing subclass at level 3+ levels at a table, and players see seats, never account ids (older tables migrated).');
 }finally{fs.rmSync(dir,{recursive:true,force:true});}

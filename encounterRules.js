@@ -57,15 +57,20 @@ export function aimedAlly(game,aim){const m=String(aim??'').match(/^ally:([01])$
 export function hurtAlly(game,i,damage){const a=game.foeAllies[i],hp=Math.max(0,a.hp-damage);return {game:{...game,foeAllies:game.foeAllies.map((x,j)=>j===i?{...x,hp}:x)},hp,line:hp===0?(game.subdue?`The ${a.name} drops, beaten.`:`The ${a.name} is slain.`):null};}
 export function alliesScatter(game){const lines=livingAllies(game).map(a=>`With its leader down, the ${a.name} turns and flees.`),next={...game};delete next.foeAllies;return {game:next,lines};}
 export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return (g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum);}
+// A creature's own name without a leading "The" (the stories spec, Phase A6, 2026-10-22: a lair held by "The Tallow
+// Walkers" opened with "A The Tallow Walkers bursts out", and every line after said "the The ..."): the game's own lines
+// say "the" and "The" themselves, and the opening keeps the name's own "The".
+export const bareFoeName=n=>{const t=String(n??'').trim(),m=/^the\s+(\S.{2,})$/i.exec(t);return m?m[1]:t;};
 // A creature lunges out at a found place. The story's own foe keeps its HP and fate for later.
 export function startWildFight(game,hero,foe,{place,from,hp=null}){
- const stats=wildFoeStats(foe.template,foe.name,hero.level??1),ally=foe.ally&&validAllySketch(foe.ally,foe.template)?makeAlly(foe.ally,hero.level??1):null;
+ const called=String(foe.name??'').trim(),name=bareFoeName(called);
+ const stats=wildFoeStats(foe.template,name,hero.level??1),ally=foe.ally&&validAllySketch(foe.ally,foe.template)?makeAlly({...foe.ally,name:bareFoeName(foe.ally.name)},hero.level??1):null;
  const next={...game,stage:'combat',enemyHP:hp??stats.maximum,round:1,openingAttackAvailable:true,
-  wildFight:{template:foe.template,name:foe.name.trim(),appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(game.foeScale?{storyFoeScale:game.foeScale}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
+  wildFight:{template:foe.template,name,appearance:foe.appearance.trim(),stats,place,from:from??place,storyFoeHP:game.enemyHP,...(game.foeFate?{storyFoeFate:game.foeFate}:{}),...(game.foeScale?{storyFoeScale:game.foeScale}:{}),...(ally?{ally:{template:ally.template,name:ally.name,appearance:ally.appearance}}:{})},
   world:{...game.world,at:place}};
  delete next.foeFate;delete next.encounterInitiative;delete next.foeTricks;delete next.heroCondition;delete next.foeAllies;delete next.foeScale;
  if(ally)next.foeAllies=[ally];
- const many=stats.group?stats.group.size+' '+stats.group.plural:'A '+next.wildFight.name;
+ const many=stats.group?stats.group.size+' '+stats.group.plural:name!==called?'The '+name:(/^[aeiou]/i.test(name)?'An ':'A ')+name;
  return {game:next,entries:[`${many} ${stats.group?'burst':'bursts'} out at ${placeName(game,place)}${ally?', a '+ally.name+' at '+(stats.group?'their':'its')+' side':''}! ${stats.group||ally?'They haven\'t':'It hasn\'t'} closed the gap yet: you have the first move.`]};
 }
 // The fight is over: won (the creature is dead or beaten), fled (back the way you came) or fell (you lie dying).

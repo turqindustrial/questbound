@@ -188,4 +188,22 @@ same(r.setAside([],[],fighter,deadGame,s.health,true).graves.map(g=>g.name),[fig
 // The device lays a hero to rest when death is final, and leaves them out of every save from then on.
 {const app=['App.js','useHeroSaves.js'].map(f=>fs.readFileSync(f,'utf8')).join(' ');for(const piece of ['deathIsFinal(game,hero)','layToRest(','forgetAdventure()','forgetCharacter()','restingRef.current===JSON.stringify(hero)'])assert.ok(app.includes(piece),'App.js lays the dead to rest: '+piece);
  const adv=fs.readFileSync('Adventure.js','utf8');for(const piece of ['revivalOptions(','Begin a new hero','onLetGo'])assert.ok(adv.includes(piece),'the epitaph: '+piece);}
+// ---- Words while dying are answered by the game (2026-10-22, the project review: each one cost a request) ----
+// Anything typed that is not a death save gets a short line pointing at the Death save, seeded and varied, with no
+// request, on a device and at a table; a death save still rolls; out of character still reaches the Dungeon Master.
+{const rr=require('./rules-engine.cjs').rules(),{resolveTurn}=require('./server-turn.cjs'),hero=rr.readyHero('fighter');
+ const fightG={...rr.hostileEncounterGame(hero,rr.newAdventure(hero),()=>0),potions:0,resources:{wind:2},openingAttackAvailable:false};
+ const fallen=rr.adventureStep(fightG,{current:1,temp:0},hero,'dodge',()=>0.9);assert.equal(fallen.game.stage,'dying');
+ const told=rr.dyingTelling({hero,game:fallen.game});assert.ok(told&&/Death save/.test(told.narration)&&told.told==='game',JSON.stringify(told));
+ assert.equal(rr.dyingTelling({hero,game:fightG}),null,'only while dying');
+ const seen=new Set(Array.from({length:12},(_,i)=>rr.dyingTelling({hero,game:{...fallen.game,playback:[{id:i+2,npcId:null,events:[{kind:'narration',text:'x'}]}]}}).narration));assert.ok(seen.size>=4,'varied');
+ assert.notEqual(rr.dyingTelling({hero,game:{...fallen.game,playback:[...(fallen.game.playback??[]),{id:99,npcId:null,told:'game',events:[{kind:'narration',text:told.narration}]}]}}).narration,told.narration,'never the line just said');
+ for(const l of vm.runInNewContext(rulesSource()+'\n(dyingLines)',{AsyncStorage:{}})){const [solo,twin]=l.split('|');assert.ok(twin&&twin.includes('{hero}')&&!/\byou\b|\byour\b/i.test(twin),'a twin told of the hero: '+l);assert.ok(/Death save/.test(solo)&&/Death save/.test(twin));}
+ const src=fs.readFileSync('useDmTurn.js','utf8');assert.ok(src.indexOf('dyingTelling({hero,game})')>0&&src.indexOf('dyingTelling({hero,game})')<src.indexOf("const body=await request(game,health,command?.error?{castingIssue:command.error}:{});"),'a device answers before any request');
+ let asked=0;const ask=async()=>{asked++;return {narration:'The Dungeon Master answers.',suggestions:[]};};
+ (async()=>{const snap=rr.adventureSnapshot(hero,fallen.game,fallen.health,true);
+  const said=await resolveTurn(snap,{question:'Tobin, help me!'},{ask,randomImpl:()=>.5});assert.equal(asked,0,'no request at the table');assert.match(said.narration,/Death save/);assert.equal(said.turn.told,'game');assert.equal(said.snapshot.game.stage,'dying','nothing changes');
+  const save=await resolveTurn(snap,{question:'I fight to hold on.'},{ask,randomImpl:()=>.5});assert.ok(save.events.some(t=>/death sav/i.test(t)),'a death save still rolls: '+save.events.join(' | '));
+  await resolveTurn(snap,{question:'DM, can I still be saved?'},{ask,randomImpl:()=>.5});assert.equal(asked,1,'out of character still reaches the Dungeon Master');
+ })().catch(e=>{console.error(e);process.exit(1);});}
 console.log('Passed: falling and death saves (natural 1 and 20, stable, dead), outright death, protected dead saves, foes slain or beaten, NPCs killed, knocked out and finished off, and attacks by any wording with main weapon, named weapon, fists or bow; fortune near death (unseen, consistent dice, same on every device), Revivify by a companion or a friend at the table, and the dead laid to rest as a memorial line. Fortune near death: a blow at 3 HP drops the hero '+Math.round(100*lucky)+'% of the time instead of '+Math.round(100*plain)+'%, and '+Math.round(100*savesLucky)+'% of the dying die instead of '+Math.round(100*savesPlain)+'%.');

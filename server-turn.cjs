@@ -65,6 +65,8 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  if(command?.action)return cast(command);
  // A rule's refusal of a plain "I cast ..." is shown as it is; only a cast the game could not read goes to the DM.
  if(command?.error&&/^(?:I )?cast\s/i.test(question)&&!command.soft)throw fail(command.error);
+ // Dying, words that are not a death save are answered by the game (calmLines.js dyingTelling), as on a device: no request.
+ {const told=r.dyingTelling({hero:ruled,game});if(told)return finish(null,told,undefined,randomImpl,{told:'game'});}
  const body=await post(game,health,command?.error?{castingIssue:command.error}:{});
  // The cast the Dungeon Master read from the player's words is settled as those words (as on a device), so the rules
  // recognise it as the player's own command.
