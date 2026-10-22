@@ -165,7 +165,7 @@ export function storyFoeStats(level=1,type='Slashing'){
 // which it strikes twice a turn; `alone`: against a hero who meets it alone, its hit points by the hero's class (the
 // stories spec asked for the foe tuned per class: one stat block was a formality for a Fighter and a death for a Wizard).
 // At a table (`cls` null) the party's own scaling does that work (encounterRules.js foeScaling).
-// `alone` by class (levels 1 to 8, the last for every level after), from balance-check.cjs runs of the ready-made
+// `alone` by class (levels 1 to 12, the last for every level after), from balance-check.cjs runs of the ready-made
 // heroes (2026-10-22): the second blow only for those who stand in front (a Rogue, a Wizard or a Cleric alone fell in
 // most fights against two blows a turn), and hit points that keep each class within the targets as nearly as one
 // stat block can. Classes with no ready-made hero take the nearest one's.
@@ -175,7 +175,7 @@ export function storyFoeStats(level=1,type='Slashing'){
 // At a table (`hp`, `secondFrom`) the foe gains its blows from the side's scaling (encounterFoe), so it keeps one of its
 // own: two blows a turn, scaled for a party of two, made four, and a pair with a Wizard lost nearly every fight.
 export const bossShape={hp:[1,1.1,1.2],secondFrom:99,alone:{},minion:0.2,rage:0.85,call:0.9};
-{const front={hp:[2.5,2.5,1.6,1.6,2.5,1.6,1.5,1.3],second:3},quick={hp:[1.1,1.6,1.6,1.3,1.1,0.7,0.7,0.7],second:99},learned={hp:[0.9,0.9,1.3,1.1,1.3,0.8,0.8,0.75],second:99},faithful={hp:[0.9,1.1,1.3,1.3,1.6,1.3,1.3,1.2],second:99};
+{const front={hp:[2.5,2.5,1.6,1.6,2.5,1.6,1.5,1.3,1.15,1,1,1.1],second:3},quick={hp:[1.1,1.6,1.6,1.3,1.1,0.7,0.7,0.7,0.6,0.5,0.4,0.3],second:99},learned={hp:[0.9,0.9,1.3,1.1,1.3,0.8,0.8,0.75,0.7,0.65,0.65,0.65],second:99},faithful={hp:[0.9,1.1,1.3,1.3,1.6,1.3,1.3,1.2,1.2,1.2,0.8,0.5],second:99};
  Object.assign(bossShape.alone,{Fighter:front,Barbarian:front,Paladin:front,Rogue:quick,Monk:quick,Bard:quick,Warlock:quick,Wizard:learned,Sorcerer:learned,Cleric:faithful,Druid:faithful,Artificer:faithful,Ranger:faithful});}
 export function bossBudget(staging,level=1){
  const b=staging?.boss;if(!b||typeof b!=='object')return 1;
