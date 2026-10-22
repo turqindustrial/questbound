@@ -539,17 +539,24 @@ function journeyCheck(story){
   return !!game.story.errand&&!!game.story.introduction&&(game.story.chapters?.length??0)>=2&&r.validAdventure(r.adventureSnapshot(hero,game,null,true),hero);
  }catch{return false;}
 }
+// The host's pause for the journey library (2026-10-22; the stories spec, Phase 0): while the file
+// .questbound-library-paused exists (any content; Questbound.cmd -PauseLibrary makes it, -ResumeLibrary removes it) no
+// new journey is written, read live on every top-up and again before each write, so a fill under way stops at the next
+// journey. Journeys already written are still listed and started. QUESTBOUND_LIBRARY=off only skips the start-up fill.
+function libraryPaused(){try{return require('node:fs').existsSync(require('node:path').join(process.env.QUESTBOUND_DATA||__dirname,'.questbound-library-paused'));}catch{return false;}}
 function topUpLibrary(library,{apiKey,storyModel,effort,fetchImpl,live=true,spend=null}){
- if(!library||!apiKey||!storyModel)return false;
+ if(!library||!apiKey||!storyModel||libraryPaused())return false;
  const ceilings=spend??(live?loadSpending():null);
  if(!backgroundAllowed(ceilings))return false;
  const write=async brief=>{
+  if(libraryPaused())throw Object.assign(Error('The host paused the journey library.'),{kind:'paused'});
   if(!backgroundAllowed(ceilings))throw Object.assign(Error('Spending ceiling reached.'),{kind:'ceiling'});
   delete require.cache[require.resolve('./adventure-generator.cjs')];
   const cast=live?await castFor(loadPeople()):null;
   return require('./adventure-generator.cjs').generateAdventure({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'easy',ahead:true,libraryBrief:brief,choices:[],variation:Date.now()+'-'+Math.random()}},{apiKey,model:storyModel,reasoning:effort,timeout:420000,fetchImpl,safety:null,cast,onUsage:u=>recordUsage('adventure-ahead',storyModel,u,live,null)});
  };
- return library.topUp(write,{accept:journeyCheck,onFailure:e=>recordWriteFailure('library',e,live)});
+ // A pause is the host's choice, not a failure: it is not noted in the diagnostics.
+ return library.topUp(write,{accept:journeyCheck,onFailure:e=>{if(e?.kind!=='paused')recordWriteFailure('library',e,live);}});
 }
 // The journeys on offer, as a device sees them. A cover is offered only when its picture costs nothing more: already
 // painted (the journey's opening place, under the journey's art id) or, once world-art.cjs can answer a place from
@@ -1212,4 +1219,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={standingPrompt,heroPrompt,replySchemaFor,asFields,flatReply,cacheKeyFor,promptLayout,sceneParts,sceneMessages,turnRequest,requestParts,requestScene,phaseFields,hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={standingPrompt,heroPrompt,replySchemaFor,asFields,flatReply,cacheKeyFor,promptLayout,sceneParts,sceneMessages,turnRequest,requestParts,requestScene,phaseFields,hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,libraryPaused,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
