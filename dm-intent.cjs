@@ -123,7 +123,7 @@ function secondLook(body,reply,{canDiscover=false}={}){
  const none=!started(reply),goes=!asking&&!negated(text)&&moving(text),named=goes?namedJourneys(text,context):[];
  if(none&&named.length===1){
   const j=named[0];
-  return {kind:'known place',actionId:j.actionId,sure:plain&&j.strong,say:told('You set out for '+j.name+'.','sets out for '+j.name+'.'),
+  return {kind:'known place',actionId:j.actionId,place:j.name,sure:plain&&j.strong,say:told('You set out for '+j.name+'.','sets out for '+j.name+'.'),
    note:'Your last reply started no game action. The player\'s message reads as setting out for '+j.name+' now, and '+j.actionId+' is on offer and allowed (context.now says so). If they are setting out, select actionId '+j.actionId+' and narrate them leaving: no obstacle, warning or condition in the way, and nobody stopping them. Only if the message is plainly not a decision to go now (a question, a plan for later, something said to someone) answer it without the journey.'};
  }
  // Off the edge of this land's map: the beyond choice that way (the game opens the new land).
@@ -156,6 +156,18 @@ function secondLook(body,reply,{canDiscover=false}={}){
   note:'Your last reply started no game action. The player\'s message reads as '+what+', and '+id+' is on offer. Select actionId '+id+' unless the message is plainly not doing so now.'};
  return null;
 }
-// The reply the game gives itself when the model would not act on an unmistakable request: the action, a one-line telling.
-function settled(fault){return {narration:fault.say,dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:fault.actionId,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,remember:[],suggestions:[]};}
-module.exports={situation,secondLook,settled,journeys,namedJourneys,fighting,started};
+// Whether the reply's own telling already tells the very move the game now starts (setting out for that place, resting,
+// drinking, searching) and refuses nothing: then it is kept, with its lines, instead of the game's one line.
+const refusing=/\b(?:cannot|can't|can not|won't|will not|unable|not yet|first you|before you can|must first|blocked|barred|refuses?|forbid\w*|stops? you|holds? you back|no way)\b/i;
+const fitting=(fault,reply)=>{
+ const told=String(reply?.narration??'').trim(),t=told.toLowerCase();if(!told||refusing.test(told))return false;
+ if(fault.kind==='known place')return wordsOf(fault.place).some(w=>w.length>=4&&hasWord(t,w))&&moving(t);
+ if(fault.kind==='beyond the map')return /\b(?:road|set (?:out|off)|leav(?:e|es|ing)|beyond|edge|horizon)\b/.test(t);
+ if(fault.kind==='offered choice')return ({'short-rest':/\b(?:rest|rests|breath|sit|sits|bandag\w*|bind\w*)\b/,'long-rest':/\b(?:rest|rests|sleep\w*|slept|bed|night|camp|room)\b/,'potion':/\b(?:drink\w*|drank|draught|potion|swallow\w*|quaff\w*)\b/,'loot':/\b(?:search\w*|rummag\w*|pockets?|purses?|go(?:es)? through)\b/})[fault.actionId]?.test(t)??false;
+ return false;
+};
+// The reply the game gives itself when the model would not act on an unmistakable request: the action, with the reply's
+// own telling when it fits (fitting), else a one-line telling. Since 2026-10-22 (the host: "fewer retries and second
+// looks") this is done on the first miss, without asking the model again.
+function settled(fault,reply=null){const keep=fitting(fault,reply);return {narration:keep?String(reply.narration):fault.say,dialogue:keep&&Array.isArray(reply.dialogue)?reply.dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:fault.actionId,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:false,remember:[],suggestions:[]};}
+module.exports={situation,secondLook,settled,fitting,journeys,namedJourneys,fighting,started};

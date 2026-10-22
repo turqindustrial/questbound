@@ -22,7 +22,16 @@ const allyKinds=['bandit','wolf','goblin','skeleton','boar','spider','orc'];
 const allySchema={type:['object','null'],properties:{template:{type:'string',enum:allyKinds},name:{type:'string'},appearance:{type:'string'}},required:['template','name','appearance'],additionalProperties:false};
 const creatureSchema={type:['object','null'],properties:{template:{type:'string',enum:creatureKinds},name:{type:'string'},appearance:{type:'string'},ally:allySchema},required:['template','name','appearance','ally'],additionalProperties:false};
 const discoverySchema={type:['object','null'],properties:{name:{type:'string'},description:{type:'string'},kind:{type:'string',enum:placeKinds},bearing:{type:'string',enum:compass},miles:{type:'number'},travel:{type:'boolean'},danger:{type:'string',enum:['safe','risky','lair']},feature:{type:['string','null']},lair:creatureSchema,region:{type:['object','null'],properties:{name:{type:'string'},terrain:{type:'string',enum:terrainKinds}},required:['name','terrain'],additionalProperties:false}},required:['name','description','kind','bearing','miles','travel','danger','feature','lair','region'],additionalProperties:false};
-const checkSchema={type:['object','null'],properties:{skill:{type:['string','null'],enum:[null,'Acrobatics','Animal Handling','Arcana','Athletics','Deception','History','Insight','Intimidation','Investigation','Medicine','Nature','Perception','Performance','Persuasion','Religion','Sleight of Hand','Stealth','Survival']},ability:{type:'string',enum:['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma']},dc:{type:'integer'},mode:{type:'string',enum:['normal','advantage','disadvantage']},reason:{type:'string'},success:{type:'string'},failure:{type:'string'},damageCount:{type:'integer'},damageDie:{type:'integer'},damageOn:{type:'string',enum:['failure','always','none']}},required:['skill','ability','dc','mode','reason','success','failure','damageCount','damageDie','damageOn'],additionalProperties:false};
+// A telling written ahead in the reply that starts something the dice or the road decide (2026-10-22, the host: "merge
+// telling into first call"): what is said and done once it is decided, so no second request is needed to tell it.
+// The device and the campaign server show it only when the rules turned out as foreseen (toldAhead.js).
+const spokenLines=max=>({type:'array',maxItems:max,items:{type:'object',properties:{speakerId:{type:'string'},text:{type:'string',maxLength:400}},required:['speakerId','text'],additionalProperties:false}});
+const outcomeSchema={type:'object',properties:{narration:{type:'string',maxLength:600},dialogue:spokenLines(2),relationships:relationshipSchema(1,null)},required:['narration','dialogue','relationships'],additionalProperties:false};
+// A check's two outcomes (success, failure), or null when it is told after the roll.
+const outcomesSchema={type:['object','null'],properties:{success:outcomeSchema,failure:outcomeSchema},required:['success','failure'],additionalProperties:false};
+// The arrival at a place not yet visited, beside the travel choice that goes there.
+const arrivalSchema={type:['object','null'],properties:{narration:{type:'string',maxLength:600},dialogue:spokenLines(3)},required:['narration','dialogue'],additionalProperties:false};
+const checkSchema={type:['object','null'],properties:{skill:{type:['string','null'],enum:[null,'Acrobatics','Animal Handling','Arcana','Athletics','Deception','History','Insight','Intimidation','Investigation','Medicine','Nature','Perception','Performance','Persuasion','Religion','Sleight of Hand','Stealth','Survival']},ability:{type:'string',enum:['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma']},dc:{type:'integer'},mode:{type:'string',enum:['normal','advantage','disadvantage']},reason:{type:'string'},success:{type:'string'},failure:{type:'string'},damageCount:{type:'integer'},damageDie:{type:'integer'},damageOn:{type:'string',enum:['failure','always','none']},outcomes:outcomesSchema},required:['skill','ability','dc','mode','reason','success','failure','damageCount','damageDie','damageOn','outcomes'],additionalProperties:false};
 const rulingSchema={type:['object','null'],properties:{decision:{type:'string',enum:['cast','deny','clarify']},note:{type:'string'},damage:{type:'integer'},selfDamage:{type:'integer'},healing:{type:'integer'},temporaryHP:{type:'integer'}},required:['decision','note','damage','selfDamage','healing','temporaryHP'],additionalProperties:false};
 // The reply's `remember` field (the story so far, memoryRules.js): at most two facts, each one sentence the game cannot
 // see in its own records, with the ids it concerns, or settling a fact listed in context.memory by its id. Valid in
@@ -42,9 +51,9 @@ const rememberSchema=n=>({type:'array',maxItems:n,items:{type:'object',propertie
 const recruitItem={type:'object',properties:{npcId:{type:'string'},decision:{type:'string',enum:['join','decline','check','offer']},reason:{type:'string',maxLength:400},terms:{type:'string',maxLength:300},dc:{type:['integer','null']},class:{type:['string','null'],enum:[null,...npcClassNames]}},required:['npcId','decision','reason','terms','dc','class'],additionalProperties:false};
 const definite=s=>({...s,type:'object'});
 // Each effect's own schema (as an item of effects it is never null) and, for the three that may come twice, how many.
-const effectSchemas=()=>({actionId:{type:'string'},castCommand:{type:'string'},ruling:definite(rulingSchema),worldEvent:{type:'string'},check:definite(checkSchema),discovery:definite(discoverySchema),ambush:definite(creatureSchema),introduce:definite(introduceSchema(null,null)),loot:definite(lootSchema(4)),recruitment:recruitItem,relationships:relationshipSchema(2,null).items,remember:rememberSchema(2).items,rewind:{type:'boolean'},fault:{type:'boolean'}});
+const effectSchemas=()=>({actionId:{type:'string'},castCommand:{type:'string'},ruling:definite(rulingSchema),worldEvent:{type:'string'},check:definite(checkSchema),discovery:definite(discoverySchema),ambush:definite(creatureSchema),introduce:definite(introduceSchema(null,null)),loot:definite(lootSchema(4)),recruitment:recruitItem,relationships:relationshipSchema(2,null).items,remember:rememberSchema(2).items,rewind:{type:'boolean'},fault:{type:'boolean'},arrival:definite(arrivalSchema)});
 const effectLists={recruitment:2,relationships:2,remember:2};
-const effectKinds=['recruitment','relationships','loot','introduce','actionId','castCommand','ruling','worldEvent','check','discovery','ambush','rewind','fault','remember'];
+const effectKinds=['recruitment','relationships','loot','introduce','actionId','castCommand','ruling','worldEvent','check','discovery','ambush','rewind','fault','remember','arrival'];
 let oneReplySchema=null;
 function replySchemaFor(){
  if(oneReplySchema)return oneReplySchema;
@@ -69,7 +78,7 @@ let spelledOut=null;
 function spelledOutSchema(){
  if(spelledOut)return spelledOut;
  const {narration,dialogue,suggestions}=replySchemaFor().properties;
- const properties={narration,dialogue,recruitment:{type:'array',maxItems:2,items:recruitItem},relationships:relationshipSchema(2,null),introduce:introduceSchema(null,null),loot:lootSchema(4),actionId:{type:['string','null']},castCommand:{type:['string','null']},ruling:rulingSchema,worldEvent:{type:['string','null']},check:checkSchema,discovery:discoverySchema,ambush:creatureSchema,rewind:{type:['boolean','null']},fault:{type:['boolean','null']},remember:rememberSchema(2),suggestions};
+ const properties={narration,dialogue,recruitment:{type:'array',maxItems:2,items:recruitItem},relationships:relationshipSchema(2,null),introduce:introduceSchema(null,null),loot:lootSchema(4),actionId:{type:['string','null']},castCommand:{type:['string','null']},ruling:rulingSchema,worldEvent:{type:['string','null']},check:checkSchema,discovery:discoverySchema,ambush:creatureSchema,rewind:{type:['boolean','null']},fault:{type:['boolean','null']},remember:rememberSchema(2),arrival:arrivalSchema,suggestions};
  return spelledOut={type:'object',properties,required:Object.keys(properties),additionalProperties:false};
 }
 // The provider's reply in the one shape the game reads: every effect in its own field (null, or [] for the three lists),
@@ -78,7 +87,7 @@ function spelledOutSchema(){
 function flatReply(value,onDrop=null){
  if(!value||typeof value!=='object'||Array.isArray(value)||!('effects' in value))return value;
  const {effects,...top}=value;let dropped=0;
- const out={narration:top.narration,dialogue:top.dialogue,recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,fault:null,remember:[],suggestions:top.suggestions};
+ const out={narration:top.narration,dialogue:top.dialogue,recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,fault:null,remember:[],arrival:null,suggestions:top.suggestions};
  for(const [k,v] of Object.entries(top))if(!(k in out))out[k]=v;
  for(const item of Array.isArray(effects)?effects:[]){
   if(!item||typeof item!=='object'||Array.isArray(item))continue;
@@ -96,8 +105,8 @@ function flatReply(value,onDrop=null){
 // then a clarify that spends nothing).
 const phaseFields={
  turn:{rewind:false,fault:false},
- told:{recruitment:false,actionId:false,castCommand:false,ruling:false,worldEvent:false,check:false,discovery:false,ambush:false,rewind:false,fault:false},
- ruling:{recruitment:false,relationships:false,introduce:false,loot:false,rewind:false,fault:false,remember:false},
- ooc:{dialogue:false,recruitment:false,relationships:false,introduce:false,loot:false,actionId:false,castCommand:false,ruling:false,worldEvent:false,check:false,discovery:false,ambush:false,remember:false,suggestions:false}};
+ told:{recruitment:false,actionId:false,castCommand:false,ruling:false,worldEvent:false,check:false,discovery:false,ambush:false,rewind:false,fault:false,arrival:false},
+ ruling:{recruitment:false,relationships:false,introduce:false,loot:false,rewind:false,fault:false,remember:false,arrival:false},
+ ooc:{dialogue:false,recruitment:false,relationships:false,introduce:false,loot:false,actionId:false,castCommand:false,ruling:false,worldEvent:false,check:false,discovery:false,ambush:false,remember:false,suggestions:false,arrival:false}};
 const listFields=new Set(['dialogue','recruitment','relationships','remember','suggestions']);
-module.exports={magicRarity,magicIds,rarityOrder,rarityFor,lootSchema,tieKindsList,foeTieList,regardStanceList,terrainKinds,npcClassNames,introduceSchema,relationshipSchema,placeKinds,compass,creatureKinds,allyKinds,allySchema,creatureSchema,discoverySchema,checkSchema,rulingSchema,rememberSchema,replySchemaFor,spelledOutSchema,asFields,flatReply,effectKinds,phaseFields,listFields};
+module.exports={magicRarity,magicIds,rarityOrder,rarityFor,lootSchema,tieKindsList,foeTieList,regardStanceList,terrainKinds,npcClassNames,introduceSchema,relationshipSchema,placeKinds,compass,creatureKinds,allyKinds,allySchema,creatureSchema,discoverySchema,checkSchema,outcomesSchema,arrivalSchema,rulingSchema,rememberSchema,replySchemaFor,spelledOutSchema,asFields,flatReply,effectKinds,phaseFields,listFields};

@@ -46,7 +46,10 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   // on a device: the same rule, the same seeded lines.
   // A routine calm move the Dungeon Master chose keeps its own reply (calmLines.js chosenTelling): no second request.
   const told=narration===undefined||chosen?r.routineTelling({hero:ruled,before:game,preview,health,action:command.action,words:question,preferences:preferences(request.storyPreferences),chosen}):null;
-  const body=told??await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40)});let i=0;
+  // A moment in which people speak first (a first arrival, a fight won) is told in this telling, as on a device; a table
+  // plays no cues, so this is where those first words are heard.
+  const cue=told?null:r.sceneTrigger(game,preview.game,command.action),first=cue&&r.conversationPeople(preview.game).some(n=>n.id===cue.speakerId)?{speakFirst:{speakerId:cue.speakerId,cue:cue.cue}}:{};
+  const body=told??await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40),...first});let i=0;
   return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),told?.told==='game'?{told:'game',fightRound:told.fightRound}:{});
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
@@ -69,12 +72,15 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  const body=await post(game,health,command?.error?{castingIssue:command.error}:{});
  // The cast the Dungeon Master read from the player's words is settled as those words (as on a device), so the rules
  // recognise it as the player's own command.
- if(body.castCommand){const parsed=r.dmCommand(ruled,game,body.castCommand,health);if(parsed?.error||parsed?.action?.type!=='spell')throw fail('That spell is not available.');return cast({...parsed,normalizedCommand:parsed.normalizedCommand??body.castCommand},body.narration);}
+ if(body.castCommand){const parsed=r.dmCommand(ruled,game,body.castCommand,health);if(parsed?.error||parsed?.action?.type!=='spell')throw fail('That spell is not available.');return cast({...parsed,normalizedCommand:parsed.normalizedCommand??body.castCommand},body.narration,body.retell?null:body);}
  if(body.recruitment?.length||body.check){
-  const action=body.check?{type:'ai-check',check:body.check}:{type:'recruitment',plans:body.recruitment},dice=[];
+  const check=body.check?(({outcomes,...rest})=>rest)(body.check):null;
+  const action=check?{type:'ai-check',check}:{type:'recruitment',plans:body.recruitment},dice=[];
   const preview=r.commitDmTurn(ruled,game,health,action,{question,narration:body.narration,npcId:target},()=>{const n=randomImpl();dice.push(n);return n;});if(preview.error)throw fail(preview.error);
-  // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. A check is told once rolled.
-  const reply=body.check||body.retell||body.recruitment.some(p=>p?.decision==='check')?await post(preview.game,preview.health,{engineResolved:preview.events}):body;let i=0;return finish(action,{...reply,worldEvent:null},undefined,()=>dice[i++]??randomImpl());
+  // A join, a refusal or an offer was decided in the reply itself: it is told as it stands. A check is told with the
+  // outcome the dice decided when the reply wrote both ahead (toldAhead.js), else once rolled, as on a device.
+  const ahead=check&&!body.retell?r.checkTelling({before:game,preview,check:body.check,reply:body}):null;
+  const reply=ahead??(body.check||body.retell||body.recruitment.some(p=>p?.decision==='check')?await post(preview.game,preview.health,{engineResolved:preview.events}):body);let i=0;return finish(action,{...reply,worldEvent:null},undefined,()=>dice[i++]??randomImpl());
  }
  if(body.ruling)return finish({type:'ai-ruling',ruling:body.ruling},body);
  if(body.discovery){const {travel,...place}=body.discovery;return finish({type:'discover',place,travel},body);}

@@ -18,7 +18,7 @@ const {rulesSource}=require('./rules-files.cjs'),{journeyStory}=require('./journ
 const R=vm.runInNewContext(rulesSource({extra:['worldArtRules.js']})+'\n({freshStoryGame,newAdventure,adventureSnapshot,readyHero,dmChoices,appendStoryLog,withMemory,rememberFacts})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const seq=(s=11)=>()=>(s=(s*16807)%2147483647)/2147483647;
-const full=o=>({narration:'It happens.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,fault:null,remember:[],suggestions:[],...o});
+const full=o=>({narration:'It happens.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,fault:null,remember:[],arrival:null,suggestions:[],...o});
 // The provider writes each game effect as an item of effects (dm-schemas.cjs): the stand-in does too.
 const asEffects=o=>{const {narration,dialogue,suggestions,...rest}=o,effects=[];for(const [k,v] of Object.entries(rest))for(const x of [].concat(v))if(x!=null)effects.push({[k]:x});return {narration,dialogue,effects,suggestions};};
 const done=o=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(asEffects(full(o)))}]}]})});
@@ -74,7 +74,8 @@ const strictProblems=(s,at,out=[])=>{
  // A reply that cannot be used is asked for again; a reply that does not do what the player plainly asked gets a
  // second look. Both are sent with everything before this turn's note unchanged.
  await play('fighter: retried',f3,{question:'I ask around for work.'},(q,n)=>done(requestParts(q).tail.includes('LOOK AGAIN')?{narration:'Nobody has work today.'}:{narration:'You gain 900 gold.',actionId:'invent-gold'}));
- await play('fighter: second look',f3,{question:'I go to the Old Mill.'},()=>done({narration:'The road can wait; you stay in the market.'}));
+ // (Since 2026-10-22 an unmistakable request is acted on by the game at once: this one leaves room for doubt.)
+ await play('fighter: second look',f3,{question:'I go to the Old Mill before nightfall.'},q=>done(requestParts(q).tail.includes('LOOK AGAIN')?{narration:'You set off down the stream path.',actionId:mill.id}:{narration:'The road can wait; you stay in the market.'}));
  const punch=R.dmChoices(fighter,f3.game,f3.health).find(c=>/^npc-attack/.test(c.id));
  o=await play('fighter: brawl',f3,{question:'I hit '+punch.label,action:punch.action});
  const big={...f3,game:longGame(f3.game)};
@@ -99,7 +100,7 @@ const strictProblems=(s,at,out=[])=>{
  assert.deepEqual(strictProblems(replySchemaFor(),'reply'),[],'strict structured output');
  {const p=replySchemaFor().properties;assert.deepEqual(Object.keys(p),['narration','dialogue','effects','suggestions'],'narration still streams first, suggestions last, every effect an item of effects');
   const kinds=p.effects.items.anyOf.map(b=>Object.keys(b.properties));assert.ok(kinds.every(k=>k.length===1),'each item holds one effect');
-  assert.deepEqual(kinds.flat().sort(),['actionId','ambush','castCommand','check','discovery','fault','introduce','loot','recruitment','relationships','remember','rewind','ruling','worldEvent']);
+  assert.deepEqual(kinds.flat().sort(),['actionId','ambush','arrival','castCommand','check','discovery','fault','introduce','loot','recruitment','relationships','remember','rewind','ruling','worldEvent']);
   // Read back as the reply the game has always read: every effect in its own field, the three lists up to two each.
   const flat=server.flatReply({narration:'n',dialogue:[],effects:[{actionId:'travel-p1'},{actionId:'travel-p2'},{remember:{text:'a',about:[],settles:null}},{remember:{text:'b',about:[],settles:null}},{remember:{text:'c',about:[],settles:null}},{rewind:true}],suggestions:['s']});
   assert.deepEqual(flat,full({narration:'n',actionId:'travel-p1',remember:[{text:'a',about:[],settles:null},{text:'b',about:[],settles:null}],rewind:true,suggestions:['s']}));
@@ -228,8 +229,11 @@ const strictProblems=(s,at,out=[])=>{
   const measured={standing:tokens(standingPrompt),schema:tokens(JSON.stringify(replySchemaFor()))};
   for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
   if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));
-  assert.ok(measured.standing<=8650,'the standing prompt within 8650 tokens (13618 before 2026-10-21, 8853 after its first pass): '+measured.standing);
-  assert.ok(measured.schema<=2300,'the reply schema within 2300 tokens (2021 with every effect spelled out): '+measured.schema);
+  // Raised on 2026-10-22 by what the tellings written ahead need (the host: "merge telling into first call"): a check's
+  // outcomes and a journey's arrival, 8487 → 8641 in the standing prompt and 2226 → 2730 in the schema (cached), each
+  // budget raised by that much and no more.
+  assert.ok(measured.standing<=8810,'the standing prompt within 8810 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead): '+measured.standing);
+  assert.ok(measured.schema<=2800,'the reply schema within 2800 tokens (2021 with every effect spelled out, 2226 before the tellings written ahead): '+measured.schema);
   // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
   measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));
   assert.ok(measured.skeleton<=16,'an empty reply skeleton within 16 tokens (67 with every effect spelled out): '+measured.skeleton);

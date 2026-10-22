@@ -19,7 +19,8 @@ export function settleTurn({hero,ruled=hero,game,health,action=null,conversation
  const xp=withExperience(game,result.game,hero,{action});result={...result,game:xp.game,events:[...(result.events??[]),...xp.lines]};
  if(conversation)result=recordedTurn(hero,game,health,result,result.conversation??conversation,conversation.npcId??null);
  result={...result,game:{...result.game}};delete result.game.sceneCue;
- if(sceneTrigger&&!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(game,result.game,action);
+ // The moment's cue is played only if those it would have speak first did not already speak in this turn.
+ if(sceneTrigger&&!conversation?.trigger&&!conversation?.direct)result.game=withSceneTrigger(game,result.game,action,result.turn??null);
  result.game=withStoryLog(game,result.game,hero,{action});
  const marked=withDeeds(result.game,hero);result.game=marked.game;
  result.game=withMemory(result.game);

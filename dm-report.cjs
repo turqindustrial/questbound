@@ -34,10 +34,10 @@ else{
  console.log('\nRequests by kind:');
  for(const [mode,m] of Object.entries(byMode))console.log('  '+mode.padEnd(10)+String(m.requests).padStart(5)+' requests  '+String(m.input).padStart(9)+' input tokens ('+Math.round(100*m.cached/Math.max(1,m.input))+'% cached)  '+String(m.output).padStart(7)+' output'+(m.reasoning?' ('+m.reasoning+' reasoning)':''));
  const paintings=usage.reduce((n,u)=>n+(u.images??0),0);if(paintings)console.log('  paintings '+String(paintings).padStart(5)+' (counted at about '+money(paintingPrice)+' each)');
- const byModel={};for(const u of usage){const m=byModel[u.model]??(byModel[u.model]={input:0,cached:0,output:0,requests:0});m.requests++;m.input+=u.input;m.cached+=u.cached;m.output+=u.output;}
+ const byModel={};for(const u of usage){const m=byModel[u.model]??(byModel[u.model]={input:0,cached:0,output:0,requests:0,cost:0});m.requests++;m.input+=u.input;m.cached+=u.cached;m.output+=u.output;m.cost+=costOf({...u,images:0});}
  console.log('\nCost by model:');let total=0,priced=true;
  for(const [model,m] of Object.entries(byModel)){const p=prices[model];if(!p){priced=false;console.log('  '+model+': '+m.requests+' requests, '+m.input+' input / '+m.output+' output tokens (no price on file)');continue;}
-  const cost=((m.input-m.cached)*p[0]+m.cached*p[1]+m.output*p[2])/1e6;total+=cost;console.log('  '+model+': '+m.requests+' requests, about '+money(cost)+' ('+money(cost/m.requests*1000)+' per 1,000 requests)');}
+  const cost=m.cost;total+=cost;console.log('  '+model+': '+m.requests+' requests, about '+money(cost)+' ('+money(cost/m.requests*1000)+' per 1,000 requests)');}
  const turns=byMode.turn?.requests??0;
  total+=usage.reduce((n,u)=>n+(u.images??0),0)*paintingPrice;
  if(priced)console.log('\nTotal about '+money(total)+(turns?', about '+money(total/turns)+' per game turn request':'')+'.');
@@ -56,6 +56,12 @@ else{
   if(avg.length){console.log('Cache (goal: about 85% of turn input cached):');line('sent in parts',parts);
    if(parts.length){const by=[['turn','turns'],['told','tellings and cues'],['ruling','spell rulings'],['ooc','out of character']].map(([k,label])=>{const l=parts.filter(u=>u.phase===k);return l.length?label+' '+l.length+' ('+share(l).pct+'%)':null;}).filter(Boolean);
     const again=parts.filter(u=>(u.ask??1)>1&&!u.aside),aside=parts.filter(u=>u.aside);if(again.length)by.push('asked again '+again.length+' ('+share(again).pct+'%)');if(aside.length)by.push('second looks '+aside.length+' ('+share(aside).pct+'%)');if(by.length)console.log('    by phase: '+by.join(', ')+'.');}
+   // The cache held across pauses (2026-10-22, dm-server.cjs cacheHoldFor): what was sent, the input written to the
+   // cache (billed at the write rates) and, for turns after a pause of five minutes or more, the share still cached.
+   {const held=parts.filter(u=>u.hold),pct=l=>Math.round(100*l.reduce((a,u)=>a+u.cached,0)/Math.max(1,l.reduce((a,u)=>a+u.input,0)));
+    if(held.length){const written=held.reduce((a,u)=>a+(u.written??0),0),long=held.reduce((a,u)=>a+(u.written12h??0),0),kinds=[...new Set(held.map(u=>u.hold))].join(', ');
+     const sorted=[...avg].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)),late=sorted.filter((u,i)=>u.hold&&i>0&&Date.parse(u.at)-Date.parse(sorted[i-1].at)>=300000);
+     console.log('  held across pauses ('+kinds+'): '+held.length+' turn requests, '+pct(held)+'% cached; '+Math.round(written/held.length)+' input tokens written to the cache each on average ('+Math.round(long/held.length)+' of them for 12 hours)'+(late.length?'; after a pause of 5 minutes or more: '+late.length+' requests, '+pct(late)+'% cached':'')+'.');}}
    line('in the cache order',avg.filter(u=>u.layout===2));line('before it',avg.filter(u=>!(u.layout>=2)));}}
 }
 // The host's ceilings (spending.cjs): how close today and the month are, and whether guests are paused.

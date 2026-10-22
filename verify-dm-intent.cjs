@@ -81,13 +81,20 @@ const turn=async(input,replies,context=base)=>{const s=scripted(replies);const r
  let r=await turn('I head for the lookout.',[{...quiet,actionId:'travel-tower',narration:'You climb toward the rock.'}]);
  assert.equal(r.calls.length,1);assert.equal(r.reply.actionId,'travel-tower');assert.ok(!requestParts(r.calls[0]).instructions.includes('LOOK AGAIN'));
  assert.ok(requestScene(r.calls[0]).context.now[0]==='The player is at Caravan Camp.');
- // Refused, then acted when asked again: the second reply is the one that counts.
- r=await turn('I head for the lookout.',[{...quiet,narration:'The ambush is still underway; you cannot leave.'},{...quiet,actionId:'travel-tower',narration:'You climb toward the rock.'}]);
+ // Refused, then acted when asked again (a place named by a word that leaves a little doubt, "the rock"): the second
+ // reply is the one that counts.
+ r=await turn('I head for the rock.',[{...quiet,narration:'The ambush is still underway; you cannot leave.'},{...quiet,actionId:'travel-tower',narration:'You climb toward the rock.'}]);
  assert.equal(r.calls.length,2);assert.ok(requestParts(r.calls[1]).instructions.includes('LOOK AGAIN')&&requestParts(r.calls[1]).instructions.includes('travel-tower'));assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You climb toward the rock.');
  assert.ok(requestParts(r.calls[1]).instructions.startsWith(requestParts(r.calls[0]).instructions),'the note follows the standing instructions, which stay cached');
- // Refused twice, and the request is unmistakable: the game sets out itself.
+ // Refused, and the request is unmistakable: the game sets out itself at once, without asking again (2026-10-22, the
+ // host: "fewer retries and second looks"), with its own line where the reply refused.
  r=await turn('I head for the lookout.',[{...quiet,narration:'You should wait for the captain.'}]);
- assert.equal(r.calls.length,2);assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You set out for Lookout Rock.');assert.deepEqual(r.reply.dialogue,[]);
+ assert.equal(r.calls.length,1,'settled on the first miss');assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You set out for Lookout Rock.');assert.deepEqual(r.reply.dialogue,[]);
+ r=await turn('I head for the lookout.',[{...quiet,narration:'The ambush is still underway; you cannot leave.'}]);
+ assert.equal(r.calls.length,1);assert.equal(r.reply.narration,'You set out for Lookout Rock.','a refusal is never kept as the telling');
+ // The reply told the hero setting out but forgot the choice: its own telling is kept, with the journey.
+ r=await turn('I head for the lookout.',[{...quiet,narration:'You shoulder your pack and head up the trail toward Lookout Rock.'}]);
+ assert.equal(r.calls.length,1);assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You shoulder your pack and head up the trail toward Lookout Rock.');assert.deepEqual(r.reply.suggestions,[]);
  // Refused twice, and the words leave room for doubt: the second answer stands.
  r=await turn('I tell Oona I will go to the lookout tomorrow.',[{...quiet,narration:'She nods.'},{...quiet,narration:'Oona grunts her approval.'}]);
  assert.equal(r.calls.length,2);assert.equal(r.reply.actionId,null);assert.equal(r.reply.narration,'Oona grunts her approval.');
