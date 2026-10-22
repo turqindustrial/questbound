@@ -46,6 +46,8 @@ export function aheadTelling({before,after,action,events=[],chosen}){
   if(!lines.length||!lines.every(t=>/^You travel to .+\. [\d.,]+ (?:ft|miles?); .+ pass(?:es)?\.$/.test(t)))return null;
   return keep(arrival);
  }
+ // A written tale's turning point the player's words chose (stagingRules.js): the reply that chose it told it.
+ if(typeof action==='string'&&action.startsWith('tale-choice:'))return keep(null);
  if(action?.type==='accept-offer'&&typeof action.id==='string'){
   if(lines.length!==1||!presentAfter(after).has(action.id))return null;
   return keep(null);

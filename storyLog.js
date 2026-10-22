@@ -4,6 +4,7 @@ import {dungeonRooms} from './dungeonRules';
 import {appendStoryLog} from './journalRules';
 import {packOf} from './inventoryRules';
 import {fightEnding,heroXp,levelForXp} from './experienceRules';
+import {stagingLogLines} from './stagingRules';
 // The story so far: one short line for every thing that mattered (a place reached, someone met, a fight and how it
 // ended, a death, a debt or a grudge, gold and finds, rests, levels, the end of the tale). Each line is worked out
 // by comparing the adventure before and after a turn, so nothing depends on how the Dungeon Master told it, and a
@@ -99,7 +100,10 @@ export function storyEvents(before,after,hero,{action=null}={}){
  if(after.story?.chapters&&(after.story.chapter??0)>(before.story?.chapter??0)){const c=after.story.chapters,n=before.story?.chapter??0;add('quest','Finished chapter '+(n+1)+': '+c[n].title+'.');add('story','Chapter '+(after.story.chapter+1)+': '+c[after.story.chapter].title);}
  for(const l of after.story?.leads??[])if(l.done&&!before.story?.leads?.find(x=>x.id===l.id)?.done)add('quest','Saw a lead through: '+l.title+'.');
  if(hero&&(hero.level??1)<20){const now=levelForXp(heroXp(after,hero)),was=levelForXp(heroXp(before,hero));if(now>was&&now>(hero.level??1))add('level','Ready for level '+Math.min(now,(hero.level??1)+1)+'.');}
+ // A written tale (stagingRules.js): what is at stake changed, the choices made, then the ending taken.
+ for(const [kind,text] of stagingLogLines(before,after))if(!/^Ending: /.test(text))add(kind,text);
  if(after.story&&before.story?.status==='active'&&after.story.status==='complete')add('quest','Adventure complete: '+after.story.title+'.');
+ for(const [kind,text] of stagingLogLines(before,after))if(/^Ending: /.test(text))add(kind,text);
  // The crossroads adventure tells its own milestones in its journal.
  if(!after.story){const old=before.journal?.entries?.length??0;for(const e of (after.journal?.entries??[]).slice(old))if(['quest','outcome'].includes(e.kind)&&!/^Journey to /.test(e.title))add('quest',e.title+'.');}
  return lines;

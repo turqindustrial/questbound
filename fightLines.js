@@ -8,6 +8,7 @@ import {creatureNature} from "./spellDamageRules";
 import {heroesAtTable} from "./playbackRules";
 import {routineCalmTurn,calmTelling,chosenTelling} from './calmLines';
 import {aheadTelling,presentAfter} from './toldAhead';
+import {beatKey} from './stagingRules';
 
 // Routine fight moves told by the game itself (the host, 2026-10-17: "Let the game narrate routine fight moves: a plain
 // attack, Dodge or 'end my turn' currently asks the AI to describe it, even though the dice cards already show what
@@ -481,6 +482,9 @@ export function fightTelling({hero,before,after,health,afterHealth,action,events
 // what the dice and the road decided (calmLines.js chosenTelling), instead of asking again only to tell it.
 export function routineTelling({hero,before,preview,health,action,words,preferences={},chosen=null}){
  if(!preview||preview.error)return null;
+ // A written tale's beat due after this move (stagingRules.js) goes to the Dungeon Master with it: the game tells no
+ // routine move while one waits, unless the reply that chose the move already carried it.
+ {const due=beatKey(preview.game);if(due&&due!==(chosen?beatKey(before):null))return null;}
  // Away from a fight: a rest, a draught, a journey back, a search, an order or the shield, told by calmLines.js; a
  // journey somewhere new or an offer taken up that the reply choosing it already told (toldAhead.js).
  if(!flInFight(before)){const calm=routineCalmTurn(before,preview.game,action,words,{events:preview.events,waiting:!!preview.waiting,chosen:!!chosen});if(!calm.routine)return chosen?aheadTelling({before,after:preview.game,action,events:preview.events,chosen}):null;

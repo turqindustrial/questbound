@@ -34,6 +34,8 @@ export function npcTies(game,id){
  return {other,toOther:other?tieBetween(game,id,other):null,toFoe:foeTie(game,id),note:core&&typeof t?.note==='string'?t.note:null,all};
 }
 const responses={hostile:'Refuses to help the player and wants nothing to do with them.',unfriendly:'Wary and cold toward the player.',indifferent:'No strong feelings about the player.',friendly:'Warm toward the player and willing to help.',devoted:'Devoted to the player and eager to help.'};
+// How someone treats the hero at each attitude (stagingRules.js writes it when a written tale shifts an attitude).
+export const attitudeResponses=responses;
 // Apply one deed to one character: a step change (+1, -2…), a bond, a grudge (weight: grave or blood), an act of
 // amends or forgiveness. Returns the game and the lines to show.
 const memoryMarks=['allegiance','grudge','bond','grudgeWeight','grudgeSince','amends','forgave'];
@@ -251,7 +253,8 @@ export function introducePerson(game,sketch,hero=null){
  if(!personText(name,2,60)||!personText(s.role,3,200)||!personText(s.appearance,10,400)||!(s.species==null||personText(s.species,0,60))||!(s.personality==null||personText(s.personality,0,200))||!Object.hasOwn(personToughness,s.toughness)||!meetingAttitudes.includes(s.attitude)||!foeTieKinds.includes(s.foe))return {game,error:'The Dungeon Master described someone the game could not use.'};
  const here=sceneLocation(game),key=name.toLowerCase(),known=npcIdsOf(game);
  if(s.tie!=null&&!(s.tie&&known.includes(s.tie.to)&&tieKinds.includes(s.tie.kind)))return {game,error:'The Dungeon Master tied someone to a person the game does not know.'};
- if(key===String(game.story.foe).toLowerCase())return {game,error:'That is the name of your foe.'};
+ // The tale's main foe is never one of its people (a written tale brings it on by beats): its name, "The" or not.
+ {const bare=t=>String(t??'').replace(/\s+/g,' ').trim().toLowerCase().replace(/^the /,'');if(bare(key)===bare(game.story.foe))return {game,error:'That is the name of your foe.'};}
  // Someone already known: they are here now (unless they travel with you, or are dead).
  const same=known.find(id=>npcName(game,id).trim().toLowerCase()===key);
  if(same){

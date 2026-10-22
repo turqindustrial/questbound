@@ -1,7 +1,15 @@
 import {templateKeys,allyTemplates,scaledFoe} from './encounterRules';
-import {attitudeLevels} from './relationshipRules';
-import {isPersonId,metPerson} from './npcRules';
-import {mapLocation,mapState,worldPlaces} from './mapRules';
+import {attitudeLevels,attitudeResponses} from './relationshipRules';
+import {isPersonId,metPerson,npcScene,npcLore} from './npcRules';
+import {mapLocation,mapState,worldPlaces,worldPlace,placeName} from './mapRules';
+import {advanceChapter,finishLead,newAdventure} from './adventureRules';
+import {questState,freshStoryGame} from './storyRules';
+import {fightEnding} from './experienceRules';
+import {appendJournal,journalForGame} from './journalRules';
+import {applyLoot} from './inventoryRules';
+import {storyEvents} from './storyLog';
+import {readyHero} from './pregens';
+import {validAdventure,adventureSnapshot} from './adventureStorage';
 // ---------- Written tales: the staging format (WRITTEN-TALES.md) ----------
 // A written tale (the Short, Medium and Long shelf, .questbound-written/<slug>.json) carries its plan in one optional
 // story field, `staging`: per chapter the conditions the engine checks to close it (found), its beats, complications,
@@ -293,13 +301,15 @@ export function validPace(p,game){
   &&Array.isArray(p.leads)&&p.leads.length<=stagingLimits.leads&&new Set(p.leads).size===p.leads.length&&p.leads.every(l=>leads.has(l))
   &&(p.sign===null||stagingText(p.sign,stagingLimits.sign))
   &&(p.fight===null||(stagingPlain(p.fight)&&Object.keys(p.fight).length<=8&&Object.values(p.fight).every(v=>stagingInt(v,0,999))&&stagingInt(p.fight.turns,0,999)))
-  &&(p.ending===null||endings.includes(p.ending));
+  &&(p.ending===null||endings.includes(p.ending))
+  // When the clock last acted (the chapter's move count), so two clock beats are never back to back (since the runtime).
+  &&(p.clockAt===undefined||n(p.clockAt));
 }
 // The pace of a tale as its chapter begins, before anything has happened in it: where the hero stands counts as
 // reached. (seatStaging will start a tale with it; the checker reads chapter 1's conditions against it.)
 export function openingPace(game){
  const minutes=mapState(game).minutes??0,at=mapLocation(game),ch=Number.isInteger(game?.story?.chapter)?game.story.chapter:0;
- return {v:stagingVersion,ch,turns:0,quiet:0,since:minutes,step:0,owed:0,held:0,day:Math.floor(minutes/1440),due:null,told:[],fired:[],seen:typeof at==='string'&&paceIdPattern.test('reach:'+at)?['reach:'+at]:[],marks:{},flags:[],stakes:{},spoke:{},offers:[],leads:[],sign:null,fight:null,ending:null,quietMax:0};
+ return {v:stagingVersion,ch,turns:0,quiet:0,since:minutes,step:0,owed:0,held:0,day:Math.floor(minutes/1440),due:null,told:[],fired:[],seen:typeof at==='string'&&paceIdPattern.test('reach:'+at)?['reach:'+at]:[],marks:{},flags:[],stakes:{},spoke:{},offers:[],leads:[],sign:null,fight:null,ending:null,quietMax:0,clockAt:0};
 }
 // Whether a condition holds for a game and its pace (WRITTEN-TALES.md, Conditions). Pure and total: any input
 // validStaging accepts, and anything else, gives true or false and never throws. A condition that uses a kind this
@@ -406,4 +416,507 @@ export function stagingIds(game){
  }
  const memo=m;
  return {place:name=>memo.places.get(stagingNameKey(name))??null,person:name=>memo.byName.get(stagingNameKey(name))??null};
+}
+// ======================================================================================================================
+// ---------- The runtime (WRITTEN-TALES.md 4.4, 14 and 17; the build specification's 3.2 and 3.3) ----------
+// The engine decides when drama arrives, and the Dungeon Master performs it. seatStaging (freshStoryGame, once the
+// residents are seated) arms chapter 1's set piece and starts game.pace. withBeats (turnRules.js settleTurn, right after
+// the step and before experience, only where the move is made: the device alone, the campaign server at a table, never
+// applyRemote) keeps the tale's clock, closes chapters by their finds, fires beats, opens and settles choices, picks the
+// ending, and leaves at most one thing due (game.pace.due) for the next reply that goes to the Dungeon Master (taleNow:
+// its turn note). stagedPreview is the same applied to a preview (useDmTurn.js, server-turn.cjs), so a beat this very
+// move fires rides this very reply; both start from the same game, so the preview and the commit agree. Pure,
+// deterministic and total: no randomness, and any input gives a result (an effect that cannot apply is skipped).
+// Which beat a reply told: every request names the beat it carried (beatSent: its key "kind:id"), and the device or the
+// campaign server records the keys of the requests of a turn in its conversation (`beats`); a beat the game told itself
+// in its own words when the Dungeon Master could not be reached is `beatTold` (withBeatLine). Only those are marked
+// told, never whatever is due after the move, so nothing is told twice.
+const stgFighting=g=>!!g&&(['combat','dying','dead','defeat'].includes(g.stage)||!!g.npcCombat?.active||!!g.turnOrder||!!g.pendingSpell||!!g.wildFight||!!g.dungeon?.active);
+const stgList=v=>Array.isArray(v)?v:[];
+const stgClean=(v,max)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max).trim():'';
+// The staging of a game's tale, when it is one the engine can play (one staging chapter for each story chapter).
+function stgStaging(game){
+ const st=game?.story?.staging;
+ return stagingPlain(st)&&Array.isArray(st.chapters)&&Array.isArray(game.story.chapters)&&st.chapters.length===game.story.chapters.length&&st.chapters.length>0?st:null;
+}
+export const isStaged=game=>!!stgStaging(game);
+// The pacing a tale asks for (its length's defaults where it says nothing).
+function stgPacing(st){
+ const base=stagingPacing[st?.length]??stagingPacing.short,ticks=stagingPlain(st?.ticks)?st.ticks:{};
+ return {quiet:stagingInt(st?.quiet,1,99)?st.quiet:base.quiet,drift:stagingInt(st?.drift,1,99)?st.drift:base.drift,rest:ticks.rest===true,days:stagingInt(ticks.days,0,2)?ticks.days:stagingTicks.days};
+}
+// A working copy of game.pace (a later build's keys kept), with what this build adds filled in.
+function stgPace(game){
+ const p=game?.pace,fresh=openingPace(game);
+ if(!stagingPlain(p))return fresh;
+ const obj=v=>stagingPlain(v)?{...v}:{},num=(v,d)=>Number.isInteger(v)&&v>=0?v:d;
+ return {...fresh,...p,ch:num(p.ch,fresh.ch),turns:num(p.turns,0),quiet:num(p.quiet,0),quietMax:num(p.quietMax,0),since:num(p.since,fresh.since),day:num(p.day,fresh.day),step:num(p.step,0),owed:num(p.owed,0),held:num(p.held,0),clockAt:num(p.clockAt,0),
+  due:stagingPlain(p.due)?p.due:null,told:[...stgList(p.told)],fired:[...stgList(p.fired)],seen:[...stgList(p.seen)],marks:obj(p.marks),flags:[...stgList(p.flags)],stakes:obj(p.stakes),spoke:obj(p.spoke),offers:[...stgList(p.offers)],leads:[...stgList(p.leads)],sign:typeof p.sign==='string'?p.sign:null,fight:stagingPlain(p.fight)?p.fight:null,ending:typeof p.ending==='string'?p.ending:null};
+}
+// The key a due beat is known by in requests and conversations: "beat:b1", "turn:found:1", "ending:p3"...
+export const paceDueKey=due=>stagingPlain(due)&&typeof due.kind==='string'?due.kind+(typeof due.id==='string'?':'+due.id:''):null;
+// The place ids a staging names (only their events are kept for a chapter), worked out once per story.
+const stgNamedMemo=new WeakMap();
+function stgNamed(game){
+ const story=game?.story;if(!stagingPlain(story))return new Set();
+ let m=stgNamedMemo.get(story);
+ if(!m||m.world!==game.world){const ids=stagingIds(game),set=new Set();for(const u of stagingNamesUsed(story.staging))if(u.kind==='place'){const id=ids.place(u.name);if(id)set.add(id);}m={world:game.world,set};stgNamedMemo.set(story,m);}
+ return m.set;
+}
+// A beat, complication or pressure step by its id, with the chapter (0-based) it belongs to.
+function stgFind(st,id){
+ for(const [i,c] of stgList(st?.chapters).entries())if(stagingPlain(c))for(const kind of ['beats','complications','pressure'])for(const b of stgList(c[kind]))if(stagingPlain(b)&&b.id===id)return {item:b,kind:kind==='beats'?'beat':kind==='complications'?'complication':'pressure',chapter:i};
+ return null;
+}
+const stgLevel=state=>Number.isInteger(state.game?.encounterLevel)?state.game.encounterLevel:Number.isInteger(state.hero?.level)?state.hero.level:1;
+const stgFire=(state,id)=>{const f=state.pace.fired;if(typeof id==='string'&&paceIdPattern.test(id)&&!f.includes(id)){f.push(id);if(f.length>400)f.splice(0,f.length-400);}};
+const stgLog=(state,line)=>{state.events.push(line);state.game={...state.game,log:[line,...stgList(state.game.log)].slice(0,40)};};
+// A creature as the engine seats it (the errand's rules, storyRules.js errandPlaces): below level 3 a pack or the orc
+// becomes a lighter creature of its kind; a creature at its side only from level 2 (the orc from 3), never the same kind
+// as the threat nor the kind it becomes.
+const stgSingles={zombies:'skeleton',wolves:'wolf',orc:'goblin'};
+function stgThreat(t,level){
+ if(!stagingPlain(t)||!templateKeys.includes(t.template))return null;
+ const name=stgClean(t.name,60),appearance=stgClean(t.appearance,400);if(!name||!appearance)return null;
+ const template=level>=3?t.template:stgSingles[t.template]??t.template,a=stagingPlain(t.ally)?t.ally:null;
+ const ally=a&&level>=2&&allyTemplates.includes(a.template)&&(a.template!=='orc'||level>=3)&&![template,t.template,stgSingles[t.template]].includes(a.template)&&stgClean(a.name,60)&&stgClean(a.appearance,400)?{template:a.template,name:stgClean(a.name,60),appearance:stgClean(a.appearance,400)}:null;
+ return {template,name,appearance,...(ally?{ally}:{})};
+}
+// A place becomes a lair held by a creature, armed for the hero's next arrival and uncleared until it is beaten again:
+// a landmark or a far place (never the three starting places), never where the hero is fighting, once a chapter.
+function stgArm(state,a){
+ if(!stagingPlain(a)||typeof a.at!=='string')return;
+ const g=state.game,id=state.ids.place(a.at);if(!id||!/^p\d{1,3}$/.test(id)||!worldPlaces(g).some(p=>p?.id===id))return;
+ if(stgFighting(g)&&mapLocation(g)===id)return;
+ const key='arm:'+id+':'+(state.pace.ch+1);if(state.pace.fired.includes(key))return;
+ const level=stgLevel(state),pick=Number.isInteger(a.fromLevel)&&level<a.fromLevel?(stagingPlain(a.otherwise)?a.otherwise:null):a,threat=pick?stgThreat(pick,level):null;if(!threat)return;
+ state.game={...g,world:{...g.world,places:worldPlaces(g).map(p=>{if(p.id!==id)return p;const q={...p,danger:'lair',threat};delete q.cleared;return q;})}};
+ stgFire(state,key);
+}
+function stgArmFight(state,i){const f=state.staging.chapters[i]?.fight;if(stagingPlain(f)&&stagingPlain(f.threat))stgArm(state,{...f.threat,at:f.at,fromLevel:f.fromLevel,otherwise:f.otherwise});}
+// People a written tale offers as companions wait until they are with the hero, then the offer is made ("Take X along").
+function stgOffers(state){
+ const p=state.pace;if(!p.offers.length)return;
+ const g=state.game,scene=npcScene(g);let offers=stagingPlain(g.joinOffers)?{...g.joinOffers}:{},changed=false;
+ p.offers=p.offers.filter(id=>{
+  const n=scene.find(x=>x.id===id);
+  if(!n||g.npcFate?.[id]==='dead'||g.followers?.[id]?.status==='following')return false;
+  if(n.present&&(n.hp??0)>0&&!offers[id]&&!n.grudge&&n.attitude!=='hostile'&&Object.keys(offers).length<3){offers[id]={reason:'Offered to come with you.',terms:''};changed=true;}
+  return true;
+ });
+ if(changed)state.game={...g,joinOffers:offers};
+}
+const stgEffectOrder=['bring','send','arm','place','stake','give','attitude','offer','fact','lead','flag','decide','clock','boss','advance','end'];
+// A `then`: each kind once, in a fixed order; what closes the chapter (advance, end) last. `from` is the id of what
+// fired (a closing chapter remembers it as what closed it).
+function stgThen(state,then,from){
+ if(!stagingPlain(then)||state.depth>3)return;
+ state.depth++;
+ try{for(const kind of stgEffectOrder)if(Object.hasOwn(then,kind)){try{stgEffect(state,kind,then[kind],from);}catch{}}}
+ finally{state.depth--;}
+}
+function stgEffect(state,kind,v,from){
+ const g=state.game,ids=state.ids,p=state.pace,story=g.story,last=p.ch>=stgList(story.chapters).length-1;
+ const person=w=>typeof w==='string'?ids.person(w):null;
+ if(kind==='bring'){
+  const id=person(v);if(!id||!isPersonId(id))return;const who=g.people?.[id];if(!who||g.npcFate?.[id]==='dead'||g.followers?.[id]?.status==='following')return;
+  const here=mapLocation(g);if(!/^(?:inn|bridge|tower|p\d{1,3})$/.test(String(here)))return;
+  const {hidden:_h,...rest}=who,next={...g,people:{...g.people,[id]:{...rest,home:here}}};
+  if(g.followers?.[id]?.status==='waiting')next.followers={...g.followers,[id]:{...g.followers[id],location:here}};
+  state.game=next;state.happened=true;
+ }else if(kind==='send'){
+  if(!stagingPlain(v))return;const id=person(v.who),to=typeof v.to==='string'?ids.place(v.to):null;
+  if(!id||!isPersonId(id)||!to||!g.people?.[id]||g.npcFate?.[id]==='dead')return;
+  const next={...g,people:{...g.people,[id]:{...g.people[id],home:to}}};
+  if(g.followers?.[id]){const f={...g.followers};delete f[id];if(Object.keys(f).length)next.followers=f;else delete next.followers;}
+  if(g.joinOffers?.[id]){const o={...g.joinOffers};delete o[id];if(Object.keys(o).length)next.joinOffers=o;else delete next.joinOffers;}
+  state.game=next;state.happened=true;
+ }else if(kind==='arm')stgArm(state,v);
+ else if(kind==='place'){
+  if(!stagingPlain(v))return;const id=typeof v.at==='string'?ids.place(v.at):null;if(!id||!/^p\d{1,3}$/.test(id))return;
+  const description=stgClean(v.description,300),danger=['safe','risky'].includes(v.danger)?v.danger:null;if(!description&&!danger)return;
+  state.game={...g,world:{...g.world,places:worldPlaces(g).map(x=>{if(x.id!==id)return x;const q={...x};if(description)q.description=description;if(danger&&q.danger!=='lair'){if(danger==='risky')q.danger='risky';else delete q.danger;}return q;})}};
+ }else if(kind==='stake'){
+  if(!stagingPlain(v))return;const known=new Set(stgList(state.staging.stakes).map(k=>k?.id));
+  for(const [k,s] of Object.entries(v))if(known.has(k)&&stagingText(s,stagingLimits.stakeState)&&p.stakes[k]!==s){p.stakes[k]=s;state.happened=true;}
+ }else if(kind==='give'){
+  if(!stagingPlain(v))return;const name=stgClean(v.name,60),note=stgClean(v.note,160);if(!name)return;
+  const got=applyLoot(g,state.hero,{gold:0,items:[{name,kind:'quest',qty:1,...(note?{note}:{})}]});if(got.error)return;
+  state.game=got.game;for(const line of got.lines)stgLog(state,line);
+ }else if(kind==='attitude'){
+  if(!stagingPlain(v)||!attitudeLevels.includes(v.to))return;const id=person(v.who);if(!id||g.npcFate?.[id]==='dead')return;
+  const m=stagingPlain(g.npcMemory?.[id])?g.npcMemory[id]:{},to=m.grudge?'hostile':m.bond&&['hostile','unfriendly','indifferent'].includes(v.to)?'friendly':v.to,memory=stgClean(v.memory,160);
+  state.game={...g,npcMemory:{...g.npcMemory,[id]:{...m,attitude:to,response:attitudeResponses[to]??m.response,memories:[...stgList(m.memories),...(memory?[memory]:[])].slice(-12)}}};
+ }else if(kind==='offer'){
+  const id=person(v);if(!id||g.npcFate?.[id]==='dead'||g.followers?.[id]?.status==='following')return;
+  if(!p.offers.includes(id)&&p.offers.length<12)p.offers.push(id);
+  stgOffers(state);
+ }else if(kind==='fact'){
+  const fact=stgClean(v,200);if(fact)state.game={...g,worldFacts:[...stgList(g.worldFacts),fact].slice(-60)};
+ }else if(kind==='lead'){
+  if(!stagingPlain(v))return;
+  if(typeof v.open==='string'&&stgList(story.leads).some(l=>l?.id===v.open&&!l.done)&&!p.leads.includes(v.open)&&p.leads.length<stagingLimits.leads)p.leads.push(v.open);
+  if(typeof v.close==='string')stgCloseLead(state,v.close);
+ }else if(kind==='flag'){
+  if(typeof v==='string'&&stagingIdPattern.test(v)&&v!=='late'&&!p.flags.includes(v)&&p.flags.length<stagingLimits.flags)p.flags.push(v);
+ }else if(kind==='decide'){
+  if(!stagingPlain(v))return;const [c,o]=Object.entries(v)[0]??[];stgMark(state,c,o,'lapsed');
+ }else if(kind==='clock'){
+  const left=Math.max(0,stgList(state.staging.chapters[p.ch]?.pressure).length-p.step);
+  if(v===1)p.owed=Math.min(left,p.owed+1);else if(v===-1)p.held=Math.min(99,p.held+1);
+ }else if(kind==='advance'){if(v===true&&!last)stgClose(state,from);}
+ else if(kind==='end'){if(v==='late'&&last)stgClose(state,from,{late:true});}
+ // 'boss' (the boss's minions sent off, the boss hurt) is played from the fight-shape step (Phase C); accepted now.
+}
+function stgCloseLead(state,id){
+ const lead=stgList(state.game.story.leads).find(l=>l?.id===id);if(!lead||lead.done)return;
+ const done=finishLead(state.game,null,id);if(done.error)return;
+ state.game=done.game;state.events.push(...stgList(done.events));state.happened=true;
+}
+// The choice of a chapter by its id.
+const stgChoice=(st,id)=>stgList(st?.chapters).map(c=>c?.choice).find(c=>stagingPlain(c)&&c.id===id&&Array.isArray(c.options))??null;
+// A choice made (by the player through the Dungeon Master: 'chosen'; settled by the engine: 'settled'; let lapse:
+// 'lapsed'): recorded once, its option's `then` applied once, and a line for the feed and the story log.
+function stgMark(state,c,o,how){
+ const choice=stgChoice(state.staging,c),opt=choice?.options.find(x=>stagingPlain(x)&&x.id===o);if(!opt||state.pace.marks[c])return;
+ state.pace.marks[c]=o;stgApplyChoice(state,choice,opt,how);
+}
+function stgApplyChoice(state,choice,opt,how){
+ if(state.pace.fired.includes('chosen:'+choice.id))return;
+ stgFire(state,'chosen:'+choice.id);if(how==='lapsed')stgFire(state,'lapsed:'+choice.id);
+ state.happened=true;
+ stgLog(state,(how==='lapsed'?'Left to fate: ':'You chose: ')+stgClean(opt.label,80).replace(/[.\s]+$/,'')+'.');
+ stgThen(state,opt.then,'opt:'+choice.id+':'+opt.id);
+}
+// A chapter begins: its counters start again, its set piece is armed and its opening's effects apply.
+function stgOpenChapter(state,i){
+ const g=state.game,p=state.pace,minutes=mapState(g).minutes??0,here=mapLocation(g);
+ Object.assign(p,{ch:i,turns:0,quiet:0,quietMax:0,since:minutes,day:Math.floor(minutes/1440),step:0,owed:0,held:0,clockAt:0,seen:typeof here==='string'&&paceIdPattern.test('reach:'+here)?['reach:'+here]:[],spoke:{},sign:null,fight:null});
+ stgArmFight(state,i);
+ const o=state.staging.chapters[i]?.opening;if(stagingPlain(o))stgThen(state,o.then,'opening:'+(i+1));
+}
+// The chapter under way closes (its find, a beat's or a step's advance, the clock run out): what its find gives, its own
+// effects and its choice's late option (both counting from the next chapter's opening), and the next chapter opens; its
+// truth is due, with what closed it. In the last chapter the tale completes and the engine picks the ending.
+function stgClose(state,closer,{late=false}={}){
+ const g=state.game,s=g.story,p=state.pace,ch=p.ch,c=state.staging.chapters[ch]??{},last=ch>=stgList(s.chapters).length-1;
+ if(state.closed||s.status!=='active'||(s.chapter??0)!==ch)return;
+ state.closed=true;state.happened=true;stgFire(state,'found:'+(ch+1));
+ const closing=()=>{
+  if(stagingPlain(c.found?.item))stgEffect(state,'give',c.found.item);
+  stgThen(state,c.then,'close:'+(ch+1));
+  if(stagingPlain(c.choice)&&typeof c.choice.late==='string'&&!state.pace.marks[c.choice.id])stgMark(state,c.choice.id,c.choice.late,'lapsed');
+ };
+ if(!last){
+  const advanced=advanceChapter(g,null,state.hero);if(advanced.error){state.closed=false;return;}
+  state.game=advanced.game;state.events.push(...stgList(advanced.events));
+  stgOpenChapter(state,ch+1);closing();
+  state.pace.due={kind:'turn',id:closer};
+  return;
+ }
+ closing();
+ if(late&&!state.pace.flags.includes('late'))state.pace.flags.push('late');
+ state.game={...state.game,story:{...state.game.story,status:'complete'}};
+ stgLog(state,'Adventure complete: '+s.title);
+ const ending=endingOf(state.game,state.pace);
+ if(ending){state.pace.ending=ending.id;stgLog(state,'Ending: '+stgClean(ending.title,60).replace(/[.\s]+$/,'')+'.');}
+ state.pace.due={kind:'ending',id:closer};
+}
+// A due beat the request carried is told: marked so (a spared step is not), and nothing is due.
+function stgTold(state,carried){
+ const p=state.pace,key=paceDueKey(p.due);if(!key||!carried.has(key))return;
+ const d=p.due,id=typeof d.id==='string'?d.id:null;
+ if(id&&stgFind(state.staging,id)&&!p.fired.includes('spared:'+id)&&!p.told.includes(id)&&p.told.length<400)p.told.push(id);
+ p.due=null;state.happened=true;
+}
+// The ending the tale takes: the first whose condition holds, else the last (the default).
+export function endingOf(game,pace=game?.pace){
+ const st=stgStaging(game);if(!st)return null;
+ const list=stgList(st.endings).filter(e=>stagingPlain(e)&&typeof e.id==='string');if(!list.length)return null;
+ for(const e of list.slice(0,-1))if(e.if!==undefined&&e.if!==null&&beatHolds(game,e.if,pace))return e;
+ return list[list.length-1];
+}
+// Whether a lead of the tale is open now: from its chapter (staging.leads opens, default the first), or opened by an
+// effect. A lead the staging does not name is open from the start, as in any tale.
+export function leadOpenNow(game,id,pace=game?.pace){
+ const st=stgStaging(game);if(!st)return true;
+ const entry=stgList(st.leads).find(l=>stagingPlain(l)&&l.id===id),opens=Number.isInteger(entry?.opens)?entry.opens:1;
+ return (game.story.chapter??0)+1>=opens||stgList(pace?.leads).includes(id);
+}
+// The foe can be confronted: from chapter confrontFrom (default the last), and only while boss.if holds.
+export function bossOpen(game){
+ const st=stgStaging(game);if(!st)return true;
+ const from=stagingInt(st.confrontFrom,1,99)?st.confrontFrom:st.chapters.length,cond=st.boss?.if;
+ return (game.story.chapter??0)+1>=from&&(cond===undefined||cond===null||beatHolds(game,cond));
+}
+// The engine's refusal of a move against the foe held back to its chapter (approach, or an attack at the stronghold).
+export function bossBlocked(game,action){
+ if(!stgStaging(game)||game.stage!=='bridge'||!(game.enemyHP>0)||game.story.status!=='active')return null;
+ if(action!=='approach'&&action?.type!=='encounter-attack')return null;
+ return bossOpen(game)?null:(game.story.foe+' is beyond your reach for now.');
+}
+// The choice open now (it has been put, or is due to be), not yet made, in the chapter under way.
+function stgOpenChoice(game){
+ const st=stgStaging(game),p=game?.pace;if(!st||!stagingPlain(p)||game.story.status!=='active')return null;
+ const c=st.chapters[p.ch]?.choice;
+ return stagingPlain(c)&&typeof c.id==='string'&&Array.isArray(c.options)&&!p.marks?.[c.id]&&stgList(p.fired).includes('choice:'+c.id)?c:null;
+}
+// While a choice is open (out of a fight), the Dungeon Master is offered each option the player may choose now, to select
+// only when the player's words or deeds clearly choose it (never a chip: quickActions.js passes them over).
+export function stagingChoices(hero,game,health=null){
+ if(stgFighting(game))return [];
+ const c=stgOpenChoice(game);if(!c)return [];
+ return c.options.filter(o=>stagingPlain(o)&&typeof o.id==='string'&&typeof o.label==='string'&&(o.if===undefined||o.if===null||beatHolds(game,o.if))).map(o=>({id:'tale-choice:'+c.id+':'+o.id,label:'The player commits to: '+stgClean(o.label,80)+' (ONLY when their words or deeds clearly choose it)',action:'tale-choice:'+c.id+':'+o.id}));
+}
+// The move 'tale-choice:<choice>:<option>' (adventureRules.js stepHandler): the choice is recorded; withBeats applies
+// what it costs and writes "You chose: …" (after the step, so the story's names are never retold in it).
+export function taleChoiceStep(step){
+ const {game,health,action}=step,parts=String(action).split(':'),c=stgOpenChoice(game);
+ if(parts.length!==3||!c||c.id!==parts[1])return {game,health,error:'That turning point is not before you now.'};
+ const o=c.options.find(x=>stagingPlain(x)&&x.id===parts[2]);if(!o)return {game,health,error:'That is not one of the ways open to you.'};
+ if(stgFighting(game))return {game,health,error:'Finish the fight first.'};
+ if(o.if!==undefined&&o.if!==null&&!beatHolds(game,o.if))return {game,health,error:'That way is not open to you yet.'};
+ return {game:{...game,pace:{...game.pace,marks:{...game.pace.marks,[c.id]:o.id}}},health,events:[]};
+}
+// A written tale is seated: chapter 1's set piece armed, the stakes as written, and the pace as the tale begins.
+export function seatStaging(game,hero){
+ const st=stgStaging(game);if(!st||game.story.status!=='active')return game;
+ try{
+  const state={game:{...game},pace:openingPace(game),events:[],hero,staging:st,ids:stagingIds(game),depth:0,closed:false,happened:false};
+  state.pace.stakes=Object.fromEntries(stgList(st.stakes).filter(k=>stagingPlain(k)&&typeof k.id==='string'&&stagingText(k.state,stagingLimits.stakeState)).map(k=>[k.id,k.state]));
+  stgArmFight(state,state.pace.ch);
+  return {...state.game,pace:state.pace};
+ }catch{return game;}
+}
+// One move of a written tale, after the step (WRITTEN-TALES.md 4.4): told, counters, a chapter closed outside, found,
+// beats, the choice, the clock (then leads by their conditions and offers that wait). Returns the game, the lines it
+// adds to the turn's events, and what is due. A different tale (a new one being seated) is left alone.
+export function withBeats(before,after,hero,{action=null,conversation=null}={}){
+ const none={game:after,events:[],beat:null};
+ try{
+  const st=stgStaging(after);
+  if(!st||!stagingPlain(after.story)||!stagingPlain(before?.story)||(before.story.id??null)!==(after.story.id??null))return none;
+  const state={game:after,pace:stgPace(after),events:[],hero,staging:st,ids:stagingIds(after),depth:0,closed:false,happened:false},p=state.pace;
+  const carried=new Set([...stgList(conversation?.beats),conversation?.beatTold].filter(k=>typeof k==='string'));
+  const move=!(conversation?.direct||conversation?.trigger);
+  // 1. Told: the beat the request carried.
+  stgTold(state,carried);
+  const finish=()=>{stgTold(state,carried);if(state.happened)p.quiet=0;if(p.quiet>p.quietMax)p.quietMax=p.quiet;state.game={...state.game,pace:p};return {game:state.game,events:state.events,beat:p.due};};
+  // A tale completed from outside (the Dungeon Master's story-complete): the engine still picks its ending.
+  if(after.story.status!=='active'){
+   if(before.story.status==='active'&&!p.ending){const e=endingOf(after,p);if(e){p.ending=e.id;stgLog(state,'Ending: '+stgClean(e.title,60).replace(/[.\s]+$/,'')+'.');p.due={kind:'ending',id:'dm:'+(p.ch+1)};}}
+   return finish();
+  }
+  if(!move)return finish();
+  // 2. Counters: the chapter's moves, what happened (events kept for the chapter), who spoke, quiet, what is owed.
+  const fighting=stgFighting(before)||stgFighting(after),named=stgNamed(after),pace=stgPacing(st);
+  const seen=k=>{if(!p.seen.includes(k)&&p.seen.length<400&&paceIdPattern.test(k))p.seen.push(k);};
+  // The chapter's moves are counted out of a fight (the rounds of a fight are no stall), and drift owes a step every
+  // "drift" of them.
+  if(!fighting){p.turns++;if(pace.drift>0&&p.turns%pace.drift===0)p.owed=Math.min(Math.max(0,stgList(st.chapters[p.ch]?.pressure).length-p.step),p.owed+1);}
+  {const here=mapLocation(after);if(named.has(here))seen('reach:'+here);}
+  {const end=fightEnding(before,after),at=before.wildFight?.place??(before.stage==='combat'&&!before.dungeon?.active?'bridge':null);if(end.won&&at&&named.has(at))seen('won:'+at);}
+  {const c=before.npcCombat;if(c?.active&&after.npcCombat&&after.npcCombat.active===false){const enemies=stgList(c.order).filter(n=>n?.side==='enemy').map(n=>n.id);if(enemies.length&&enemies.every(id=>after.npcFate?.[id]||(after.npcHP?.[id]??1)<=0)){const at=mapLocation(before);if(named.has(at))seen('won:'+at);}}}
+  if(action?.type==='loot'){const at=mapLocation(after);if(named.has(at))seen('searched:'+at);}
+  if(action?.type==='ai-check'){const at=mapLocation(before);if(named.has(at))seen('checked:'+at);}
+  const rested=action==='long-rest';if(rested)seen('rest');
+  if(conversation&&conversation.told!=='game')for(const id of new Set(stgList(conversation.dialogue).map(l=>l?.speakerId)))if((id==='keeper'||id==='mara'||isPersonId(id))&&(Object.hasOwn(p.spoke,id)||Object.keys(p.spoke).length<100))p.spoke[id]=Math.min(999,(Number.isInteger(p.spoke[id])?p.spoke[id]:0)+1);
+  {const lines=fighting?[]:storyEvents(before,after,hero,{action}).filter(([kind,text])=>kind!=='rest'&&!(kind==='travel'&&/^Returned to /.test(text)));
+   const talk=action===null&&!!conversation;
+   if(fighting||lines.length)p.quiet=0;else p.quiet=Math.min(9999,p.quiet+(talk?1:2));}
+  {const left=()=>Math.max(0,stgList(st.chapters[p.ch]?.pressure).length-p.step),day=Math.floor((mapState(after).minutes??0)/1440);
+   if(day>p.day){if(pace.days>0)p.owed=Math.min(left(),p.owed+(day-p.day)*pace.days);p.day=day;}
+   if(rested&&pace.rest)p.owed=Math.min(left(),p.owed+1);}
+  // A choice the player made with this move (taleChoiceStep): what it costs applies now.
+  {const c=st.chapters[p.ch]?.choice,o=stagingPlain(c)&&p.marks[c.id];if(o&&!p.fired.includes('chosen:'+c.id)){const opt=stgList(c.options).find(x=>stagingPlain(x)&&x.id===o);if(opt)stgApplyChoice(state,c,opt,'chosen');}}
+  // 3. A chapter closed outside (the Dungeon Master's story-advance): closed as the engine closes one.
+  {const ch=after.story.chapter??0;
+   if(ch>p.ch&&ch<st.chapters.length&&!state.closed){
+    const old=p.ch,c=st.chapters[old]??{};state.closed=true;state.happened=true;stgFire(state,'found:'+(old+1));
+    stgOpenChapter(state,ch);
+    if(stagingPlain(c.found?.item))stgEffect(state,'give',c.found.item);
+    stgThen(state,c.then,'close:'+(old+1));
+    if(stagingPlain(c.choice)&&typeof c.choice.late==='string'&&!p.marks[c.choice.id])stgMark(state,c.choice.id,c.choice.late,'lapsed');
+    p.due=stagingPlain(st.chapters[ch]?.opening)?{kind:'opening',id:'opening:'+(ch+1)}:null;
+   }}
+  const calm=()=>!state.closed&&!stgFighting(state.game)&&state.game.story.status==='active';
+  // 4. Found: a route that holds closes the chapter (or completes the tale), replacing a beat due but untold.
+  if(calm()&&stgList(st.chapters[p.ch]?.found?.any).some(r=>beatHolds(state.game,r,p)))stgClose(state,'found:'+(p.ch+1));
+  // 5. Beats: when nothing is due, the first unfired beat whose `when` and `if` hold.
+  if(calm()&&!p.due)for(const b of stgList(st.chapters[p.ch]?.beats)){
+   if(!stagingPlain(b)||typeof b.id!=='string'||p.fired.includes(b.id)||!beatHolds(state.game,b.when,p)||(b.if!==undefined&&b.if!==null&&!beatHolds(state.game,b.if,p)))continue;
+   stgFire(state,b.id);p.due={kind:'beat',id:b.id};state.happened=true;stgThen(state,b.then,b.id);break;
+  }
+  // 6. The choice: an option the engine settles by its `when`; else the choice opens when `opens` holds and nothing is due.
+  if(calm()){const c=st.chapters[p.ch]?.choice;
+   if(stagingPlain(c)&&typeof c.id==='string'&&Array.isArray(c.options)&&!p.marks[c.id]){
+    const o=c.options.find(x=>stagingPlain(x)&&x.when!==undefined&&x.when!==null&&beatHolds(state.game,x.when,p)&&(x.if===undefined||x.if===null||beatHolds(state.game,x.if,p)));
+    if(o)stgMark(state,c.id,o.id,'settled');
+    else if(!p.due&&!p.fired.includes('choice:'+c.id)&&(c.opens===undefined||c.opens===null||beatHolds(state.game,c.opens,p))){stgFire(state,'choice:'+c.id);p.due={kind:'choice',id:c.id};state.happened=true;}
+   }}
+  // 7. The clock, only when nothing is due, out of a fight, at least two moves after its last beat: a tick owed (a rest,
+  // a day, drift, {"clock": 1}) fires the next pressure step; quiet fires the next complication that may, else the step.
+  // The last step closes the chapter (or ends the tale late) whatever it says.
+  if(calm()&&!p.due&&p.turns-p.clockAt>=2){
+   const steps=stgList(st.chapters[p.ch]?.pressure),quietBy=p.quiet>=2*pace.quiet;
+   if(p.owed>0||quietBy){
+    let done=false;
+    if(!p.owed){const x=stgList(st.chapters[p.ch]?.complications).find(x=>stagingPlain(x)&&typeof x.id==='string'&&!p.fired.includes(x.id)&&(x.if===undefined||x.if===null||beatHolds(state.game,x.if,p)));
+     if(x){stgFire(state,x.id);p.due={kind:'complication',id:x.id};p.clockAt=p.turns;state.happened=true;stgThen(state,x.then,x.id);done=true;}}
+    if(!done&&p.step<steps.length){
+     p.clockAt=p.turns;state.happened=true;if(p.owed>0)p.owed--;
+     if(p.held>0)p.held--;
+     else{const s=steps[p.step];p.step++;
+      if(stagingPlain(s)&&typeof s.id==='string'){
+       const spared=s.if!==undefined&&s.if!==null&&p.step<steps.length&&!beatHolds(state.game,s.if,p);
+       stgFire(state,s.id);p.due={kind:'pressure',id:s.id};
+       if(spared){stgFire(state,'spared:'+s.id);if(stagingText(s.spared?.sign,stagingLimits.sign))p.sign=s.spared.sign;}
+       else{if(stagingText(s.sign,stagingLimits.sign))p.sign=s.sign;stgThen(state,s.then,s.id);}
+      }
+      if(p.step>=steps.length&&!state.closed)stgClose(state,typeof s?.id==='string'?s.id:'clock:'+(p.ch+1),{late:true});
+     }
+    }
+   }
+  }
+  // Leads closed by their conditions (paid once), and offers that wait for their person.
+  if(!stgFighting(state.game)&&state.game.story.status==='active')for(const l of stgList(st.leads)){
+   if(!stagingPlain(l)||typeof l.id!=='string'||l.done===undefined||l.done===null)continue;
+   const lead=stgList(state.game.story.leads).find(x=>x?.id===l.id);
+   if(lead&&!lead.done&&leadOpenNow(state.game,l.id,p)&&beatHolds(state.game,l.done,p))stgCloseLead(state,l.id);
+  }
+  stgOffers(state);
+  return finish();
+ }catch{return none;}
+}
+// The same, applied to a preview of a move (useDmTurn.js and server-turn.cjs, before the game tells a routine move and
+// before a request is built), so a beat this move fires is in this very reply.
+export function stagedPreview(before,preview,hero,action){
+ if(!preview||preview.error||preview.waiting||!preview.game)return preview;
+ const staged=withBeats(before,preview.game,hero,{action,conversation:null});
+ return staged.game===preview.game?preview:{...preview,game:staged.game,events:[...stgList(preview.events),...staged.events]};
+}
+// ---------- What the Dungeon Master and the screens read ----------
+// The one thing due now that the next reply to the Dungeon Master tells: none in a fight (it waits), none of a kind this
+// build does not know.
+export function beatDue(game){
+ const due=game?.pace?.due;
+ if(!stgStaging(game)||!stagingPlain(due)||!paceDueKinds.includes(due.kind)||stgFighting(game))return null;
+ return due;
+}
+export const beatKey=game=>paceDueKey(beatDue(game));
+// The beat a request for this scene carries (the rule dm-server.cjs follows when it writes the turn's note): none on a
+// scene cue, out of character, or for a spell awaiting its ruling.
+export function beatSent(game,{engineResolved=null,sceneTrigger=null,outOfCharacter=null}={}){
+ if(sceneTrigger||outOfCharacter||(game?.pendingSpell&&!engineResolved))return null;
+ return beatKey(game);
+}
+function stgCloserTexts(st,game,id){
+ const f=typeof id==='string'?stgFind(st,id):null;if(!f)return {tell:null,line:null};
+ const spared=stgList(game.pace?.fired).includes('spared:'+id);
+ return {tell:stgClean(spared?f.item.spared?.tell:f.item.tell,300)||null,line:stgClean(spared?f.item.spared?.line:f.item.line,300)||null};
+}
+// The due beat's words: for the Dungeon Master (`tell`, the chapter's truth and the next chapter's opening, the choice's
+// question, the ending) and the game's own voice-neutral `line` (told beside any narrator when it cannot be reached).
+function stgBeatWords(game,due){
+ const st=stgStaging(game),s=game.story;if(!st||!due)return null;
+ const kind=due.kind,id=typeof due.id==='string'?due.id:null;
+ if(['beat','complication','pressure'].includes(kind)){const f=stgFind(st,id);if(!f)return null;const t=stgCloserTexts(st,game,id);return {kind,id,tell:t.tell,line:t.line,...(stgList(game.pace?.fired).includes('spared:'+id)?{spared:true}:{})};}
+ if(kind==='turn'){const closed=s.chapters[(s.chapter??0)-1],o=st.chapters[s.chapter??0]?.opening,t=stgCloserTexts(st,game,id);if(!closed)return null;
+  return {kind,id,...(t.tell?{tell:t.tell}:{}),truth:stgClean(closed.turn,400),...(stagingPlain(o)?{opening:stgClean(o.tell,300)}:{}),line:[t.line,stgClean(closed.turn,400),stagingPlain(o)?stgClean(o.line,300):''].filter(Boolean).join(' ')};}
+ if(kind==='opening'){const o=st.chapters[s.chapter??0]?.opening;if(!stagingPlain(o))return null;return {kind,id,tell:stgClean(o.tell,300),line:stgClean(o.line,300)};}
+ if(kind==='choice'){const c=stgChoice(st,id);if(!c)return null;return {kind,id,ask:stgClean(c.ask,300),line:stgClean(c.ask,300)};}
+ if(kind==='ending'){const e=stgList(st.endings).find(x=>stagingPlain(x)&&x.id===game.pace?.ending);if(!e)return null;const t=stgCloserTexts(st,game,id);
+  return {kind,id,...(t.tell?{tell:t.tell}:{}),title:stgClean(e.title,60),text:stgClean(e.text,700),line:[t.line,stgClean(e.text,700)].filter(Boolean).join(' ')};}
+ return null;
+}
+// The tale's state for the Dungeon Master (context.taleNow, the turn's part: dm-server.cjs makes the beat the turn's
+// note and the stakes and the sign `now` lines): the due beat, what is at stake, and the latest sign of the foe's plan.
+export function taleNow(game){
+ const st=stgStaging(game);if(!st)return null;
+ const out={},due=beatDue(game),words=due?stgBeatWords(game,due):null,stakes=talesStakes(game);
+ if(words){const {line:_l,...beat}=words;out.beat=beat;}
+ if(stakes.length)out.stakes=stakes;
+ if(typeof game.pace?.sign==='string'&&game.pace.sign.trim())out.sign=game.pace.sign;
+ return Object.keys(out).length?out:null;
+}
+// What is at stake, and its state now (the Quest tab's "At stake").
+export function talesStakes(game){
+ const st=stgStaging(game);if(!st)return [];
+ return stgList(st.stakes).filter(k=>stagingPlain(k)&&typeof k.id==='string'&&typeof k.name==='string').map(k=>({name:stgClean(k.name,60),state:stgClean(stagingText(game.pace?.stakes?.[k.id],stagingLimits.stakeState)?game.pace.stakes[k.id]:k.state,80)}));
+}
+// The due beat in the game's own words, for a telling the game makes when the Dungeon Master cannot be reached.
+export function beatLineOf(game){const due=beatDue(game),words=due?stgBeatWords(game,due):null;return words?.line||null;}
+// A telling the game made itself (the Dungeon Master unreachable, or a calm move it tells) with the due beat's line
+// added, marked so the beat counts as told (conversation.beatTold).
+export function withBeatLine(body,game){
+ const key=beatKey(game),line=beatLineOf(game);if(!key||!line||!body)return body;
+ return {...body,narration:(String(body.narration??'').trim()+' '+line).trim().slice(0,1790),beatTold:key};
+}
+// The chapter's part for the Dungeon Master (dmSceneRules.js quest): where and how its truth is found, what the foe is
+// doing now, how far the tale has come, and whether the foe is beyond reach. Null for a tale with no staging.
+export function stagingQuest(game){
+ const st=stgStaging(game);if(!st)return null;
+ const ch=game.story.chapter??0,c=st.chapters[ch]??{},steps=stgList(c.pressure).length,step=Number.isInteger(game.pace?.step)?game.pace.step:0;
+ const length=writtenLengths.includes(st.length)?st.length:'short';
+ return {...(stagingText(c.where,400)?{where:c.where}:{}),...(stagingText(c.agenda,400)?{agenda:c.agenda}:{}),pace:(length[0].toUpperCase()+length.slice(1)+' tale, chapter '+(ch+1)+' of '+st.chapters.length+'; '+Math.min(step,steps)+' of '+steps+' steps of the foe\'s plan taken.').slice(0,100),...(bossOpen(game)?{}:{bossLater:true})};
+}
+// What a set piece or the boss fight is for (encounter.objective, read in the fight).
+export function stagingObjective(game){
+ const st=stgStaging(game);if(!st||!stgFighting(game))return null;
+ if(game.wildFight){const f=st.chapters[game.story.chapter??0]?.fight;return stagingPlain(f)&&typeof f.at==='string'&&stagingIds(game).place(f.at)===game.wildFight.place&&stagingText(f.objective,300)?f.objective:null;}
+ if(game.stage==='combat'&&!game.dungeon?.active&&stagingText(st.boss?.objective,300))return st.boss.objective;
+ return null;
+}
+// What the Suggestions bar offers from the tale itself: on the opening turn its three first lines, and while a choice is
+// open each option's line (filled into the message box, never sent).
+export function taleSayLines(game){
+ const st=stgStaging(game);if(!st||game.story.status!=='active'||stgFighting(game))return [];
+ const opening=!stgList(game.playback).some(t=>stgList(t?.events).some(e=>e?.kind==='player'));
+ if(opening&&Array.isArray(st.firstSay))return st.firstSay.filter(t=>typeof t==='string'&&t.trim()).slice(0,3);
+ const c=stgOpenChoice(game);
+ return c?c.options.filter(o=>stagingPlain(o)&&typeof o.say==='string'&&(o.if===undefined||o.if===null||beatHolds(game,o.if))).map(o=>o.say).slice(0,4):[];
+}
+// A written place's own arrival lines (staging.places colour), for a journey the game tells itself (calmLines.js).
+export function placeColour(game,placeId){
+ const st=stgStaging(game);if(!st||!stagingPlain(st.places))return [];
+ for(const [name,v] of Object.entries(st.places))if(stagingIds(game).place(name)===placeId)return stgList(v?.colour).filter(t=>typeof t==='string'&&t.trim());
+ return [];
+}
+// The latest sign of the foe's plan (calmLines.js adds it, once, to a journey or rest the game tells).
+export const pressureSign=game=>stgStaging(game)&&typeof game.pace?.sign==='string'&&game.pace.sign.trim()?game.pace.sign:null;
+// Lines for the story log (storyLog.js storyEvents): stakes that changed, choices made, the ending taken.
+export function stagingLogLines(before,after){
+ const st=stgStaging(after),out=[];if(!st)return out;
+ const b=stagingPlain(before?.pace)?before.pace:{},a=stagingPlain(after.pace)?after.pace:{};
+ for(const k of stgList(st.stakes))if(stagingPlain(k)&&typeof a.stakes?.[k.id]==='string'&&a.stakes[k.id]!==(b.stakes?.[k.id]??k.state))out.push(['quest','At stake: '+stgClean(k.name,60)+', '+a.stakes[k.id]+'.']);
+ for(const [c,o] of Object.entries(stagingPlain(a.marks)?a.marks:{}))if(b.marks?.[c]!==o){const opt=stgChoice(st,c)?.options.find(x=>x?.id===o);if(opt)out.push(['quest',(stgList(a.fired).includes('lapsed:'+c)?'Left to fate: ':'You chose: ')+stgClean(opt.label,80).replace(/[.\s]+$/,'')+'.']);}
+ if(typeof a.ending==='string'&&a.ending!==b.ending){const e=stgList(st.endings).find(x=>x?.id===a.ending);if(e)out.push(['quest','Ending: '+stgClean(e.title,60).replace(/[.\s]+$/,'')+'.']);}
+ return out;
+}
+// ---------- The shelf's check of a copy (written-shelf.cjs) ----------
+// The copy freshStoryGame makes of a written tale, checked as the shelf serves it: it seats a ready-made hero (the
+// Fighter, or `hero`) into a valid adventure with an introduction and two chapters or more, its staging is sound, every
+// name the staging uses resolves, nothing is armed or changed at the three starting places, and keeper and mara are
+// never moved. {ok, problems}.
+export function writtenCheck(story,{hero=null}={}){
+ const problems=[];
+ try{
+  if(!stagingPlain(story)||!stagingPlain(story.staging))return {ok:false,problems:['the tale has no staging']};
+  const who=hero??readyHero('fighter'),game=freshStoryGame(who,story,newAdventure(who)),s=game.story;
+  if(!validAdventure(adventureSnapshot(who,game,null,true),who))problems.push('the seated game is not a valid adventure');
+  if(!s.introduction)problems.push('the tale has no introduction');
+  if(stgList(s.chapters).length<2)problems.push('the tale has fewer than two chapters');
+  if(!validStaging(s))problems.push(...stagingProblems(s,{most:5}));
+  if(!stagingPlain(game.pace))problems.push('the tale was not staged');
+  const ids=stagingIds(game);
+  for(const u of stagingNamesUsed(s.staging))if(u.kind!=='item'&&!(u.kind==='place'?ids.place(u.name):ids.person(u.name)))problems.push(u.path+': "'+u.name+'" names nothing in this tale');
+  const starting=['inn','bridge','tower'],walk=(then,path)=>{if(!stagingPlain(then))return;
+   if(stagingPlain(then.arm)&&starting.includes(ids.place(then.arm.at)))problems.push(path+'.arm: a fight at a starting place');
+   if(stagingPlain(then.place)&&starting.includes(ids.place(then.place.at)))problems.push(path+'.place: a starting place changed');
+   for(const k of ['bring','send']){const who2=k==='bring'?then.bring:then.send?.who;if(typeof who2==='string'&&['keeper','mara'].includes(ids.person(who2)))problems.push(path+'.'+k+': keeper and mara are never moved');}};
+  stgList(s.staging.chapters).forEach((c,i)=>{if(!stagingPlain(c))return;const p='staging.chapters['+i+']';
+   if(stagingPlain(c.fight)&&starting.includes(ids.place(c.fight.at)))problems.push(p+'.fight: a fight at a starting place');
+   walk(c.then,p+'.then');walk(c.opening?.then,p+'.opening.then');for(const kind of ['beats','complications','pressure'])stgList(c[kind]).forEach((b,j)=>walk(b?.then,p+'.'+kind+'['+j+'].then'));stgList(c.choice?.options).forEach((o,j)=>walk(o?.then,p+'.choice.options['+j+'].then'));});
+ }catch(e){problems.push('the tale does not seat: '+String(e?.message??e));}
+ return {ok:problems.length===0,problems};
 }

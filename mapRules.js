@@ -389,6 +389,9 @@ export function beyondError(game,bearing){
  if(!Object.hasOwn(bearings,bearing))return 'Choose a direction: north, south, east or west.';
  if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
  if(!['inn','bridge','tower','wild'].includes(game.stage)||game.wildFight||game.npcCombat?.active||game.dungeon?.active)return 'Finish this encounter before setting out for another land.';
+ // A written tale keeps the hero on its own map until its last chapter (staging.noBeyond, by default for short and
+ // medium tales: WRITTEN-TALES.md).
+ {const st=game.story.staging,chapters=Array.isArray(game.story.chapters)?game.story.chapters.length:0;if(st&&typeof st==='object'&&(st.noBeyond??st.length!=='long')===true&&(game.story.chapter??0)<chapters-1)return 'Not yet: this tale keeps to its own land until its last chapter.';}
  {const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
  if(!roomToMake(game,{lands:1,places:1}))return 'The road goes no further: your map is full, and every land and place on it is one you have been to or still need. Travel back to a land you know.';
  const edge=edgePlace(game,bearing);

@@ -18,6 +18,7 @@ import {livingAllies} from "./encounterRules";
 import {combatBasics} from "./combatRules";
 import {bonusChoices,brawlBonusChoices,brawlFeatChoices,sustainActions,featChoices} from "./turnResourceRules";
 import {partyOthers} from "./dmContext";
+import {bossOpen,isStaged,leadOpenNow,stagingChoices} from "./stagingRules";
 // Up to three carried weapons (main weapon first), then bare hands: the attacks a sentence can turn into.
 const attackChoices=hero=>{const all=attackOptions(hero);return [...all.filter(w=>!w.unarmed).slice(0,3),...all.filter(w=>w.unarmed)];};
 // Weapons the hero can throw right now (a dagger, handaxe, javelin or spear still in hand).
@@ -83,7 +84,8 @@ export function dmChoices(hero,game,health=null) {
   const c=campaignState(game),map=mapState(game);
   // The action is spent this turn: a bonus action, or the end of the turn, is all that remains.
   if(game.stage==='combat'&&game.actionUsed){add('end-turn','End your turn');for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);return choices;}
-  if(game.stage==='bridge'&&game.enemyHP>0){for(const w of attackChoices(hero))add('encounter-attack:'+w.name,'Attack '+(game.story?.foe??'Lantern Wisp')+' with '+w.name,{type:'encounter-attack',weapon:w.name});for(const w of throwChoices(hero))add('encounter-throw:'+w.name,'Throw '+w.name+' at '+(game.story?.foe??'Lantern Wisp'),{type:'encounter-attack',weapon:w.name,thrown:true});}
+  // A written tale's foe is held back to its chapter (stagingRules.js bossOpen): no attack on it at the stronghold before.
+  if(game.stage==='bridge'&&game.enemyHP>0&&bossOpen(game)){for(const w of attackChoices(hero))add('encounter-attack:'+w.name,'Attack '+(game.story?.foe??'Lantern Wisp')+' with '+w.name,{type:'encounter-attack',weapon:w.name});for(const w of throwChoices(hero))add('encounter-throw:'+w.name,'Throw '+w.name+' at '+(game.story?.foe??'Lantern Wisp'),{type:'encounter-attack',weapon:w.name,thrown:true});}
   // Anyone present and not dead can be attacked; someone lying unconscious can be finished off.
   const victims=npcScene(game).filter(n=>n.present&&n.fate!=='dead');
   // An Unarmed Strike can grapple or shove (prone) a creature no more than one size larger than the hero.
@@ -107,16 +109,19 @@ export function dmChoices(hero,game,health=null) {
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
     if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);for(const [id,label,action] of sustainActions(game))add(id,label,action);return choices;}
     if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const [id,label,action] of sustainActions(game))add(id,label,action);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
-    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});for(const b of beyondChoices(game))add('beyond-'+b,'Go beyond the map to the '+beyondWords[b]+' (days on the road to a land not yet on any map)',{type:'beyond',bearing:b});if(game.stage==='bridge'&&game.enemyHP>0)add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn'&&!npcServiceError(game,'long-rest'))add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0&&!!health&&health.current<combatBasics(hero).hp)add('potion','Drink a healing draught');addPotionGifts();
+    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});for(const b of beyondChoices(game))add('beyond-'+b,'Go beyond the map to the '+beyondWords[b]+' (days on the road to a land not yet on any map)',{type:'beyond',bearing:b});if(game.stage==='bridge'&&game.enemyHP>0&&bossOpen(game))add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn'&&!npcServiceError(game,'long-rest'))add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0&&!!health&&health.current<combatBasics(hero).hp)add('potion','Drink a healing draught');addPotionGifts();
       // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
       if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
       for(const c of companionChoices(game))add(c.id,c.label,c.action);
       if(!health||health.current<combatBasics(hero).hp)for(const d of carriedDraughts(game))add('drink:'+d.magic.id,'Drink a '+d.name);
       // The tale: the chapter under way gives place to the next (or, in the last one, the story ends), and each open lead can be closed.
-      if(game.story.status==='active'){const q=questState(game);
+      // A written tale (stagingRules.js) ends where the engine finds it ends, takes only leads already open, and offers
+      // each option of a choice that is open (never a chip): the player commits, the Dungeon Master selects it.
+      if(game.story.status==='active'){const q=questState(game),staged=isStaged(game);
         if(q.current&&!q.last)add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is done: its truth found where the goal points, told in this reply (never before)');
-        else add('story-complete','Conclude the adventure ONLY when the story resolution conditions have actually been achieved');
-        for(const l of q.openLeads)add('lead-done:'+l.id,'Lead seen through ("'+l.title.slice(0,60)+'"): ONLY when the player has actually resolved it',{type:'lead-done',id:l.id});}}
+        else if(!staged)add('story-complete','Conclude the adventure ONLY when the story resolution conditions have actually been achieved');
+        for(const l of q.openLeads)if(leadOpenNow(game,l.id))add('lead-done:'+l.id,'Lead seen through ("'+l.title.slice(0,60)+'"): ONLY when the player has actually resolved it',{type:'lead-done',id:l.id});
+        for(const c of stagingChoices(hero,game,health))add(c.id,c.label,c.action);}}
     return choices;
   }
   if(game.stage==='inn')for(const npc of victims)for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+npc.name+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});
@@ -159,5 +164,8 @@ export function offeredChoices(list,limit=30){
   const armed=new Set();
   let kept=list.filter(c=>{if(c.id.startsWith('npc-throw:'))return false;if(!c.id.startsWith('npc-attack:'))return true;const who=c.id.split(':')[1];if(armed.has(who))return false;armed.add(who);return true;});
   for(const drop of ['npc-shove:','npc-grapple:','ally-shove:','ally-grapple:','ally-throw:','encounter-throw:','beyond-','travel-','give-potion:','npc-attack:'])while(kept.length>limit){const i=kept.map(c=>c.id.startsWith(drop)).lastIndexOf(true);if(i<0)break;kept=kept.filter((c,n)=>n!==i);}
+  // Past the limit the last of the rest give way, never the tale's own choices.
+  const own=c=>/^(?:story-|lead-done:|tale-choice:)/.test(c.id);
+  while(kept.length>limit){const i=kept.map(c=>!own(c)).lastIndexOf(true);if(i<0)break;kept=kept.filter((c,n)=>n!==i);}
   return kept.slice(0,limit);
 }

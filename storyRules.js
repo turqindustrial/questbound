@@ -3,7 +3,7 @@ import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,place
 import {genders,npcClassList,companionLevelFor} from './npcRules';
 import {magicItems} from './lootRules';
 import {heroXp,xpForLevel} from './experienceRules';
-import {validStaging,validWrittenTag} from './stagingRules';
+import {validStaging,validWrittenTag,seatStaging} from './stagingRules';
 import {appendJournal,journalForGame} from './journalRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
@@ -225,6 +225,7 @@ export function freshStoryGame(hero,written,base){
  {const nameOf=id=>story.npcs[id]?.name??game.people[id].name,here=Object.keys(game.people??{}).filter(id=>game.people[id].home==='inn'&&!game.people[id].hidden);
   game.playback=[{id:1,npcId:null,participants:['keeper','mara',...here],events:[{kind:'effect',text:introductionCard(story.introduction)},{kind:'narration',text:story.opening},...lines.map(l=>({kind:'dialogue',speakerId:l.speakerId,speakerName:nameOf(l.speakerId),text:l.text}))]}];}
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
- // Everyone has already formed a view of the hero's kind.
- return firstImpressions(game,hero);
+ // Everyone has already formed a view of the hero's kind; a written tale's plan is seated (stagingRules.js: chapter 1's
+ // set piece armed, its stakes and game.pace), and a tale with no staging is seated exactly as before.
+ return seatStaging(firstImpressions(game,hero),hero);
 }

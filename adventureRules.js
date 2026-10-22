@@ -30,6 +30,7 @@ import {endSpellMarks} from "./spellConditionRules";
 import {withDefenses} from "./spellDamageRules";
 import {tickBuffs} from "./spellBuffRules";
 import {spellAgain,moveMark,markGone} from "./lastingSpellRules";
+import {taleChoiceStep,bossBlocked} from "./stagingRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -334,7 +335,7 @@ let stepHandlers = null;
 function stepHandler(action) {
   if (!stepHandlers) stepHandlers = {
     type: {'npc-attack': attackPerson, 'end-concentration': endConcentration, travel: travelStep, discover: discoverStep, beyond: beyondStep, 'give-potion': giveDraught, ambush: ambushStep},
-    word: {'check:': abilityCheck, potion: drinkPotion, 'drink:': drinkFromPack, 'inspect-tower': inspectTower, 'call-wisp': bridgeStep, approach: bridgeStep, 'again:': againOnPerson, 'move-mark:': againOnPerson, 'short-rest': shortRest, 'long-rest': longRest, study: studyOrListen, listen: studyOrListen}
+    word: {'check:': abilityCheck, potion: drinkPotion, 'drink:': drinkFromPack, 'inspect-tower': inspectTower, 'call-wisp': bridgeStep, approach: bridgeStep, 'again:': againOnPerson, 'move-mark:': againOnPerson, 'short-rest': shortRest, 'long-rest': longRest, study: studyOrListen, listen: studyOrListen, 'tale-choice:': taleChoiceStep}
   };
   const table = typeof action === 'string' ? stepHandlers.word : stepHandlers.type, key = typeof action === 'string' ? action.replace(/:[^]*$/, ':') : action?.type;
   return typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : null;
@@ -563,7 +564,7 @@ export function dyingStep(game,health,hero,action,random){
 }
 // The chapter under way is finished: what it reveals is told, and the next begins. Finishing it is worth experience
 // to every hero (experienceRules.js), worked out after the turn.
-function advanceChapter(game,health,hero){
+export function advanceChapter(game,health,hero){
  const q=questState(game);
  if(!q?.current||q.last||game.story.status!=='active')return {game,health,error:'There is no further chapter to begin.'};
  const done=q.current,next=q.next,number=q.number;
@@ -573,7 +574,7 @@ function advanceChapter(game,health,hero){
  return {game:{...game,story:{...game.story,chapter:game.story.chapter+1},journal,worldFacts:[...(game.worldFacts??[]),('Chapter '+number+' ('+done.title+') is finished: '+done.turn).slice(0,800)].slice(-60),log:[...lines,...game.log].slice(0,40)},health,events:lines};
 }
 // A lead (a side errand of the tale) has been seen through.
-function finishLead(game,health,id){
+export function finishLead(game,health,id){
  const lead=(game.story.leads??[]).find(l=>l.id===id);
  if(!lead||lead.done)return {game,health,error:'That lead is not open.'};
  const line='Lead seen through: '+lead.title+'.';
@@ -590,7 +591,9 @@ function livingStep(game,health,hero,action,random,opts={}){
  if(action?.type==='lead-done')return finishLead(game,health,action.id);
  const allowed=['approach','dodge','flee','potion','long-rest','short-rest','end-turn','class:wind','class:hands','class:strike','class:surge','npc-dodge','npc-flee','npc-wait','npc-surrender'];
  const ownFeat=subclassAction(hero);if(ownFeat)allowed.push('class:'+ownFeat.id);
- if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item|again|move-mark):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
+ if(typeof action==='string'&&!allowed.includes(action)&&!['grapple','shove'].includes(action)&&!/^(attack|throw|offhand|drink|item|again|move-mark|tale-choice):/.test(action))return {game,health,error:'That action belongs to a different adventure. Describe what you want to do in this story.'};
+ // A written tale holds its foe back to its chapter (stagingRules.js bossOpen): no fight with it at the stronghold before.
+ {const held=bossBlocked(game,action);if(held)return {game,health,error:held};}
  const scene=(action?.type==='travel'||action?.type==='beyond')&&game.stage==='victory'?{...game,stage:'bridge'}:game;
  const result=adventureStepEngine(scene,health,hero,action,random,opts);
  if(result.error||result.game===scene)return {...result,game};
