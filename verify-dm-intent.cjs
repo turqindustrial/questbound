@@ -97,6 +97,14 @@ const turn=async(input,replies,context=base)=>{const s=scripted(replies);const r
  assert.equal(r.calls.length,1,'settled on the first miss');assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You set out for Lookout Rock.');assert.deepEqual(r.reply.dialogue,[]);
  r=await turn('I head for the lookout.',[{...quiet,narration:'The ambush is still underway; you cannot leave.'}]);
  assert.equal(r.calls.length,1);assert.equal(r.reply.narration,'You set out for Lookout Rock.','a refusal is never kept as the telling');
+ assert.equal(r.reply.beatUntold,undefined,'no written tale\'s beat: nothing to mark');
+ // A written tale's beat the note carried is not told by the game's own line: beatUntold, so it stays due (the review
+ // of 2026-10-22); a telling of the model's own that is kept carries it as told.
+ {const beat={kind:'pressure',id:'p1',tell:'Wolves howl close among the trees.'},ctx={...base,taleNow:{beat}};
+  r=await turn('I head for the lookout.',[{...quiet,narration:'The ambush is still underway; you cannot leave.'}],ctx);
+  assert.ok(JSON.stringify(requestParts(r.calls[0])).includes('STORY BEAT THIS TURN'),'the note carried the beat');assert.equal(r.reply.beatUntold,true,'the game\'s own line did not tell it');
+  r=await turn('I head for the lookout.',[{...quiet,narration:'You shoulder your pack and head up the trail toward Lookout Rock as wolves howl.'}],ctx);
+  assert.equal(r.reply.beatUntold,undefined,'the model\'s own telling, kept, told it');}
  // The reply told the hero setting out but forgot the choice: its own telling is kept, with the journey.
  r=await turn('I head for the lookout.',[{...quiet,narration:'You shoulder your pack and head up the trail toward Lookout Rock.'}]);
  assert.equal(r.calls.length,1);assert.equal(r.reply.actionId,'travel-tower');assert.equal(r.reply.narration,'You shoulder your pack and head up the trail toward Lookout Rock.');assert.deepEqual(r.reply.suggestions,[]);

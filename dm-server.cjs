@@ -1106,7 +1106,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
    out.dialogue=ooc?[]:(Array.isArray(r.dialogue)?r.dialogue:[]).filter(l=>l&&allowedSpeakers.includes(l.speakerId)&&typeof l.text==='string'&&l.text.trim()&&l.text.length<=700).slice(0,4);
    if(!Array.isArray(out.suggestions))out.suggestions=[];
    if(resolvingSpell){out.ruling={...clarifying};out.narration=clarifying.note;}
-   else if(typeof out.narration!=='string'||!out.narration.trim())out.narration=body.context.engineResolved?'The moment settles as the dice fell.':out.narration;
+   else if(typeof out.narration!=='string'||!out.narration.trim()){out.narration=body.context.engineResolved?'The moment settles as the dice fell.':out.narration;if(body.context.taleNow?.beat)out.beatUntold=true;}
    return out;
   };
   const withoutFault=(r,message)=>{
@@ -1182,13 +1182,16 @@ async function secondLooked(body,{canDiscover,turnReasoning,left,state},{live},a
   // An unmistakable request (sure: a whole place name, a plain rest or draught...) is acted on by the game at once, with
   // the reply's own telling when it tells that move (dm-intent.cjs settled), instead of asking the model again first
   // (2026-10-22, the host: "fewer retries and second looks"; the model acted on the second ask anyway).
-  if(fault.sure){recordSecondLook(fault.kind,'the game acted at once',body,live);return settled(fault,first);}
+  // A telling the game wrote in place of the model's (dm-intent.cjs settled: the move alone) did not tell a written tale's
+  // beat this turn's note carried: beatUntold, so the device or the table leaves it due for the next reply.
+  const untold=(reply,from)=>body.context?.taleNow?.beat&&reply.narration!==String(from?.narration??'')?{...reply,beatUntold:true}:reply;
+  if(fault.sure){recordSecondLook(fault.kind,'the game acted at once',body,live);return untold(settled(fault,first),first);}
   let second=null;
   if(left()>=retryFloor){state.aside=true;try{second=digest(await ask('\nLOOK AGAIN: '+fault.note,turnReasoning==='none'?'low':turnReasoning,40000));}catch{}finally{state.aside=false;}}
   const still=second?secondLook(body,second,{canDiscover}):fault,sure=[still,fault].find(f=>f?.sure)??null;
   recordSecondLook(fault.kind,second&&!still?'the model acted':sure?'the game acted':'left as answered',body,live);
   if(second&&!still)return second;
-  if(sure)return settled(sure,second??first);
+  if(sure)return untold(settled(sure,second??first),second??first);
   return second??first;
 }
 // Token use per request (mode, model, input, cached and output tokens, paintings, and the guest's label when a guest

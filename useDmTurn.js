@@ -191,7 +191,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     // beats its replies told (`beats`), or the one the game told in its own words when the Dungeon Master could not be
     // reached (`beatTold`, withBeatLine), and only those are marked told.
     const sent=[];
-    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();const carried=beatSent(scene,extra);if(carried&&!sent.includes(carried))sent.push(carried);return body;};
+    const request=async(scene=game,hp=health,extra={})=>{if(!connected)throw Error(offline());const body=await post(question,scene,hp,talkingTo,{recruitmentTargets:recruitmentTargets(scene,question,target),...extra});unchanged();const carried=beatSent(scene,extra);if(carried&&!sent.includes(carried)&&body.beatUntold!==true)sent.push(carried);return body;};
     const finish=async(action,body,normalizedCommand,random)=>{unchanged();const result=await act(action,{...turnRecord(question,body,normalizedCommand,target),...(sent.length?{beats:[...sent]}:{}),...(body.beatTold?{beatTold:body.beatTold}:{})},random);if(result.error)throw refusal(result.error);setReply({narration:body.narration});setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===target);setConversationId(talking?target:null);keepIdeas(result.turn?.id,talking?target:null,body);if(!preset)setInput('');return result;};
     const cast=async(command,normalized,narration,chosen=null)=>{
       // The player's own words ("knock him out") shape the preview exactly as they will shape the committed turn.

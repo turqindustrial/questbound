@@ -24,7 +24,8 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  const post=async(scene=game,hp=health,extra={})=>{
   const body=await ask({input:question,context:{...r.dmContext(ruled,scene,hp,question),turnStart:{hp:health?.current??r.combatBasics(hero).hp,max:r.combatBasics(hero).hp},storyPreferences:preferences(request.storyPreferences),conversationWith:talkingTo?{id:target,name:talkingTo.name,role:talkingTo.role,oneOnOne:request.oneOnOne===true&&r.conversationPeople(scene).length>1}:null,conversationParticipants:r.speakingPeople(scene).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude})),recruitmentTargets:r.recruitmentTargets(scene,question,target),...(request.suggest===false?{suggest:false}:{}),...extra}});
   if(!body||typeof body.narration!=='string'||!body.narration.trim()||body.narration.length>1800)throw fail('The Dungeon Master returned an incomplete reply. Nothing was applied.');
-  const carried=r.beatSent(scene,extra);if(carried&&!sent.includes(carried))sent.push(carried);return body;
+  // A reply told in the game's own words in place of the model's (beatUntold: dm-server.cjs) did not tell the beat.
+  const carried=r.beatSent(scene,extra);if(carried&&!sent.includes(carried)&&body.beatUntold!==true)sent.push(carried);return body;
  };
  function finish(action,body,normalizedCommand,dice=randomImpl,extra={}){
   const conversation={question,narration:body.narration,dialogue:body.dialogue,worldEvent:body.worldEvent,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce??null,normalizedCommand,npcId:target,actorName,...(actorSeat?{actorSeat}:{}),...(toDm?{direct:true}:{}),...(sent.length?{beats:[...sent]}:{}),...extra};
