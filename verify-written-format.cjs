@@ -398,7 +398,7 @@ let busyPace=null;
  assert.ok(imported.length>=8,'stagingRules.js imports what it reads');
  assert.ok(!new RegExp('^(?:export\\s+)?(?:const|let)\\s+\\w+\\s*=\\s*[^;]*\\b(?:'+imported.join('|')+')\\b','m').test(readText('stagingRules.js').replace(/^\s*\/\/.*$/gm,'')),'nothing at stagingRules.js\'s top level reads another file\'s values');
  // The checker's copy of the deny list is verify-subclasses.cjs's (book-name guard).
- const theirs=readText('verify-subclasses.cjs').match(/const deny=\[([\s\S]*?)\];/)[1].match(/'(?:[^'\\]|\\.)*'|"[^"]*"/g).map(x=>x.slice(1,-1).replace(/\\'/g,"'"));
+ const theirs=readText('verify-subclasses.cjs').match(/const deny=\[([\s\S]*?)\];/)[1].replace(/^\s*\/\/.*$/gm,'').match(/'(?:[^'\\]|\\.)*'|"[^"]*"/g).map(x=>x.slice(1,-1).replace(/\\'/g,"'"));
  assert.deepEqual([...subclassNames].sort(),[...theirs].sort(),'check-written-tale.cjs keeps verify-subclasses.cjs\'s deny list');
 }
 fs.rmSync(tmp,{recursive:true,force:true});
