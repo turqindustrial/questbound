@@ -2,8 +2,9 @@
 
 This is the authoritative format of a **written tale**: a tale written by hand (by a writer agent or a person), checked,
 and put on the permanent **Written tales** shelf, grouped Short, Medium and Long. A writer authors from this document
-alone. The engine that plays the staging (`withBeats`, `seatStaging`) and the shelf that serves tales
-(`written-shelf.cjs`) come in the next step; the format, its validators (`stagingRules.js`) and the checker
+and the brief of their tale (its catalogue entry and its line of the name register, given with it). The engine that
+plays the staging (`withBeats`, `seatStaging`) and the shelf that serves tales (`written-shelf.cjs`) come in the next
+step (section 17 says what they must do); the format, its validators (`stagingRules.js`) and the checker
 (`check-written-tale.cjs`) are frozen now so that writing can begin.
 
 - **Format version:** `"format": 1`, staging `"v": 1`.
@@ -20,7 +21,8 @@ Contents: [The file](#1-the-file) · [The story](#2-the-story) · [Names](#3-nam
 [Conditions](#5-conditions) · [Effects](#6-effects) · [The walkthrough](#7-the-walkthrough) · [Tiers](#8-the-tiers) ·
 [Text rules](#9-text-rules) · [Pictures](#10-pictures-cost-nothing) · [Craft rules](#11-the-craft-rules) ·
 [Rubrics](#12-the-rubrics) · [The checker](#13-the-checker) · [game.pace](#14-gamepace-runtime-state-for-reference) ·
-[Worked example](#15-a-short-worked-example)
+[Worked example](#15-a-short-worked-example) · [Decisions and the catalogue](#16-decided-while-freezing-it-and-the-catalogue) ·
+[For the runtime](#17-for-the-runtime-the-next-step)
 
 ---
 
@@ -39,7 +41,7 @@ A tale file is one JSON object. Every key below is required unless it says *opti
 | `addedAt` | `"YYYY-MM-DD"` | The day it went on the shelf ("New" for 14 days after). |
 | `length` | `"short"`, `"medium"` or `"long"` | Its tier (section 8). |
 | `minutes` | `[low, high]` | How long it takes, low below high. Short: multiples of 10 within 30–60. Medium: multiples of 30 within 120–240. Long: multiples of 30 within 360–1200. |
-| `difficulty` | `"gentle"`, `"steady"` or `"hard"` | Gentle: single creatures, a boss with no minions. Steady: one pack or ally fight, a boss with one minion. Hard: packs, a boss with two minions; the clock also ticks on long rests. The card never mentions luck. |
+| `difficulty` | `"gentle"`, `"steady"` or `"hard"` | Gentle: single creatures, a boss with no minions. Steady: one pack or ally fight, a boss with one minion. Hard: packs, a boss with two minions; the clock also ticks on long rests (`staging.ticks.rest`, which the checker requires). The card never mentions luck. |
 | `party` | `"any"` or `"together"` | `any`: "Solo or up to four heroes". `together`: "Best with 2–4 heroes" (set pieces with parallel objectives). |
 | `levels` | `[lowest, highest]`, 1–20 | The hero levels it is written for. The checker seats heroes at the lowest, middle and highest. |
 | `firstTale` | `true` (*optional*) | The one "Start here" tale on the shelf: a gentle Short. |
@@ -196,7 +198,7 @@ it with `{"foe": ...}`.
   queen, king, councillor, factor, harbour-master, lord-protector, lord-general, master, mistress, goodwife, goodman,
   widow, doctor).
 - Not a part of a ready-made hero's name: Kara, Vell, Pip, Thistledown, Ilyra, Dawnmere, Borin, Emberhand.
-- The build specification's name register (its section 4.2) reserves names for each catalogue tale: use your tale's own.
+- The name register (your brief) reserves names for each catalogue tale: use your tale's own, never another's.
 
 ### 3.3 Avoid and deny lists
 
@@ -228,8 +230,9 @@ warning (the Dungeon Master may bring that person into play later).
 {
   "v": 1,
   "length": "short",                 // short | medium | long: the file's length
-  "quiet": 3, "drift": 8,            // optional: quiet turns before the clock acts (1-10), and a pressure step every
+  "quiet": 3, "drift": 8,            // optional: quiet moves before the clock acts (1-10), and a pressure step every
                                      // `drift` chapter moves regardless (4-30). Defaults: short 3/8, medium 4/10, long 5/12
+  "ticks": {"rest": false, "days": 1},  // optional: what else ticks the clock (below). A hard tale has "rest": true
   "confrontFrom": 2,                 // optional: the chapter (1-based) from which "Confront <foe>" is offered; default the last
   "noBeyond": true,                  // optional: no "beyond the map" journeys before the last chapter (keep true for short and medium)
   "firstSay": ["≤110", "≤110", "≤110"],                          // exactly 3 things the player might say first
@@ -237,7 +240,9 @@ warning (the Dungeon Master may bring that person into play later).
   "places": { "<exact place name>": {"colour": ["≤140"]} },     // 0-12 places; 1-3 lines each
   "chapters": [ /* exactly one for each story chapter, in order (4.1) */ ],
   "leads": [ {"id": "l1", "opens": 1, "done": {"reach": "..."}} ],   // optional, 0-4
-  "boss": { "minions": [ /* 0-2 creatures */ ], "bloodied": {"kind": "call", "tell": "≤160", "line": "≤160"} },  // optional
+  "boss": { "if": null, "objective": "≤160", "minions": [ /* 0-2 creatures */ ],
+            "bloodied": {"kind": "call", "tell": "≤160", "line": "≤160"},
+            "deadline": {"turns": 3, "tell": "≤160", "then": {}}, "hold": {"rounds": 3, "tell": "≤160", "then": {}} },  // optional, every key optional
   "endings": [ /* 2-4, the last with no "if" (4.3) */ ]
 }
 ```
@@ -245,11 +250,15 @@ warning (the Dungeon Master may bring that person into play later).
 | Key | Meaning in play |
 |---|---|
 | `firstSay` | On the opening turn the Suggestions bar offers these three lines (a tap fills the message box). A decision under pressure, three different ways in. |
+| `ticks` | Besides drift and quiet, what moves the clock. `rest`: a long rest owes a pressure step (default false; **a hard tale sets it true**, because its card says the clock ticks on long rests; any tale may, as a tale of "rests are the resource" does). `days`: 0, 1 or 2 steps owed for each day of the tale's time that passes, on the road or resting (default 1; 2 for a tale whose clock is "dusk and noon"). |
 | `stakes` | Named people or places whose state the tale changes. Shown on the Quest tab ("At stake: Kettle Camp: holding on.") and to the Dungeon Master. `name` is a name; `state` a few words, lower case, no full stop. Changed by `{"stake": ...}`. |
 | `places` | Game-told arrival lines: when the game tells a journey itself, a line of the place's `colour` replaces "You arrive at X without incident." Keys are exact place names. |
 | `leads` | For a story lead (by id): `opens`, the chapter from which it is open (default 1), and `done`, the condition that closes it (paid once). A lead with no entry closes only when the Dungeon Master says so (a warning). |
+| `boss.if` | "Confront <foe>" is offered (from `confrontFrom`) only while this holds: a foe met "only if you raced", "only once the deed is out". `null` or left out: always. |
+| `boss.objective` | What the boss fight is for ("keep him from the fuse"); the Dungeon Master reads it in the fight. |
 | `boss.minions` | Up to two creatures at the foe's side when it is confronted, each `{"template", "name" ≤60, "appearance" ≤400}`. Played from the fight-shape step (Phase C); accepted now. |
 | `boss.bloodied` | What the foe does once at half its hit points: `call` (help arrives), `flee` (it breaks for a second place) or `rage` (it fights harder). Phase C; accepted now. |
+| `boss.deadline`, `boss.hold` | As a set piece's (4.1): win within `turns`, or hold out `rounds` before the foe can be beaten. Phase C; accepted now. |
 
 **Ids.** Every id is a lower-case letter, then up to 23 letters, digits or hyphens. Beat, complication, pressure-step,
 choice and ending ids are unique across the whole tale. Option ids are unique within their choice. Stake ids are `s1`
@@ -266,32 +275,37 @@ to `s4`, each once. Lead ids are the story's (`l1` for its first lead).
   "opening": {"tell": "≤240", "line": "≤160", "then": {}},     // chapters 2 and later only, optional
   "then": {},                                                   // optional: effects when the chapter closes
   "beats": [ {"id": "b1", "when": {/* condition */}, "if": null, "tell": "≤240", "line": "≤160", "then": {}} ],  // 0-4
-  "complications": [ {"id": "x1", "tell": "≤160", "line": "≤160", "then": {}} ],                            // 0-3
-  "pressure": [ {"id": "p1", "tell": "≤200", "sign": "≤120", "line": "≤160", "then": {}} ],                 // 2-4 (tier)
+  "complications": [ {"id": "x1", "if": null, "tell": "≤160", "line": "≤160", "then": {}} ],                // 0-3
+  "pressure": [ {"id": "p1", "if": null, "tell": "≤200", "sign": "≤120", "line": "≤160", "then": {},
+                 "spared": {"tell": "≤200", "line": "≤160", "sign": "≤120"}} ],                             // 2-4 (tier); "if" and "spared" optional
   "fight": { "at": "<landmark or far place>",
              "threat": {"template", "name": "≤60", "appearance": "≤400", "ally": null},
              "objective": "≤160",
-             "deadline": {"turns": 3, "tell": "≤160", "then": {}} },     // optional; deadline is Phase C, optional
+             "fromLevel": 3, "otherwise": {"template", "name", "appearance", "ally": null},   // optional
+             "deadline": {"turns": 3, "tell": "≤160", "then": {}},                            // optional; Phase C
+             "hold": {"rounds": 3, "tell": "≤160", "then": {}} },                             // optional; Phase C
   "choice": { "id": "c1", "opens": null, "ask": "≤200",
-              "options": [ {"id": "hide", "label": "≤80", "say": "≤110", "when": null, "then": {}} ],   // 2-3
-              "late": "hide" }                                                                          // optional
+              "options": [ {"id": "hide", "label": "≤80", "say": "≤110", "if": null, "when": null, "then": {}} ],   // 2-4 (tier)
+              "late": "hide" }                                                                                     // optional
 }
 ```
 
 | Part | Meaning in play |
 |---|---|
 | `where`, `agenda` | Read by the Dungeon Master while the chapter is under way (with the chapter's `turn`, its truth). Never shown to players. |
-| `found` | **What closes the chapter.** When any route holds, the engine closes it: the truth is told as the turn's beat (at whatever cost the dice set), `found.item` is given, the chapter's `then` and its choice's `late` apply, the next chapter's fight is armed and its `opening` is told. In the last chapter the find completes the tale and the engine picks the ending. At least two routes, at least one mechanical, talk never alone (section 5.2). |
-| `opening` | Chapters 2+: told as the chapter begins (`tell` to the Dungeon Master, `line` when the game tells it itself). |
-| `then` | Effects when the chapter closes, however it closes. No `advance` or `end` here. |
-| `beats` | Authored moments. When nothing else is due, the first unfired beat whose `when` (and `if`, when given) holds fires: its `then` applies and the Dungeon Master tells `tell` in the next reply that goes to it. One beat is due at a time; none fire in a fight. |
-| `complications` | Fired only when play goes quiet (`quiet` quiet turns), before the next pressure step. |
-| `pressure` | **The antagonist's clock.** A step fires on a long rest or a day on the road, every `drift` chapter moves, or when play goes quiet. It applies `then`, and its `sign` becomes the Quest tab's "Out of sight" line. **The last step always closes the chapter: `{"advance": true}`** (the truth told at a cost), **and in the last chapter it ends the tale: `{"end": "late"}`.** So a chapter can never stall for ever. |
-| `fight` | The chapter's **set piece**: when the chapter begins, the place `at` becomes a lair held by `threat` (a fight on arrival). `at` is a landmark or a far place, never inn, bridge or tower. `objective` is what the fight is for (the Dungeon Master reads it in the fight). Chapter 1's fight is 0.1–0.3 mile from the start. `deadline`: Phase C. |
-| `choice` | **A turning point.** Opens when `opens` holds (`null`: as the chapter begins) and nothing else is due; the Dungeon Master puts `ask` to the player inside the scene. While it is open (out of fights) Say offers each option's `say` line. Choices are never buttons: the player types, and the Dungeon Master records the option only when the player's words or deeds clearly choose it. An option whose `when` holds is settled by the engine itself. Each option: `label` (what the player commits to, ≤80, no full stop), `say` (≤110, a full sentence in the player's voice), `when` (`null` or a condition), `then` (effects; every option should cost something). `late`: the option applied if the chapter closes undecided (optional: without it, no option is recorded). |
+| `found` | **What closes the chapter.** When any route holds, the engine closes it: the truth is told as the turn's beat (at whatever cost the dice set), `found.item` is given, the chapter's `then` and its choice's `late` apply, the next chapter's fight is armed and its `opening` is told. In the last chapter the find completes the tale and the engine picks the ending. At least two routes, at least one mechanical, talk standing alone only as 5.2 says. |
+| `found.item` | Given **however the chapter closes** (its find, the clock's last step, or the Dungeon Master's story-advance), so a later `{"carry"}` of it is safe. |
+| `opening` | Chapters 2+: told as the chapter begins (`tell` to the Dungeon Master, `line` when the game tells it itself). Its `then` applies as the chapter begins. |
+| `then` | Effects when the chapter closes, however it closes. No `advance` or `end` here. They count from the next chapter's opening. |
+| `beats` | Authored moments **of this chapter**. When nothing else is due, the first unfired beat whose `when` (and `if`, when given) holds fires: its `then` applies and the Dungeon Master tells `tell` in the next reply that goes to it. One beat is due at a time; none fire in a fight (they wait). A beat whose chapter closes before it fires is dropped. **The find comes first**: a beat whose `when` is one of the chapter's own routes never fires (the checker refuses it): give that moment to the next chapter (where the hero stands counts as reached as it opens) or to the chapter's `then`. |
+| `complications` | Fired only when play goes quiet (`quiet` quiet moves), before the next pressure step; one with an `if` only while it holds (else the next is tried). |
+| `pressure` | **The antagonist's clock.** A step fires when a tick is owed (a long rest when `ticks.rest`, each day of the tale's time per `ticks.days`, a `{"clock": 1}`), every `drift` chapter moves, or when play goes quiet. It applies `then`, and its `sign` becomes the Quest tab's "Out of sight" line. A step with an `if` happens only while it holds; otherwise it is **spared**: the clock still moves, its `then` does not apply, and `spared` is told instead (its `sign`, when given, is shown). **The last step always happens (no `if`) and always closes the chapter: `{"advance": true}`** (the truth told at a cost), **and in the last chapter it ends the tale: `{"end": "late"}`.** So a chapter can never stall for ever. (The engine also closes a chapter whose steps have all fired, whatever they say.) |
+| `fight` | The chapter's **set piece**: when the chapter begins, the place `at` becomes a lair held by `threat` (a fight on arrival). `at` is a landmark or a far place, never inn, bridge or tower. `objective` is what the fight is for (the Dungeon Master reads it in the fight). Chapter 1's fight is 0.1–0.3 mile from the start. `fromLevel`: the set piece is armed only for heroes of that level or more (at a table, the table's level); below it `otherwise` is armed instead (or nothing). Chapter 1's set piece needs `otherwise` when its `fromLevel` is above the tale's lowest level. `deadline` (win within `turns` of the hero's) and `hold` (hold out `rounds` before it can be won): Phase C, accepted now. |
+| A second set piece | Medium and Long chapters have one or two set pieces: the second is an `arm` in a beat, a complication or a pressure step. |
+| `choice` | **A turning point.** Opens when `opens` holds (`null`: as the chapter begins) and nothing else is due, and **stays open** until it is decided or the chapter closes; the Dungeon Master puts `ask` to the player inside the scene. While it is open (out of fights) Say offers each option's `say` line. Choices are never buttons: the player types, and the Dungeon Master records the option only when the player's words or deeds clearly choose it. Each option: `label` (what the player commits to, ≤80, no full stop), `say` (≤110, a full sentence in the player's voice), `if` (`null` or a condition: the option can be chosen only while it holds, as "settle: needs the deed exposed and the foe bloodied"), `when` (`null` or a condition: the engine settles the option itself when it holds), `then` (effects; every option should cost something). `late`: the option applied if the chapter closes undecided (optional: without it, no option is recorded); it has no `if`, and no `advance` or `end` in its `then` (the chapter is closing already). |
 
-**A creature** (`fight.threat`, `arm`, `boss.minions`) is `{"template", "name" ≤60, "appearance" ≤400}`, and a threat may
-add `"ally": null` or one creature `{"template", "name", "appearance"}` at its side.
+**A creature** (`fight.threat`, `fight.otherwise`, `arm`, `boss.minions`) is `{"template", "name" ≤60, "appearance" ≤400}`,
+and a threat may add `"ally": null` or one creature `{"template", "name", "appearance"}` at its side.
 
 | Template | What it is (stats only) |
 |---|---|
@@ -307,12 +321,14 @@ add `"ally": null` or one creature `{"template", "name", "appearance"}` at its s
 
 Templates are stats only: the creature's **name and look decide its picture**, kind words first (name what it is: a wolf,
 a spider, a scorpion, the drowned dead). Below level 3 the game swaps `zombies` for a `skeleton`, `wolves` for a `wolf`
-and the `orc` for `goblin`s. An ally is one of `bandit`, `wolf`, `goblin`, `skeleton`, `boar`, `spider` or `orc`, never
-the same template as the threat it stands beside; it comes only from level 2 (the `orc` from level 3).
+and the `orc` for `goblin`s. An ally is one of `bandit`, `wolf`, `goblin` (the band), `skeleton`, `boar`, `spider` or
+`orc`, never the same template as the threat it stands beside **nor the one that threat becomes below level 3** (a
+skeleton beside zombies, a wolf beside wolves, goblins beside the orc: it would be dropped); it comes only from level 2
+(the `orc` from level 3).
 
 ### 4.2 Text that the game tells and the Dungeon Master tells
 
-Every beat, complication, pressure step and opening has a `tell` and a `line`:
+Every beat, complication, pressure step and opening has a `tell` and a `line` (a spared step its `spared`):
 - `tell` is for the Dungeon Master: it is the STORY BEAT of the next reply, told after the results of the player's move,
   through the people present or what the hero finds. Concrete; it starts no fight and moves nobody the game has not moved.
 - `line` is **voice-neutral**: the game tells it itself when the Dungeon Master cannot be reached, beside any of the three
@@ -329,56 +345,100 @@ Every beat, complication, pressure step and opening has a `tell` and a `line`:
 ```
 
 When the tale completes, the engine takes **the first ending whose `if` holds**, else the last (the default, which has
-no `if`; every other ending has one). The Dungeon Master tells `text` as the tale's last scene; the feed shows
-"Ending: <title>." and the device records it. 2–4 endings (tier counts), different in kind, never worse versions of each
-other; a tale that ended late (the clock's last step) has the flag `late`, and the late ending is a full ending.
+no `if`; every other ending has one). So an ending whose `if` can hold only when an earlier one's does is never chosen
+(the checker refuses it): put the narrower ending first. An ending whose `if` always holds (someone met at the start, a
+level every hero has) leaves every ending after it unchosen, and one that can never hold (two options of one choice,
+slain and subdued) is never chosen: both are refused. The Dungeon Master tells `text` as the tale's last scene; the
+feed shows "Ending: <title>." and the device records it. 2–4 endings (tier counts), different in kind, never worse
+versions of each other; a tale that ended late (the clock's last step) has the flag `late`, and the late ending is a
+full ending.
+
+### 4.4 A turn, in order
+
+What the engine does after every move (the runtime's `withBeats`; written here so authors know what comes first):
+1. **Told.** The beat the last request carried (by its id) is marked told, whether the Dungeon Master told it or the
+   game told its `line`.
+2. **Counters** (`game.pace`, section 14): the chapter's moves, quiet moves, who spoke, and what happened (events: an
+   arrival, a fight won, a search, a check, a long rest) for the chapter.
+3. **A chapter closed outside** (the Dungeon Master's story-advance): closed as below.
+4. **Found.** A route that holds closes the chapter (or completes the tale). It replaces a beat that is due but untold.
+5. **Beats.** If nothing is due, the first beat whose `when` and `if` hold fires.
+6. **Choice.** An option whose `when` (and `if`) holds is settled; otherwise the choice opens when `opens` holds and
+   nothing is due.
+7. **Clock.** Only if nothing is due, out of a fight: an owed tick, drift or quiet fires the next complication or step
+   (at most one a turn; two turns at least between clock beats).
+
+**One thing is due at a time:** `{"kind", "id"}`. When a beat or a step closes the chapter or ends the tale, the due
+thing is the chapter's truth (`turn`) or the ending, with the id of what closed it, and the Dungeon Master tells that
+step's `tell` first, then the truth or the ending. Whatever else would fire waits for its turn: **events count for the
+whole chapter**, so nothing loses its moment while it waits.
 
 ---
 
 ## 5. Conditions
 
 A condition is **an object with exactly one key**, read from what the engine keeps (never from the Dungeon Master's
-words). They nest at most 4 deep; `any` and `all` hold 1–8 conditions.
+words). They nest at most 4 deep; `any` and `all` hold 1–8 conditions; one condition holds at most 12 plain conditions
+in all.
 
 | Condition | Exact shape | True when |
 |---|---|---|
-| reach | `{"reach": "<place>"}` | The hero arrives there this turn, or stands there when the chapter begins. |
-| clear | `{"clear": "<place>"}` | The place's threat is beaten (a set piece or an `arm` there; anything else can never hold, so the checker refuses it). |
-| won | `{"won": "<place>"}` | A fight at that place ended in victory this turn. |
-| searched | `{"searched": "<place>"}` | The hero searched the fallen there (the Loot move). |
-| checked | `{"checked": "<place>"}` | A world check (the Dungeon Master's check), passed **or failed**, resolved while the hero stands there: a failure finds the truth at a cost. |
-| spoke | `{"spoke": {"who": "<person>", "times": 2}}` | The person spoke in `times` (1–6, default 2) Dungeon-Master-told turns this chapter. Never alone (5.2). |
-| met | `{"met": "<person>"}` | The hero has met them. |
+| reach | `{"reach": "<place>"}` | The hero has arrived there **since the chapter began** (or stood there as it began). |
+| at | `{"at": "<place>"}` | The hero is there now. |
+| clear | `{"clear": "<place>"}` | The place's threat is beaten (a set piece or an `arm` there; anything else can never hold, so the checker refuses it). Arming a place again makes it uncleared until it is beaten again. |
+| won | `{"won": "<place>"}` | A fight at that place has ended in victory since the chapter began. |
+| searched | `{"searched": "<place>"}` | The hero has searched the fallen there (the Loot move) since the chapter began. |
+| checked | `{"checked": "<place>"}` | A world check (the Dungeon Master's check), passed **or failed**, has been resolved while the hero stood there since the chapter began: a failure finds the truth at a cost. |
+| spoke | `{"spoke": {"who": "<person>", "times": 2}}` | The person spoke in `times` (1–6, default 2) Dungeon-Master-told turns this chapter. |
+| met | `{"met": "<person>"}` | The hero has met them (keeper, mara and everyone at the start are met at once; a hidden person once found). |
 | with | `{"with": {"who": "<person>", "at": "<place>"}}` | The person follows the hero (`at` optional: with the hero at that place). |
-| fate | `{"fate": {"who": "<person>", "is": "alive"}}` | `is`: `alive`, `dead`, `down`, `following` or `hostile` (their attitude). |
-| foe | `{"foe": "beaten"}` | The main foe is `slain`, `subdued`, `beaten` (slain or subdued) or `fought` (hurt in a fight). |
+| fate | `{"fate": {"who": "<person>", "is": "alive"}}` | `is`: `alive` (not dead), `dead`, `down` (alive but knocked out or at no hit points), `following` or `hostile` (their attitude). |
+| foe | `{"foe": "beaten"}` | The main foe is `slain`, `subdued`, `beaten` (slain or subdued), `fought` (hurt in a fight, or beaten) or `bloodied` (at half its hit points or less, or beaten). |
 | carry | `{"carry": "<item name>"}` | The pack holds an item of that name (from `give`, `found.item` or the hoard; anything else only the Dungeon Master can hand over: a warning). |
 | mark | `{"mark": {"<choice id>": "<option id>"}}` | That option of that choice was made. |
 | flag | `{"flag": "<flag>"}` | The flag is set (by a `flag` effect, or `late`). |
-| told | `{"told": "<beat id>"}` | That beat, complication or pressure step has been told. |
+| told | `{"told": "<beat id>"}` | That beat, complication or pressure step has been told (a spared step is not). |
 | step | `{"step": 2}` | That many pressure steps (1–4) have fired in this chapter. |
-| rest | `{"rest": true}` | A long rest this turn. |
-| days | `{"days": 2}` | That many days (1–30) since the chapter began. |
+| rest | `{"rest": true}` | A long rest has been taken since the chapter began. |
+| days | `{"days": 2}` | That many days (1–30) of the tale's time since the chapter began. |
+| level | `{"level": 3}` | The hero is that level or more (at a table, the table's level). |
 | any | `{"any": [ ... ]}` | Any of them. |
 | all | `{"all": [ ... ]}` | All of them. |
 | not | `{"not": { ... }}` | It does not hold. |
 
-`won`, `searched`, `checked` and `rest` hold only on the turn they happen: in an ending's `if` (read when the tale
-closes) use `clear`, `foe` or a flag instead (a warning).
+**Events** (`reach`, `won`, `searched`, `checked`, `rest`) are kept for the chapter (`game.pace.seen`), so a beat, a
+choice or a route that has to wait its turn never loses its moment; they start again with each chapter. In an ending's
+`if` (read when the tale closes) they count only the last chapter: `clear`, `foe` or a flag say more (a warning).
+
+A condition using a kind a build does not know never holds on that build (section 14).
 
 ### 5.1 Where conditions go
 
-`found.any` (routes), a beat's `when` and `if`, a choice's `opens`, an option's `when`, a lead's `done`, an ending's `if`.
+`found.any` (routes), a beat's `when` and `if`, a complication's and a pressure step's `if`, a choice's `opens`, an
+option's `if` and `when`, a lead's `done`, `boss.if`, an ending's `if`.
 
 ### 5.2 Rules for `found`
 
-- At least **two routes**.
-- At least one **mechanical** route: `reach`, `clear`, `won`, `searched`, `checked`, `carry`, `with`, or `foe` slain,
+- At least **two routes**, never the same route twice.
+- At least one **mechanical** route: `reach`, `at`, `clear`, `won`, `searched`, `checked`, `carry`, `with`, or `foe` slain,
   subdued or beaten (an `all` counts when every part is mechanical; an `any` when one is).
-- **Talk never stands alone:** no route that `spoke` alone can satisfy; join it to something done
-  (`{"all": [{"clear": "The Lower Stage"}, {"spoke": {"who": "Dickon Barrow"}}]}`).
+- **Talk:** a route of talk alone (`{"spoke": ...}` standing alone, or as one way of an `any`) needs `times` of 2 or
+  more, beside another route that is mechanical; the truth is then found from a person. In an `all`, talk stands only
+  beside something done: every other part is mechanical (`{"all": [{"clear": "The Lower Stage"}, {"spoke": {"who":
+  "Dickon Barrow"}}]}`). Talk with someone who is with the hero from the start (keeper, mara, a resident of the start)
+  is a warning: two exchanges with them close the chapter before its set piece.
+- **Never at once:** no route holds already as its chapter opens (chapter 1 is read against every seated hero: the start
+  is reached, everyone there is met, everyone is alive, no flag is set).
+- **Never impossible:** no route needs two things that cannot hold together (two options of one choice, the foe slain
+  and subdued, someone dead and alive, a condition and its `not`), nor what comes only later: a beat, a choice or a
+  flag of a later chapter, an item given only as this chapter closes (its own `found.item`) or later, a place armed only
+  later, a `step` the clock never reaches (the last step closes the chapter), a level above the tale's.
+- **Beats never wait for each other:** a beat (or a step's or complication's `if`) waiting for a telling that waits for
+  it never fires.
+- **`clear` of a place armed in an earlier chapter** may hold already: arm it again as this chapter opens (its fight,
+  an `arm` in its `opening`, or in the last chapter's `then`), or use `won`.
 - No truth behind a single roll: `checked` counts a failed check too.
-- A `foe` route before `confrontFrom` can never hold (a warning).
+- A `foe` route before `confrontFrom` can never hold; one after `confrontFrom` may hold as its chapter opens (a warning).
 
 ---
 
@@ -389,24 +449,28 @@ writes at most one story-log line.
 
 | Effect | Exact shape | What the engine does |
 |---|---|---|
-| bring | `{"bring": "<person>"}` | The person comes to the hero: present, no longer hidden, met. |
-| send | `{"send": {"who": "<person>", "to": "<place>"}}` | The person goes elsewhere (taken, fled). |
-| arm | `{"arm": {"at": "<place>", "template", "name" ≤60, "appearance" ≤400, "ally": null}}` | The place becomes a lair, armed for the hero's arrival (the level rules of 4.1 apply). Never where the hero is fighting. `at` is a landmark or far place. |
-| place | `{"place": {"at": "<place>", "description" ≤300, "danger": "safe"\|"risky"}}` | A place changes (burned, flooded). Give `description`, `danger` or both. |
+| bring | `{"bring": "<person>"}` | The person comes to the hero: present, no longer hidden, met. **A resident** (keeper and mara stay at the start unless they follow the hero: the checker refuses them). |
+| send | `{"send": {"who": "<person>", "to": "<place>"}}` | The resident goes to live elsewhere (taken, fled): any place of the tale, the three starting places included. Not keeper or mara. |
+| arm | `{"arm": {"at": "<place>", "template", "name" ≤60, "appearance" ≤400, "ally": null, "fromLevel"?, "otherwise"?}}` | The place becomes a lair, armed for the hero's next arrival (the level rules of 4.1 apply), and uncleared until it is beaten. Never where the hero is fighting. `at` is a landmark or far place. A place is armed at most once a chapter. |
+| place | `{"place": {"at": "<place>", "description" ≤300, "danger": "safe"\|"risky"}}` | A landmark or a far place changes (burned, flooded). Give `description`, `danger` or both. Never the three starting places. |
 | stake | `{"stake": {"s1": "≤80"}}` | One or more stakes change; a feed card. |
 | give | `{"give": {"name" ≤60, "note" ≤160}}` | The hero receives a quest item. |
 | attitude | `{"attitude": {"who": "<person>", "to": "unfriendly", "memory" ≤160}}` | Someone's view of the hero shifts, with a memory in their words. `to`: `hostile`, `unfriendly`, `indifferent`, `friendly` or `devoted`. |
-| offer | `{"offer": "<person>"}` | A "Take X along" offer. |
+| offer | `{"offer": "<person>"}` | A "Take X along" offer. It is made when the person is with the hero, and **waits until they are** (until they join or the tale ends), so it never lapses because the hero is elsewhere. |
 | fact | `{"fact": "≤200"}` | A world fact the Dungeon Master keeps. |
 | lead | `{"lead": {"open": "l1"}}` or `{"lead": {"close": "l1"}}` | A lead is opened, or closed (paid once). |
 | flag | `{"flag": "<flag>"}` | Sets a flag (an id; at most 24 flags in a tale; `late` is reserved). |
 | decide | `{"decide": {"<choice id>": "<option id>"}}` | Records a choice the player let lapse. |
+| clock | `{"clock": 1}` or `{"clock": -1}` | `1`: the next pressure step is owed now ("pressure +1 now": it fires as soon as nothing else is due). `-1`: the next step that would fire is held back once ("the clock stops one step"). |
 | advance | `{"advance": true}` | Closes the chapter now: its truth becomes the due beat, told at a cost. |
 | end | `{"end": "late"}` | In the last chapter only: the tale completes with the flag `late`. |
 | boss | `{"boss": {"minions": false}}` or `{"boss": {"hurt": true}}` | The boss loses its minions, or comes to the fight hurt (Phase C). |
 
-**Where `advance` and `end` may go:** a beat, a complication, a pressure step, a fight's deadline or a choice's option.
-`advance` only outside the last chapter, `end` only in it. Never in a chapter's own `then` or an `opening`'s.
+**Where `advance` and `end` may go:** a beat, a complication, a pressure step, a fight's deadline or hold, or a choice's
+option. `advance` only outside the last chapter, `end` only in it. Never in a chapter's own `then` or an `opening`'s.
+
+**When effects count:** an effect in a chapter's `opening` counts from that chapter's opening; one in a chapter's own
+`then` from the next chapter's opening; any other from the moment it fires in its own chapter.
 
 ---
 
@@ -432,12 +496,16 @@ A step is an object with **exactly one** of these keys (`say` may add `speakers`
 | say | `{"say": "≤300", "speakers": ["<person>"]}` | A turn of talk told by the Dungeon Master; `speakers` (up to 4, optional) are the people who answer. |
 | fight | `{"fight": true}` | Fight what holds this place until it is beaten. |
 | confront | `{"confront": "slay"}` | Confront the foe at the stronghold and fight to the end: `slay` or `subdue`. |
+| attack | `{"attack": {"who": "<person>", "to": "kill"}}` | Fight a person of the tale here to the end: `kill` or `subdue` (a brawl). |
 | search | `{"search": true}` | Search the fallen here. |
 | check | `{"check": "pass"}` | A world check here: `pass` or `fail`. |
 | rest | `{"rest": "long"}` | `short` or `long`. |
 | choose | `{"choose": {"<choice id>": "<option id>"}}` | The player's words clearly choose that option; the Dungeon Master records it. |
 | join | `{"join": "<person>"}` | Someone joins the hero. |
-| wait | `{"wait": 10}` | That many quiet moves (1–200) in which nothing happens. |
+| find | `{"find": "<person>"}` | The player searches or asks, and the Dungeon Master brings a hidden person into the scene. |
+| advance | `{"advance": true}` | The Dungeon Master closes the chapter (story-advance). |
+| lead | `{"lead": "l1"}` | The Dungeon Master closes a lead (lead-done). |
+| wait | `{"wait": 10}` or `{"wait": {"moves": 10, "talk": true}}` | That many quiet moves (1–200) in which nothing happens: moves of talk (`talk`: true, half a quiet move each) or not (the default). |
 
 The golden path stays within the tier's moves (section 8).
 
@@ -462,17 +530,21 @@ checked once the engine lands.
 | **Far lands** | **none** | **0–1** (only if the road is the adventure) | **1–2** |
 | **Named people** (keeper, mara, residents) | **4–7** | **6–9** | **9–12** |
 | **Pressure steps a chapter** | **3** | **3–4** | **4** |
-| Quiet turns before the clock acts (`quiet`) | 3 | 4 | 5 |
-| A pressure step every N chapter moves (`drift`) | 8 | 10 | 12 |
-| Longest a stalled chapter lasts | about 24 moves | about 40 | about 48 |
+| Quiet moves before the clock acts (`quiet`, default) | 3 | 4 | 5 |
+| **`quiet` at most** | **5** | **6** | **7** |
+| A pressure step every N chapter moves (`drift`, default) | 8 | 10 | 12 |
+| **Longest a stalled chapter lasts** (its steps × `drift`) | **24 moves** | **40** | **48** |
 | **Choices** | **1–2** | **2–3** | **3–4** |
+| **Options a choice** | **2–3** | **2–3** | **2–4** |
+| **The staging's size** (its JSON) | **16,000 characters** | **32,000** | **48,000** |
 | **Endings** | **2–4** | **3–4** | **3–4** |
 | **Leads** | **0–1** | **2** | **3–4** |
 | A new hero ends near level | 2–3 | 4–5 | 6–8 |
 | At a table of 3–4 heroes | about ×1.5 time | same | same |
 
 Also always: **chapter 1 has a set piece 0.1–0.3 mile from the start** (the first fight by minute 3), `firstSay` has
-exactly three lines, and `staging.length` is the file's `length`.
+exactly three lines, `staging.length` is the file's `length`, and a hard tale's clock ticks on long rests
+(`"ticks": {"rest": true}`). A Medium or Long tale's clock is planned per chapter (section 16).
 
 ### 8.2 Variety (the shelf)
 
@@ -509,10 +581,16 @@ secretly helped the foe". A trusted person is the villain only in S5, the man in
   to the hero ("you", "your").
 - **Reading before the first move** is at most **900 characters**: the introduction's `place`, `trouble` and `first`, the
   opening, and the opening lines, counted together.
-- **What the game tells** (every `tell`, `line`, `sign` and `colour`) has **no digits** and **no rule words**: HP,
-  damage, roll, DC, check, level, levels, XP, slot, turn, round, advantage, disadvantage, initiative, hit point(s),
-  saving throw(s), armor/armour class, spell slot(s), experience points. ("The cart rolls out" is fine; "a roll" is not.)
-  Numbers in other prose are spelled out (a warning otherwise).
+- **What the game tells** (every `tell`, `line`, `sign` and `colour`) has **no digits** and **no rule talk**, and nor
+  does anything the player reads or the Dungeon Master is handed from the staging (`firstSay`, `say`, `ask`, `label`,
+  stake states, ending titles and texts, memories, facts, notes, objectives). Rule talk is a rule word **in its rule
+  sense**: HP, DC, XP, hit points, saving throw, armour class, spell slot, experience points, bonus action, proficiency
+  bonus; and phrases such as "your turn", "next round", "each turn", "rounds of combat", "a Wisdom check", "the check
+  fails", "level up", "your level", "third-level", "deals fire damage", "points of damage", "with advantage", "advantage
+  on", "your roll", "a natural roll", "rolls for initiative", "initiative order". Ordinary English stays free: "round the
+  fire", "turn back", "a turn in the road", "at every turn", "level ground", "the lower levels", "the cart rolls out",
+  "keep it in check", "storm damage", "to his advantage", "took the initiative". Rule talk elsewhere in the tale is a
+  warning. Numbers in other prose are spelled out (a warning otherwise; ids such as `b2` are not prose).
 - **Overused words**, each at most once in the whole tale: ledger, archive, hearing, record, tally (any form).
 - **Every prose text ends on a full sentence** (section 2).
 - **Voice:** `line` and `sign` sit beside any narrator (The Chronicler, Wick the Lamplighter, Sable the Bard): plain, no
@@ -616,7 +694,7 @@ The folders default to the live data folders (`.questbound-people`, `.questbound
 `.questbound-written`) under `QUESTBOUND_DATA`, the checkout, or the main checkout of its git repository (so a worktree
 finds them). A missing people, creature or place library fails the check; a missing shelf is a warning (names are then
 checked within the tale only). `--json` prints the report as JSON (`ok`, `errors`, `warnings`, `todo`, `checks`,
-`seated`, `readingLoad`, `pools`, `libraries`). **Exit 0 when the tale passes** (warnings allowed: read them), **1 when it
+`seated`, `readingLoad`, `stagingSize`, `pools`, `libraries`). **Exit 0 when the tale passes** (warnings allowed: read them), **1 when it
 fails** or cannot be checked. Each error names the path of the field (`story.staging.chapters[0].found`) and what to do.
 
 | Check | What it checks |
@@ -624,10 +702,10 @@ fails** or cannot be checked. Each error names the path of the field (`story.sta
 | 1 Shape and limits | Every key known and every field within its limit (the written-tale limits included); nothing the game sets is written; the staging sound (`stagingProblems` with unknown keys reported); every prose text ends on a full sentence. |
 | 2 Seating | The ready-made Fighter, Rogue, Wizard and Cleric at the lowest, middle and highest level, and parties of 2 and 4 at the lowest and highest (`partyInTale`): the tale seats and makes a valid adventure every time; every resident lives where `at` says; the opening lines, landmarks and lands are all kept; tidying changed nothing written. |
 | 3 Names | Every name the staging uses resolves; names unique in the tale and across the shelf; the avoid and deny lists; the ready-made heroes' names; people cast from the library. |
-| 4 Structure | Finds (two routes, one mechanical, talk never alone); the tier's budgets; chapter 1's fight; set pieces off the three starting places; `clear` and `won` only where something is fought; `firstSay`; difficulty (warnings); the shelf's ids, Start here tale and variety. |
+| 4 Structure | Finds (5.2: two different routes, one mechanical, talk as 5.2 says; no route that holds as its chapter opens, chapter 1's read against every seated hero; none that can never hold in its chapter; `clear` of a place armed earlier only when armed again); beats and choices that never get their turn (a beat or a choice's `opens` that is one of its chapter's routes; a condition that can never hold there, two things that cannot hold together among them; beats waiting for their own or each other's telling; an option settled as the chapter opens); leads that hold at once or never; endings never chosen (behind an earlier one, or after one that always holds) or never holding; the clock (each chapter's steps × `drift` within the tier's stall bound, `quiet` within its limit, a hard tale's `ticks.rest`); the staging's size; the tier's budgets; chapter 1's fight (and its `otherwise` when it waits for a level); set pieces and `arm` off the three starting places, a place armed at most once a chapter; `place` never at a starting place; `bring` and `send` never keeper or mara; `clear` and `won` only where something is fought; `firstSay`; difficulty (warnings); the shelf's ids, Start here tale and variety. |
 | 5 Walkthroughs | Today the walkthrough's shape and names. **TODO:** golden, passive, violent and every ending played through the rules, once the staging engine lands. |
 | 6 Pictures | Section 10. |
-| 7 Text | Section 9. |
+| 7 Text | Section 9: the opening, the reading load, digits and rule talk in what the game tells (errors), rule talk in what the player reads from the staging (errors) and elsewhere (warnings), overused words. |
 | 8 Balance | **TODO:** each set piece and the boss for four classes at the tale's levels, solo and with two heroes (gentle 90%, steady 80%, hard 70% won; the boss solo costs 50–80% of hit points with 5–15% falls and under 3% deaths), with `balance-check.cjs --tale`. |
 | 9 Experience | **TODO:** the levels gained along the golden path stay within the tier's range. |
 
@@ -639,17 +717,48 @@ both reports (up to 3 critic rounds), then escalate to the main session.
 ## 14. game.pace (runtime state, for reference)
 
 Writers never write this. The engine keeps where a written tale stands in `game.pace`: world state, shared at a table,
-never a hero field. `validPace(pace, game)` (stagingRules.js) checks it inside `validAdventure`; it is valid only with a
-staged story, and keys it does not know are ignored (a game saved by a later build still loads).
+never a hero field, never carried into the next tale. `validPace(pace, game)` (stagingRules.js) checks it inside
+`validAdventure`; it is valid only with a staged story.
 
 ```jsonc
-"pace": {"v": 1, "ch": 0, "turns": 0, "quiet": 0, "since": 0, "step": 0, "owed": 0, "day": 0,
-         "due": null,               // or {"kind", "id"?}: turn, opening, beat, complication, pressure, choice, ending, deadline, bloodied
-         "told": [], "fired": [],   // ids, at most 80 each
-         "marks": {}, "flags": [],  // choice id -> option id; at most 24 flags
-         "stakes": {}, "spoke": {}, // stake id -> state; person id -> times spoken this chapter
-         "sign": null, "fight": null, "ending": null, "quietMax": 0}
+"pace": {"v": 1, "ch": 0, "turns": 0, "quiet": 0, "quietMax": 0, "since": 0, "day": 0, "step": 0, "owed": 0, "held": 0,
+         "due": null,                 // or {"kind", "id"?}: turn, opening, beat, complication, pressure, choice, ending, deadline, hold, bloodied
+         "told": [], "fired": [],     // ids (a beat, complication, step, choice or ending; "found:1", "opening:2"...), at most 400 each
+         "seen": [],                  // the chapter's events: "reach:p3", "won:p3", "searched:p3", "checked:inn", "rest"; at most 400
+         "marks": {}, "flags": [],    // choice id -> option id; the tale's flags, "late" with them (at most 25)
+         "stakes": {}, "spoke": {},   // stake id -> its state now; person id -> DM-told turns they spoke in this chapter
+         "offers": [], "leads": [],   // people offered who were not with the hero yet; leads opened by an effect
+         "sign": null, "fight": null, "ending": null}
 ```
+
+| Key | What it is |
+|---|---|
+| `v` | The pace's version (1). |
+| `ch` | The chapter under way (0-based, as `story.chapter`). |
+| `turns` | Moves made in this chapter (it starts again with each chapter). |
+| `quiet`, `quietMax` | Quiet since something last happened, in half moves (a move of talk adds 1, any other quiet move 2), and the most it has reached this chapter. Something happening sets it to 0: a story-log line other than a rest or a return, a beat told, a stake changed, a choice made, a fight begun or ended. |
+| `since`, `day` | The tale's clock (map minutes) when the chapter began, and the day (minutes ÷ 1440) last counted for `ticks.days`. |
+| `step` | Pressure steps fired in this chapter. |
+| `owed` | Steps owed (by rests, days and `{"clock": 1}`), never more than the steps left in the chapter: a road of twelve days owes no more than the chapter has. |
+| `held` | Steps to hold back (`{"clock": -1}`). |
+| `due` | The one thing to be told next: `{"kind", "id"}` (4.4). |
+| `told`, `fired` | What has been told, and what has fired (told or not). A request carries the id of the beat it asks to be told; that id is marked told when the reply (or the game's own `line`) is given, never whatever is due after the move, so nothing is told twice. |
+| `seen` | The chapter's events (5), kept only for places the staging names. |
+| `marks`, `flags`, `stakes` | Choices made, flags set, stakes changed. |
+| `spoke` | Who spoke in Dungeon-Master-told turns this chapter, and how often. |
+| `offers` | People an `offer` named who were not with the hero when it fired: offered as soon as they are. |
+| `leads` | Leads an effect opened. |
+| `sign` | The latest pressure sign (the Quest tab's "Out of sight"). |
+| `fight` | A set piece's or the boss's timer (Phase C): `{"turns", "rounds"?}`. |
+| `ending` | The ending taken. |
+
+**Every build accepts the tales and saves of later builds.** A later version only adds kinds and keys: it never changes
+what an existing kind or key means, never removes a pace key and never changes an id's shape. So the validators on
+every device and on the campaign server (`validStaging`, `validPace`) check structure and size only: a condition of a
+kind the build does not know never holds there, an effect of an unknown kind does nothing, an unknown due kind means
+nothing is due, and staging `v` and pace `v` may be any whole number from 1; their lists are sized for the largest tale
+any build accepts (a staging is at most 64,000 characters of JSON). The authoring checker alone (`stagingProblems(story,
+{strict: true})`) checks the whole vocabulary and every limit of this document.
 
 ---
 
@@ -661,15 +770,18 @@ woodcutters' camp in Ollerby Wood where wolves walk in each night.
 - **Places:** inn = Kettle Camp (camp, the cover: camp in forest); bridge = The Split Oak (the poacher's lean-to); tower =
   The Old Sawpit; landmarks The Log Slide (0.2 mile, the first fight), Fernmoot Spring, The Deer-Park Wall.
 - **Cast:** keeper Mabry Thorne (the camp boss, who demands the sack back); mara Linnet Spey (a forager, offered as a
-  companion when chapter 1 closes); residents Dob Harker and Hester Gale at the start, Brother Selwyn Ashe at the spring,
-  Nim Corley hidden in the sawpit. The foe, Corran Stell, is none of them.
+  companion when chapter 1 closes: the offer waits until she is with the hero); residents Dob Harker and Hester Gale at
+  the start, Brother Selwyn Ashe at the spring, Nim Corley hidden in the sawpit. The foe, Corran Stell, is none of them.
 - **Chapter 1, "The Log Slide":** the set piece is a wolf at The Log Slide. The find has three routes: reach the Old
   Sawpit; search the Log Slide; or clear it **and** speak twice with Dob Harker. Beat `b1` fires when the slide is
   cleared (the offal trail). The clock: carts loaded, the meal-store rope cut, then the pack rushes the camp and the
   chapter closes at a cost (`{"advance": true}`).
-- **Chapter 2, "The Split Oak":** its opening tells the trail running on; beat `b2` brings Nim; the choice `stell` opens
-  on reaching the oak (`bargain` or `refuse`, `late: "refuse"`); the clock arms The Deer-Park Wall with a boar, loads the
-  carts, and at dawn ends the tale late (`{"end": "late"}`). The find: the foe beaten, or the bargain struck at the oak.
+- **Chapter 2, "The Split Oak":** its opening tells the trail running on; beat `b2` brings Nim when the sawpit has been
+  reached (a hero whose chapter 1 closed there stands there as chapter 2 opens, so it fires on the next quiet turn); the
+  choice `stell` opens once the oak is reached and stays open (`bargain` or `refuse`, `late: "refuse"`); the clock arms
+  The Deer-Park Wall with a boar, loads the carts, and at dawn ends the tale late (`{"end": "late"}`). The find: the foe
+  beaten, or the oak reached **and** the bargain struck (the arrival is kept for the chapter, so the bargain may come on
+  any later turn).
 - **Endings:** "A Hunter's Terms" (`{"mark": {"stell": "bargain"}}`), "The Camp Holds" (the foe beaten and not late),
   "The Carts Roll Out" (the default).
 
@@ -682,3 +794,59 @@ woodcutters' camp in Ollerby Wood where wolves walk in each night.
 
 Check it: `node check-written-tale.cjs written-fixture.json` (it warns that its file name is not its slug: it never goes on
 the shelf).
+
+---
+
+## 16. Decided while freezing it, and the catalogue
+
+Where the build specification was open or contradicted itself, the format decides:
+
+- **Long rests and the clock.** The card's promise wins: a long rest ticks the clock only when `ticks.rest` is true,
+  which every hard tale sets (the checker requires it) and any tale may set. A day of the tale's time owes `ticks.days`
+  steps (default 1).
+- **Medium and Long clocks are planned per chapter.** A catalogue clock of 6 or 8 steps across a tale is a list of events:
+  put each in the chapter it belongs to, fill every chapter to its tier's count of steps with steps of its own, and the
+  last step of each chapter closes it (the last chapter's ends the tale late). A "step per long rest" tale sets
+  `ticks.rest`; "two steps a day" sets `ticks.days` to 2.
+- **"Clock −1", "pressure +1 now", "the clock stops one step"** are `{"clock": 1}` and `{"clock": -1}`.
+- **"Unless …" steps** are a pressure step's `if` with its `spared` telling; **"needs …" options** an option's `if`;
+  **"from level N, else …"** a set piece's `fromLevel` and `otherwise` (or a beat's `{"level": n}`); **"only if …" bosses**
+  `boss.if`; **a bloodied foe** `{"foe": "bloodied"}`; **"survive N rounds"** a `hold`; **a boss objective or fuse**
+  `boss.objective` and `boss.deadline`.
+- **At most four endings and four options** (a Long tale's choice may have four; Short and Medium three).
+- **Talk** may stand alone as a route with two exchanges or more (5.2), as the specification's own S1 does.
+- **Events count for the chapter** (`reach`, `won`, `searched`, `checked`, `rest`), and `{"at"}` is "here now".
+- **Arming a place again** makes it uncleared; a place is armed at most once a chapter.
+- **An offer waits** until the person is with the hero.
+- **Keeper and mara are never moved** by `bring` or `send`: the person who is taken, found or sent is a resident.
+
+The catalogue entries of the build specification need these changes as written (the checker reports each):
+- **S4** lists five endings: at most four, so fold two of them into one.
+- **S5** "Pip Saddler" shares "Pip" with the ready-made rogue: rename her. Its mara is moved by a `send`, which keeper
+  and mara never are: make the person who is sent a resident, and give the mara slot to someone else.
+- **S6** "Human (cursed)" is not a common people: write `Human` (the curse is told, not a species).
+- **S1 and S6** as specified break the gentle definition (packs, a minion, an ally): a warning.
+- **The talk routes** of the catalogue ("spoke with … twice") stand as written, with `times` 2; one with keeper, mara or
+  someone living at the start is a warning (S1, S4, S5, M1, M3).
+- **Beats that are their chapter's own route** (one each in S1 and S4 as specified) never fire: give their effects to the
+  chapter's `then` or the next chapter's beats.
+- **Writers' briefs.** A writer authors from this document and their tale's brief: its catalogue entry and its line of
+  the name register (the build specification's 4.2 and 4.3–4.5), given with this document; names reserved for another
+  tale are never used.
+
+---
+
+## 17. For the runtime (the next step)
+
+What the engine and the shelf must do before any written tale is served, so this format holds in play:
+- **The Dungeon Master never reads the staging.** `storyWorld` (dmSceneRules.js) and `sceneFor` (dm-server.cjs) leave
+  `staging` and `written` out of `context.story` (the request is refused past 64,000 bytes, and a long staging alone is
+  up to 48,000 characters), and verify-dm-trim measures a full-size staged Long tale. (Until then a staging reaches no
+  game: nothing serves written tales, and a story a table's host posts keeps no staging or shelf tag.)
+- **The shelf checks the tidied copy.** `writtenCheck` validates the copy `freshStoryGame` makes (lead ids are given when
+  the story is tidied), and runs the checker's name resolution and placement checks (every name resolves, no `arm` or
+  `place` at the three starting places, no `bring` or `send` of keeper or mara).
+- **`withBeats` and `beatHolds` are total.** Every input `validStaging` and `validPace` accept, and anything else, gives a
+  result and never throws; verify-written-format fuzzes `beatHolds` and the validators, and the engine's own check fuzzes
+  `withBeats` the same way. An unknown template, a name that resolves to nothing, an `arm` at a starting place or where
+  the hero is fighting: the engine skips that effect.

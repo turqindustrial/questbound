@@ -213,7 +213,10 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    const introId=journey?'easy':['idea','surprise','easy','crown','drowned','sunforge','winter','deep','names','oath'].includes(b.introId)?b.introId:'surprise';
    locks.set(c.id,seat(c,user));
    try{
+    // A tale the host's device wrote is never a written tale (those come by their journey id, from the Dungeon
+    // Master's shelf), so it keeps no staging and no shelf tag: a crafted one never reaches the table or its turns.
     let written=b.story;
+    if(!journey){const {staging,written:tag,...told}=written;written=told;}
     if(journey){
      if(!ask)throw fail(503,'The Dungeon Master is not reachable from the table just now. Try again soon.');
      const hero=JSON.parse(r.partyView(c.snapshot,seat(c,user)).character);

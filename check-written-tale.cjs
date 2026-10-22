@@ -8,13 +8,18 @@
 //                        and parties of 2 and 4 heroes (partyInTale): every resident, landmark and land seated as written.
 //   3 Names              every name resolves; names unique in the tale and across the shelf; the avoid and deny lists;
 //                        people cast from the library (pool) keep its name, species and gender.
-//   4 Structure          finds with two routes (one mechanical), the clock that always closes a chapter, endings, the
-//                        tier's budgets, the first fight, choices, references between parts.
+//   4 Structure          finds (two different routes, one mechanical, talk standing alone only in two exchanges and
+//                        beside nothing but deeds); nothing that holds as its chapter opens (chapter 1 read exactly,
+//                        with beatHolds, against every seated hero) or can never hold there (order: what a later
+//                        chapter gives, arms or decides); beats, choices, leads and endings that never get their turn;
+//                        what the engine cannot do (keeper or mara moved, a starting place changed or armed, a place
+//                        armed twice a chapter); the clock's stall bound; the staging's size; the tier's budgets.
 //   5 Walkthroughs       TODO (needs the staging engine, withBeats): today only the walkthrough's shape and names.
 //   6 Pictures           cover unique on the shelf; every creature fits the creature library; every place the place
 //                        library; every person without a pool is of a common people (a free look-alike face).
-//   7 Text               the opening, the reading load before the first move, no numbers or rule words in what the
-//                        game tells, overused words.
+//   7 Text               the opening, the reading load before the first move, no digits or rule talk (in its rule
+//                        sense: ruleTalk) in what the game tells, no rule talk in what the player reads from the
+//                        staging, overused words.
 //   8 Balance            TODO (needs the staging engine and balance-check.cjs --tale).
 //   9 Experience         TODO (needs the walkthrough runner).
 // Usage (from a checkout or worktree of the build branch, never the live checkout):
@@ -41,21 +46,33 @@ const publisherWords=/\b(?:beholders?|mind ?flayers?|illithids?|displacer|carrio
 const subclassNames=['Hidden Step','Fey Step','Elder Champion','Battle Master','Eldritch Knight','Arcane Archer','Cavalier','Samurai','Psi Warrior','Rune Knight','Echo Knight','Banneret','Totem Warrior','Ancestral Guardian','Storm Herald','Zealot','Wild Heart','World Tree','Path of the Beast','Path of the Giant','Valor','Glamour','Swords','Whispers','Creation','Eloquence','Spirits','Dance','Knowledge','Light Domain','Nature Domain','Tempest','Trickery','War Domain','Death Domain','Forge','Grave','Order','Peace','Twilight','Moon','Dreams','Shepherd','Spores','Stars','Wildfire','Circle of the Sea','Shadow','Elements','Mercy','Drunken','Kensei','Sun Soul','Long Death','Astral Self','Ancients','Vengeance','Conquest','Redemption','Glory','Watchers','Crown','Noble Genies','Beast Master','Gloom Stalker','Horizon Walker','Monster Slayer','Fey Wanderer','Swarmkeeper','Drakewarden','Winter Walker','Assassin','Arcane Trickster','Inquisitive','Mastermind','Scout','Swashbuckler','Phantom','Soulknife','Wild Magic','Divine Soul','Shadow Magic','Storm Sorcery','Aberrant','Clockwork','Lunar','Spellfire','Archfey','Great Old One','Celestial','Hexblade','Fathomless','Genie','Undead Patron','Undying','Abjur*','Conjur*','Divin*','Enchant*','Illusion*','Necroman*','Transmut*','Bladesing*','War Magic','Chronurgy','Graviturgy','Scribes','Cartographer',
  'Combat Superiority','Superiority Dice','Arcane Ward','Portent','Shadow Step','Dread Ambusher',"Hexblade's Curse",'Eldritch Cannon','Steel Defender','Experimental Elixir','Arcane Armor','Vow of Enmity','Bladesong','Rakish Audacity','Colossus Slayer','Arcane Jolt','Battle Ready','Fortified Position','Explosive Cannon','Arcane Firearm','Restorative Reagents','Chemical Mastery','Alchemical Savant','Perfected Armor','Improved Defender','Armor Model','Coordinated Attack'];
 const subclassPatterns=subclassNames.map(d=>({name:d.replace(/\*$/,''),re:new RegExp('\\b'+d.replace(/\*$/,'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/'/g,"['’]")+(d.endsWith('*')?'\\w*':'\\b'),'i')}));
-// Rule words: never in what the game tells (tell, line, sign, colour). The words as the format lists them (so "the cart
-// rolls out" or "the ferry turns" stay free), and the rules' own terms in any form.
-const ruleWords=/\b(?:hp|damage|roll|dc|check|level|levels|xp|slot|turn|round|advantage|disadvantage|initiative|hit points?|saving throws?|armou?r class|spell slots?|experience points?)\b/i;
+// Rule talk: never in what the game tells, the player reads or the Dungeon Master is handed from the staging. Matched in
+// its rule sense, so ordinary English stays free ("round the fire", "turn back", "level ground", "the cart rolls out",
+// "keep it in check", "at every turn", "storm damage", "to his advantage", "took the initiative").
+const numberWords='one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty';
+const rulePhrases=[/\bhp\b/i,/\bdc\b/i,/\bxp\b/i,/\bhit points?\b/i,/\bsaving throws?\b/i,/\barmou?r class\b/i,/\bspell slots?\b/i,/\bexperience points?\b/i,/\bbonus actions?\b/i,/\bproficiency bonus\b/i,
+ /\b(?:with|has|have|had|gains?|gets?|grants?|at)\s+(?:dis)?advantage\b/i,/\b(?:dis)?advantage on\b/i,
+ /\broll(?:s|ed|ing)?\s+(?:for\s+)?initiative\b/i,/\binitiative\s+(?:order|roll|count)\b/i,
+ /\b(?:deals?|dealt|dealing|takes?|took|taking|suffers?|suffered)\s+(?:\w+\s+){0,2}damage\b/i,/\b(?:slashing|piercing|bludgeoning|fire|cold|poison|necrotic|radiant|psychic|thunder|lightning|acid|force)\s+damage\b/i,/\bdamage\s+(?:rolls?|dice|die)\b/i,/\bpoints? of damage\b/i,
+ /\b(?:your|his|her|their|my)\s+rolls?\b/i,/\b(?:dice|die|d20)\s+rolls?\b/i,/\broll(?:s|ed)?\s+(?:of\s+)?(?:a|an|the)\s+(?:die|dice)\b/i,/\b(?:natural|failed|bad|good|lucky|high|low)\s+roll\b/i,/\broll(?:s|ed)?\s+(?:high|low|well|badly)\b/i,
+ /\b(?:ability|skill|world|perception|insight|stealth|athletics|acrobatics|persuasion|deception|intimidation|investigation|arcana|survival|medicine|history|religion|nature|performance|strength|dexterity|constitution|intelligence|wisdom|charisma)\s+checks?\b/i,/\b(?:a|your|failed|passed|successful)\s+checks?\b/i,/\bchecks?\s+(?:fails?|failed|succeeds?|succeeded|passes|passed)\b/i,
+ /\blevel(?:s|led|ed|ing)?\s+up\b/i,/\b(?:your|character|spell|caster|hero's|hero’s)\s+levels?\b/i,new RegExp('\\blevels?\\s+(?:'+numberWords+')\\b','i'),/\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)[- ]level\b/i,
+ /\bslots?\s+(?:left|spent|remaining)\b/i,
+ /\b(?:your|my|its|their|the foe's|the enemy's|next|per|this|each)\s+turns?\b(?!\s+(?:back|away|round|around|aside|over|to|toward|towards|into|out|off|on|up|down|from|in|of|at))/i,/\bturn order\b/i,/\bend (?:of )?(?:your|the|their|this|his|her) turn\b/i,
+ /\b(?:this|next|each|every|per|one more|another)\s+rounds?\b(?!\s+(?:of (?:drinks|ale|applause|cheers)|table|stone|tower|window|face|belly|hut|room|hill|top|shield))/i,/\brounds? of (?:combat|fighting|battle)\b/i,new RegExp('\\b(?:in|for|within|after|over)\\s+(?:a few|several|'+numberWords+')\\s+rounds\\b','i')];
+const ruleTalk=t=>{for(const re of rulePhrases){const m=String(t??'').match(re);if(m)return m[0];}return null;};
 // Words that make tales sound alike: each at most once in a whole tale.
 const overused=[['ledger',/\bledgers?\b/gi],['archive',/\barchiv(?:e|es|ed|ist|ists)\b/gi],['hearing',/\bhearings?\b/gi],['record',/\brecord(?:s|ed|ing|ings)?\b/gi],['tally',/\btall(?:y|ies|ied)\b/gi]];
 // Words in people's names that are titles, not names (name parts are compared without them).
 const honorifics=new Set('the of old young brother sister mother father ma pa nan gran granny grandmother grandfather dame sir lady lord duchess duke captain sergeant marshal elder squire jarl princess prince queen king councillor factor harbour-master harbor-master lord-protector lord-general master mistress goodwife goodman widow doctor the-elder'.split(' '));
 // The tiers (SPEC 1.1). fights counts set pieces, places armed by an effect and the boss.
 const tiers={
- short:{chapters:[2,2],pressure:[3,3],endings:[2,4],choices:[1,2],leads:[0,1],people:[4,7],landmarks:[2,4],landmarkMiles:1,farLands:[0,0],fights:[3,4],moves:45,minutes:[30,60],minuteStep:10},
- medium:{chapters:[3,4],pressure:[3,4],endings:[3,4],choices:[2,3],leads:[2,2],people:[6,9],landmarks:[4,5],landmarkMiles:null,farLands:[0,1],fights:[6,8],moves:180,minutes:[120,240],minuteStep:30},
- long:{chapters:[5,6],pressure:[4,4],endings:[3,4],choices:[3,4],leads:[3,4],people:[9,12],landmarks:[6,6],landmarkMiles:null,farLands:[1,2],fights:[12,Infinity],moves:450,minutes:[360,1200],minuteStep:30}};
+ short:{stall:24,options:3,size:16000,chapters:[2,2],pressure:[3,3],endings:[2,4],choices:[1,2],leads:[0,1],people:[4,7],landmarks:[2,4],landmarkMiles:1,farLands:[0,0],fights:[3,4],moves:45,minutes:[30,60],minuteStep:10},
+ medium:{stall:40,options:3,size:32000,chapters:[3,4],pressure:[3,4],endings:[3,4],choices:[2,3],leads:[2,2],people:[6,9],landmarks:[4,5],landmarkMiles:null,farLands:[0,1],fights:[6,8],moves:180,minutes:[120,240],minuteStep:30},
+ long:{stall:48,options:4,size:48000,chapters:[5,6],pressure:[4,4],endings:[3,4],choices:[3,4],leads:[3,4],people:[9,12],landmarks:[6,6],landmarkMiles:null,farLands:[1,2],fights:[12,Infinity],moves:450,minutes:[360,1200],minuteStep:30}};
 const compass=['N','NE','E','SE','S','SW','W','NW'];
 const packTemplates=['goblin','zombies','wolves'],singleOf={zombies:'skeleton',wolves:'wolf',orc:'goblin'};
-const stepKinds=['go','say','fight','confront','search','check','rest','choose','join','wait'];
+const stepKinds=['go','say','fight','confront','search','check','rest','choose','join','find','attack','advance','lead','wait'];
 const fileKeys=['format','id','slug','edition','order','listed','addedAt','length','minutes','difficulty','party','levels','firstTale','notes','shape','pitch','story','walkthrough'];
 const storyKeys=['title','premise','opening','objective','resolution','secret','foe','foeSpecies','foeAppearance','foeDamageType','foeVoice','hoard','region','terrain','layout','landmarks','lands','chapters','leads','locations','npcs','residents','introduction','openingDialogue','staging'];
 const storyOptional=new Set(['lands','leads']);
@@ -77,7 +94,7 @@ const plural=(n,word)=>n+' '+word+(n===1?'':'s');
 let engine=null;
 function rules(){
  if(engine)return engine;
- engine=vm.runInNewContext(rulesSource()+'\n;({readyHero,readyHeroes,blankBuild,makeCharacter,isValidCharacter,automaticSpells,spellLimits,spellsForClass,subclassOptions,newAdventure,freshStoryGame,tidyStory,validStory,validAdventure,adventureSnapshot,startParty,joinParty,partyView,partyInTale,validHoard,validTies,validIntroduction,introductionFields,placeKinds,terrains,templateKeys,attitudeLevels,genders,npcClassList,tieKinds,foeTieKinds,magicItems,stagingProblems,stagingIds,stagingNamesUsed,stagingMechanical,stagingPacing,writtenLengths,validWrittenTag,maxLandmarks,maxResidents,rarityAllowed})',{AsyncStorage:{},console},{timeout:10000});
+ engine=vm.runInNewContext(rulesSource()+'\n;({readyHero,readyHeroes,blankBuild,makeCharacter,isValidCharacter,automaticSpells,spellLimits,spellsForClass,subclassOptions,newAdventure,freshStoryGame,tidyStory,validStory,validAdventure,adventureSnapshot,startParty,joinParty,partyView,partyInTale,validHoard,validTies,validIntroduction,introductionFields,placeKinds,terrains,templateKeys,attitudeLevels,genders,npcClassList,tieKinds,foeTieKinds,magicItems,stagingProblems,stagingIds,stagingNamesUsed,stagingMechanical,stagingEvents,stagingPacing,writtenLengths,validWrittenTag,beatHolds,openingPace,metPerson,maxLandmarks,maxResidents,rarityAllowed})',{AsyncStorage:{},console},{timeout:10000});
  return engine;
 }
 
@@ -321,12 +338,19 @@ function checkTale(file,options={}){
    for(const {game} of seatings){const ids=r.stagingIds(game);for(const u of r.stagingNamesUsed(game.story.staging)){if(u.kind==='item')continue;if(!(u.kind==='place'?ids.place(u.name):ids.person(u.name)))unresolved.set(u.path,u);}}
    for(const u of unresolved.values())fail(3,'story.'+u.path,'"'+u.name+'" is no '+(u.kind==='place'?'place':'person')+' of this tale (write the exact name; case and a leading "The" do not matter)');
    const ids=r.stagingIds(g);
-   // Set pieces and armed places are world places (landmarks or far places), never the three starting places.
-   const armed=new Map();
-   arr(staging.chapters).forEach((c,i)=>{if(plain(c?.fight)&&typeof c.fight.at==='string')armed.set(nameKey(c.fight.at),'story.staging.chapters['+i+'].fight.at');});
-   for(const [where,v] of stagingEffects(staging,'story.staging'))if(v.kind==='arm'&&typeof v.value?.at==='string')armed.set(nameKey(v.value.at),where+'.at');
-   for(const [k,where] of armed){const id=ids.place(k);if(id&&['inn','bridge','tower'].includes(id))fail(4,where,'a fight is set at a landmark or a far place, never at one of the three starting places (the foe waits at the stronghold)');}
-   seated.armed=armed;
+   // Set pieces and armed places are world places (landmarks or far places), never the three starting places; the
+   // effects that move people move residents (keeper and mara stay at the start unless they follow the hero), and a
+   // place that changes is a world place (the three starting places have no danger to change).
+   const armings=[];
+   arr(staging.chapters).forEach((c,i)=>{if(plain(c?.fight)&&typeof c.fight.at==='string')armings.push({key:nameKey(c.fight.at),where:'story.staging.chapters['+i+'].fight.at'});});
+   for(const [where,v] of stagingEffects(staging,'story.staging')){
+    const at=typeof v.value?.at==='string'?ids.place(v.value.at):null,who=typeof v.value==='string'?v.value:v.value?.who,person=typeof who==='string'?ids.person(who):null;
+    if(v.kind==='arm'&&typeof v.value?.at==='string')armings.push({key:nameKey(v.value.at),where:where+'.at'});
+    if(v.kind==='place'&&['inn','bridge','tower'].includes(at))fail(4,where+'.at','the three starting places do not change: "place" changes a landmark or a far place');
+    if((v.kind==='bring'||v.kind==='send')&&['keeper','mara'].includes(person))fail(4,where,'"'+who+'" is the tale\'s '+person+', who stays at the start unless they follow the hero: "'+v.kind+'" moves residents only (make the person who comes or goes a resident)');
+   }
+   for(const x of armings){const id=ids.place(x.key);if(id&&['inn','bridge','tower'].includes(id))fail(4,x.where,'a fight is set at a landmark or a far place, never at one of the three starting places (the foe waits at the stronghold)');}
+   seated.armings=armings;
   }
  }
 
@@ -380,34 +404,159 @@ function checkTale(file,options={}){
  const shelf=libs.shelf.found?loadShelf(libs.shelf.dir,file):{tales:[],skipped:[]};
  {
   const chapters=Array.isArray(staging.chapters)?staging.chapters:[],n=Array.isArray(story.chapters)?story.chapters.length:0,last=n-1;
-  const kindOf=c=>plain(c)?Object.keys(c)[0]:null;
+  const kindOf=c=>plain(c)?Object.keys(c)[0]:null,valueOf=c=>plain(c)?Object.values(c)[0]:undefined;
   const mechanical=c=>{const k=kindOf(c);if(!k)return false;const v=c[k];if(k==='foe')return ['slain','subdued','beaten'].includes(v);if(r.stagingMechanical.includes(k))return true;if(k==='all')return Array.isArray(v)&&v.length>0&&v.every(mechanical);if(k==='any')return Array.isArray(v)&&v.some(mechanical);return false;};
-  const talkAlone=c=>{const k=kindOf(c);if(!k)return false;const v=c[k];if(k==='spoke')return true;if(k==='all')return Array.isArray(v)&&v.length>0&&v.every(talkAlone);if(k==='any')return Array.isArray(v)&&v.some(talkAlone);return false;};
-  const confrontFrom=Number.isInteger(staging.confrontFrom)?staging.confrontFrom:n;
+  const confrontFrom=Number.isInteger(staging.confrontFrom)?staging.confrontFrom:n,bossFrom=confrontFrom-1;// the first chapter (0-based) in which the foe can be fought
+  const lowest=levels[0],highest=levels[levels.length-1];
+  const chapterPath=(i,rest)=>'story.staging.chapters['+i+']'+rest;
+  const pressureCount=i=>Array.isArray(chapters[i]?.pressure)?chapters[i].pressure.length:0;
+  // A condition written the same way twice is the same condition (names compared as the game compares them).
+  const canon=c=>Array.isArray(c)?'['+c.map(canon).join(',')+']':plain(c)?'{'+Object.keys(c).sort().map(k=>JSON.stringify(k)+':'+canon(c[k])).join(',')+'}':typeof c==='string'?JSON.stringify(nameKey(c)):JSON.stringify(c);
+  // When things first become possible, by chapter (0-based). An effect in a chapter's own `then` applies as it closes,
+  // so it counts from the next chapter's opening; one in an `opening` from that chapter's opening; anything else from
+  // its own chapter (and, once it has happened, from the next chapter's opening). A choice is made in its chapter (or
+  // its `late` option as the chapter closes); the hoard comes with the foe beaten.
+  const during=new Map(),atOpening=new Map(),first=(map,key,i)=>{if(key!==undefined&&key!==null&&(!map.has(key)||map.get(key)>i))map.set(key,i);};
+  const can=(key,duringAt,openingAt)=>{first(during,key,duringAt);first(atOpening,key,openingAt);};
+  const toldAt=new Map(),armedOpening=new Map();
+  chapters.forEach((c,i)=>{if(!plain(c))return;
+   for(const kind of ['beats','complications','pressure'])arr(c[kind]).forEach(b=>{if(typeof b?.id==='string')toldAt.set(b.id,i);});
+   if(plain(c.choice))for(const o of arr(c.choice.options))if(typeof o?.id==='string')can('mark:'+c.choice.id+':'+o.id,i,i+1);
+   if(plain(c.fight)&&typeof c.fight.at==='string'){can('armed:'+nameKey(c.fight.at),i,i);if(!armedOpening.has(i))armedOpening.set(i,new Set());armedOpening.get(i).add(nameKey(c.fight.at));}
+   if(plain(c.found?.item)&&typeof c.found.item.name==='string')can('item:'+nameKey(c.found.item.name),i+1,i+1);
+  });
+  for(const [w,v] of stagingEffects(staging,'story.staging')){
+   const m=w.match(/^story\.staging\.chapters\[(\d+)\]\.(then|opening\.then)?/),i=m?Number(m[1]):bossFrom,closing=m?.[2]==='then',opening=m?.[2]==='opening.then';
+   const [d,o]=closing?[i+1,i+1]:opening?[i,i]:[i,i+1];
+   if(v.kind==='flag')can('flag:'+v.value,d,o);
+   else if(v.kind==='give'&&typeof v.value?.name==='string')can('item:'+nameKey(v.value.name),d,o);
+   else if(v.kind==='decide'&&plain(v.value)){const [ch,op]=Object.entries(v.value)[0]??[];can('mark:'+ch+':'+op,d,o);}
+   else if(v.kind==='arm'&&typeof v.value?.at==='string'){const k=nameKey(v.value.at);can('armed:'+k,d,o);if(closing||opening){if(!armedOpening.has(o))armedOpening.set(o,new Set());armedOpening.get(o).add(k);}}
+  }
+  if(typeof story.hoard?.name==='string')can('item:'+nameKey(story.hoard.name),bossFrom,bossFrom+1);
+  const metAtStart=new Set(seated?[story.npcs?.keeper?.name,story.npcs?.mara?.name,...arr(story.residents).map(x=>x?.name)].filter(x=>typeof x==='string').filter(x=>{const id=r.stagingIds(seated.game).person(x);return id&&r.metPerson(seated.game,id);}).map(nameKey):[]);
+  // A condition that can never hold during chapter i (an ending's is read at the tale's end, with `ending`).
+  // Parts of an "all" that cannot hold together: two options of one choice, slain and subdued, dead and anything else
+  // of one person, a condition and its "not".
+  const contradictory=parts=>{const marks=new Map(),foe=new Set(),fates=new Map(),keys=new Set(parts.map(canon));
+   for(const x of parts){const k=kindOf(x),v=valueOf(x);
+    if(k==='mark'){const [ch,op]=Object.entries(plain(v)?v:{})[0]??[];if(marks.has(ch)&&marks.get(ch)!==op)return true;marks.set(ch,op);}
+    else if(k==='foe')foe.add(v);
+    else if(k==='fate'){const who=nameKey(v?.who);if(!fates.has(who))fates.set(who,new Set());fates.get(who).add(v?.is);}
+    else if(k==='not'&&keys.has(canon(v)))return true;}
+   return (foe.has('slain')&&foe.has('subdued'))||[...fates.values()].some(f=>f.has('dead')&&f.size>1);};
+  // A condition that surely holds whenever it is read (someone met at the start, a level every hero has).
+  const always=c=>{const k=kindOf(c),v=valueOf(c);if(k==='met')return metAtStart.has(nameKey(v));if(k==='level')return Number.isInteger(v)&&v<=lowest;if(k==='any')return arr(v).some(always);if(k==='all')return arr(v).length>0&&arr(v).every(always);return false;};
+  // The beats of a chapter a condition waits for in every way it can hold.
+  const needsTold=c=>{const k=kindOf(c),v=valueOf(c);if(k==='told')return new Set([v]);if(k==='all'){const out=new Set();for(const x of arr(v))for(const y of needsTold(x))out.add(y);return out;}if(k==='any'){const sets=arr(v).map(needsTold);return sets.length?new Set([...sets[0]].filter(x=>sets.every(y=>y.has(x)))):new Set();}return new Set();};
+  const never=(c,i,ending=false)=>{const k=kindOf(c),v=valueOf(c),later=key=>during.has(key)&&during.get(key)>i;
+   if(k==='any')return arr(v).length>0&&arr(v).every(x=>never(x,i,ending));
+   if(k==='all')return arr(v).some(x=>never(x,i,ending))||contradictory(arr(v));
+   if(k==='told')return toldAt.has(v)&&toldAt.get(v)>i;
+   if(k==='mark'){const [ch,op]=Object.entries(plain(v)?v:{})[0]??[];return later('mark:'+ch+':'+op);}
+   if(k==='flag')return v==='late'?!ending:later('flag:'+v);
+   if(k==='carry')return later('item:'+nameKey(v));
+   if(k==='clear'||k==='won'||k==='searched')return later('armed:'+nameKey(v));
+   if(k==='step')return Number.isInteger(v)&&v>(ending?pressureCount(i):pressureCount(i)-1);
+   if(k==='level')return Number.isInteger(v)&&v>highest;
+   if(k==='foe')return i<bossFrom;
+   return false;};
+  // Whether a condition surely holds (true), surely not (false) or may hold (null) as chapter i opens (i from 1).
+  const atOpen=(c,i)=>{const k=kindOf(c),v=valueOf(c),opened=key=>atOpening.has(key)&&atOpening.get(key)<=i;
+   switch(k){
+    case 'any':{const x=arr(v).map(y=>atOpen(y,i));return x.includes(true)?true:x.length&&x.every(y=>y===false)?false:null;}
+    case 'all':{const x=arr(v).map(y=>atOpen(y,i));return x.length&&x.every(y=>y===true)?true:x.includes(false)?false:null;}
+    case 'not':{const x=atOpen(v,i);return x===null?null:!x;}
+    case 'met':return metAtStart.has(nameKey(v))?true:null;
+    case 'level':return !Number.isInteger(v)?null:v<=lowest?true:v>highest?false:null;
+    case 'step':case 'days':return Number.isInteger(v)&&v>=1?false:null;
+    case 'rest':case 'won':case 'searched':case 'checked':case 'spoke':return false;
+    case 'told':return toldAt.has(v)&&toldAt.get(v)>=i?false:null;
+    case 'mark':{const [ch,op]=Object.entries(plain(v)?v:{})[0]??[];return opened('mark:'+ch+':'+op)?null:false;}
+    case 'flag':return v==='late'?false:opened('flag:'+v)?null:false;
+    case 'carry':return atOpening.has('item:'+nameKey(v))&&!opened('item:'+nameKey(v))?false:null;
+    case 'clear':return armedOpening.get(i)?.has(nameKey(v))||!opened('armed:'+nameKey(v))?false:null;
+    case 'foe':return i<=bossFrom?false:null;
+    default:return null;
+   }};
+  // Exactly, as the tale begins: chapter 1's conditions against every seated game and its opening pace.
+  const atStart=c=>seatings.some(({game})=>r.beatHolds(game,c,r.openingPace(game)));
+  // Talk never closes a chapter cheaply: a talk route standing alone needs two or more exchanges, and in an `all` talk
+  // stands only beside something done.
+  const startPeople=new Set([story.npcs?.keeper?.name,story.npcs?.mara?.name,...arr(story.residents).filter(x=>seated&&r.stagingIds(seated.game).person(x?.name)&&seated.game.people?.[r.stagingIds(seated.game).person(x?.name)]?.home==='inn').map(x=>x?.name)].filter(x=>typeof x==='string').map(nameKey));
+  const talk=(c,path,alone)=>{const k=kindOf(c),v=valueOf(c);
+   if(k==='spoke'){if(alone){const times=Number.isInteger(v?.times)?v.times:2;if(times<2)fail(4,path+'.spoke.times','talk standing alone closes nothing in one exchange: "times" is 2 or more');else if(startPeople.has(nameKey(v?.who)))warn(4,path+'.spoke','"'+v?.who+'" is with the hero from the start: two exchanges with them close this chapter before its set piece or its places are reached');}return;}
+   if(k==='any'){arr(v).forEach((x,j)=>talk(x,path+'.any['+j+']',alone));return;}
+   if(k==='all'){const parts=arr(v);if(parts.some(x=>kindOf(x)==='spoke'))parts.forEach((x,j)=>{if(kindOf(x)!=='spoke'&&!mechanical(x))fail(4,path+'.all['+j+']','talk stands beside something done: every other part of an "all" with "spoke" is mechanical ('+r.stagingMechanical.join(', ')+', foe beaten)');});parts.forEach((x,j)=>talk(x,path+'.all['+j+']',false));return;}
+   if(k==='not')talk(v,path+'.not',false);};
   chapters.forEach((c,i)=>{
-   const w='story.staging.chapters['+i+']',routes=Array.isArray(c?.found?.any)?c.found.any:[];
+   const w=chapterPath(i,''),routes=Array.isArray(c?.found?.any)?c.found.any:[];
    if(routes.length<2)fail(4,w+'.found','needs at least two routes to the chapter\'s truth');
    if(!routes.some(mechanical))fail(4,w+'.found','needs at least one route the game settles from what happened: '+r.stagingMechanical.join(', ')+' (foe slain, subdued or beaten)');
-   routes.forEach((x,j)=>{if(talkAlone(x))fail(4,w+'.found.any['+j+']','talk never stands alone: join "spoke" to something done ({"all": [...]})');});
-   for(const [j,x] of routes.entries())if(usesFoe(x)&&i+1<confrontFrom)warn(4,w+'.found.any['+j+']','the foe cannot be fought before chapter '+confrontFrom+' (confrontFrom), so this route cannot hold here');
-   const pressure=Array.isArray(c?.pressure)?c.pressure.length:0;
+   const seen=new Map();
+   routes.forEach((x,j)=>{const p=w+'.found.any['+j+']',key=canon(x);
+    talk(x,p,true);
+    if(seen.has(key))fail(4,p,'is the same route as found.any['+seen.get(key)+']: two routes are two different ways in');else seen.set(key,j);
+    if(never(x,i))fail(4,p,'can never hold in this chapter (something it needs comes in a later chapter, is given as the chapter closes, is never armed by then, or is a step the clock never reaches)');
+    else if(i===0?atStart(x):atOpen(x,i)===true)fail(4,p,i===0?'holds already as the tale begins, so chapter 1 would close on the first move':'holds already as chapter '+(i+1)+' opens, so it would close at once');
+    else if(i>0&&kindOf(x)==='fate'&&x.fate?.is==='alive')warn(4,p,'holds for as long as they live, so the chapter may close as it opens');
+    if(kindOf(x)==='clear'&&i>0){const k=nameKey(x.clear);if(!armedOpening.get(i)?.has(k)&&during.has('armed:'+k)&&during.get('armed:'+k)<i)fail(4,p+'.clear','"'+x.clear+'" was armed in an earlier chapter and may be cleared already as chapter '+(i+1)+' opens: arm it again as this chapter opens (its fight, or an arm in its opening or the last chapter\'s then), or use "won"');}
+    if(usesFoe(x)&&i>=confrontFrom&&!staging.boss?.if)warn(4,p,'the foe can be confronted from chapter '+confrontFrom+', so it may be beaten before chapter '+(i+1)+' opens and this route would then hold at once');
+   });
+   // Beats that wait for each other's telling: none of them ever fires.
+   {const items=['beats','complications','pressure'].flatMap(kind=>arr(c?.[kind]).map((b,j)=>({b,where:w+'.'+kind+'['+j+']'}))),wants=new Map(items.filter(x=>typeof x.b?.id==='string').map(x=>[x.b.id,new Set([...needsTold(x.b.when),...needsTold(x.b.if)])]));
+    const reaches=(from,to,seen=new Set())=>{for(const n of wants.get(from)??[]){if(n===to)return true;if(!seen.has(n)&&wants.has(n)){seen.add(n);if(reaches(n,to,seen))return true;}}return false;};
+    for(const x of items)if(typeof x.b?.id==='string'&&!wants.get(x.b.id).has(x.b.id)&&reaches(x.b.id,x.b.id))fail(4,x.where+(plain(x.b.when)?'.when':'.if'),'waits for a telling that waits for this one ('+[...wants.get(x.b.id)].join(', ')+'): none of them ever fires');}
+   // Beats and choices that never get their turn: a find closes the chapter before anything else is due.
+   for(const [kind,list] of [['beats',arr(c?.beats)],['complications',arr(c?.complications)],['pressure',arr(c?.pressure)]])list.forEach((b,j)=>{const p=w+'.'+kind+'['+j+']';
+    for(const k of ['when','if']){if(!plain(b?.[k]))continue;
+     if(never(b[k],i))fail(4,p+'.'+k,'can never hold in this chapter');
+     if(JSON.stringify(b[k]).includes('"told":"'+b.id+'"'))fail(4,p+'.'+k,'waits for its own telling: it can never fire');
+     if(k==='when'&&routes.some(x=>implies(b[k],x,canon)))fail(4,p+'.when','is one of the chapter\'s routes (or needs one): the find closes the chapter first, so this beat never fires. Give it to the next chapter (where the hero stands counts as reached as it opens) or put its effects in the chapter\'s "then"');}});
+   if(plain(c?.choice)){const ch=c.choice,p=w+'.choice';
+    if(plain(ch.opens)){if(never(ch.opens,i))fail(4,p+'.opens','can never hold in this chapter');if(routes.some(x=>implies(ch.opens,x,canon)))fail(4,p+'.opens','is one of the chapter\'s routes (or needs one): the find closes the chapter first, so the choice never opens');}
+    arr(ch.options).forEach((o,j)=>{for(const k of ['if','when'])if(plain(o?.[k])){if(never(o[k],i))fail(4,p+'.options['+j+'].'+k,'can never hold in this chapter');else if(k==='when'&&(i===0?atStart(o[k]):atOpen(o[k],i)===true))fail(4,p+'.options['+j+'].when','holds already as the chapter opens, so the engine would settle the choice before it is put');}});}
+   const pressure=pressureCount(i);
    if(pressure<tier.pressure[0]||pressure>tier.pressure[1])fail(4,w+'.pressure','a '+tale.length+' tale has '+tier.pressure.join(' to ')+' pressure steps a chapter (it has '+pressure+')');
    if(!c?.fight&&!c?.choice&&i+1<confrontFrom)warn(4,w,'has neither a set piece (fight) nor a choice');
+   // A fight that waits for a level: below it, its `otherwise` (or nothing).
+   const f=c?.fight;if(plain(f)&&Number.isInteger(f.fromLevel)){
+    if(f.fromLevel<=lowest)warn(4,w+'.fight.fromLevel','every hero of this tale is level '+lowest+' or more: leave "fromLevel" out');
+    else if(i===0&&!plain(f.otherwise))fail(4,w+'.fight.otherwise','chapter 1\'s set piece is the first fight: below level '+f.fromLevel+' give the creature met there instead ("otherwise")');
+    if(f.fromLevel>highest)warn(4,w+'.fight.fromLevel','no hero of this tale reaches level '+f.fromLevel+(plain(f.otherwise)?': only "otherwise" is ever met':', so this set piece is never armed'));}
+   // A place armed twice in one chapter: once is a lair, and arming it again needs the first beaten.
+   const here=new Map();if(plain(f)&&typeof f.at==='string')here.set(nameKey(f.at),w+'.fight.at');
+   for(const [ew,v] of stagingEffects({chapters:chapters.map((x,j)=>j===i?{...x,then:undefined}:j===i-1?{then:x?.then}:{})},'story.staging'))if(v.kind==='arm'&&typeof v.value?.at==='string'){const k=nameKey(v.value.at);if(here.has(k))fail(4,ew.replace(/^story\.staging/,'story.staging')+'.at','"'+v.value.at+'" is already armed in this chapter ('+here.get(k)+'): a place holds one threat at a time');else here.set(k,ew);}
+   // The next chapter's set piece where this one is closed by reaching it: the hero is there already.
+   if(i>0&&plain(f)&&typeof f.at==='string'){const k=nameKey(f.at),prev=arr(chapters[i-1]?.found?.any);if(prev.some(x=>['reach','at','clear','won','searched','checked'].includes(kindOf(x))&&nameKey(valueOf(x))===k))warn(4,w+'.fight.at','chapter '+i+' may close with the hero at "'+f.at+'": its threat then waits for their next arrival');}
   });
+  // Leads: their condition never holds already as the tale begins (it would pay at once), and can hold at some time.
+  arr(staging.leads).forEach((l,i)=>{if(!plain(l?.done))return;const p='story.staging.leads['+i+'].done';if(never(l.done,last))fail(4,p,'can never hold in this tale');else if((l.opens??1)===1&&atStart(l.done))fail(4,p,'holds already as the tale begins, so the lead would close (and pay) at once');});
+  // Endings: each can be chosen (never behind an earlier ending that holds whenever it does: the engine takes the first).
+  {const list=arr(staging.endings);list.forEach((e,i)=>{if(!plain(e?.if))return;const p='story.staging.endings['+i+'].if';if(always(e.if))fail(4,p,'always holds when the tale ends, so no ending after it is ever chosen');const j=list.slice(0,i).findIndex(x=>plain(x?.if)&&implies(e.if,x.if,canon));if(j>=0)fail(4,p,'holds only when endings['+j+'] ("'+list[j].id+'") holds too, and that one is taken first: this ending is never chosen');if(never(e.if,last,true))fail(4,p,'can never hold when the tale ends');});}
   if(n&&(n<tier.chapters[0]||n>tier.chapters[1]))fail(4,'story.chapters','a '+tale.length+' tale has '+tier.chapters.join(' to ')+' chapters (it has '+n+')');
   if(staging.length!==undefined&&staging.length!==tale.length)fail(4,'story.staging.length','must match the file\'s length ("'+tale.length+'")');
   if(!Array.isArray(staging.firstSay)||staging.firstSay.length!==3)fail(4,'story.staging.firstSay','must be exactly three things the player might say first');
   else if(new Set(staging.firstSay.map(nameKey)).size!==3)fail(4,'story.staging.firstSay','the three lines must differ');
   if(staging.noBeyond===false&&tale.length!=='long')warn(4,'story.staging.noBeyond','short and medium tales keep the hero on their own map until the last chapter');
+  // The clock: a stalled chapter lasts at most the tier's bound (its steps times drift), and the quiet before the clock
+  // acts stays near the tier's own. A hard tale's clock ticks on long rests (its card says so).
+  {const pace=r.stagingPacing[tale.length]??r.stagingPacing.short,drift=Number.isInteger(staging.drift)?staging.drift:pace.drift,quiet=Number.isInteger(staging.quiet)?staging.quiet:pace.quiet;
+   chapters.forEach((c,i)=>{const steps=pressureCount(i);if(steps*drift>tier.stall)fail(4,'story.staging.drift','chapter '+(i+1)+' would stall for '+(steps*drift)+' moves ('+steps+' steps, one every '+drift+' moves): a '+tale.length+' tale\'s stalled chapter lasts at most '+tier.stall);});
+   if(quiet>pace.quiet+2)fail(4,'story.staging.quiet','a '+tale.length+' tale waits at most '+(pace.quiet+2)+' quiet moves before the clock acts (it says '+quiet+')');
+   if(tale.difficulty==='hard'&&staging.ticks?.rest!==true)fail(4,'story.staging.ticks.rest','a hard tale\'s clock ticks on long rests (its card says so): "ticks": {"rest": true}');}
+  // The staging's size, for the tier.
+  {let size=0;try{size=JSON.stringify(story.staging??{}).length;}catch{}report.stagingSize=size;if(size>tier.size)fail(4,'story.staging','is '+size+' characters of JSON: a '+tale.length+' tale\'s staging is at most '+tier.size);}
   const endings=Array.isArray(staging.endings)?staging.endings.length:0,choices=chapters.filter(c=>plain(c?.choice)).length,leads=Array.isArray(story.leads)?story.leads.length:0;
   if(endings&&(endings<tier.endings[0]||endings>tier.endings[1]))fail(4,'story.staging.endings','a '+tale.length+' tale has '+tier.endings.join(' to ')+' endings (it has '+endings+')');
   if(choices<tier.choices[0]||choices>tier.choices[1])fail(4,'story.staging.chapters','a '+tale.length+' tale has '+tier.choices.join(' to ')+' choices (it has '+choices+')');
+  chapters.forEach((c,i)=>{const k=arr(c?.choice?.options).length;if(k>tier.options)fail(4,chapterPath(i,'.choice.options'),'a '+tale.length+' tale\'s choice has at most '+tier.options+' options (it has '+k+')');});
   if(leads<tier.leads[0]||leads>tier.leads[1])fail(4,'story.leads','a '+tale.length+' tale has '+tier.leads.join(' to ')+' leads (it has '+leads+')');
   const cast=people.length;if(cast<tier.people[0]||cast>tier.people[1])fail(4,'story.residents','a '+tale.length+' tale names '+tier.people.join(' to ')+' people with keeper and mara (it has '+cast+')');
   const marks=Array.isArray(story.landmarks)?story.landmarks.length:0,far=Array.isArray(story.lands)?story.lands.length:0;
   if(marks<tier.landmarks[0]||marks>tier.landmarks[1])fail(4,'story.landmarks','a '+tale.length+' tale has '+tier.landmarks.join(' to ')+' landmarks (it has '+marks+')');
   if(far<tier.farLands[0]||far>tier.farLands[1])fail(4,'story.lands','a '+tale.length+' tale has '+tier.farLands.join(' to ')+' far lands (it has '+far+')');
-  const armed=seated?.armed??new Map(),fights=armed.size+1;
+  const fights=(seated?.armings??[]).length+1;
   if(fights<tier.fights[0]||fights>tier.fights[1])warn(4,'story.staging','a '+tale.length+' tale has '+tier.fights[0]+(tier.fights[1]===Infinity?' or more':' to '+tier.fights[1])+' fights with the boss: set pieces, armed places and the boss make '+fights);
   (Array.isArray(story.leads)?story.leads:[]).forEach((l,i)=>{if(!arr(staging.leads).some(x=>x?.id==='l'+(i+1)))warn(4,'story.leads['+i+']','has no condition in staging.leads, so only the Dungeon Master can close it');});
   if(seated){
@@ -417,22 +566,24 @@ function checkTale(file,options={}){
    if(!plain(first))fail(4,'story.staging.chapters[0].fight','the first chapter has a set piece, so the first fight begins within minutes');
    else{const id=ids.place(first.at),m=id?miles(id):null;if(m!==null&&(m<0.1-1e-6||m>0.3+1e-6))fail(4,'story.staging.chapters[0].fight.at','the first fight is 0.1 to 0.3 mile from the start ("'+first.at+'" is '+m.toFixed(2)+')');}
    // Conditions that can only hold where something was armed or given.
-   const given=new Set([nameKey(story.hoard?.name),...items.map(x=>nameKey(x.name))]);
-   for(const [where,c] of stagingConditions(staging,'story.staging')){
+   const given=new Set([nameKey(story.hoard?.name),...items.map(x=>nameKey(x.name))]),armedAnywhere=new Set((seated.armings??[]).map(a=>a.key));
+   for(const [w,c] of stagingConditions(staging,'story.staging')){
     const k=kindOf(c),v=c[k];
-    if((k==='clear'||k==='won')&&typeof v==='string'&&!armed.has(nameKey(v)))fail(4,where+'.'+k,'"'+v+'" has no fight: set a chapter fight there or arm it ({"arm"}), or the condition can never hold');
-    if(k==='searched'&&typeof v==='string'&&!armed.has(nameKey(v)))warn(4,where+'.'+k,'nothing falls at "'+v+'" unless a fight is set there, so there may be nothing to search');
-    if(k==='carry'&&typeof v==='string'&&!given.has(nameKey(v)))warn(4,where+'.'+k,'nothing in the tale gives "'+v+'" (give, found.item or the hoard), so only the Dungeon Master can hand it over');
-    if(where.includes('.endings[')&&['won','searched','checked','rest'].includes(k))warn(4,where+'.'+k,'"'+k+'" holds only on the turn it happens; an ending is chosen when the tale closes');
+    if((k==='clear'||k==='won')&&typeof v==='string'&&!armedAnywhere.has(nameKey(v)))fail(4,w+'.'+k,'"'+v+'" has no fight: set a chapter fight there or arm it ({"arm"}), or the condition can never hold');
+    if(k==='searched'&&typeof v==='string'&&!armedAnywhere.has(nameKey(v)))warn(4,w+'.'+k,'nothing falls at "'+v+'" unless a fight is set there, so there may be nothing to search');
+    if(k==='carry'&&typeof v==='string'&&!given.has(nameKey(v)))warn(4,w+'.'+k,'nothing in the tale gives "'+v+'" (give, found.item or the hoard), so only the Dungeon Master can hand it over');
+    if(k==='level'&&Number.isInteger(v)&&v<=lowest)warn(4,w+'.level','every hero of this tale is level '+lowest+' or more, so this always holds');
+    if(w.includes('.endings[')&&r.stagingEvents.includes(k))warn(4,w+'.'+k,'"'+k+'" counts only what happened in the last chapter (an ending is chosen when the tale closes): clear, foe or a flag say more');
    }
   }
   // Difficulty.
-  const lowest=levels[0],effective=t=>lowest>=3?t:(singleOf[t]??t),minions=Array.isArray(staging.boss?.minions)?staging.boss.minions.length:0;
+  const effective=t=>lowest>=3?t:(singleOf[t]??t),minions=Array.isArray(staging.boss?.minions)?staging.boss.minions.length:0;
   if(tale.difficulty==='gentle'){
    if(minions)warn(4,'story.staging.boss.minions','a gentle tale\'s boss fights alone');
    for(const c of creatures.filter(x=>x.role==='threat'))if(packTemplates.includes(effective(c.template)))warn(4,c.where,'a gentle tale meets single creatures: "'+c.name+'" is a pack at level '+lowest);
-   for(const c of creatures.filter(x=>x.role==='ally'))if(lowest>=2)warn(4,c.where,'a gentle tale meets single creatures: "'+c.name+'" stands beside another from level 2');
+   for(const c of creatures.filter(x=>x.role==='ally'))if(highest>=2)warn(4,c.where,'a gentle tale meets single creatures: "'+c.name+'" stands beside another from level 2');
   }
+  for(const c of creatures.filter(x=>x.role==='ally'&&x.template==='orc'))if(lowest<3)warn(4,c.where,'an orc stands beside another creature only from level 3, so below it "'+c.name+'" is not there');
   {const item=r.magicItems[story.hoard?.item],rank=x=>['uncommon','rare','very rare'].indexOf(x);if(item&&rank(item.rarity)>rank(r.rarityAllowed(lowest)))warn(4,'story.hoard.item','"'+story.hoard.item+'" is '+item.rarity+': a hero at level '+lowest+' is given another item instead');}
   if(tale.difficulty==='steady'&&minions>1)warn(4,'story.staging.boss.minions','a steady tale\'s boss has at most one minion');
   // The shelf: one tale per slug and id, one Start here tale, variety in the tier.
@@ -480,7 +631,7 @@ function checkTale(file,options={}){
     if(!plain(s)){fail(5,p,'must be an object');return;}
     const kinds=Object.keys(s).filter(k=>stepKinds.includes(k));
     if(kinds.length!==1||Object.keys(s).some(k=>!stepKinds.includes(k)&&!(k==='speakers'&&kinds[0]==='say'))){fail(5,p,'a step has exactly one of '+stepKinds.join(', ')+' ("say" may add "speakers")');return;}
-    const k=kinds[0],v=s[k];moves+=k==='wait'&&Number.isInteger(v)?v:1;
+    const k=kinds[0],v=s[k];moves+=k==='wait'?(Number.isInteger(v)?v:Number.isInteger(v?.moves)?v.moves:1):1;
     if(k==='go'){if(!isText(v,1,80))fail(5,p+'.go','must be a place name');else if(ids&&!ids.place(v))fail(5,p+'.go','"'+v+'" is no place of this tale');}
     else if(k==='say'){if(!isText(v,1,300))fail(5,p+'.say','must be the player\'s words, up to 300 characters');if(s.speakers!==undefined){if(!Array.isArray(s.speakers)||s.speakers.length>4||!s.speakers.every(n=>isText(n,1,60)))fail(5,p+'.speakers','must be a list of up to 4 people\'s names');else if(ids)for(const n of s.speakers)if(!ids.person(n))fail(5,p+'.speakers','"'+n+'" is no person of this tale');}}
     else if(k==='fight'||k==='search'){if(v!==true)fail(5,p+'.'+k,'must be true');}
@@ -488,8 +639,11 @@ function checkTale(file,options={}){
     else if(k==='check'){if(!['pass','fail'].includes(v))fail(5,p+'.check','must be pass or fail');}
     else if(k==='rest'){if(!['short','long'].includes(v))fail(5,p+'.rest','must be short or long');}
     else if(k==='choose'){if(!plain(v)||Object.keys(v).length!==1)fail(5,p+'.choose','must be {"<choice id>": "<option id>"}');else{const [c,o]=Object.entries(v)[0];if(!choiceOptions.has(c)||!choiceOptions.get(c).includes(o))fail(5,p+'.choose','names no choice and option of this tale');}}
-    else if(k==='join'){if(!isText(v,1,60))fail(5,p+'.join','must be a person\'s name');else if(ids&&!ids.person(v))fail(5,p+'.join','"'+v+'" is no person of this tale');}
-    else if(k==='wait'){if(!Number.isInteger(v)||v<1||v>200)fail(5,p+'.wait','must be a whole number of quiet moves, 1 to 200');}
+    else if(k==='join'||k==='find'){if(!isText(v,1,60))fail(5,p+'.'+k,'must be a person\'s name');else if(ids&&!ids.person(v))fail(5,p+'.'+k,'"'+v+'" is no person of this tale');}
+    else if(k==='attack'){if(!plain(v)||Object.keys(v).some(x=>!['who','to'].includes(x))||!isText(v.who,1,60)||!['kill','subdue'].includes(v.to))fail(5,p+'.attack','must be {"who": a person\'s name, "to": "kill" or "subdue"}');else if(ids&&!ids.person(v.who))fail(5,p+'.attack.who','"'+v.who+'" is no person of this tale');}
+    else if(k==='advance'){if(v!==true)fail(5,p+'.advance','must be true');}
+    else if(k==='lead'){if(!arr(story.leads).some((l,i)=>'l'+(i+1)===v))fail(5,p+'.lead','must be one of this tale\'s leads (l1 for its first)');}
+    else if(k==='wait'){const ok=Number.isInteger(v)?v>=1&&v<=200:plain(v)&&Object.keys(v).every(x=>['moves','talk'].includes(x))&&Number.isInteger(v.moves)&&v.moves>=1&&v.moves<=200&&(v.talk===undefined||typeof v.talk==='boolean');if(!ok)fail(5,p+'.wait','must be a number of quiet moves (1 to 200), or {"moves": 1 to 200, "talk": true or false}');}
    });
    return moves;
   };
@@ -549,8 +703,10 @@ function checkTale(file,options={}){
   if(load>900)fail(7,'story','the reading before the first move is '+load+' characters (introduction place, trouble and first; the opening; the opening lines): at most 900');
   for(const [where,v] of stagingTold(staging,'story.staging')){
    if(/\d/.test(v))fail(7,where,'no digits in what the game tells: "'+v.match(/\S*\d\S*/)[0]+'"');
-   const m=v.match(ruleWords);if(m)fail(7,where,'no rule words in what the game tells: "'+m[0]+'"');
+   const m=ruleTalk(v);if(m)fail(7,where,'no rule words in what the game tells: "'+m+'"');
   }
+  for(const [where,v] of stagingRead(staging,'story.staging')){const m=ruleTalk(v);if(m)fail(7,where,'no rule words in what the player reads or the Dungeon Master is handed: "'+m+'"');}
+  for(const [where,v] of allProse(tale).filter(([w])=>!w.startsWith('story.staging')))if(ruleTalk(v))warn(7,where,'reads like the rules ("'+ruleTalk(v)+'"): tell it as what happens');
   const everything=allText(tale);
   for(const [word,re] of overused){const n=(everything.match(re)??[]).length;if(n>1)fail(7,'tale','"'+word+'" appears '+n+' times: at most once in a tale');}
   for(const word of avoidWords){const n=(everything.match(new RegExp('\\b'+word+'\\b','gi'))??[]).length;if(n)fail(3,'tale','"'+word+'" appears '+n+' times: it is on the avoid list');}
@@ -568,20 +724,24 @@ function checkTale(file,options={}){
 // ---------- Walkers over a tale's parts ----------
 function stagingEffects(staging,base){
  const out=[],add=(then,where)=>{if(plain(then))for(const [kind,value] of Object.entries(then))out.push([where+'.'+kind,{kind,value}]);};
- arr(staging?.chapters).forEach((c,i)=>{if(!plain(c))return;const p=base+'.chapters['+i+']';add(c.then,p+'.then');add(c.opening?.then,p+'.opening.then');add(c.fight?.deadline?.then,p+'.fight.deadline.then');
+ arr(staging?.chapters).forEach((c,i)=>{if(!plain(c))return;const p=base+'.chapters['+i+']';add(c.then,p+'.then');add(c.opening?.then,p+'.opening.then');add(c.fight?.deadline?.then,p+'.fight.deadline.then');add(c.fight?.hold?.then,p+'.fight.hold.then');
   for(const kind of ['beats','complications','pressure'])(Array.isArray(c[kind])?c[kind]:[]).forEach((b,j)=>add(b?.then,p+'.'+kind+'['+j+'].then'));
   (Array.isArray(c.choice?.options)?c.choice.options:[]).forEach((o,j)=>add(o?.then,p+'.choice.options['+j+'].then'));});
+ if(plain(staging?.boss)){add(staging.boss.deadline?.then,base+'.boss.deadline.then');add(staging.boss.hold?.then,base+'.boss.hold.then');}
  return out;
 }
 function stagingConditions(staging,base){
  const out=[],walk=(c,where)=>{if(!plain(c))return;out.push([where,c]);const [k,v]=Object.entries(c)[0]??[];if((k==='any'||k==='all')&&Array.isArray(v))v.forEach((x,i)=>walk(x,where+'.'+k+'['+i+']'));if(k==='not')walk(v,where+'.not');};
  arr(staging?.chapters).forEach((c,i)=>{if(!plain(c))return;const p=base+'.chapters['+i+']';(Array.isArray(c.found?.any)?c.found.any:[]).forEach((x,j)=>walk(x,p+'.found.any['+j+']'));
   for(const kind of ['beats','complications','pressure'])(Array.isArray(c[kind])?c[kind]:[]).forEach((b,j)=>{walk(b?.when,p+'.'+kind+'['+j+'].when');walk(b?.if,p+'.'+kind+'['+j+'].if');});
-  if(plain(c.choice)){walk(c.choice.opens,p+'.choice.opens');arr(c.choice.options).forEach((o,j)=>walk(o?.when,p+'.choice.options['+j+'].when'));}});
+  if(plain(c.choice)){walk(c.choice.opens,p+'.choice.opens');arr(c.choice.options).forEach((o,j)=>{walk(o?.if,p+'.choice.options['+j+'].if');walk(o?.when,p+'.choice.options['+j+'].when');});}});
  arr(staging?.leads).forEach((l,i)=>walk(l?.done,base+'.leads['+i+'].done'));
+ if(plain(staging?.boss))walk(staging.boss.if,base+'.boss.if');
  arr(staging?.endings).forEach((e,i)=>walk(e?.if,base+'.endings['+i+'].if'));
  return out;
 }
+// Whether condition a cannot hold without b holding too (the same condition, a part of an "all", or one way of an "any").
+const implies=(a,b,canon)=>{if(!plain(a)||!plain(b))return false;if(canon(a)===canon(b))return true;const [ka,va]=Object.entries(a)[0]??[],[kb,vb]=Object.entries(b)[0]??[];return (ka==='all'&&Array.isArray(va)&&va.some(x=>implies(x,b,canon)))||(kb==='any'&&Array.isArray(vb)&&vb.some(y=>implies(a,y,canon)));};
 const usesFoe=c=>{if(!plain(c))return false;const [k,v]=Object.entries(c)[0]??[];if(k==='foe')return true;if(k==='any')return Array.isArray(v)&&v.every(usesFoe);if(k==='all')return Array.isArray(v)&&v.some(usesFoe);return false;};
 // What the game tells in its own words (and the Dungeon Master is handed as a beat): tell, line, sign, colour.
 function stagingTold(staging,base){
@@ -597,17 +757,27 @@ function stagingProse(staging,base){
 // The creatures a tale sets against the hero: set pieces and their allies, armed places and theirs, the boss's minions.
 function talesCreatures(story){
  const st=plain(story?.staging)?story.staging:{},out=[];
- arr(st.chapters).forEach((c,i)=>{const t=c?.fight?.threat,w='story.staging.chapters['+i+'].fight.threat';if(plain(t)){out.push({name:t.name,appearance:t.appearance,template:t.template,at:c.fight.at,where:w,role:'threat'});if(plain(t.ally))out.push({name:t.ally.name,appearance:t.ally.appearance,template:t.ally.template,at:c.fight.at,where:w+'.ally',role:'ally'});}});
- for(const [where,v] of stagingEffects(st,'story.staging'))if(v.kind==='arm'&&plain(v.value)){const a=v.value;out.push({name:a.name,appearance:a.appearance,template:a.template,at:a.at,where,role:'threat'});if(plain(a.ally))out.push({name:a.ally.name,appearance:a.ally.appearance,template:a.ally.template,at:a.at,where:where+'.ally',role:'ally'});}
+ const add=(t,at,w)=>{if(!plain(t))return;out.push({name:t.name,appearance:t.appearance,template:t.template,at,where:w,role:'threat'});if(plain(t.ally))out.push({name:t.ally.name,appearance:t.ally.appearance,template:t.ally.template,at,where:w+'.ally',role:'ally'});};
+ arr(st.chapters).forEach((c,i)=>{const w='story.staging.chapters['+i+'].fight';if(plain(c?.fight)){add(c.fight.threat,c.fight.at,w+'.threat');add(c.fight.otherwise,c.fight.at,w+'.otherwise');}});
+ for(const [where,v] of stagingEffects(st,'story.staging'))if(v.kind==='arm'&&plain(v.value)){const {at,fromLevel,otherwise,...a}=v.value;add(a,at,where);add(otherwise,at,where+'.otherwise');}
  (Array.isArray(st.boss?.minions)?st.boss.minions:[]).forEach((m,i)=>{if(plain(m))out.push({name:m.name,appearance:m.appearance,template:m.template,where:'story.staging.boss.minions['+i+']',role:'minion'});});
  return out;
 }
 // Every word of the tale a player or the Dungeon Master could read (the walkthrough is the checker's own).
 function allText(tale){const {walkthrough,...rest}=tale;return JSON.stringify(rest).replace(/\\"/g,'"');}
+// Every prose text of the tale (names, ids, kinds and numbers are not prose), with its path.
+const proseKeys=new Set(['premise','opening','objective','resolution','secret','foeAppearance','foeVoice','description','feature','rumour','goal','turn','hook','blurb','special','mood','role','motive','appearance','personality','note','text','you','place','trouble','people','first','tell','line','sign','colour','where','agenda','ask','say','firstSay','memory','fact','state','label','title']);
 function allProse(tale){
- const out=[],skip=new Set(['id','slug','addedAt','template','kind','terrain','bearing','from','danger','gender','toughness','attitude','foe','speakerId','item','pool','class','length','difficulty','party','engine','twist','endings']);
- const walk=(v,where,key)=>{if(typeof v==='string'){if(!skip.has(key))out.push([where,v]);return;}if(Array.isArray(v))v.forEach((x,i)=>walk(x,where+'['+i+']',key));else if(plain(v))for(const [k,x] of Object.entries(v))walk(x,where?where+'.'+k:k,k);};
+ const out=[];
+ const walk=(v,where,key)=>{if(typeof v==='string'){if(proseKeys.has(key))out.push([where,v]);return;}if(Array.isArray(v))v.forEach((x,i)=>walk(x,where+'['+i+']',key));else if(plain(v))for(const [k,x] of Object.entries(v))walk(x,where?where+'.'+k:k,['colour','firstSay'].includes(key)?key:k);};
  const {walkthrough,shape,...rest}=tale;walk(rest,'',null);return out;
+}
+// What the player reads or the Dungeon Master is handed from the staging, beyond what the game tells: things to say,
+// the choice's question and options, stakes, endings, memories, facts, notes, objectives.
+function stagingRead(staging,base){
+ const keys=new Set(['firstSay','say','ask','label','state','title','text','memory','fact','note','objective']),out=[];
+ const walk=(v,where,key)=>{if(typeof v==='string'){if(keys.has(key))out.push([where,v]);return;}if(Array.isArray(v))v.forEach((x,i)=>walk(x,where+'['+i+']',key));else if(plain(v))for(const [k,x] of Object.entries(v))walk(x,where+(/^[A-Za-z_]\w*$/.test(k)?'.'+k:'["'+k+'"]'),key==='firstSay'?key:k);};
+ walk(staging,base,null);return out;
 }
 
 // ---------- The report ----------
@@ -643,4 +813,4 @@ function main(argv){
  return rep.ok?0:1;
 }
 if(require.main===module)process.exitCode=main(process.argv.slice(2));
-module.exports={checkTale,textReport,subclassNames,avoidNames,avoidWords,tiers,ruleWords};
+module.exports={checkTale,textReport,subclassNames,avoidNames,avoidWords,tiers,ruleTalk,stepKinds};

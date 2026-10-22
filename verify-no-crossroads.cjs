@@ -101,7 +101,9 @@ for(const f of fs.readdirSync('.').filter(f=>/\.js$/.test(f)))assert.ok(!/restar
  const played=await c.turn(B,{campaignId:made.campaignId,question:'I look around.',requestId:crypto.randomUUID(),baseVersion:begun.version});assert.ok(played.version>begun.version,'and now the table plays');
  // A tale under way is replaced only when the host confirms it; a story written on the host's device works too.
  await assert.rejects(c.tale(A,{campaignId:made.campaignId,baseVersion:played.version,story:journeyStory(5),introId:'idea'}),e=>e.status===409&&/Confirm/.test(e.message));
- const next=await c.tale(A,{campaignId:made.campaignId,baseVersion:played.version,story:journeyStory(5),introId:'idea',replace:true});assert.equal(next.snapshot.game.story.title,journeyStory(5).title);
+ // (A written tale comes only by its journey id: a story the host's device posts keeps no staging and no shelf tag.)
+ const next=await c.tale(A,{campaignId:made.campaignId,baseVersion:played.version,story:{...journeyStory(5),staging:{v:1,crafted:true},written:{slug:'crafted',edition:1,length:'short'}},introId:'idea',replace:true});assert.equal(next.snapshot.game.story.title,journeyStory(5).title);
+ assert.ok(next.snapshot.game.story.staging===undefined&&next.snapshot.game.story.written===undefined,'a posted story keeps no staging and no shelf tag');
  assert.ok(next.snapshot.game.storyHistory.includes(journeyStory(4).title),'the tale left behind is remembered');
  await assert.rejects(c.tale(A,{campaignId:made.campaignId,baseVersion:next.version,story:{title:'Broken'},introId:'idea',replace:true}),e=>e.status===409,'an unsound tale is refused');
  // A long code from before still works until it expires.
