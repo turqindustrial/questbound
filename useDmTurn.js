@@ -80,7 +80,9 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
   const [draft,setDraft]=useState('');
   // turnStart tells the DM service the hero's hit points before this turn, so figures part-way through it check out.
   const post=async(input,scene,hp,talkingTo,extra)=>{const {ok,status:code,body}=await askDm(endpoint,{input,context:turnRequestContext({hero,scene,hp,input,health,preferences:storyPreferences(),talkingTo,alone,extra:{...suggestionsFlag(),...extra}})},{onNarration:text=>{if(alive.current)setDraft(text);}});if(code===401)setUnpaired(true);const problem=dmReplyError(ok,body);if(problem)throw Error(problem);return body;};
-  // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable.
+  // A scene trigger lets present characters speak first; the written line stands in when the AI is unavailable. A cue
+  // the game writes itself (sceneTriggers.js `written`: back at the starting place, the morning after a rest) asks
+  // nothing of the Dungeon Master.
   useEffect(()=>{
     const cue=game.sceneCue,attempt=cue&&cue.id+'@'+fingerprint;if(table?.joined||!cue||busy||playing||lock.current||triedCue.current===attempt)return;
     // At a shared table only the device whose action caused the moment asks the NPCs to speak.
@@ -88,26 +90,28 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
     const speaker=people.find(n=>n.id===cue.speakerId)??people[0],snapshot=fingerprint;triedCue.current=attempt;
     lock.current=true;setBusy(true);setError('');
     (async()=>{
-      let narration=cue.scene,dialogue=speaker?[{speakerId:speaker.id,text:cue.fallback}]:[],said=null;
-      if(connected&&speaker)try{const body=await post(cue.scene,game,health,speaker,{sceneTrigger:{id:cue.id,cue:cue.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>people.some(n=>n.id===l.speakerId));if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
+      const written=!!cue.written&&speaker?.id===cue.speakerId;
+      let narration=written?cue.aside:cue.scene,dialogue=speaker?[{speakerId:speaker.id,text:cue.fallback}]:[],said=null;
+      if(connected&&speaker&&!written)try{const body=await post(cue.scene,game,health,speaker,{sceneTrigger:{id:cue.id,cue:cue.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>people.some(n=>n.id===l.speakerId));if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
       if(!alive.current||latest.current!==snapshot)return;
       const result=await act(null,{question:cue.scene,narration,dialogue,trigger:true,npcId:speaker?.id??null});
       if(!result.error){setAnimateId(result.turn?.id??null);const talking=!!speaker&&conversationPeople(result.game).some(n=>n.id===speaker.id);if(talking)setConversationId(speaker.id);keepIdeas(result.turn?.id,talking?speaker.id:conversationId,said);}
     })().catch(e=>fail(e)).finally(()=>{lock.current=false;if(alive.current)setBusy(false);});
   },[game.sceneCue?.id,busy,playing]);
-  // Turning to someone (the Speak chip): the conversation opens and they speak first, in their own voice and true to
-  // how they feel about the hero. The Dungeon Master writes the line; a stand-in is used when it cannot be reached.
-  // Someone who has only just spoken is not made to greet again.
+  // Turning to someone (the Speak chip): the conversation opens and they speak first, true to how they feel about the
+  // hero, in a line the game writes (greetings.js): no request to the Dungeon Master, who is first asked when the player
+  // says something (the host, 2026-10-22). Someone who has only just spoken is not made to greet again.
   const engage=async id=>{
     if(lock.current||busy||playing)return;
     if(!await openConversation(id))return;
     const speaker=conversationPeople(game).find(n=>n.id===id);
     if(!speaker||waiting||tableSyncing||turnWait||!shouldGreet(game,id))return;
-    const opening=greeting(game,id,hero),snapshot=fingerprint;
+    const opening=greeting(game,id,hero);
     lock.current=true;setBusy(true);setError('');setDraft('');
-    // At a shared table the campaign server works out the greeting and plays it as a turn (server-turn.cjs, greet).
+    // At a shared table the campaign server writes the greeting the same way and plays it as a turn (server-turn.cjs,
+    // greet), so every member sees it.
     if(table?.joined){
-      try{const prefs=storyPreferences(),result=await table.turn(opening.scene,{npcId:id,greet:true,...suggestionsFlag(),oneOnOne:alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
+      try{const prefs=storyPreferences(),result=await table.turn(opening.scene,{npcId:id,greet:true,...suggestionsFlag(),oneOnOne:alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator,length:prefs.length},autoShield:prefs.autoShield!==false});
        if(!alive.current)return;
        const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,result);setAnimateId(result.turn?.id??null);}
       catch(e){fail(e);}
@@ -115,11 +119,8 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       return;
     }
     try{
-      let narration=opening.aside,dialogue=[{speakerId:id,text:opening.fallback}],said=null;
-      if(connected)try{const body=await post(opening.scene,game,health,speaker,{sceneTrigger:{id:'greet:'+id,cue:opening.cue},recruitmentTargets:[]});const lines=(body.dialogue??[]).filter(l=>l.speakerId===id).slice(0,2);if(lines.length){narration=body.narration;dialogue=lines;said=body;}}catch{}
-      if(!alive.current||latest.current!==snapshot)return;
-      const result=await act(null,{question:opening.scene,narration,dialogue,trigger:true,npcId:id});
-      if(!result.error){setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,said);}
+      const result=await act(null,{question:opening.scene,narration:opening.aside,dialogue:[{speakerId:id,text:opening.line}],trigger:true,npcId:id});
+      if(!result.error){setAnimateId(result.turn?.id??null);const talking=conversationPeople(result.game).some(n=>n.id===id);if(talking)setConversationId(id);keepIdeas(result.turn?.id,talking?id:null,null);}
     }catch(e){fail(e);}
     finally{lock.current=false;if(alive.current){setBusy(false);setDraft('');}}
   };
@@ -148,7 +149,7 @@ export function useDmTurn({hero,game,health,act,onConversationChange,table,compa
       // The campaign server resolves the turn with its own dice through the same rules (server-turn.cjs); this device
       // sends its words, its view of the scene (just you two) and its own settings, and shows what comes back.
       try{const target=conversationTarget(game,question,conversationId),prefs=storyPreferences(),said=toDm?withoutAddress(question)||question:question;
-       const result=await table.turn(question,{npcId:target,...suggestionsFlag(),direct:toDm,...(preset?.action?{action:preset.action}:{}),oneOnOne:!!target&&target===conversationId&&alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator},autoShield:prefs.autoShield!==false});
+       const result=await table.turn(question,{npcId:target,...suggestionsFlag(),direct:toDm,...(preset?.action?{action:preset.action}:{}),oneOnOne:!!target&&target===conversationId&&alone&&people.length>1,storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator,length:prefs.length},autoShield:prefs.autoShield!==false});
        if(!alive.current)return;
        const talking=!!target&&conversationPeople(result.game).some(n=>n.id===target);
        keepIdeas(result.turn?.id,talking?target:null,result);

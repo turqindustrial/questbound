@@ -5,7 +5,7 @@ import {GameButton,Ornament,ScreenTitle,Crest,Toggle} from './ui';
 import Icon from './Icon';
 import {playSound} from './audio';
 import {fonts,colors,type,tint} from './theme';
-import {NarratorChoice} from './StoryControls';
+import {NarratorChoice,LengthChoice} from './StoryControls';
 import {storyPreferences,setStoryPreferences,subscribeStoryPreferences} from './storyPreferences';
 import DynamicArt from './DynamicArt';
 const icons={hostile:'swords',surprise:'compass',idea:'quill',easy:'flag',crown:'crown',drowned:'wave',sunforge:'flame',winter:'frost',deep:'door',names:'eye',oath:'shield'};
@@ -79,16 +79,16 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
  if(continuation&&continuing)return <View><ScreenTitle eyebrow="Next tale" icon="map" title="Where does your story go next?" sub={'After '+continuation.title+'.'}/>
   <Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>
   <IdeaBox idea={idea} onIdea={onIdea} busy={busy} optional/>
-  <View style={s.narrator}><NarratorChoice compact/><EasyStart busy={busy}/></View>
+  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/><EasyStart busy={busy}/></View>
   <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'One moment…':'Begin the next tale'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
   <Ornament/><Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
  return <View>{forTable?<ScreenTitle eyebrow="The shared table" icon="people" title="Choose the table’s tale" sub="Every hero at the table begins it together, each with what they carry. Pick a ready journey to start at once, or bring your own idea."/>:<ScreenTitle eyebrow="New adventure" icon="compass" title="Where does your story begin?" sub="Choose a tale, or bring your own idea. Each is yours alone: a long story told in chapters, with its own country, people, side errands and roads to other lands."/>}
   {!!forTable?.replacing&&<Text accessibilityRole="alert" style={s.first}>This replaces <Text style={s.firstStrong}>{forTable.replacing}</Text> for everyone at the table once the new tale begins.</Text>}
  {/* A first-time player (the in-game "How to play" card not yet dismissed) is told where to start. */}
-  {!continuation&&!forTable&&firstTime()&&library&&<Text style={s.first}>First time here? Pick any <Text style={s.firstStrong}>ready journey</Text> below: each starts at once, with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
-  {!continuation&&!forTable&&firstTime()&&!library&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list.</Text>}
+  {!continuation&&!forTable&&firstTime()&&library&&<Text style={s.first}>First time here? Pick any <Text style={s.firstStrong}>ready journey</Text> below: each starts at once, with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
+  {!continuation&&!forTable&&firstTime()&&!library&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
   {!!continuation&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
-  <View style={s.narrator}><NarratorChoice compact/>{selected!=='hostile'&&<EasyStart always={selected==='easy'||ready} journey={ready} busy={busy}/>}</View>
+  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/>{selected!=='hostile'&&<EasyStart always={selected==='easy'||ready} journey={ready} busy={busy}/>}</View>
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {shown.map(listed=>{const intro=library&&listed.id==='surprise'?{...listed,...fateCopy}:listed,chosen=selected===intro.id,hot=!!intro.local,quick=library&&intro.id==='surprise';return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>
  <View style={s.top}><Crest icon={icons[intro.id]??'star'} size={46} color={hot?tint('#ffb39e'):colors.goldBright}/><View style={{flex:1,minWidth:0}}>

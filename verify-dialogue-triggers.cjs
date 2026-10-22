@@ -1,7 +1,7 @@
 ﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
 const {requestParts,requestScene}=require('./dm-server.cjs');
 const hero={name:'Trigger tester',class:'Fighter',species:'Human',level:1,scores:{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
-const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({sceneTrigger,withSceneTrigger,recordedTurn,conversationPeople,conversationTarget,freshStoryGame,validStory,hostileEncounterGame,hostileFoes})',{combatBasics:r.combatBasics});
+const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','greetings.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({sceneTrigger,withSceneTrigger,recordedTurn,conversationPeople,conversationTarget,freshStoryGame,validStory,hostileEncounterGame,hostileFoes})',{combatBasics:r.combatBasics});
 const hp={current:12,temp:0},valid=(g,h=hp)=>r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(g)),h,true),hero);
 // Location triggers: returning to the inn, first arrival with a companion, once each.
 const start=r.newAdventure(hero),left=r.adventureStep(start,hp,hero,'listen',()=>0).game;

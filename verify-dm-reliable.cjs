@@ -63,13 +63,17 @@ const zero={damage:0,selfDamage:0,healing:0,temporaryHP:0};
   assert.equal(joined.game.stage,'inn','the journey waits for the next turn');assert.ok(!joined.game.map.visited.includes('bridge'));assert.equal(joined.out.narration,'Mara falls in beside you.');
   const went=await playable('decline beside travel',[done({narration:'Mara shakes her head; you go alone.',recruitment:[{npcId:'mara',decision:'decline',reason:'She has her own errand here.',terms:'',dc:null,class:null}],actionId:'travel-bridge'}),done({narration:'The bridge looms out of the mist.'})],{question:'Mara, come with me to the bridge.'});
   assert.notEqual(went.game.stage,'inn','the hero sets out');assert.ok(went.game.map.visited.includes('bridge'));}
- // 5. Spoken lines with no telling: on a scene cue (a greeting) and on an ordinary turn, the framing is supplied.
- {const greeted=await playable('greeting with no telling',[done({narration:'',dialogue:[{speakerId:'mara',text:'You have the look of someone who reads marks.'}]})],{greet:true,npcId:'mara'});
-  assert.match(greeted.out.narration,/looks up\./);assert.equal(greeted.calls.length,1);
+ // 5. Spoken lines with no telling: on a scene cue and on an ordinary turn, the framing is supplied. (A greeting asks
+ //    nothing since 2026-10-22: the game writes it, with what the person is doing.)
+ {const greeted=await playable('greeting',[],{greet:true,npcId:'mara'});
+  assert.ok(greeted.out.narration.includes('Mara'),greeted.out.narration);assert.equal(greeted.calls.length,0,'a greeting asks the Dungeon Master nothing');
+  {const t=table([done({narration:'',dialogue:[{speakerId:'mara',text:'You have the look of someone who reads marks.'}]})]);
+   const cued=await t.ask({input:'You wake at the inn.',context:{...r.dmContext(wizard,inn.game,null,'You wake at the inn.'),conversationWith:{id:'mara',name:'Mara',role:'Courier',oneOnOne:false},conversationParticipants:[{id:'mara',name:'Mara',role:'Courier',attitude:'indifferent'}],sceneTrigger:{id:'wake',cue:'The player has just woken.'},recruitmentTargets:[]}});
+   assert.match(cued.narration,/looks up\./,'a cue told with lines alone gets its framing');assert.equal(t.calls.length,1);}
   const answered=await playable('answer with no telling',[done({narration:'',dialogue:[{speakerId:'mara',text:'Nothing good comes up that road.'}]})],{question:'Mara, what news from the road?'});
   assert.match(answered.out.narration,/looks up\./);assert.equal(answered.calls.length,1);
   const t=table([done({narration:'',dialogue:[]})]),stood=await resolveTurn(inn,{greet:true,npcId:'mara'},{ask:t.ask,randomImpl:seq(7)});
-  assert.ok(stood.narration.trim()&&r.validAdventure(stood.snapshot,wizard),'a greeting the DM could not give falls back to the stand-in line');}
+  assert.ok(stood.narration.trim()&&r.validAdventure(stood.snapshot,wizard),'a greeting is always told, in the game\'s own words');}
  // 6. A spell the rules allow, denied by the Dungeon Master (the diagnostics, 2026-10-03: Guiding Bolt "not prepared"):
  //    the rules decide, and the hero casts it. With a castingIssue the DM's refusal agrees with the rules and stands.
  {const denied=await playable('deny of a castable spell',[done({narration:'You cannot cast that.',ruling:{decision:'deny',note:'Detect Magic is not prepared.',...zero}}),done({narration:'A faint blue glow lingers on the keeper\'s ring.'})],{question:'Quietly, I use detect magic to sense the room.'});

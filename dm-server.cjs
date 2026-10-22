@@ -803,7 +803,7 @@ function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySche
   if(left()<wait+10000)throw failure;
   await new Promise(resolve=>setTimeout(resolve,wait));
   }
-  const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{})});};
+  const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{}),...(body.context?.storyPreferences?.length==='brief'?{length:'brief'}:{})});};
   if(onNarration)return streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage,c=>{state.lastReply=c;});
   const data=await response.json();state.lastReply=data;usage(data.usage);
   // Cut short (the output limit, or the provider stopping): what was written is kept on the error for the last resort.

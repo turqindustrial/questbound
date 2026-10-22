@@ -1,11 +1,12 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,StyleSheet} from 'react-native';
 import {Section,Segmented,Toggle} from './ui';
-import {brutalityLevels,narrators,narratorOf,storyPreferences,subscribeStoryPreferences,setStoryPreferences} from './storyPreferences';
+import {brutalityLevels,narrators,narratorOf,storyPreferences,subscribeStoryPreferences,setStoryPreferences,briefTelling} from './storyPreferences';
 import {sampleNarrator} from './narrator';
 import {fonts,colors} from './theme';
-// Settings → Story: who tells the tale, how graphic the Dungeon Master is when people are hurt and killed, and the
-// rules this device chooses (whether Shield is cast for the hero when it would save them).
+// Settings → Story: who tells the tale, how much is told each turn (Not so wordy), how graphic the Dungeon Master is
+// when people are hurt and killed, and the rules this device chooses (whether Shield is cast for the hero when it
+// would save them).
 export function StorySettings(){
  const [prefs,setPrefs]=useState(storyPreferences);
  useEffect(()=>{setPrefs(storyPreferences());return subscribeStoryPreferences(setPrefs);},[]);
@@ -13,6 +14,7 @@ export function StorySettings(){
  return <View dataSet={{qb:'plate'}} style={s.panel}>
   <Section icon="quill" title="Story" style={{marginTop:0,marginBottom:2}}/>
   <NarratorChoice/>
+  <LengthChoice/>
   <Text style={s.label}>Brutality</Text>
   <Segmented options={brutalityLevels.map(l=>[l.id,l.label,l.icon])} value={level.id} onChange={id=>setStoryPreferences({brutality:id})}/>
   <Text accessibilityLiveRegion="polite" style={s.caption}>{level.description}</Text>
@@ -33,6 +35,13 @@ export function NarratorChoice({compact=false}){
   <Text accessibilityLiveRegion="polite" style={s.caption}><Text style={s.who}>{teller.name}. </Text>{teller.description}</Text>
   {!compact&&<Text style={s.sample}>“{teller.sample}”</Text>}
  </View>;
+}
+// Not so wordy (storyPreferences.js tellingLengths): one tap, here and on the New Adventure screen (each follows the
+// other). On, every turn is told in a few short sentences; off, in full.
+export function LengthChoice({style}){
+ const [prefs,setPrefs]=useState(storyPreferences);
+ useEffect(()=>{setPrefs(storyPreferences());return subscribeStoryPreferences(setPrefs);},[]);
+ return <Toggle value={briefTelling(prefs)} onChange={on=>setStoryPreferences({length:on?'brief':'full'})} label="Not so wordy" description="Shorter turns: a line or three of story, and people keep it brief. Turn it off to hear each turn in full." style={style}/>;
 }
 const s=StyleSheet.create({panel:{padding:18,borderRadius:6,borderWidth:1,borderColor:colors.goldLine,marginBottom:18,gap:10},
  label:{fontFamily:fonts.display,color:colors.parchment,fontSize:14,fontWeight:'700',letterSpacing:.8},

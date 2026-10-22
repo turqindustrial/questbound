@@ -148,7 +148,8 @@ function clHeroName(hero,game){
  return first.length>=2&&!others.some(n=>n.split(/\s+/)[0].toLowerCase()===first.toLowerCase())?first:whole;
 }
 const clForm=(line,party)=>{const at=line.indexOf('|');return at<0?line:party?line.slice(at+1):line.slice(0,at);};
-export function calmTelling({hero,before,after,action,events=[],kind=null,narrator='chronicler'}){
+// brief (Not so wordy, storyPreferences.js): the shorter half of each pool, and no companion's aside or answer.
+export function calmTelling({hero,before,after,action,events=[],kind=null,narrator='chronicler',brief=false}){
  kind=kind??clMoveOf(action);const voice=calmLineBook[narrator]??calmLineBook.chronicler;
  const party=heroesAtTable(before),heroName=party?clHeroName(hero,before):null;
  const turnId=(before.playback?.at(-1)?.id??0)+1,seed=[before.story?.id??'',turnId,JSON.stringify(action)??'',narrator,(events??[]).join('\n')].join('|');
@@ -156,7 +157,8 @@ export function calmTelling({hero,before,after,action,events=[],kind=null,narrat
  const fill=(text,v)=>text.replace(/\{(place|Place|name|hero)\}/g,(m,k)=>k==='hero'?heroName??'You':k==='place'?clPlace(v.place,false):k==='Place'?clPlace(v.place,true):v.name??'your companion');
  // One line of a pool, seeded, passing over what was said lately while others are left.
  const pick=(slot,pool,v={})=>{
-  const rng=clRng(seed+'#'+slot),list=(pool??[]).map(s=>({s:fill(clForm(s,party),v),r:rng()})).sort((a,b)=>a.r-b.r);
+  const rng=clRng(seed+'#'+slot),all=(pool??[]).map(s=>({s:fill(clForm(s,party),v),r:rng()}));
+  const list=(brief?[...all].sort((a,b)=>a.s.length-b.s.length||a.r-b.r).slice(0,Math.max(3,Math.ceil(all.length/2))):all).sort((a,b)=>a.r-b.r);
   let best=null,seen=Infinity;
   for(const c of list){if(used.has(c.s))continue;let at=-1;for(let k=recent.length-1;k>=0;k--)if(recent[k].includes(c.s)){at=k;break;}if(at<seen){best=c;seen=at;}if(at===-1)break;}
   if(!best)return '';used.add(best.s);return best.s;
@@ -168,13 +170,13 @@ export function calmTelling({hero,before,after,action,events=[],kind=null,narrat
  if(kind==='journey'){
   const minutes=(mapState(after).minutes??0)-(mapState(before).minutes??0),place=placeName(after,action.destination);
   parts.push(pick('road',minutes>=960?voice.longRoad:voice.road,{place}));
-  if(friend&&chance()<0.5)parts.push(pick('friend',voice.companionRoad,{name:nameOf(friend.id)}));
+  if(friend&&!brief&&chance()<0.5)parts.push(pick('friend',voice.companionRoad,{name:nameOf(friend.id)}));
   parts.push(pick('arrive',voice.arrive,{place}));
  }else if(kind==='arrive'){
   parts.push(pick('arrive',voice.arrive,{place:placeName(after,action.destination)}));
  }else if(kind==='shortRest'||kind==='longRest'){
   parts.push(pick('rest',voice[kind]));
-  if(friend&&chance()<0.45)parts.push(pick('friend',voice.companionRest,{name:nameOf(friend.id)}));
+  if(friend&&!brief&&chance()<0.45)parts.push(pick('friend',voice.companionRest,{name:nameOf(friend.id)}));
  }else if(kind==='search'){
   const found=(events??[]).some(t=>/^Found: /.test(String(t))&&!/^Found: nothing of value\.$/.test(String(t)));
   parts.push(pick('search',found?voice.searchFound:voice.searchNothing));
@@ -182,7 +184,7 @@ export function calmTelling({hero,before,after,action,events=[],kind=null,narrat
   const id=action.id,name=nameOf(id);parts.push(pick('order',voice[kind],{name}));
   // The companion answers in their own words, now and then, when they are here to say it.
   const here=scene.some(n=>n.id===id&&n.present&&(n.hp??0)>0)||kind==='call';
-  if(here&&chance()<0.7){const text=pick('bark',calmBarks[kind]);if(text)dialogue.push({speakerId:id,text});}
+  if(here&&!brief&&chance()<0.7){const text=pick('bark',calmBarks[kind]);if(text)dialogue.push({speakerId:id,text});}
  }else parts.push(pick(kind,voice[kind]));
  const narration=parts.filter(Boolean).join(' ').slice(0,1700);
  return narration?{narration,dialogue}:null;
@@ -191,14 +193,14 @@ export function calmTelling({hero,before,after,action,events=[],kind=null,narrat
 // or searching, and the game adds only what the rules decided that the reply could not know: where the road ended
 // (unless the reply names the place), what the search turned up. The reply's own lines, notes and suggestions stay.
 // Before 2026-10-21 every such move asked the Dungeon Master a second time only to tell its result.
-export function chosenTelling({hero,before,after,action,events=[],kind=null,narrator='chronicler',chosen}){
+export function chosenTelling({hero,before,after,action,events=[],kind=null,narrator='chronicler',chosen,brief=false}){
  kind=kind??clMoveOf(action);const said=String(chosen?.narration??'').trim();if(!said)return null;
  let more='';
- if(kind==='journey'){const place=placeName(after,action.destination);if(!place||!said.toLowerCase().includes(String(place).toLowerCase().replace(/^the /,'')))more=calmTelling({hero,before,after,action,events,kind:'arrive',narrator})?.narration??'';}
- else if(kind==='search')more=calmTelling({hero,before,after,action,events,kind,narrator})?.narration??'';
+ if(kind==='journey'){const place=placeName(after,action.destination);if(!place||!said.toLowerCase().includes(String(place).toLowerCase().replace(/^the /,'')))more=calmTelling({hero,before,after,action,events,kind:'arrive',narrator,brief})?.narration??'';}
+ else if(kind==='search')more=calmTelling({hero,before,after,action,events,kind,narrator,brief})?.narration??'';
  // A rest the reply only began (a room upstairs, a seat by the fire) is seen through; one it already told is left.
- else if(kind==='longRest'&&!/\b(?:sleep|slept|asleep|dawn|morning|wake|woke|night passes)\b/i.test(said))more=calmTelling({hero,before,after,action,events,kind,narrator})?.narration??'';
- else if(kind==='shortRest'&&!/\b(?:breath|bandag\w*|bind\w*|ache\w*|rest(?:s|ed)?)\b/i.test(said))more=calmTelling({hero,before,after,action,events,kind,narrator})?.narration??'';
+ else if(kind==='longRest'&&!/\b(?:sleep|slept|asleep|dawn|morning|wake|woke|night passes)\b/i.test(said))more=calmTelling({hero,before,after,action,events,kind,narrator,brief})?.narration??'';
+ else if(kind==='shortRest'&&!/\b(?:breath|bandag\w*|bind\w*|ache\w*|rest(?:s|ed)?)\b/i.test(said))more=calmTelling({hero,before,after,action,events,kind,narrator,brief})?.narration??'';
  const narration=(said+(more?' '+more:'')).slice(0,1700);
  return {narration,dialogue:Array.isArray(chosen.dialogue)?chosen.dialogue:[],relationships:chosen.relationships??[],remember:chosen.remember??[],suggestions:chosen.suggestions??[],worldEvent:chosen.worldEvent??null,loot:null,introduce:null};
 }
