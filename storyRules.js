@@ -174,7 +174,7 @@ export function storyFoeStats(level=1,type='Slashing'){
 // and by `rage` or `call` for its turn at half.
 // At a table (`hp`, `secondFrom`) the foe gains its blows from the side's scaling (encounterFoe), so it keeps one of its
 // own: two blows a turn, scaled for a party of two, made four, and a pair with a Wizard lost nearly every fight.
-export const bossShape={hp:[1,1.15,1.3],secondFrom:99,alone:{},minion:0.2,rage:0.85,call:0.9};
+export const bossShape={hp:[1,1.1,1.2],secondFrom:99,alone:{},minion:0.2,rage:0.85,call:0.9};
 {const front={hp:[2.5,2.5,1.6,1.6,2.5,1.6,1.5,1.3],second:3},quick={hp:[1.1,1.6,1.6,1.3,1.1,0.7,0.7,0.7],second:99},learned={hp:[0.9,0.9,1.3,1.1,1.3,0.8,0.8,0.75],second:99},faithful={hp:[0.9,1.1,1.3,1.3,1.6,1.3,1.3,1.2],second:99};
  Object.assign(bossShape.alone,{Fighter:front,Barbarian:front,Paladin:front,Rogue:quick,Monk:quick,Bard:quick,Warlock:quick,Wizard:learned,Sorcerer:learned,Cleric:faithful,Druid:faithful,Artificer:faithful,Ranger:faithful});}
 export function bossBudget(staging,level=1){

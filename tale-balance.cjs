@@ -71,7 +71,10 @@ function taleBalance({r,story,heroAt,classes=['fighter','rogue','wizard','cleric
    const settled=r.settleParty(table);world=settled.world;
    for(const [id,m] of Object.entries(settled.members))if(m.status!=='up')fallen.add(id);
    const up=ids.find(id=>settled.members[id]?.status==='up');
-   if(world.stage==='bridge'&&plan.kind==='boss'&&!world.foeFate&&chases<3&&up){chases++;const v=r.partyView(table,up);const step=r.adventureStep(v.game,v.health,byId[up],'approach',random);if(step.error){problems.add(plan.label+', party: '+step.error);break;}table=plain(r.adventureSnapshot(lead,step.game,step.health,true));continue;}
+   if(world.stage==='bridge'&&plan.kind==='boss'&&!world.foeFate&&chases<3&&up){
+    // It broke away (after the first approach): each hero standing takes a short rest, then after it.
+    if(chases>0)for(const id of ids)if(settled.members[id]?.status==='up'){const rv=r.partyView(table,id),rest=r.adventureStep(rv.game,rv.health,byId[id],'short-rest',random);if(!rest.error)table=plain(r.adventureSnapshot(byId[id],rest.game,rest.health,true));}
+    chases++;const v=r.partyView(table,up);const step=r.adventureStep(v.game,v.health,byId[up],'approach',random);if(step.error){problems.add(plan.label+', party: '+step.error);break;}table=plain(r.adventureSnapshot(byId[up],step.game,step.health,true));continue;}
    if(!fightOn(world))break;
    const turn=world.turnOrder?.order?.[world.turnOrder.at]?.id??'P0',hero=byId[turn];if(!hero)break;
    // A hero who has died has no turn: another passes it on.
