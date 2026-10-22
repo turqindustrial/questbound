@@ -29,19 +29,26 @@ const libs={people,creatures,places:placeArt,shelf:emptyShelf};
 // Every place kind the format uses has a picture in every land here (the checker's own place check is tested with it).
 assert.equal(places.kindTerrainComplete(JSON.parse(fs.readFileSync(path.join(placeArt,'library.json'),'utf8'))),true,'the test place library is complete');
 
-// Writes a tale to a fresh folder (under its slug's name unless told) and checks it.
+// Writes a tale to a fresh folder (under its slug's name unless told) and checks it. The walkthroughs (check 5, played
+// through the rules) are played for the fixture itself; the variants below test the format, so they skip them.
 let n=0;
-function check(tale,{name,options={}}={}){const d=dir('tale-'+(++n)),file=path.join(d,name??((typeof tale.slug==='string'&&/^[a-z0-9-]{3,28}$/.test(tale.slug)?tale.slug:'bad')+'.json'));fs.writeFileSync(file,JSON.stringify(tale,null,1));return checkTale(file,{...libs,...options});}
+function check(tale,{name,options={}}={}){const d=dir('tale-'+(++n)),file=path.join(d,name??((typeof tale.slug==='string'&&/^[a-z0-9-]{3,28}$/.test(tale.slug)?tale.slug:'bad')+'.json'));fs.writeFileSync(file,JSON.stringify(tale,null,1));return checkTale(file,{...libs,walks:false,...options});}
 const show=rep=>rep.errors.map(e=>'  '+e.check+' '+e.where+': '+e.message).join('\n');
 
 // ---------- 1. The fixture passes, seated for every ready-made hero and party ----------
 {
- const rep=check(fixture);
+ const rep=check(fixture,{options:{walks:true}});
  assert.ok(rep.ok,'the fixture tale passes the checker:\n'+show(rep));
  assert.deepEqual(rep.seated,{heroes:12,parties:4,tried:4},'four ready-made heroes at three levels, parties of 2 and 4 at the lowest and highest');
  assert.equal(rep.warnings.length,0,'no warnings with the test libraries:\n'+rep.warnings.map(w=>w.where+': '+w.message).join('\n'));
- for(const k of [5,8,9])assert.equal(rep.checks[k].status,'todo','check '+k+' waits for the staging engine and says so');
- assert.ok(rep.todo.every(t=>/^TODO\((?:walkthroughs|balance|experience)\)/.test(t.message)),'the TODO hooks are marked');
+ // The walkthroughs are played through the rules (written-walk.cjs); balance waits for the fight-shape step.
+ for(const k of [5,9])assert.equal(rep.checks[k].status,'pass','check '+k+' is played through the rules');
+ assert.equal(rep.checks[8].status,'todo','check 8 waits for the fight-shape step and says so');
+ assert.ok(rep.todo.every(t=>/^TODO\(balance\)/.test(t.message)),'the TODO hook is marked');
+ assert.equal(rep.walks.golden.ending,'held','the golden path reaches its ending');assert.ok(rep.walks.golden.moves>=25&&rep.walks.golden.moves<=45,'within the short tier\'s moves');
+ assert.ok(rep.walks.golden.levelsGained>=1&&rep.walks.golden.levelsGained<=2,'a new hero gains a level or two');
+ for(const [k,e] of [['terms','terms'],['gone','gone'],['passive','gone'],['violent','gone']])assert.equal(rep.walks[k].ending,e,k+' reaches "'+e+'"');
+ assert.ok(rep.walks.passive.chapters.every((c,i,all)=>c.at-(i?all[i-1].at:0)<=24),'a passive player\'s chapters close within the short stall bound');
  assert.ok(rep.readingLoad<=900);
  // Its own file name is a warning off the shelf, an error on it.
  const named=check(fixture,{name:'written-fixture.json'});assert.ok(named.ok&&named.warnings.some(w=>w.where==='slug'),'a draft may have any file name (a warning)');
@@ -258,7 +265,10 @@ for(const [name,mutate,checkNo,where,message] of variants){
 {
  const args=['--people',people,'--creatures',creatures,'--places',placeArt,'--shelf',emptyShelf];
  const ok=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json',...args],{encoding:'utf8'});
- assert.equal(ok.status,0,ok.stdout+ok.stderr);assert.match(ok.stdout,/PASS/);assert.match(ok.stdout,/5 Walkthroughs \.+ TODO/);
+ assert.equal(ok.status,0,ok.stdout+ok.stderr);assert.match(ok.stdout,/PASS/);assert.match(ok.stdout,/5 Walkthroughs \.+ ok/);assert.match(ok.stdout,/8 Balance \.+ TODO/);assert.match(ok.stdout,/Played through the rules: golden "held" in \d+ moves/);
+ // One walkthrough told move by move (--walk): what was said, where the hero stood, what was due and what was told.
+ const walked=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--walk','golden',...args],{encoding:'utf8'});
+ assert.equal(walked.status,0,walked.stdout+walked.stderr);assert.match(walked.stdout,/ move +I travel to The Log Slide\. \| combat at p1/);assert.match(walked.stdout,/engine +Ending: The Camp Holds\./);
  const json=spawnSync(process.execPath,['check-written-tale.cjs','written-fixture.json','--json',...args],{encoding:'utf8'});
  const parsed=JSON.parse(json.stdout);assert.equal(parsed.ok,true);assert.equal(parsed.checks['2'].status,'pass');
  const t=clone(fixture);ch(t,0).found.any=[{reach:'The Old Sawpit'}];const file=path.join(dir('cli'),'kettle-camp.json');fs.writeFileSync(file,JSON.stringify(t));
@@ -312,8 +322,12 @@ for(const [name,mutate,checkNo,where,message] of variants){
 let busyPace=null;
 {
  const g=r.freshStoryGame(kara,{...clone(fixture.story),id:'p-1',status:'active'},r.newAdventure(kara));
- const pace={v:1,ch:0,turns:0,quiet:0,since:0,step:0,owed:0,held:0,day:0,due:null,told:[],fired:[],seen:['reach:inn'],marks:{},flags:[],stakes:{},spoke:{},offers:[],leads:[],sign:null,fight:null,ending:null,quietMax:0};
+ const pace={v:1,ch:0,turns:0,quiet:0,since:0,step:0,owed:0,held:0,day:0,due:null,told:[],fired:[],seen:['reach:inn'],marks:{},flags:[],stakes:{},spoke:{},offers:[],leads:[],sign:null,fight:null,ending:null,quietMax:0,clockAt:0};
  assert.equal(r.validPace(pace,g),true,'a fresh pace');
+ // clockAt (when the clock last acted, the runtime's) may be left out by a pace written before it, never be negative.
+ {const {clockAt:_c,...before}=pace;assert.equal(r.validPace(before,g),true,'a pace without clockAt');assert.equal(r.validPace({...pace,clockAt:-1},g),false,'clockAt is a count');}
+ // The tale is seated with its pace: chapter 1's set piece armed, the stakes as written (stagingRules.js seatStaging).
+ assert.equal(r.validPace(g.pace,g),true,'freshStoryGame seats the pace');assert.deepEqual(JSON.parse(JSON.stringify(g.pace.stakes)),{s1:'holding on',s2:'one sack lost in the dark'});assert.ok(g.pace.fired.includes('arm:p1:1'));
  assert.deepEqual(JSON.parse(JSON.stringify(r.openingPace(g))),pace,'openingPace: where the hero stands counts as reached');
  const busy={...pace,ch:1,turns:31,quiet:4,since:6,step:2,owed:1,held:1,day:1,due:{kind:'beat',id:'b2'},told:['b1','p1'],fired:['b1','p1','p2','found:1'],seen:['reach:tower','won:p1','searched:p1','checked:inn','rest'],marks:{stell:'refuse'},flags:['bargained','late'],stakes:{s1:'two carts loaded to leave'},spoke:{n1:2,keeper:1},offers:['mara'],leads:['l1'],sign:'A hunter\'s lantern was seen slipping away toward the Old Sawpit.',fight:{turns:2},ending:'held',quietMax:6};
  assert.equal(r.validPace(busy,g),true,'a pace part way through');
@@ -324,7 +338,7 @@ let busyPace=null;
  assert.equal(r.validAdventure(r.adventureSnapshot(kara,{...g,pace:{...busy,ch:2}},null,true),kara),false,'and refuses a broken one');
  const broken=[['v',0],['ch',2],['step',100],['owed',100],['held',-1],['since',1.5],['due',{kind:'Surge!'}],['due',{kind:'beat',id:'B 2'}],['told',['b1','b1']],['fired',Array.from({length:401},(_,i)=>'x'+i)],['seen',['Reach Inn']],['marks',{stell:'flee'}],['marks',{nobody:'refuse'}],['flags',Array.from({length:26},(_,i)=>'f'+i)],['stakes',{s3:'gone'}],['stakes',{s1:'x'.repeat(81)}],['spoke',{n999:1}],['offers',['n999']],['leads',['l2']],['sign','x'.repeat(121)],['fight',{}],['fight',{turns:-1}],['ending','nowhere'],['quietMax',-1]];
  for(const [k,v] of broken)assert.equal(r.validPace({...busy,[k]:v},g),false,'pace.'+k+' = '+JSON.stringify(v).slice(0,40));
- for(const k of Object.keys(pace))if(!['due','sign','fight','ending'].includes(k)){const {[k]:gone,...rest}=busy;assert.equal(r.validPace(rest,g),false,'pace.'+k+' is required');}
+ for(const k of Object.keys(pace))if(!['due','sign','fight','ending','clockAt'].includes(k)){const {[k]:gone,...rest}=busy;assert.equal(r.validPace(rest,g),false,'pace.'+k+' is required');}
  const plainGame=r.freshStoryGame(kara,journeyStory(1),r.newAdventure(kara));
  assert.equal(r.validPace(pace,plainGame),false,'a pace goes only with a staged tale');
  assert.equal(r.validAdventure(r.adventureSnapshot(kara,{...plainGame,pace},null,true),kara),false);

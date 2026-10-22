@@ -162,12 +162,19 @@
     "golden": {
       "ending": "held",
       "steps": [
+        {"say": "Which way did it go, and how many wolves have you seen tonight?", "speakers": ["Mabry Thorne", "Linnet Spey"]},
+        {"say": "Hester, keep the fire high and the stores behind you until I'm back.", "speakers": ["Hester Gale"]},
+        {"say": "Dob, you have felled this wood for years. Who walks it at night with a lantern?", "speakers": ["Dob Harker"]},
         {"go": "The Log Slide"},
         {"fight": true},
         {"search": true},
+        {"say": "Someone laid this offal here on purpose. I will follow where it leads before the pack comes back."},
+        {"say": "Linnet would know these tracks. Where does this offal trail run?"},
         {"go": "The Old Sawpit"},
-        {"say": "Whoever laid this trail knows the wood. Where does it lead?", "speakers": ["Linnet Spey"]},
+        {"say": "Easy. I'm not here to send you home. What did you see out here at dusk?", "speakers": ["Nim Corley"]},
+        {"say": "Which way did the hunter go, and what did he carry?", "speakers": ["Nim Corley"]},
         {"go": "The Split Oak"},
+        {"say": "Corran Stell! I know it was you who baited the pack. Come out and face me."},
         {"choose": {"stell": "refuse"}},
         {"confront": "slay"}
       ]

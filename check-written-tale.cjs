@@ -69,9 +69,9 @@ const overused=[['ledger',/\bledgers?\b/gi],['archive',/\barchiv(?:e|es|ed|ist|i
 const honorifics=new Set('the of old young brother sister mother father ma pa nan gran granny grandmother grandfather dame sir lady lord duchess duke captain sergeant marshal elder squire jarl princess prince queen king councillor factor harbour-master harbor-master lord-protector lord-general master mistress goodwife goodman widow doctor the-elder'.split(' '));
 // The tiers (SPEC 1.1). fights counts set pieces, places armed by an effect and the boss.
 const tiers={
- short:{stall:24,options:3,size:16000,chapters:[2,2],pressure:[3,3],endings:[2,4],choices:[1,2],leads:[0,1],people:[4,7],landmarks:[2,4],landmarkMiles:1,farLands:[0,0],fights:[3,4],moves:45,minutes:[30,60],minuteStep:10},
- medium:{stall:40,options:3,size:32000,chapters:[3,4],pressure:[3,4],endings:[3,4],choices:[2,3],leads:[2,2],people:[6,9],landmarks:[4,5],landmarkMiles:null,farLands:[0,1],fights:[6,8],moves:180,minutes:[120,240],minuteStep:30},
- long:{stall:48,options:4,size:48000,chapters:[5,6],pressure:[4,4],endings:[3,4],choices:[3,4],leads:[3,4],people:[9,12],landmarks:[6,6],landmarkMiles:null,farLands:[1,2],fights:[12,Infinity],moves:450,minutes:[360,1200],minuteStep:30}};
+ short:{stall:24,options:3,size:16000,chapters:[2,2],pressure:[3,3],endings:[2,4],choices:[1,2],leads:[0,1],people:[4,7],landmarks:[2,4],landmarkMiles:1,farLands:[0,0],fights:[3,4],moves:45,movesLeast:25,levelsGained:[1,2],minutes:[30,60],minuteStep:10},
+ medium:{stall:40,options:3,size:32000,chapters:[3,4],pressure:[3,4],endings:[3,4],choices:[2,3],leads:[2,2],people:[6,9],landmarks:[4,5],landmarkMiles:null,farLands:[0,1],fights:[6,8],moves:180,movesLeast:100,levelsGained:[3,4],minutes:[120,240],minuteStep:30},
+ long:{stall:48,options:4,size:48000,chapters:[5,6],pressure:[4,4],endings:[3,4],choices:[3,4],leads:[3,4],people:[9,12],landmarks:[6,6],landmarkMiles:null,farLands:[1,2],fights:[12,Infinity],moves:450,movesLeast:300,levelsGained:[5,7],minutes:[360,1200],minuteStep:30}};
 const compass=['N','NE','E','SE','S','SW','W','NW'];
 const packTemplates=['goblin','zombies','wolves'],singleOf={zombies:'skeleton',wolves:'wolf',orc:'goblin'};
 const stepKinds=['go','say','fight','confront','search','check','rest','choose','join','find','attack','advance','lead','wait'];
@@ -96,7 +96,7 @@ const plural=(n,word)=>n+' '+word+(n===1?'':'s');
 let engine=null;
 function rules(){
  if(engine)return engine;
- engine=vm.runInNewContext(rulesSource()+'\n;({readyHero,readyHeroes,blankBuild,makeCharacter,isValidCharacter,automaticSpells,spellLimits,spellsForClass,subclassOptions,newAdventure,freshStoryGame,tidyStory,validStory,validAdventure,adventureSnapshot,startParty,joinParty,partyView,partyInTale,validHoard,validTies,validIntroduction,introductionFields,placeKinds,terrains,templateKeys,attitudeLevels,genders,npcClassList,tieKinds,foeTieKinds,magicItems,stagingProblems,stagingIds,stagingNamesUsed,stagingMechanical,stagingEvents,stagingPacing,writtenLengths,validWrittenTag,beatHolds,openingPace,metPerson,maxLandmarks,maxResidents,rarityAllowed})',{AsyncStorage:{},console},{timeout:10000});
+ engine=vm.runInNewContext(rulesSource()+'\n;({readyHero,readyHeroes,blankBuild,makeCharacter,isValidCharacter,automaticSpells,spellLimits,spellsForClass,subclassOptions,newAdventure,freshStoryGame,tidyStory,validStory,validAdventure,adventureSnapshot,startParty,joinParty,partyView,partyInTale,validHoard,validTies,validIntroduction,introductionFields,placeKinds,terrains,templateKeys,attitudeLevels,genders,npcClassList,tieKinds,foeTieKinds,magicItems,stagingProblems,stagingIds,stagingNamesUsed,stagingMechanical,stagingEvents,stagingPacing,writtenLengths,validWrittenTag,beatHolds,openingPace,metPerson,maxLandmarks,maxResidents,rarityAllowed,adventureStep,stagedPreview,settleTurn,commitDmTurn,routineTelling,dmChoices,mapMoves,beatSent,beatKey,withAttackIntent,npcScene,levelUpReady,advancedInPlace,foeForLevel,levelCompanions,combatBasics,standingOffers,mapLocation,worldPlaces,lootError,placeName,storyText})',{AsyncStorage:{},console},{timeout:10000});
  return engine;
 }
 
@@ -154,7 +154,7 @@ function checkTale(file,options={}){
  const fail=(n,where,message)=>report.errors.push({check:n,where,message});
  const warn=(n,where,message)=>report.warnings.push({check:n,where,message});
  const todo=(n,message)=>report.todo.push({check:n,message});
- const finish=()=>{for(const [n,name] of Object.entries(checkNames)){const e=report.errors.filter(x=>x.check===Number(n)).length,w=report.warnings.filter(x=>x.check===Number(n)).length,t=report.todo.some(x=>x.check===Number(n));report.checks[n]={name,status:e?'fail':t&&[5,8,9].includes(Number(n))?'todo':'pass',errors:e,warnings:w};}report.ok=!report.errors.length;return report;};
+ const finish=()=>{for(const [n,name] of Object.entries(checkNames)){const e=report.errors.filter(x=>x.check===Number(n)).length,w=report.warnings.filter(x=>x.check===Number(n)).length,t=report.todo.some(x=>x.check===Number(n));report.checks[n]={name,status:e?'fail':t&&[5,8,9].includes(Number(n))?'todo':'pass',errors:e,warnings:w};}if(report.checks[9]&&report.checks[5]?.status!=='pass')report.checks[9].status=report.checks[5].status==='fail'?'todo':report.checks[5].status;report.ok=!report.errors.length;return report;};
  let tale;
  try{tale=readJson(file);}catch(e){fail(1,'file','cannot be read as JSON: '+e.message);return finish();}
  if(!plain(tale)){fail(1,'file','must be a JSON object');return finish();}
@@ -659,7 +659,38 @@ function checkTale(file,options={}){
    else{for(const [id,list] of Object.entries(w.endings)){if(!endingIds.includes(id))fail(5,'walkthrough.endings.'+id,'is no ending of this tale');steps(list,'walkthrough.endings.'+id);}
     for(const id of endingIds)if(typeof id==='string'&&id!==w.golden?.ending&&!Object.hasOwn(w.endings,id))fail(5,'walkthrough.endings','has no path to the ending "'+id+'"');}
   }
-  todo(5,'TODO(walkthroughs): run golden, passive and violent walkthroughs and every ending\'s path through settleTurn with seeded dice and scripted Dungeon Master replies, once the staging engine (withBeats, seatStaging) lands.');
+  // Then played through the game's own rules (written-walk.cjs: settleTurn, the staging engine, seeded dice and scripted
+  // Dungeon Master replies), by the ready-made Fighter at the tale's lowest level, taking each level as it comes: the
+  // golden path and every ending's path reach their endings, a passive player (talks, rests, wanders) reaches one through
+  // the clock within the tier's stall bound for each chapter, and a violent one (kills every resident the tale names)
+  // still finishes. A path is tried with the dice of seeds 1, 2 and 3; one the dice can spoil is said to be fragile.
+  if(options.walks===false)todo(5,'TODO(walkthroughs): not played (walks: false).');
+  else if(seated&&plain(w)&&!report.errors.some(e=>e.check<=5)){
+   const W=require('./written-walk.cjs'),lowest=levels[0],start=startCopy(tale,'written-walk');
+   const run=(spec,accept)=>{const tries=[];for(const seed of [1,2,3]){let res;try{res=W.walkTale({r,story:JSON.parse(JSON.stringify(start)),hero:heroAt('fighter',lowest),heroAt:lv=>heroAt('fighter',lv),seed,trace:options.walk===spec.name,...spec});}catch(e){res={ok:false,error:'the walk failed: '+e.message,moves:0,chapters:[],log:[]};}tries.push({seed,res});if(accept(res))break;}const good=tries.find(t=>accept(t.res));return {tries,good,first:tries[0]};};
+   const why=(res,ending)=>res.ok?'it ends in "'+res.ending+'", not "'+ending+'"':res.error;
+   const summary=t=>t?{seed:t.seed,ok:t.res.ok,ending:t.res.ending??null,moves:t.res.moves,chapters:(t.res.chapters??[]).map(c=>({chapter:c.chapter,at:c.moves,byClock:c.byClock})),levels:t.res.levels??0,...(t.res.error?{error:t.res.error}:{})}:null;
+   report.walks={};
+   const path=(name,steps,ending,where)=>{
+    const got=run({name,steps,mode:'steps'},res=>res.ok&&res.ending===ending);report.walks[name]=summary(got.good??got.first);
+    if(options.walk===name)report.walkTrace=(got.good??got.first).res.log;
+    if(!got.good){fail(5,where,'played through the rules, '+why(got.first.res,ending)+(got.first.res.moves?' (after '+got.first.res.moves+' moves)':''));return null;}
+    if(got.good.seed!==1)warn(5,where,'with the dice of seed 1 '+why(got.first.res,ending)+'; with seed '+got.good.seed+' it reaches "'+ending+'": a path the dice can spoil');
+    return got.good.res;};
+   const golden=plain(w.golden)?path('golden',w.golden.steps,w.golden.ending,'walkthrough.golden'):null;
+   if(golden){if(golden.moves>tier.moves)fail(5,'walkthrough.golden','takes '+golden.moves+' moves played through the rules (fights included): a '+tale.length+' tale\'s golden path is at most '+tier.moves);else if(golden.moves<tier.movesLeast)warn(5,'walkthrough.golden','takes '+golden.moves+' moves played through the rules: a '+tale.length+' tale\'s golden path is '+tier.movesLeast+' to '+tier.moves);}
+   if(plain(w.endings))for(const [id,list] of Object.entries(w.endings))path(id,list,id,'walkthrough.endings.'+id);
+   // The passive player: the clock must carry each chapter to its close within the tier's stall bound (and a little for
+   // what is told on the way).
+   {const got=run({name:'passive',mode:'passive'},res=>res.ok);report.walks.passive=summary(got.good??got.first);if(options.walk==='passive')report.walkTrace=(got.good??got.first).res.log;
+    if(!got.good)fail(5,'walkthrough','a passive player (who only talks, rests and wanders) never reaches an ending: '+got.first.res.error);
+    else{const c=got.good.res.chapters;c.forEach((x,i)=>{const n=x.at??x.moves,d=n-(i?c[i-1].moves:0);if(d>tier.stall+10)fail(5,'walkthrough','a passive player stays '+d+' moves in chapter '+x.chapter+': the clock must close a stalled '+tale.length+' chapter within about '+tier.stall);});}}
+   {const got=run({name:'violent',mode:'violent'},res=>res.ok);report.walks.violent=summary(got.good??got.first);if(options.walk==='violent')report.walkTrace=(got.good??got.first).res.log;
+    if(!got.good){if(got.tries.every(t=>t.res.died))warn(5,'walkthrough','a violent player (who kills every resident the tale names) died with every seed before the tale ended');else fail(5,'walkthrough','a violent player (who kills every resident the tale names) never finishes: '+(got.tries.find(t=>!t.res.died)?.res.error??got.first.res.error));}}
+   // ===== 9. Experience: the levels the golden path gives a new hero =====
+   if(golden){const gained=(golden.endLevel??lowest)-(golden.startLevel??lowest),[lo,hi]=tier.levelsGained;report.walks.golden.levelsGained=gained;
+    if(gained<lo||gained>hi)warn(9,'walkthrough.golden','a hero who begins at level '+lowest+' gains '+plural(gained,'level')+' along the golden path: a '+tale.length+' tale gives '+lo+' to '+hi+' (a new hero ends near level '+(lo+1)+' to '+(hi+1)+')');}
+  }else if(!report.errors.some(e=>e.check===5))todo(5,'TODO(walkthroughs): not played until the tale passes checks 1 to 4.');
  }
 
  // ===== 6. Pictures cost nothing =====
@@ -719,7 +750,6 @@ function checkTale(file,options={}){
 
  // ===== 8 and 9: need the staging engine =====
  todo(8,'TODO(balance): each set piece and the boss for the Fighter, Rogue, Wizard and Cleric at the tale\'s levels, solo and with two heroes (gentle 90%, steady 80%, hard 70% won; the boss solo 50-80% of hit points, 5-15% falls, under 3% deaths), with balance-check.cjs --tale once it exists.');
- todo(9,'TODO(experience): the levels gained along the golden path stay within the tier\'s range, once the walkthrough runner exists.');
  return finish();
 }
 
@@ -795,8 +825,10 @@ function textReport(rep){
  }
  if(rep.seated)lines.push('Seated: '+rep.seated.heroes+' ready-made heroes at the tale\'s levels, and '+rep.seated.parties+' of '+rep.seated.tried+' parties of 2 and 4 heroes.');
  if(rep.readingLoad!==undefined)lines.push('Reading before the first move: '+rep.readingLoad+' of 900 characters.');
+ if(rep.walks)lines.push('Played through the rules: '+Object.entries(rep.walks).filter(([,x])=>x).map(([k,x])=>k+' '+(x.ok?(x.ending?'"'+x.ending+'" ':'')+'in '+x.moves+' moves'+(x.seed!==1?' (seed '+x.seed+')':''):'did not finish')+(k==='golden'&&Number.isInteger(x.levelsGained)?', +'+plural(x.levelsGained,'level'):'')).join('; ')+'.');
+ if(rep.walkTrace)for(const l of rep.walkTrace)lines.push('   '+String(l.move).padStart(3)+' '+l.kind.padEnd(6)+' '+l.text);
  lines.push('Libraries: '+Object.entries(rep.libraries).map(([k,v])=>k+' '+(v??'(not found)')).join('; '));
- lines.push(rep.ok?'Result: PASS'+(rep.warnings.length?' with '+plural(rep.warnings.length,'warning')+' (read them)':'')+'. Checks 5, 8 and 9 run once the staging engine lands.':'Result: FAIL, '+plural(rep.errors.length,'error')+(rep.warnings.length?' and '+plural(rep.warnings.length,'warning'):'')+'. Fix the errors (x) and run the checker again.');
+ lines.push(rep.ok?'Result: PASS'+(rep.warnings.length?' with '+plural(rep.warnings.length,'warning')+' (read them)':'')+'. Check 8 runs once the fight-shape step lands.':'Result: FAIL, '+plural(rep.errors.length,'error')+(rep.warnings.length?' and '+plural(rep.warnings.length,'warning'):'')+'. Fix the errors (x) and run the checker again.');
  return lines.join('\n');
 }
 function main(argv){
@@ -804,6 +836,7 @@ function main(argv){
  for(let i=0;i<argv.length;i++){
   const a=argv[i];
   if(a==='--json')json=true;
+  else if(a==='--walk'){if(!argv[i+1]){console.error('check-written-tale: --walk needs golden, passive, violent or an ending\'s id');return 1;}opts.walk=argv[++i];}
   else if(['--people','--creatures','--places','--shelf'].includes(a)){if(!argv[i+1]){console.error('check-written-tale: '+a+' needs a folder');return 1;}opts[a.slice(2)]=argv[++i];}
   else if(a==='--help'||a==='-h'){console.log('Usage: node check-written-tale.cjs <tale.json> [--json] [--people <dir>] [--creatures <dir>] [--places <dir>] [--shelf <dir>]');return 0;}
   else if(a.startsWith('--')){console.error('check-written-tale: unknown option '+a);return 1;}
