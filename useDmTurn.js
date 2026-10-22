@@ -25,7 +25,7 @@ import {cue} from './cinematics';
 import {countTurn,noteTalking} from './playMetrics';
 import {routineTelling} from './fightLines';
 import {checkTelling} from './toldAhead';
-import {dyingTelling} from './calmLines';
+import {dyingTelling,calmFallback} from './calmLines';
 import {sceneTrigger} from './sceneTriggers';
 import {turnRequestContext,dmReplyError,outOfCharacterContext,engineLines,turnRecord,toldReply,suggestionLines,turnFailureMessage,benignTurnFailure,arrivingTurn} from './dmTurnRules';
 import {dmChoices,mapMoves} from "./dmChoiceRules";
