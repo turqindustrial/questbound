@@ -4,6 +4,7 @@
 // comes back always finds journeys new to them. Pure helpers first; the storage and the request below.
 import {findDmEndpoint,askDm} from './dmConnection';
 import storage from './playerStorage';
+import {cleanWritten,cleanTaleRecords,nextTaleRecord} from './shelfRules';
 export const journeyKey='questbound.journeys.v1';
 const journeyId=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const journeyText=(v,max)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max):'';
@@ -27,19 +28,39 @@ export function journeysToOffer(list,{played=[],titles=[]}={}){
 // Let fate decide, with journeys on offer: one of them, by chance.
 export const fateJourney=(list,random=Math.random)=>Array.isArray(list)&&list.length?list[Math.floor(random()*list.length)%list.length]:null;
 // The journeys this device has played (the last 200), per account profile (playerStorage.js, asynchronous).
+// The same key keeps the device's record of each written tale (shelfRules.js cleanTaleRecord) as `tales`, beside
+// `played`; an older build wrote only `played` and keeps reading it.
+async function journeyStore(store){try{const v=JSON.parse(await store.getItem(journeyKey)??'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch{return {};}}
 export async function playedJourneys(store=storage){
  try{const v=JSON.parse(await store.getItem(journeyKey)??'{}');return Array.isArray(v?.played)?v.played.filter(id=>journeyId.test(String(id))).slice(-200):[];}catch{return [];}
 }
 export async function rememberJourney(id,store=storage){
  if(!journeyId.test(String(id)))return;
- try{const played=(await playedJourneys(store)).filter(x=>x!==id);await store.setItem(journeyKey,JSON.stringify({played:[...played,id].slice(-200)}));}catch{}
+ try{const v=await journeyStore(store),played=(await playedJourneys(store)).filter(x=>x!==id),tales=cleanTaleRecords(v.tales);await store.setItem(journeyKey,JSON.stringify({played:[...played,id].slice(-200),...(Object.keys(tales).length?{tales}:{})}));}catch{}
 }
-// Asks the Dungeon Master which journeys are ready (a quick look, like an illustration). Null when it cannot say (an
-// older Dungeon Master, or none reachable): the screen then offers the written openings as before.
-export async function loadJourneys(){
+// The device's records of written tales (the last 200), by tale id.
+export async function taleRecords(store=storage){return cleanTaleRecords((await journeyStore(store)).tales);}
+// Keeps the record after a turn of a written tale; returns the records when one changed, else null.
+export async function noteTaleRecord(game,hero,{seconds=null,store=storage}={}){
+ try{
+  const id=game?.story?.libraryId,v=await journeyStore(store),tales=cleanTaleRecords(v.tales),next=nextTaleRecord(tales[id],game,hero,{seconds});
+  if(!next)return null;
+  const all=cleanTaleRecords({...tales,[id]:next}),played=Array.isArray(v.played)?v.played.filter(x=>journeyId.test(String(x))).slice(-200):[];
+  await store.setItem(journeyKey,JSON.stringify({played,tales:all}));return all;
+ }catch{return null;}
+}
+// The tab of the shelf this device used last (per device, guarded: storage that refuses just means the first tab).
+export const shelfKey='questbound.shelf.v1';
+export function savedShelfTab(){try{const v=JSON.parse(globalThis.localStorage?.getItem(shelfKey)??'{}');return typeof v?.tab==='string'?v.tab:null;}catch{return null;}}
+export function saveShelfTab(tab){try{globalThis.localStorage?.setItem(shelfKey,JSON.stringify({tab}));}catch{}}
+// Asks the Dungeon Master what is on the shelf (a quick look, like an illustration): the written tales and the ready
+// journeys. Null when it cannot say (none reachable): the screen then offers the written openings as before. An older
+// Dungeon Master sends only journeys, and `written` is then empty.
+export async function loadShelf(){
  try{
   const endpoint=await findDmEndpoint();
   const {ok,body}=await askDm(endpoint,{input:'Which journeys are ready?',context:{mode:'art',choices:[],journeys:'list'}},{timeout:15000,wait:0});
-  return ok&&Array.isArray(body?.journeys)?cleanJourneys(body.journeys):null;
+  return ok&&Array.isArray(body?.journeys)?{journeys:cleanJourneys(body.journeys),written:cleanWritten(body.written)}:null;
  }catch{return null;}
 }
+export async function loadJourneys(){const shelf=await loadShelf();return shelf?shelf.journeys:null;}

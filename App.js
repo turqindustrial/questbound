@@ -1,5 +1,7 @@
 import {findDmEndpoint,writeStory} from './dmConnection';
-import {loadJourneys,playedJourneys,journeysToOffer,rememberJourney} from './journeyLibrary';
+import {loadShelf,playedJourneys,journeysToOffer,rememberJourney,taleRecords,noteTaleRecord,savedShelfTab,saveShelfTab} from './journeyLibrary';
+import {shelfDefault,shelfTabFor,shelfTab as shelfTabCards,writtenChoice,shelfFinishCard} from './shelfRules';
+import TaleFinished from './TaleFinished';
 import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory,playScreenFor,tableSnapshot} from './startTale';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
 import {sceneArtSubjects,npcArtSubject} from './worldArtRules';
@@ -67,7 +69,7 @@ import {questState} from './storyRules';
 import {turnOrderView} from './encounterRules';
 import {useVisualViewport} from './webLayout';
 import SessionRating from './SessionRating';
-import {startPlayMetrics,notePlace,noteTale,noteStoryWait,placeOf,talking,readInsight,noteRatingShown,sessionSeconds,deviceSeconds,subscribeInsight} from './playMetrics';
+import {startPlayMetrics,notePlace,noteTale,noteTaleState,noteStoryWait,placeOf,talking,readInsight,noteRatingShown,sessionSeconds,deviceSeconds,subscribeInsight} from './playMetrics';
 import {ratingMomentOf,mayAskRating} from './ratingRules';
 // The title painting: a valley at dusk, dark on the left where the menu sits (see assets/title/ART-NOTES.md).
 const titlePainting=require('./assets/title/questbound-title.jpg');
@@ -146,12 +148,23 @@ function QuestboundApp() {
   // Ready journeys (journeyLibrary.js, tale-library.cjs): asked for whenever the New Adventure screen opens. A journey
   // this device has played, or whose title the hero has already lived, is never offered. Null: the library could not
   // be reached, and the written openings are offered as before.
-  const [journeysOnOffer,setJourneysOnOffer]=useState(null);
-  useEffect(()=>{if(screen!=='Adventure Opening')return;let current=true;(async()=>{const [list,played]=await Promise.all([loadJourneys(),playedJourneys()]);if(current)setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);})();return()=>{current=false;};},[screen]);
+  // The Written tales shelf (written-shelf.cjs, shelfRules.js) comes in the same listing: fetched when the title screen
+  // shows (so the cards are there when the New Adventure screen opens) and again when that screen opens, with this
+  // device's record of each written tale and the shelf's tab used last.
+  const [journeysOnOffer,setJourneysOnOffer]=useState(null),[writtenOnShelf,setWrittenOnShelf]=useState(null),[taleRecs,setTaleRecs]=useState({}),[shelfTab,setShelfTabState]=useState(()=>savedShelfTab());
+  const refreshShelf=async(current=()=>true)=>{const [shelf,played,recs]=await Promise.all([loadShelf(),playedJourneys(),taleRecords()]);if(!current())return;const list=shelf?.journeys??null;setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);setWrittenOnShelf(shelf?shelf.written:null);setTaleRecs(recs);};
+  useEffect(()=>{if(!['Home','Adventure Opening'].includes(screen))return;let current=true;refreshShelf(()=>current);return()=>{current=false;};},[screen]);
+  // A tab of the shelf chosen: remembered on this device, and with a written tale chosen, that tab's first unfinished one.
+  const chooseShelfTab=tab=>{setShelfTabState(tab);saveShelfTab(tab);if(String(selectedIntro).startsWith('written:')){const cards=shelfTabCards(writtenOnShelf??[],tab,taleRecs),first=cards.find(c=>!taleRecs[c.id]?.finished)??cards[0];if(first)setSelectedIntro(writtenChoice(first.id));}};
+  const shelfFor=()=>({cards:writtenOnShelf??[],records:taleRecs,tab:shelfTabFor(writtenOnShelf??[],shelfTab),titles:[...(game?.storyHistory??[]),game?.story?.title].filter(Boolean),current:game?.story??null});
   // With journeys on offer, a choice they stand in for (Easy to get into, a written opening, a journey no longer on
   // offer) moves to the first journey; without them, a journey choice goes back to Easy to get into.
   // A table plays a tale, so the Skirmish is not offered there.
-  useEffect(()=>{const id=String(selectedIntro),skirmish=id==='hostile'&&table.joined;if(!journeysOnOffer?.length){if(id.startsWith('journey:')||skirmish)setSelectedIntro('easy');return;}if(['idea','surprise'].includes(id)||(id==='hostile'&&!skirmish)||journeysOnOffer.some(j=>'journey:'+j.id===id))return;setSelectedIntro('journey:'+journeysOnOffer[0].id);},[journeysOnOffer,selectedIntro,table.joined]);
+  // With written tales on the shelf, the choice is a written tale (shelfDefault: Start here on a new device, else the
+  // first unfinished tale of the tab used last) unless the player chose Your own tale, Let fate decide, the Skirmish or a
+  // journey still on offer.
+  useEffect(()=>{const id=String(selectedIntro),cards=writtenOnShelf??[];if(!cards.length||id==='hostile'&&table.joined)return;if(['idea','surprise','hostile'].includes(id)||cards.some(c=>writtenChoice(c.id)===id)||journeysOnOffer?.some(j=>'journey:'+j.id===id))return;const first=shelfDefault(cards,taleRecs,shelfTab);if(first)setSelectedIntro(writtenChoice(first));},[writtenOnShelf,journeysOnOffer,selectedIntro,taleRecs,table.joined]);
+  useEffect(()=>{const id=String(selectedIntro),skirmish=id==='hostile'&&table.joined;if(writtenOnShelf?.length&&!skirmish)return;if(id.startsWith('written:')){setSelectedIntro(journeysOnOffer?.length?'journey:'+journeysOnOffer[0].id:'easy');return;}if(!journeysOnOffer?.length){if(id.startsWith('journey:')||skirmish)setSelectedIntro('easy');return;}if(['idea','surprise'].includes(id)||(id==='hostile'&&!skirmish)||journeysOnOffer.some(j=>'journey:'+j.id===id))return;setSelectedIntro('journey:'+journeysOnOffer[0].id);},[journeysOnOffer,writtenOnShelf,selectedIntro,table.joined]);
   // A hero who has died and cannot be brought back (deathRules.js deathIsFinal; or whose player lets them go) is laid
   // to rest: a memorial line in the graveyard, and the hero and their adventure leave this device's save, so they can
   // never be continued, set aside or chosen again. The epitaph stays on screen until the player leaves the play
@@ -188,12 +201,13 @@ function QuestboundApp() {
       if(selectedIntro==='hostile'&&!continuing){noteTale('hostile',null);next=hostileEncounterGame(hero,base);}
       else{
       // The opening, the player's idea and any ready journey (startTale.js).
-      const {wish,start,journeyId,introId}=taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer});
-      noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
+      const {wish,start,journeyId,introId,written}=taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer,written:shelfFor()});
+      // A written tale is counted as w-<slug> (play-metrics.cjs).
+      if(written)noteTale('w-'+(written.slug??'tale'),null);else noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
       const endpoint=await findDmEndpoint();
-      const {ok,status,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen,continuing,bearing,wish,journeyId,introId,start}));
-      // A journey that has just left the library: the journeys on offer are asked for again.
-      if(!ok){if(journeyId&&status===409)loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});throw Error(body.error||'The story could not be created.');}
+      const {ok,status,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen,continuing,bearing,wish,journeyId,introId,start,written}));
+      // A journey that has just left the library (or a written tale taken off the shelf): the shelf is asked for again.
+      if(!ok){if(journeyId&&status===409)refreshShelf();throw Error(body.error||'The story could not be created.');}
       next=freshStoryGame(hero,{...body.story,introId},base);
       if(taleRepeats(game,next))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
@@ -214,9 +228,9 @@ function QuestboundApp() {
     storyLock.current=true;setCreatingStory(true);setError('');
     let waiting=false;
     try{
-      const {wish,start,journeyId,introId}=taleChoice({selectedIntro,continuing:false,idea,easyStart:storyPreferences().easyStart,journeysOnOffer});
+      const {wish,start,journeyId,introId,written}=taleChoice({selectedIntro,continuing:false,idea,easyStart:storyPreferences().easyStart,journeysOnOffer,written:shelfFor()});
       if(selectedIntro==='hostile')throw Error('A table plays a tale: choose a ready journey or your own tale.');
-      noteTale(start.introId,!!start.easyStart);
+      if(written)noteTale('w-'+(written.slug??'tale'),null);else noteTale(start.introId,!!start.easyStart);
       let payload={journey:journeyId};
       if(!journeyId){noteStoryWait('start');waiting=true;
         const endpoint=await findDmEndpoint();
@@ -228,7 +242,7 @@ function QuestboundApp() {
       // A host alone at the table goes back to the table screen, where the invite now shows; with players seated, to play.
       setTaleReplace(false);setIdea('');setNewStoryRequested(false);setCharacterChosen(true);setScreenState((data?.members?.length??0)>1?'Adventure':'Multiplayer');scrollRef.current?.scrollTo({y:0,animated:false});
     }catch(e){if(waiting)noteStoryWait('failed');setError(e.name==='TimeoutError'?'The tale took too long to start. The table is unchanged; try again.':e.message);
-      if(/left the library/.test(String(e.message)))loadJourneys().then(async list=>{const played=await playedJourneys();setJourneysOnOffer(list?journeysToOffer(list,{played,titles:[...(game?.storyHistory??[]),game?.story?.title]}):null);});}
+      if(/left the library/.test(String(e.message)))refreshShelf();}
     finally{storyLock.current=false;setCreatingStory(false);}
   }
   // The hero a player brings to a shared table (SharedTable.js): their current hero, one from their roster or a
@@ -408,6 +422,17 @@ function QuestboundApp() {
   useEffect(()=>subscribeInsight(i=>{if(!i.ask)setRating(null);}),[]);
   useEffect(()=>{const before=ratingGame.current;ratingGame.current=game;if(!playing)return;const moment=ratingMomentOf(before,game);if(moment)offerRating(moment);},[game]);
   useEffect(()=>{const was=wasInGame.current;wasInGame.current=inGame;if(was&&!inGame&&screen==='Home')offerRating('leave');},[inGame,screen]);
+  // A written tale's progress on this device (journeyLibrary.js noteTaleRecord: the chapter reached, with whom, the
+  // endings found), solo and at a table alike (applyRemote changes `game` too), and its play counts (playMetrics.js).
+  // When its last scene is played here, the completion card says how long it took and which ending was found.
+  const [taleDone,setTaleDone]=useState(null),taleStatus=useRef(null);
+  useEffect(()=>{
+    const story=game?.story;if(!story?.written||!hero)return;
+    noteTaleState(game);
+    const was=taleStatus.current;taleStatus.current=story.id+':'+story.status;
+    noteTaleRecord(game,hero,{seconds:deviceSeconds()}).then(all=>{if(!all)return;setTaleRecs(all);
+      if(story.status==='complete'&&was===story.id+':active'){const card=(writtenOnShelf??[]).find(c=>c.id===story.libraryId)??null;setTaleDone(shelfFinishCard(card,all[story.libraryId],game));}});
+  },[game?.story?.id,game?.story?.chapter,game?.story?.status,game?.pace?.ending,hero?.name]);
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:tint('#ffd49a')}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
@@ -445,18 +470,19 @@ function QuestboundApp() {
       onContinue={()=>{setReturnToGame(false);const next=playScreenFor({hero,game,characterChosen,table});if(next==='Adventure')setNewStoryRequested(false);else if(next==='Adventure Opening')setNewStoryRequested(true);setScreen(next);}}
       onNew={()=>{setNewStoryRequested(true);setError('');setScreen('Character Selection');}} onOpen={target=>setScreen(target)} onFeedback={()=>{playSound('open');setFeedbackRequest(null);setFeedbackOpen(true);}}/>
     <FeedbackSheet visible={feedbackOpen} onClose={()=>{setFeedbackOpen(false);setFeedbackRequest(null);}} context={feedbackContext} problem={feedbackRequest?.problem??null} prefill={feedbackRequest?.prefill??''}/>
-  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,screen==='Adventure Opening'&&journeysOnOffer?.length&&s.journeyContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
+  </ScrollView>:<ScrollView ref={scrollRef} style={s.page} contentContainerStyle={[s.content,gameScreen&&s.gameContent,screen==='Adventure Opening'&&(journeysOnOffer?.length||writtenOnShelf?.length)&&s.journeyContent,compact&&{padding:12,paddingTop:4,paddingBottom:28},s.centred]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='web'?'none':'on-drag'}>
     {/* Web scroll events include the browser bringing a focused field above the phone keyboard.
         Dismissing on that scroll immediately blurs the field and closes the keyboard. */}
-    <MenuScreens {...{screen,inGame,compact,loading,storageError,saveProblem,saveStatus,button,setSaveRetry,table,party,game,health,heroStats,hero,heroFallen,error,useReadyHero,saving,newStoryRequested,characterChosen,creatingStory,playCharacter,setEditingHero,setForm,setError,setScreen,showReady,setShowReady,roster,graves,playFromRoster,retireFromRoster,selectedIntro,setSelectedIntro,idea,setIdea,continuingNow,journeysOnOffer,canContinue,setContinueRegion,form,saveHero,scrollRef,saveAdvancement,choosePortrait,setGame,setHealth,adventureBlocked,setNewStoryRequested,legalTab,setLegalTab,restoreFromCloud,setAccount,openLegal,legalFrom,returnToGame,saved,backToGame,gameScreen,heroForTable,tableTale,tablePick,taleReplace,
+    <MenuScreens writtenShelf={writtenOnShelf?.length?{...shelfFor(),tab:shelfTabFor(writtenOnShelf,shelfTab),onTab:chooseShelfTab,heroName:hero?.name??null}:null} {...{screen,inGame,compact,loading,storageError,saveProblem,saveStatus,button,setSaveRetry,table,party,game,health,heroStats,hero,heroFallen,error,useReadyHero,saving,newStoryRequested,characterChosen,creatingStory,playCharacter,setEditingHero,setForm,setError,setScreen,showReady,setShowReady,roster,graves,playFromRoster,retireFromRoster,selectedIntro,setSelectedIntro,idea,setIdea,continuingNow,journeysOnOffer,canContinue,setContinueRegion,form,saveHero,scrollRef,saveAdvancement,choosePortrait,setGame,setHealth,adventureBlocked,setNewStoryRequested,legalTab,setLegalTab,restoreFromCloud,setAccount,openLegal,legalFrom,returnToGame,saved,backToGame,gameScreen,heroForTable,tableTale,tablePick,taleReplace,
       onTableHero:()=>{setTableReturn(true);setEditingHero(false);setForm(blankBuild());setError('');setScreenState('Character Creation');scrollRef.current?.scrollTo({y:0,animated:false});},
       onChooseTale:replace=>{setTaleReplace(!!replace);setError('');setScreenState('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});}}}/>
   </ScrollView>}</View>}
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
-  {rating&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
-  {storyCover&&<StoryLoading introId={continuingNow?'surprise':String(selectedIntro).startsWith('journey:')?'easy':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
+  {!!taleDone&&playing&&<TaleFinished card={taleDone} top={wideGame?76:68} onClose={()=>setTaleDone(null)} onShelf={()=>{setTaleDone(null);setContinueRegion(false);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}} onContinue={canContinue&&!table.joined?()=>{setTaleDone(null);setContinueRegion(true);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}:null}/>}
+  {rating&&!(taleDone&&playing)&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
+  {storyCover&&<StoryLoading introId={continuingNow?'surprise':/^(?:journey|written):/.test(String(selectedIntro))?'easy':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
   <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
   </View>;

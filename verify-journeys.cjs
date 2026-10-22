@@ -182,7 +182,7 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   assert.ok(!r.validStory({...one.story,artId:'journey-elsewhere'})&&!r.validStory({...one.story,libraryId:'x'}),'a copy\'s art id belongs to its journey');}
 
  // ---- On the device: the journeys on offer, never one already played ----
- {const src=fs.readFileSync('journeyLibrary.js','utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'');
+ {const src=['shelfRules.js','journeyLibrary.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n');
   const c=vm.runInNewContext(src+'\n({cleanJourneys,journeysToOffer,fateJourney,playedJourneys,rememberJourney,journeyKey})',{storage:{},findDmEndpoint:async()=>'',askDm:async()=>({})});
   const raw=shown.slice(0,3).map(j=>({...j,secret:'no'}));raw.push({id:'bad',title:'x',hook:'y'},{...raw[0]},{id:'0f8fad5b-d9cb-469f-a165-70867728950e',title:'',hook:'h'});
   const clean=c.cleanJourneys(raw);assert.equal(clean.length,3,'malformed, nameless and repeated journeys are left out');assert.equal(clean[0].secret,undefined);
