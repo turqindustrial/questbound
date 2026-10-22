@@ -19,14 +19,28 @@ function repairedCreature(c){
  if(r.ally&&typeof r.ally==='object'&&(r.ally.template===r.template||!allyKinds.includes(r.ally.template)))r.ally=null;
  return r;
 }
+// A new place in other words than the map's own (the stories spec, Phase A9, 2026-10-22: "a new place the map could not
+// use" was asked again nine times in one rough session): a kind, bearing or land given in words is read as the nearest
+// of the map's own, a missing danger is safe, a description too short is made from the name and kind, distances given
+// as text are read, and a lair whose creature the game cannot run is a risky place instead. Only a nameless place is
+// still unusable (and dm-server.cjs then leaves it out rather than refusing the reply).
+const placeSynonyms=[[/\b(?:town|village|hamlet|city|inn|tavern|farm|farmstead|homestead|manor|keep|castle|fort|fortress|outpost|market|mill|harbou?r|port|dock|quay)\b/i,'settlement'],[/\b(?:camp|encampment|tents?|bivouac|caravan)\b/i,'camp'],[/\b(?:road|track|trail|path|bridge|crossing|ford|pass|causeway)\b/i,'road'],[/\b(?:wood|woods|forest|grove|thicket|copse|glade)\b/i,'forest'],[/\b(?:mountain|peak|ridge|crag|cliff|summit|hill|hills|tor)\b/i,'mountain'],[/\b(?:river|lake|pond|pool|mere|sea|coast|shore|beach|marsh|bog|fen|swamp|spring|well|falls|waterfall)\b/i,'water'],[/\b(?:ruin|ruins|tower|barrow|tomb|crypt|graveyard|cemetery|abbey|monastery|watchtower)\b/i,'ruin'],[/\b(?:cave|cavern|grotto|mine|tunnel|hollow|den|burrow|pit)\b/i,'cave'],[/\b(?:shrine|temple|chapel|altar|church|sanctuary|monument|standing stones?)\b/i,'shrine'],[/\b(?:lair|nest)\b/i,'lair'],[/\b(?:heath|moor|plain|plains|wilds|wilderness|steppe|desert|dunes|badlands|waste)\b/i,'wilds']];
+const bearingWords={north:'N',northeast:'NE',east:'E',southeast:'SE',south:'S',southwest:'SW',west:'W',northwest:'NW'};
+const terrainSynonyms={plain:'plains',grassland:'plains',woods:'forest',woodland:'forest',hill:'hills',mountain:'mountains',coastal:'coast',sea:'coast',swamp:'marsh',bog:'marsh',fen:'marsh',dunes:'desert',tundra:'snow',ice:'snow',cave:'caverns',underground:'caverns',cavern:'caverns'};
 function repairedDiscovery(d){
  if(!d||typeof d!=='object')return d;
  const r={...d,name:tidy(d.name,60),description:tidy(d.description,300)};
+ if(!placeKinds.includes(r.kind)){const said=[r.kind,r.name,r.description].filter(v=>typeof v==='string').join(' ');r.kind=(placeSynonyms.find(([re])=>re.test(String(r.kind??'')))??placeSynonyms.find(([re])=>re.test(said)))?.[1]??'landmark';}
+ if(!compass.includes(r.bearing)){const w=String(r.bearing??'').toLowerCase().replace(/[^a-z]/g,'');r.bearing=bearingWords[w]??(compass.includes(String(r.bearing??'').toUpperCase())?String(r.bearing).toUpperCase():'N');}
+ if(typeof r.miles!=='number'||!Number.isFinite(r.miles)){const n=parseFloat(String(r.miles??''));r.miles=Number.isFinite(n)?n:1;}
+ if(typeof r.travel!=='boolean')r.travel=r.travel==='true';
+ if(typeof r.name==='string'&&typeof r.description==='string'&&r.description.trim().length<10)r.description=tidy(r.name.trim()+', a '+(r.kind==='wilds'?'stretch of wild country':r.kind)+' not yet explored.',300);
  if(typeof r.feature==='string')r.feature=r.feature.trim().length<3?null:tidy(r.feature,200);
- if(r.region&&typeof r.region==='object'){const name=tidy(r.region.name,60);r.region=typeof name==='string'&&name.length>=2&&terrainKinds.includes(r.region.terrain)?{name,terrain:r.region.terrain}:null;}else r.region=null;
- if(typeof r.miles==='number'&&Number.isFinite(r.miles))r.miles=Math.min(r.region?300:12,Math.max(0.1,r.miles));
- if(r.lair&&typeof r.lair==='object'){r.lair=repairedCreature(r.lair);r.danger='lair';}
- else if(r.danger==='lair')r.danger='risky';
+ if(r.region&&typeof r.region==='object'){const name=tidy(r.region.name,60),terrain=terrainKinds.includes(r.region.terrain)?r.region.terrain:terrainSynonyms[String(r.region.terrain??'').toLowerCase()];r.region=typeof name==='string'&&name.length>=2&&terrainKinds.includes(terrain)?{name,terrain}:null;}else r.region=null;
+ r.miles=Math.min(r.region?300:12,Math.max(0.1,r.miles));
+ if(r.lair&&typeof r.lair==='object'){r.lair=repairedCreature(r.lair);if(validCreature(r.lair))r.danger='lair';else{r.lair=null;r.danger='risky';}}
+ else{r.lair=null;if(r.danger==='lair')r.danger='risky';}
+ if(!['safe','risky','lair'].includes(r.danger??'safe'))r.danger='safe';
  return r;
 }
 function repairedIntroduce(p,context){
@@ -45,7 +59,12 @@ const repairedLoot=l=>l&&typeof l==='object'&&Array.isArray(l.items)?{...l,items
 // repaired loot and what was changed (for the diagnostics: mechanical fields only).
 // An Easy to get into tale's errand is done in the reply that narrates story-advance ('Chapter 1 complete'): that
 // reply pays the promised reward. When the model leaves it out, the gold the reward names is paid (within the limits).
-const errandPaidTurn=context=>!!context?.story?.errand&&(context.engineResolved??[]).some(t=>/^Chapter 1 complete: /.test(String(t)));
+// When the errand's promised purse is handed over (the game pays it when the reply hands over nothing): once the game
+// closed chapter 1 at the cleared place (story.errand.rewardDue, the stories spec Phase A3, 2026-10-22), the next time
+// the hero speaks with keeper; before that build, in the telling of "Chapter 1 complete" after the Dungeon Master moved it on.
+const errandPaidTurn=context=>{const e=context?.story?.errand;if(!e)return false;
+ if(e.rewardDue===true)return !(context.engineResolved??[]).length&&!context.sceneTrigger&&context.conversationWith?.id==='keeper'&&(context.nearbyNPCs??[]).some(n=>n?.id==='keeper');
+ return (context.engineResolved??[]).some(t=>/^Chapter 1 complete: /.test(String(t)));};
 const errandPurse=context=>{const m=/(\d[\d,]*)\s*(?:gold|gp)\b/i.exec(String(context?.story?.errand?.reward??''));return m?Number(m[1].replace(/,/g,'')):0;};
 const magicRewardTurn=context=>(context.engineResolved??[]).some(t=>/^Chapter \d+ complete: |^Lead seen through: /.test(String(t)));
 function clampedLoot(l,context){
@@ -111,10 +130,25 @@ function knownHp(context){
  return n;
 }
 const hpWords='(?:HP|hit points?)';
+// Damage told as figures in the telling (the stories spec, Phase A6, 2026-10-22: "exactly 4 fire damage"): the dice cards
+// show the numbers, so the words tell the harm as action. "takes exactly 7 slashing damage" becomes "takes a cut", "hits it
+// for 6 damage" "hits it hard", and a figure in brackets goes. Every damage figure is softened, right or wrong (unlike hit
+// points, which a telling may quote when the game knows them).
+const damageTypes='acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder';
+const damageWords={acid:'a burn',bludgeoning:'a heavy blow',cold:'a numbing chill',fire:'a burn',force:'a hard blow',lightning:'a jolt',necrotic:'a withering touch',piercing:'a wound',poison:'poison',psychic:'a stab of pain',radiant:'a searing light',slashing:'a cut',thunder:'a concussive blow'};
+const damageFigure='(?:exactly\\s+|only\\s+|just\\s+|a mere\\s+|some\\s+)?\\d+\\s+(?:points?\\s+of\\s+)?(?:('+damageTypes+')\\s+)?damage\\b';
+function softDamage(text){
+ if(typeof text!=='string'||!/\d/.test(text)||!/damage/i.test(text))return text;
+ return text
+  .replace(new RegExp('\\s*\\([^()]*?\\d+\\s+(?:points?\\s+of\\s+)?(?:(?:'+damageTypes+')\\s+)?damage\\b[^()]*\\)','gi'),'')
+  .replace(new RegExp('\\bfor\\s+(?:an?\\s+)?(?:(?:extra|additional|further)\\s+)?'+damageFigure,'gi'),'hard')
+  .replace(new RegExp('\\b(?:(?:an?\\s+)?(?:extra|additional|further)\\s+|another\\s+)?'+damageFigure,'gi'),(m,type)=>damageWords[String(type??'').toLowerCase()]??'a wound')
+  .replace(/ {2,}/g,' ').replace(/ +([,.;!?])/g,'$1');
+}
 function checkedHp(text,context){
  if(typeof text!=='string'||!/\d/.test(text))return text;
  const ok=knownHp(context),bad=v=>!ok.has(Number(v));
- return text
+ return softDamage(text)
   .replace(new RegExp('\\s*\\([^()]*?(?<![\\w+-])(\\d+)\\s*'+hpWords+'\\b[^()]*\\)','gi'),(m,v)=>bad(v)?'':m)
   .replace(new RegExp('\\b(down to|drops? to|dropping to|falls? to|falling to|reduced to|left with|leaving (?:it|him|her|them|you) with|with only|with just)\\s+(?:only\\s+|just\\s+)?(\\d+)\\s*'+hpWords+'\\b(?:\\s+(?:left|remaining))?','gi'),(m,lead,v)=>{if(!bad(v))return m;const l=lead.toLowerCase();return /^(drop|fall)/.test(l)?'is badly hurt':/^leaving/.test(l)?lead.replace(/\s+with$/i,'')+' badly wounded':/^(with|left)/.test(l)?'badly wounded':'badly hurt';})
   // "back up to 9 HP" loses the figure; "at 9 HP" becomes "wounded"; any other wrong figure becomes "wounds".
@@ -128,6 +162,17 @@ function checkedHp(text,context){
 const unusable=message=>/^(The AI (did not return a usable reply|proposed an invalid|reply was incomplete)|Invalid check plan|The DM (described|included|must return)|The recruitment decision|Out of character|Spell damage must|A denied or clarified|The action is already resolved|The action of the player is already spent|A check cannot be made during a fight)/.test(String(message));
 const transient=e=>['TimeoutError','AbortError'].includes(e?.name)||/HTTP 5\d\d|fetch failed|ECONNRESET|socket hang up/i.test(String(e?.message??''));
 function faultKind(e){const m=String(e?.message??'');return e?.name==='TimeoutError'?'timed out':/usable reply/.test(m)?'unreadable':/incomplete/.test(m)?'cut short':/HTTP 5|fetch failed|ECONNRESET|socket/i.test(m)?'provider fault':/invalid ruling|cast, deny|denied or clarified|Spell damage/.test(m)?'ruling':/recruitment/.test(m)?'recruitment':/speaker/.test(m)?'speaker':/new place/.test(m)?'place':/creature/.test(m)?'creature':/check/i.test(m)?'check':/invalid response/.test(m)?'telling':/Out of character/.test(m)?'out of character':/already resolved/.test(m)?'resolved twice':'other';}
+// A check's failure written ahead that changes nothing (the stories spec, Phase A2, 2026-10-22: 21 checks failed into
+// nothing in the saved games, and a chapter stalled behind one failed roll): its last sentence says the attempt came to
+// nothing ("you find nothing", "nothing comes of it", "in vain") with no turn after it (but, until, instead...) and
+// nobody speaks. Such a reply is asked for again, like any unusable reply; a rescue keeps the check without its outcomes.
+const deadEndWords=/\b(?:(?:find|finds|found|turns?\s+up|turned\s+up|yields?|yielded|reveals?|revealed|learns?|learned|gets?|notices?|noticed|spots?|spotted|hears?|heard|discovers?|discovered|uncovers?|uncovered|sees?|saw)\s+(?:nothing|no\s+(?:sign|trace|clue|answer|sense|luck|more|further)|little\s+of\s+(?:use|note|value))|nothing\s+(?:happens|comes\s+of\s+it|of\s+(?:note|use|value|interest)|useful|more|stirs|changes|new)|inconclusive|to\s+no\s+avail|in\s+vain|no\s+luck|comes?\s+up\s+empty|empty-handed|draws?\s+a\s+blank|leads?\s+nowhere|nothing\s+to\s+show)\b/i;
+const deadEndTurns=/\b(?:but|yet|though|although|however|instead|until|except|only|as|when|while|before|meanwhile|then)\b/i;
+function deadEnd(text,dialogue=[]){
+ if(Array.isArray(dialogue)&&dialogue.length)return false;
+ const sentences=String(text??'').trim().split(/(?<=[.!?])\s+/).filter(Boolean),last=sentences.at(-1)??'',m=deadEndWords.exec(last);
+ return !!m&&!deadEndTurns.test(last.slice(m.index+m[0].length));
+}
 // A telling too long for the feed is cut after its last whole sentence that fits.
 function tellingCut(text,max){const head=text.slice(0,max),end=Math.max(...['. ','! ','? ','.\n','!\n','?\n','."','!"','?"','.\u201d','!\u201d','?\u201d'].map(s=>head.lastIndexOf(s)));return end>max/2?head.slice(0,end+2).trim():head.replace(/\s+\S*$/,'')+'\u2026';}
 // A spell named in the player's words that the hero knows and can pay for now (spellReference carries each known spell's
@@ -188,4 +233,4 @@ function cleanSuggestions(list,input,context=null){
  return (Array.isArray(list)?list:[]).filter(t=>typeof t==='string').map(t=>t.replace(/\s+/g,' ').trim().replace(/^(?:[-*\u2022]\s+|\d+[.)]\s+)/,'').replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g,'').trim())
   .filter(t=>{const key=t.toLowerCase();if(t.length<3||t.length>110||/^(?:\(\s*ooc|\[\s*ooc|ooc\b|dm\b|dungeon master\b)/i.test(t)||/\d+\s*(?:HP|hit points?)\b/i.test(t)||/\b(?:button|click)\b/i.test(t)||key===said||seen.has(key)||!suggestionPossible(t,context))return false;seen.add(key);return true;}).slice(0,3);
 }
-module.exports={suggestionPossible,cut,tidy,repairedCreature,repairedDiscovery,repairedIntroduce,repairedLoot,errandPaidTurn,errandPurse,magicRewardTurn,clampedLoot,validLoot,personId,knownPeople,validIntroduce,validRelationships,relationshipAllowed,validSketch,validCreature,validDiscovery,genericWords,spellNamed,validCheck,validRuling,knownHp,hpWords,checkedHp,unusable,transient,faultKind,tellingCut,castableSpell,castWords,echoStop,greetingWords,lineWords,echoes,distinctDialogue,rememberMechanics,cleanRemember,cleanSuggestions};
+module.exports={suggestionPossible,cut,tidy,repairedCreature,repairedDiscovery,repairedIntroduce,repairedLoot,errandPaidTurn,errandPurse,magicRewardTurn,clampedLoot,validLoot,personId,knownPeople,validIntroduce,validRelationships,relationshipAllowed,validSketch,validCreature,validDiscovery,genericWords,spellNamed,validCheck,validRuling,knownHp,hpWords,softDamage,checkedHp,unusable,transient,faultKind,deadEnd,tellingCut,castableSpell,castWords,echoStop,greetingWords,lineWords,echoes,distinctDialogue,rememberMechanics,cleanRemember,cleanSuggestions};

@@ -46,7 +46,9 @@ function namedJourneys(text,context){
 // Plain sentences of what is true now. They restate the structured fields, which the model sometimes reads past.
 function situation(context){
  const c=context??{},lines=[],place=c.world?.current?.name??null,inFight=fighting(c),foe=c.story?.foe??null;
- if(place)lines.push('The player is at '+place+'.');
+ // A journey's telling (the engine walked the road this turn): the arrival is new, never "you are already there" (the
+ // stories spec, Phase A6, 2026-10-22: a reply told a player who had just walked to a place that they were already at it).
+ if(place)lines.push(arrivedAt(c)?'The player has just arrived at '+place+'.':'The player is at '+place+'.');
  if(c.stage==='dead')lines.push('The player\'s hero is dead.');
  else if(c.stage==='dying'||c.dying)lines.push('The player\'s hero is down and dying; whatever dropped them has turned away.');
  else if(inFight)lines.push('A fight is in progress'+(c.encounter?.name?' against '+c.encounter.name:c.npcCombat?.active?' with people here':'')+'.');
@@ -62,7 +64,7 @@ function situation(context){
  const here=(Array.isArray(c.nearbyNPCs)?c.nearbyNPCs:[]).filter(n=>n&&typeof n.id==='string'&&typeof n.name==='string').map(n=>n.name.slice(0,60)).slice(0,8);
  if(here.length)lines.push('Named people here: '+here.join(', ')+'.');
  const offered=journeys(c);
- if(offered.length&&!inFight)lines.push('The player may set out at once for any of: '+offered.map(j=>j.name+' ('+j.actionId+')').join(', ')+'. Nothing has to happen first.');
+ if(offered.length&&!inFight)lines.push('The player may set out at once for any of: '+offered.map(j=>j.name+' ('+j.actionId+')').join(', ')+'.');
  return lines;
 }
 // Places where people would be found: arriving at one with nobody named there is a scene with no one to talk to.

@@ -15,7 +15,7 @@ delete require.cache[require.resolve('./dm-schemas.cjs')];
 const {npcClassNames,introduceSchema,replySchemaFor,spelledOutSchema,asFields,flatReply,phaseFields,listFields}=require('./dm-schemas.cjs');
 // Reading the reply: its checks and repairs (dm-replies.cjs), reloaded with this file like the modules above.
 delete require.cache[require.resolve('./dm-replies.cjs')];
-const {cut,repairedCreature,repairedDiscovery,repairedIntroduce,repairedLoot,errandPaidTurn,errandPurse,clampedLoot,validLoot,personId,validIntroduce,validRelationships,validCreature,validDiscovery,spellNamed,validCheck,validRuling,checkedHp,unusable,transient,faultKind,tellingCut,castableSpell,castWords,echoes,distinctDialogue,cleanRemember,cleanSuggestions}=require('./dm-replies.cjs');
+const {cut,deadEnd,repairedCreature,repairedDiscovery,repairedIntroduce,repairedLoot,errandPaidTurn,errandPurse,clampedLoot,validLoot,personId,validIntroduce,validRelationships,validCreature,validDiscovery,spellNamed,validCheck,validRuling,checkedHp,unusable,transient,faultKind,tellingCut,castableSpell,castWords,echoes,distinctDialogue,cleanRemember,cleanSuggestions}=require('./dm-replies.cjs');
 const allowedOrigins=new Set(['http://localhost:8081','http://localhost:8082']);
 // What the model is shown: the scene without the guidance above, without text it would read twice (portraits, the
 // opening already played, places described in two lists, conversation kept in two journals) and without the parts
@@ -147,8 +147,11 @@ const tiesLine=t=>{if(!isObj(t))return t;const all=Array.isArray(t.all)?t.all:[]
 // A known place as one line: "Name [id]: kind, in Land, 3.7 miles S, visited, lair, threat X (wolf). Feature: …" (a
 // place not yet visited says nothing of it). Its description only when asked for (the place the player names, the
 // errand's): the place the player stands in is told in full in world.current, and a journey's telling has it there.
-const placeLine=(p,described=true,lands=null)=>{if(!isObj(p))return p;if(p.land&&lands?.has(p.land))p={...p,distance:null};const far=!described&&(p.land||Number(/^([\d.]+) miles/.exec(String(p.distance??''))?.[1])>5);const bits=[p.kind,p.land?'in '+p.land:null,p.distance&&p.distance!=='0 ft'?p.distance+(p.bearing?' '+p.bearing:''):null,p.visited?'visited':null,p.cleared?'cleared':null,p.danger&&p.danger!=='safe'?p.danger:null,p.threat?'threat '+p.threat.name+' ('+p.threat.template+')':null].filter(Boolean);
- return p.name+' ['+p.id+']: '+bits.join(', ')+'.'+(p.feature&&!far?' Feature: '+p.feature:'')+(described&&p.description?' '+cut(p.description,100):'');};
+// A place not yet visited within five miles of here keeps a few words of what it is (80 characters; the stories spec,
+// Phase A5, 2026-10-22: the places nearby were names alone, and a scene could not point anywhere).
+const milesOf=distance=>{const m=/^([\d.,]+) (ft|miles?)\b/.exec(String(distance??''));return m?Number(m[1].replace(/,/g,''))/(m[2]==='ft'?5280:1):NaN;};
+const placeLine=(p,described=true,lands=null)=>{if(!isObj(p))return p;if(p.land&&lands?.has(p.land))p={...p,distance:null};const away=milesOf(p.distance),far=!described&&(p.land||away>5),near=!described&&!p.land&&!p.visited&&away<=5;const bits=[p.kind,p.land?'in '+p.land:null,p.distance&&p.distance!=='0 ft'?p.distance+(p.bearing?' '+p.bearing:''):null,p.visited?'visited':null,p.cleared?'cleared':null,p.danger&&p.danger!=='safe'?p.danger:null,p.threat?'threat '+p.threat.name+' ('+p.threat.template+')':null].filter(Boolean);
+ return p.name+' ['+p.id+']: '+bits.join(', ')+'.'+(p.feature&&!far?' Feature: '+p.feature:'')+(described&&p.description?' '+cut(p.description,100):near&&p.description?' '+cut(p.description,80):'');};
 // A spell as one line: "Cure Wounds (level 1; Action; Touch; V, S; cast with: slot 1)".
 const spellLine=s=>{if(!isObj(s))return s;const costs=Array.isArray(s.availableCosts)?s.availableCosts:[];const lvl=Number(s.level)||0;
  const how=lvl===0?null:'cast with: '+(costs.length?costs.map(x=>typeof x==='number'?'slot '+x:x==='species'?'species (free)':x).join(', '):'nothing left');
@@ -278,7 +281,7 @@ function compact(scene,body){
    else if(leads.length)out.push(leads.map(ch=>'['+ch.id+']'+(open.has(ch.id)?'':' '+(/\("[^"]*"\)/.exec(ch.label)?.[0]??ch.label))).join(' ')+': a lead (quest.openLeads) truly resolved in play.');}
   scene.choices=out;
   // context.now names the journeys on offer with their ids; the travel choices above say it already.
-  if(travel.length&&Array.isArray(scene.now))scene.now=scene.now.map(l=>typeof l==='string'&&/^The player may set out at once for any of: /.test(l)?'The player may set out at once on any travel choice offered. Nothing has to happen first.':l);
+  if(travel.length&&Array.isArray(scene.now))scene.now=scene.now.map(l=>typeof l==='string'&&/^The player may set out at once for any of: /.test(l)?'The player may set out at once on any travel choice offered.':l);
  }
 }
 // Briefer still (2026-10-21, the host: "optimize efficiency even more, then do it again until we are at the lowest
@@ -306,24 +309,37 @@ function personLine(o){
 // The game's own first memory of a view of the hero's kind (relationshipRules.js regardMemory).
 const standardRegardMemory=/^(?:One of my own kind came by: .+\.|An? [^.]+\. (?:I have always got on well with .+\.|I have met few .+, and I have questions\.|I have heard hard things about .+, and I am keeping my guard up\.|I think little of .+\.))$/;
 const taleHeading=l=>typeof l==='string'&&(/^Tale \d+ of \d+: .*\(under way, begun at [^)]*\)\.$/.test(l)||/^Chapter \d+(?:, [^(]*)? \(now\):$/.test(l));
-const briefLimits={journal:4,journalText:300,journalInFight:1,journalTextInFight:200,talkInFull:2,olderTalk:200,chapterInFight:300,placeInFight:160,seenLook:50,role:80,voice:80,motive:80,hook:110,premise:400,foeLook:80,description:200,backstory:120,roleAway:70,featureMiles:5};
+const briefLimits={journal:4,journalText:300,journalInFight:1,journalTextInFight:200,talkInFull:2,olderTalk:200,chapterInFight:300,placeInFight:160,seenLook:50,role:80,voice:80,motive:80,hook:110,premise:400,foeLook:80,description:200,backstory:300,roleAway:70,featureMiles:5};
+// The chapter's truth cut as the game cuts it (dmSceneRules.js truthText): 200 characters, at a sentence where one ends.
+const truthOf=t=>{t=String(t??'').replace(/\s+/g,' ').trim();if(t.length<=200)return t;const head=t.slice(0,200),end=Math.max(head.lastIndexOf('. '),head.lastIndexOf('! '),head.lastIndexOf('? '));return end>=80?head.slice(0,end+1):cut(t,200);};
 function briefer(scene,body){
  const c=body.context??{},fight=fightingNow(scene),wild=fight&&!!c.encounter?.wildCreature;
  if(isObj(scene.story)){const s={...scene.story},q=c.quest;
   // The resolution is a condition for story-complete, offered only in the last chapter (or a tale without chapters).
   if(isObj(q)&&q.chapter&&!q.finalChapter)delete s.resolution;
   if(wild){delete s.secret;delete s.resolution;delete s.npcs;}
-  if(fight){delete s.errand;delete s.resolution;
+  // The errand stays while the hero fights at the errand's own place (the stories spec, Phase A5: the first set piece
+  // belongs to the tale).
+  const atErrand=isObj(s.errand)&&typeof s.errand.place==='string'&&c.world?.current?.id===s.errand.place;
+  if(fight){if(!atErrand)delete s.errand;delete s.resolution;
    // The foe fought is described in encounter.appearance; the story's people only while one of them is here or follows.
    if(typeof c.encounter?.appearance==='string'&&c.encounter.appearance)delete s.foeAppearance;
    const near=new Set([...(Array.isArray(c.npcSocialState)?c.npcSocialState:[]).filter(n=>isObj(n)&&n.present!==false).map(n=>n.id),...Object.keys(isObj(c.followers)?c.followers:{})]);
    if(isObj(s.npcs)&&!Object.keys(s.npcs).some(id=>near.has(id)))delete s.npcs;}
   s.premise=typeof s.premise==='string'&&s.premise.length>briefLimits.premise?tellingCut(s.premise,briefLimits.premise):s.premise;
   if(!fight&&scene.stage!=='bridge')s.foeAppearance=cut(s.foeAppearance,briefLimits.foeLook);
-  // The errand is the first chapter: its title and task are the quest's goal while it lasts, and done after it.
-  if(isObj(s.errand)&&isObj(q)&&q.chapter){if(q.chapter>1)delete s.errand;else{const {title:_t,task,...e}=s.errand;s.errand={...(q.goal&&sameStart(task,q.goal,30)?{}:{task}),...e};}}
+  // The errand is the first chapter: its title and task are the quest's goal while it lasts, and done after it, but for
+  // a reward still owed (rewardDue: the game closed chapter 1 at the cleared place; keeper pays when next spoken with).
+  if(isObj(s.errand)&&isObj(q)&&q.chapter){if(q.chapter>1){if(s.errand.rewardDue===true&&s.errand.reward)s.errand={reward:s.errand.reward,rewardDue:true};else delete s.errand;}else{const {title:_t,task,...e}=s.errand;s.errand={...(q.goal&&sameStart(task,q.goal,30)?{}:{task}),...e};}}
   scene.story=s;}
- if(isObj(scene.quest)){const q={...scene.quest};delete q.revealedWhenAchieved;delete q.next;delete q.leadsSeenThrough;if(q.finalChapter===false)delete q.finalChapter;
+ // The chapter's truth and the next chapter's title (the stories spec, Phase A1, 2026-10-22: a chapter's answer hidden
+ // from the Dungeon Master while it was asked to steer toward it meant no chapter ever closed): out of a fight the truth
+ // (at most 200 characters, quest.truth; worked out from revealedWhenAchieved for a device that sends only that) and the
+ // next chapter by its title; in a fight neither.
+ if(isObj(scene.quest)){const q={...scene.quest};
+  if(fight){delete q.truth;delete q.next;}
+  else{if(typeof q.truth!=='string'&&typeof q.revealedWhenAchieved==='string')q.truth=truthOf(q.revealedWhenAchieved);if(isObj(q.next))q.next=typeof q.next.title==='string'?q.next.title:null;}
+  delete q.revealedWhenAchieved;delete q.leadsSeenThrough;if(q.finalChapter===false)delete q.finalChapter;
   if(fight)delete q.openLeads;else if(Array.isArray(q.openLeads))q.openLeads=q.openLeads.map(l=>isObj(l)?{...l,hook:cut(l.hook,briefLimits.hook)}:l);
   scene.quest=q;}
  if(isObj(scene.player)){const p={...scene.player};
@@ -353,7 +369,7 @@ function briefer(scene,body){
  if(Array.isArray(scene.engineResolved)&&scene.engineResolved.length){const said=scene.engineResolved.filter(l=>typeof l==='string'&&l.length>=24).map(l=>l.slice(0,40));const repeats=t=>typeof t==='string'&&said.some(x=>t.includes(x));
   if(Array.isArray(scene.recentEvents)){const lines=new Set(scene.engineResolved);scene.recentEvents=scene.recentEvents.filter(t=>!lines.has(t)&&!repeats(t));}
   if(Array.isArray(scene.journal))scene.journal=scene.journal.filter(t=>!repeats(t));}
- if(Array.isArray(scene.now))scene.now=scene.now.map(l=>l==='No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.'?'No fight here: nothing attacks the player, who is free to act, talk, rest where offered and travel.':l==='The player may set out at once on any travel choice offered. Nothing has to happen first.'?'Any travel choice offered may be taken at once; nothing has to happen first.':typeof l==='string'?l.replace(/^(.+) is not at (.+) and is not attacking the player\.$/,'$1 is not here and not attacking.'):l);
+ if(Array.isArray(scene.now))scene.now=scene.now.map(l=>l==='No fight is in progress here: nothing is attacking the player, who is free to act, talk, rest where it is offered and travel.'?'No fight here: nothing attacks the player, who is free to act, talk, rest where offered and travel.':l==='The player may set out at once on any travel choice offered.'?'Any travel choice offered may be taken at once.':typeof l==='string'?l.replace(/^(.+) is not at (.+) and is not attacking the player\.$/,'$1 is not here and not attacking.'):l);
  // The story so far: the journal's latest entries, shorter; the talk's older exchanges shorter; a chronicle that
  // holds only the tale's and the chapter's headings says no more than the quest.
  if(scene.openingTurn&&isObj(scene.introduction)&&Array.isArray(scene.journal)&&scene.journal.length<=1)delete scene.journal;
@@ -368,7 +384,7 @@ function briefer(scene,body){
  if(isObj(scene.memory)&&Array.isArray(scene.memory.taleNow)){const t=scene.memory.taleNow.filter(l=>!/^Tale \d+ of \d+: .*\(under way, begun at [^)]*\)\.$/.test(l));scene.memory={...scene.memory,taleNow:t};if(!t.length)delete scene.memory.taleNow;}
  if(isObj(scene.memory)&&Object.keys(scene.memory).every(k=>k==='taleNow')&&(scene.memory.taleNow??[]).every(taleHeading))delete scene.memory;
  // Choices: a note that only repeats attackOptions (the grapple's DC) or the standing prompt (when a chapter may close).
- if(Array.isArray(scene.choices))scene.choices=scene.choices.map(l=>typeof l==='string'&&(/^\[end-turn\] End your turn without acting$/.test(l)||/^\[throw:([^\]]+)\] Throw \1$/.test(l))?l.replace(/\] .*$/,']'):l).map(l=>typeof l!=='string'?l:/^\[(?:grapple|shove)(?::[^\]]*)?\] /.test(l)?l.replace(/ \(an Unarmed Strike: [^)]*\)$/,''):/^\[story-advance\] /.test(l)?'[story-advance] the chapter\'s goal achieved in play (never before)':l);
+ if(Array.isArray(scene.choices))scene.choices=scene.choices.map(l=>typeof l==='string'&&(/^\[end-turn\] End your turn without acting$/.test(l)||/^\[throw:([^\]]+)\] Throw \1$/.test(l))?l.replace(/\] .*$/,']'):l).map(l=>typeof l!=='string'?l:/^\[(?:grapple|shove)(?::[^\]]*)?\] /.test(l)?l.replace(/ \(an Unarmed Strike: [^)]*\)$/,''):/^\[story-advance\] /.test(l)?'[story-advance] the chapter\'s truth found where its goal points, told in this reply (never before the player pursues it)':l);
  if(isObj(scene.encounter)&&isObj(scene.encounter.signatureMove)){const m=scene.encounter.signatureMove;scene.encounter={...scene.encounter,signatureMove:m.name+(m.text?': '+m.text:'')};}
 }
 // A telling (round 3 of leaner turns, 2026-10-21, the host: "the lowest possible cost per turn"): a resolved turn or a
@@ -969,12 +985,22 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   // A check without damage has no meaningful die; the model often sends 0 there.
   if(check&&check.damageCount===0&&check.damageOn==='none'&&![4,6,8,10,12,20].includes(check.damageDie))check.damageDie=6;
   if(!validCheck(check))throw Error('Invalid check plan.');
-  let castCommand=result.castCommand??null,narration=result.narration;const ruling=result.ruling??null,worldEvent=result.worldEvent??null;let discovery=repairedDiscovery(result.discovery??null),ambush=repairedCreature(result.ambush??null);
+  let castCommand=result.castCommand??null,narration=result.narration,worldEvent=result.worldEvent??null;const ruling=result.ruling??null;let discovery=repairedDiscovery(result.discovery??null),ambush=repairedCreature(result.ambush??null);
   // One game action per reply. When the model starts two (a journey and a check on arriving), the first in the
   // order the game resolves them is kept and the rest dropped, instead of refusing the whole reply.
   if(!ruling){let kept=false;const keep=v=>{if(v==null||kept)return null;kept=true;return v;};result.actionId=keep(result.actionId);castCommand=keep(castCommand);discovery=keep(discovery);check=keep(check);ambush=keep(ambush);}
   if((castCommand!==null&&(typeof castCommand!=='string'||castCommand.length>500||!/^I cast /i.test(castCommand)))||!validRuling(ruling)||(worldEvent!==null&&(typeof worldEvent!=='string'||!worldEvent.trim()||worldEvent.length>800))||[result.actionId,castCommand,ruling,check,discovery,ambush].filter(v=>v!==null).length>1||(ruling&&!body.context.pendingSpell))throw Error('The AI proposed an invalid ruling. Nothing was applied.');
-  if(!validDiscovery(discovery)||(discovery&&!canDiscover))throw Error('The DM described a new place the map could not use. Nothing was applied.');
+  // A new place the map cannot take (the stories spec, Phase A9, 2026-10-22: asked again nine times in one rough session;
+  // repairedDiscovery mends what it can first): a known place by its name, with a journey there on offer, is that journey;
+  // anything else is left out, kept as words when the reply records nothing lasting of its own (worldEvent), and never a
+  // reason to ask again.
+  if(discovery&&(!validDiscovery(discovery)||!canDiscover)){
+   const bare=t=>String(t??'').trim().toLowerCase().replace(/^the /,''),known=(Array.isArray(body.context.world?.knownPlaces)?body.context.world.knownPlaces:[]).find(p=>isObj(p)&&bare(p.name)&&bare(p.name)===bare(discovery.name));
+   const journey=known&&discovery.travel===true&&choices.includes('travel-'+known.id)&&[result.actionId,castCommand,check,ambush].every(v=>v==null)?'travel-'+known.id:null;
+   if(journey){result.actionId=journey;noted('discovery','a known place: its journey');}
+   else{const ways={N:'north',NE:'north-east',E:'east',SE:'south-east',S:'south',SW:'south-west',W:'west',NW:'north-west'},name=typeof discovery.name==='string'?discovery.name.trim():'',about=typeof discovery.description==='string'?discovery.description.trim():'';
+    if(worldEvent===null&&name.length>=2&&about)worldEvent=cut(name+(ways[discovery.bearing]?', to the '+ways[discovery.bearing]:'')+': '+about,800);noted('discovery','left out: the map could not use it');}
+   discovery=null;}
   if(!validCreature(ambush)||(ambush&&!canAmbush))throw Error('The DM described a creature the game could not use. Nothing was applied.');
   if(discovery)discovery.miles=Math.round(Math.min(discovery.region?300:12,Math.max(0.1,discovery.miles))*10)/10;
   // Tellings written ahead (2026-10-22, the host: "merge telling into first call"): a check's two outcomes and a
@@ -984,6 +1010,9 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   const aheadText=t=>typeof t==='string'&&t.trim()?checkedHp(t.trim().length>900?tellingCut(t.trim(),900):t.trim(),body.context):null;
   const aheadLines=(lines,max,ok)=>distinctDialogue((Array.isArray(lines)?lines:[]).filter(l=>l&&typeof l==='object'&&ok(l.speakerId)&&typeof l.text==='string'&&l.text.trim()&&l.text.length<=700).slice(0,max).map(l=>({speakerId:l.speakerId,text:checkedHp(l.text.trim(),body.context)})));
   const aheadOutcome=o=>{if(!o||typeof o!=='object')return null;const told=aheadText(o.narration);if(!told)return null;const rel=canRelate?(Array.isArray(o.relationships)?o.relationships:[]).slice(0,1).filter(d=>validRelationships([d],body.context)):[];return {narration:told,dialogue:aheadLines(o.dialogue,2,id=>allowedSpeakers.includes(id)),relationships:rel};};
+  // A failure written ahead that changes nothing ("you find nothing") is asked for again (CHECKS: the failure moves the
+  // scene; the stories spec, Phase A2); a rescue keeps the check, told after the roll.
+  if(check&&check.outcomes!=null&&!fightingNow(body.context)&&deadEnd(check.outcomes?.failure?.narration,check.outcomes?.failure?.dialogue))throw Error('The check\'s failure outcome changes nothing: a failure moves the scene (the thing found at a cost, an alarm, a price, a worse way), never "nothing happens".');
   if(check&&check.outcomes!=null){const won=aheadOutcome(check.outcomes?.success),lost=aheadOutcome(check.outcomes?.failure),kept=won&&lost&&!fightingNow(body.context)?{success:won,failure:lost}:null;if(!kept)noted('check outcomes','told after the roll');check={...check,outcomes:kept};}
   let arrival=null;
   if(result.arrival!=null){const told=aheadText(result.arrival?.narration),journey=typeof result.actionId==='string'&&result.actionId.startsWith('travel-')&&choices.includes(result.actionId);
@@ -1042,6 +1071,7 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   const withoutFault=(r,message)=>{
    let next={...r};
    if(/invalid response/.test(message)&&r.actionId!=null&&!choices.includes(r.actionId))next.actionId=null;
+   else if(/failure outcome changes nothing/.test(message)&&r.check)next.check={...r.check,outcomes:null};
    else if(/Invalid check plan|check cannot be made|already spent/.test(message))next.check=null;
    else if(/new place/.test(message))next.discovery=null;
    else if(/creature the game/.test(message))next.ambush=null;

@@ -114,7 +114,7 @@ export function dmChoices(hero,game,health=null) {
       if(!health||health.current<combatBasics(hero).hp)for(const d of carriedDraughts(game))add('drink:'+d.magic.id,'Drink a '+d.name);
       // The tale: the chapter under way gives place to the next (or, in the last one, the story ends), and each open lead can be closed.
       if(game.story.status==='active'){const q=questState(game);
-        if(q.current&&!q.last)add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is finished: move on ONLY when its goal has actually been achieved in play');
+        if(q.current&&!q.last)add('story-advance','Chapter '+q.number+' ("'+q.current.title.slice(0,50)+'") is done: its truth found where the goal points, told in this reply (never before)');
         else add('story-complete','Conclude the adventure ONLY when the story resolution conditions have actually been achieved');
         for(const l of q.openLeads)add('lead-done:'+l.id,'Lead seen through ("'+l.title.slice(0,60)+'"): ONLY when the player has actually resolved it',{type:'lead-done',id:l.id});}}
     return choices;

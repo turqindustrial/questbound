@@ -34,6 +34,11 @@ const outcomes={success:{narration:'Halfway down, a name leaps out: Edda Marsh, 
   assert.ok(p.out.turn.events.some(e=>e.kind==='dialogue'&&e.speakerId==='keeper'),'with the outcome\'s spoken line');assert.ok(p.out.turn.events.some(e=>/ vs DC 10\. Success\. A name stands out\./.test(e.text)),'and the dice card');
   p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c)=>c.engineResolved?{narration:'(asked after the roll)'}:{narration:'You run a finger down the damp notices.',check:check({dc:30,outcomes})},{random:()=>0});
   assert.equal(p.asked.length,1);assert.equal(p.out.narration,'You run a finger down the damp notices. Rain has smeared the ink past reading.','a failure tells the failure');
+  // A failure written ahead that changes nothing is asked for again (the stories spec, Phase A2, 2026-10-22: a failure
+  // moves the scene, never "nothing happens"); one that moves the scene on is kept.
+  {const flat={...outcomes,failure:{narration:'You find nothing.',dialogue:[],relationships:[]}},moving={...outcomes,failure:{narration:'The ink has run, but a wet thumbprint on the board is fresh: someone read it before you.',dialogue:[],relationships:[]}};
+   p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c,n)=>c.engineResolved?{narration:'(asked after the roll)'}:{narration:'You run a finger down the damp notices.',check:check({dc:30,outcomes:n===1?flat:moving})},{random:()=>0});
+   assert.equal(p.asked.length,2,'asked once more');assert.match(requestParts(p.asked[1]).tail??'',/failure outcome changes nothing/,'with the reason');assert.match(p.out.narration,/someone read it before you/,'the failure moves the scene');}
   // No outcomes: told after the roll, as before.
   p=await play(town,{question:'I study the notice board for news of the missing.'},(q,c)=>c.engineResolved?{narration:'The notices tell you little.'}:{narration:'You look.',check:check()});
   assert.equal(p.asked.length,2,'without outcomes the roll is told by a second request');assert.equal(p.out.narration,'The notices tell you little.');

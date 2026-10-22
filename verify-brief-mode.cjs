@@ -55,7 +55,8 @@ const with_=(body,prefs)=>({...body,context:{...body.context,storyPreferences:pr
   const notes=[];await generate(plain(with_(body,{length:'brief'})),{apiKey:'k',model:'m',fetchImpl:async(u,opt)=>{notes.push(JSON.parse(opt.body));return reply(notes.length===1?{narration:'You gain 900 gold.',effects:[{actionId:'invent-gold'}]}:{});}});
   assert.ok(notes.length>=2,'asked again');assert.match(requestParts(notes[1]).tail,/^LOOK AGAIN: [\s\S]*\nLENGTH THIS TURN: [^\n]*$/,'a retry keeps the length, last');}
  // The tighter default (the host: "the narration should definitely be kept a bit more brief"): 2–3 sentences, not 2–4.
- assert.ok(standingPrompt.includes('Narration: vivid and lean, usually 2–3 sentences, never retelling the player\'s words; a spoken line usually one or two sentences.'));assert.ok(!standingPrompt.includes('2–4 sentences'));
+ // The narration line of the written-tales spec's Phase A (2026-10-22): still 2–3 sentences, each doing something.
+ assert.ok(standingPrompt.includes('Narration: lean, usually 2–3 sentences: one concrete thing seen, heard or smelled, what this moment changed, and an end the player can act on; dice and harm told as action, never as numbers or rule words; never retelling the player\'s words; a spoken line usually one or two sentences.'));assert.ok(!standingPrompt.includes('2–4 sentences'));
  // The device sends its whole choice with every request; a table turn sends the length with the narrator.
  {const t=fs.readFileSync('useDmTurn.js','utf8');assert.ok(t.includes('preferences:storyPreferences(),talkingTo'),'a device alone');assert.equal(t.split('storyPreferences:{brutality:prefs.brutality,narrator:prefs.narrator,length:prefs.length}').length-1,2,'both table turns');}
 

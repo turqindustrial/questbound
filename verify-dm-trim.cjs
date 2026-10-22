@@ -118,8 +118,9 @@ const size=file=>{try{return fs.statSync(file).size;}catch{return 0;}};
  const wilds={...body,context:{...full,stage:'wild',world:{...full.world,canAmbush:true,canDiscover:false}}};
  const sprung=await generate(wilds,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'It leaps.',ambush:{template:'boar',name:'Tusker',appearance:'A boar '+long(500),ally:null}})});
  assert.equal(sprung.ambush.appearance.length,400);
- // Still refused (asked again, then the turn goes on without it): a too-short description, an action not on offer.
- assert.equal((await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',discovery:{...place,description:'Short'}})})).discovery,null,'A too-short description is still refused');
+ // A too-short description is made from the name and kind (the stories spec, Phase A9, 2026-10-22: mended in place, never
+ // asked again); an action not on offer is still refused (asked again, then the turn goes on without it).
+ assert.equal((await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',discovery:{...place,description:'Short'}})})).discovery.description,'Drowned Chapel, a ruin not yet explored.','A too-short description is mended');
  assert.equal((await generate(body,{apiKey:'k',model:'gpt-6-luna',fetchImpl:fake({narration:'x',actionId:'not-a-choice'})})).actionId,null);
  for(const [file,before] of logs)assert.equal(size(file),before,file+' is untouched by test runs');
  // Stories and heroes go to the story writer, which may think.
