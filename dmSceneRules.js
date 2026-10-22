@@ -8,6 +8,7 @@ import {mapLocation,knownPlaceIds,placeName,travelRoute,currentRegion,mapRegions
 import {npcTies,speciesRegard,canMeetPeople,libraryPeopleMet} from "./relationshipRules";
 import {foeLabel} from "./encounterRules";
 import {mapMoves} from "./dmChoiceRules";
+import {stagingQuest,taleNow,leadOpenNow} from "./stagingRules";
 // Long text sent to the Dungeon Master is shortened with an ellipsis (the request stays well inside its size limit).
 export const briefText=(t,n)=>{t=String(t??'');return t.length>n?t.slice(0,n-1).trimEnd()+'…':t;};
 // The chapter's truth (its `turn`: what the chapter uncovers) as the Dungeon Master reads it, at most 200 characters,
@@ -72,8 +73,14 @@ export function storyWorld(context,hero,game,health,input){
   // The tale is given without its later chapters: `quest` says which chapter is under way, its truth (what the
   // chapter uncovers, told where its goal points: `truth`, at most 200 characters; `revealedWhenAchieved` whole, for the
   // checks), what follows, and which leads are open (each `ticked` when the player marked it for themselves).
-  const {chapters,leads,chapter,hoard,...told}=game.story,q=questState(game);context.story=told;
-  if(q.current||q.leads.length)context.quest={...(q.current?{chapter:q.number,of:q.chapters,title:q.current.title,goal:q.current.goal,truth:truthText(q.current.turn),revealedWhenAchieved:q.current.turn,finalChapter:q.last,next:q.next?{title:q.next.title,goal:q.next.goal}:null}:{}),openLeads:q.openLeads.map(l=>({id:l.id,title:l.title,hook:l.hook,...(l.noted?{ticked:true}:{})})),leadsSeenThrough:q.leads.filter(l=>l.done).map(l=>l.title)};context.nearbyNPCs=game.stage==='inn'?Object.entries(game.story.npcs).map(([id,n])=>({id,name:n.name,voice:n.role+' '+n.motive+' '+(n.personality??''),appearance:n.appearance??null})):game.stage==='combat'?[{name:foeLabel(game),voice:'The current threat.'}]:[];context.npcSocialState=context.npcSocialState.map(n=>({...n,name:npcLore(game,n.id)?.name??n.name,role:npcLore(game,n.id)?.role??null,livesAt:game.people?.[n.id]?placeName(game,game.people[n.id].home):null,metHero:metPerson(game,n.id),ties:npcTies(game,n.id),regardsYourKind:(r=>r.stance==='indifferent'?null:r.stance)(speciesRegard(game,n.id,hero))}));
+  // A written tale's plan (staging: its beats, later chapters and endings) and its shelf tag never reach the Dungeon
+  // Master: the engine decides what happens and when, and the Dungeon Master reads only the chapter under way (where its
+  // truth is found, what the foe is doing now, how far the tale has come, whether the foe is beyond reach: stagingQuest),
+  // the leads already open, and what is due now (context.taleNow: the beat, the stakes, the clock's latest sign).
+  const {chapters,leads,chapter,hoard,staging,written,...told}=game.story,q=questState(game);context.story=told;
+  const staged=stagingQuest(game),openLeads=q.openLeads.filter(l=>leadOpenNow(game,l.id));
+  if(q.current||q.leads.length)context.quest={...(q.current?{chapter:q.number,of:q.chapters,title:q.current.title,goal:q.current.goal,truth:truthText(q.current.turn),revealedWhenAchieved:q.current.turn,finalChapter:q.last,next:q.next?{title:q.next.title,goal:q.next.goal}:null}:{}),...(staged??{}),openLeads:openLeads.map(l=>({id:l.id,title:l.title,hook:l.hook,...(l.noted?{ticked:true}:{})})),leadsSeenThrough:q.leads.filter(l=>l.done).map(l=>l.title)};
+  {const now=taleNow(game);if(now)context.taleNow=now;}context.nearbyNPCs=game.stage==='inn'?Object.entries(game.story.npcs).map(([id,n])=>({id,name:n.name,voice:n.role+' '+n.motive+' '+(n.personality??''),appearance:n.appearance??null})):game.stage==='combat'?[{name:foeLabel(game),voice:'The current threat.'}]:[];context.npcSocialState=context.npcSocialState.map(n=>({...n,name:npcLore(game,n.id)?.name??n.name,role:npcLore(game,n.id)?.role??null,livesAt:game.people?.[n.id]?placeName(game,game.people[n.id].home):null,metHero:metPerson(game,n.id),ties:npcTies(game,n.id),regardsYourKind:(r=>r.stance==='indifferent'?null:r.stance)(speciesRegard(game,n.id,hero))}));
   // People not here are told in brief (peopleAway), so a world of many people still fits in one request (the Dungeon
   // Master's server reads the same brief): who and where they are, how they feel, and their last two memories.
   // Someone who keeps out of sight where they live is `unnoticed` until the player finds them.

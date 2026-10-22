@@ -64,7 +64,7 @@ const tailOf=q=>{const last=q.input.at(-1);return last.role==='developer'&&q.inp
   assert.equal(asked.length,1,'a join the reply decided: one request');assert.equal(one.snapshot.game.followers?.mara?.status,'following','and she follows');assert.equal(one.narration,joined.narration,'told in the reply\'s own words');
   replies=[{...joined,recruitment:[{...joined.recruitment[0],decision:'check',dc:12}]}];asked.length=0;await resolveTurn(snap,{question:'Wren, will you come with me to the mill?',npcId:'mara'},{ask,randomImpl:seq(7)});
   assert.equal(asked.length,2,'a hesitant one: the roll is told in a second request');
-  assert.ok(fs.readFileSync('useDmTurn.js','utf8').includes("body.retell||body.recruitment.some(p=>p?.decision==='check')?await request("),'the device does the same');}
+  assert.ok(fs.readFileSync('useDmTurn.js','utf8').includes("body.retell||fresh||body.recruitment.some(p=>p?.decision==='check')?await request("),'the device does the same');}
 
  // ---- 3. A scene cue is read once ----
  // (A greeting asks the Dungeon Master nothing since 2026-10-22: the game writes it. A cue the Dungeon Master still

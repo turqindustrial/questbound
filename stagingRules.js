@@ -852,13 +852,14 @@ export function withBeatLine(body,game){
  const key=beatKey(game),line=beatLineOf(game);if(!key||!line||!body)return body;
  return {...body,narration:(String(body.narration??'').trim()+' '+line).trim().slice(0,1790),beatTold:key};
 }
-// The chapter's part for the Dungeon Master (dmSceneRules.js quest): where and how its truth is found, what the foe is
-// doing now, how far the tale has come, and whether the foe is beyond reach. Null for a tale with no staging.
+// The chapter's part for the Dungeon Master (dmSceneRules.js quest, with what lasts the tale: it changes once a
+// chapter): where and how its truth is found, what the foe is doing now, the tale's length and chapter, and whether the
+// foe is beyond reach. Null for a tale with no staging.
 export function stagingQuest(game){
  const st=stgStaging(game);if(!st)return null;
- const ch=game.story.chapter??0,c=st.chapters[ch]??{},steps=stgList(c.pressure).length,step=Number.isInteger(game.pace?.step)?game.pace.step:0;
+ const ch=game.story.chapter??0,c=st.chapters[ch]??{};
  const length=writtenLengths.includes(st.length)?st.length:'short';
- return {...(stagingText(c.where,400)?{where:c.where}:{}),...(stagingText(c.agenda,400)?{agenda:c.agenda}:{}),pace:(length[0].toUpperCase()+length.slice(1)+' tale, chapter '+(ch+1)+' of '+st.chapters.length+'; '+Math.min(step,steps)+' of '+steps+' steps of the foe\'s plan taken.').slice(0,100),...(bossOpen(game)?{}:{bossLater:true})};
+ return {...(stagingText(c.where,400)?{where:c.where}:{}),...(stagingText(c.agenda,400)?{agenda:c.agenda}:{}),pace:length[0].toUpperCase()+length.slice(1)+' tale, chapter '+(ch+1)+' of '+st.chapters.length+'.',...(bossOpen(game)?{}:{bossLater:true})};
 }
 // What a set piece or the boss fight is for (encounter.objective, read in the fight).
 export function stagingObjective(game){

@@ -65,6 +65,12 @@ function situation(context){
  if(here.length)lines.push('Named people here: '+here.join(', ')+'.');
  const offered=journeys(c);
  if(offered.length&&!inFight)lines.push('The player may set out at once for any of: '+offered.map(j=>j.name+' ('+j.actionId+')').join(', ')+'.');
+ // A written tale (stagingRules.js taleNow and stagingQuest): what is at risk, the latest sign of the foe's plan, and a
+ // foe held back to a later chapter.
+ const tale=c.taleNow&&typeof c.taleNow==='object'?c.taleNow:null,text=(v,n)=>String(v??'').replace(/\s+/g,' ').trim().slice(0,n).replace(/[.\s]+$/,'');
+ if(Array.isArray(tale?.stakes)&&tale.stakes.length)lines.push('At stake: '+tale.stakes.slice(0,4).map(s=>text(s?.name,60)+' ('+text(s?.state,80)+')').join('; ')+'.');
+ if(typeof tale?.sign==='string'&&tale.sign.trim())lines.push('Out of sight: '+text(tale.sign,160)+'.');
+ if(foe&&c.quest?.bossLater===true&&!inFight)lines.push(foe+' is beyond reach for now (seen, heard of, never fought).');
  return lines;
 }
 // Places where people would be found: arriving at one with nobody named there is a scene with no one to talk to.

@@ -89,6 +89,16 @@ const strictProblems=(s,at,out=[])=>{
  await direct('wizard: ruling',{input:'I cast Detect Magic.',context:{...ctx,pendingSpell:{id:'detect-magic',spell:{name:'Detect Magic'}}}},{narration:'x',ruling:{decision:'clarify',note:'Which way?',damage:0,selfDamage:0,healing:0,temporaryHP:0}});
  await direct('wizard: out of character',{input:'DM, what was that roll?',context:{...ctx,outOfCharacter:{canRewind:false,lastTurn:null}}},{narration:'x',rewind:false,fault:false});
  await direct('wizard: scene cue',{input:'',context:{...ctx,sceneTrigger:{cue:'The reeve looks up as you come in.'},conversationParticipants:[{id:'keeper',name:'Reeve'}]}},{narration:'He looks up.',dialogue:[{speakerId:'keeper',text:'Back again?'}]});
+ // A written tale (stagingRules.js): a calm turn, the walk to its first set piece and words in the fight there, and a
+ // turn with a beat due (the offal at the foot of the cleared slide), told in the note after the scene.
+ const fx=require('./written-fixture.json'),wt=snap(fighter,{...plain(fx.story),id:'written-cache',status:'active',libraryId:fx.id,artId:'journey-'+fx.id,written:{slug:fx.slug,edition:1,length:'short'}});
+ await play('written: calm',wt,{question:'I look around the camp.'});
+ {const slide=R.dmChoices(fighter,wt.game,wt.health).find(c=>/^travel-/.test(c.id)&&/Log Slide/.test(c.label));
+  o=await play('written: to the set piece',wt,{question:'I go to the Log Slide.',action:slide.action});assert.equal(o.snapshot.game.stage,'combat','the first set piece is armed');
+  await play('written: fight, words',o.snapshot,{question:'I shout at the wolf to drop the sack.'});}
+ const beatAt={...wt,game:{...wt.game,stage:'wild',world:{...wt.game.world,at:'p1',places:wt.game.world.places.map(p=>p.id==='p1'?(({threat:_t,...q})=>({...q,cleared:true}))(p):p)},map:{...wt.game.map,visited:[...wt.game.map.visited,'p1']},pace:{...wt.game.pace,due:{kind:'beat',id:'b1'},fired:[...wt.game.pace.fired,'b1']}}};
+ o=await play('written: a beat due',beatAt,{question:'I look at the foot of the slide.',storyPreferences:{narrator:'bard'}});
+ assert.ok(o.snapshot.game.pace.told.includes('b1')&&o.snapshot.game.pace.due===null,'the beat the reply carried is told');
  if(process.argv.includes('--labels'))for(const x of sent)console.log(x.label, x.q.prompt_cache_key, requestParts(x.q).tail.slice(0,40));
  const at=label=>{const x=sent.find(x=>x.label===label);assert.ok(x,'sent: '+label);return x.q;},sceneOf=label=>requestScene(at(label)).context;
  for(const label of ['fighter: retried (asked again)','fighter: second look (asked again)','fighter: second look (telling)'])at(label);
@@ -113,7 +123,7 @@ const strictProblems=(s,at,out=[])=>{
   assert.equal(q.instructions,standingPrompt,label+': the instructions are the standing prompt, unchanged');
   const first=q.input[0];assert.equal(first.role,'developer');assert.ok(first.content.startsWith('THIS HERO\'S CLASS FEATURES (reference): '),label+': then the hero\'s features');
   const tail=requestParts(q).tail;
-  for(const turnOnly of ['CURRENT PHASE','SCENE TRIGGER','OUT OF CHARACTER','NARRATOR THIS TURN','LOOK AGAIN']){assert.ok(!standingPrompt.includes(turnOnly+':'),turnOnly+' is never in the standing part');
+  for(const turnOnly of ['CURRENT PHASE','SCENE TRIGGER','OUT OF CHARACTER','NARRATOR THIS TURN','LOOK AGAIN','STORY BEAT THIS TURN']){assert.ok(!standingPrompt.includes(turnOnly+':'),turnOnly+' is never in the standing part');
    assert.ok(!first.content.includes(turnOnly+':')&&q.input.slice(1,-1).every(m=>!String(m.content).includes(turnOnly+':')||m.role==='user'),label+': '+turnOnly+' only in the note after the scene');}
   if(tail)assert.equal(q.input.at(-1).role,'developer',label+': this turn\'s note is last');
   assert.ok(!/"spells"|"featureDetails"/.test(q.instructions+first.content),label+': the spells this turn names are read with the scene, not in the cached part');}
@@ -225,7 +235,20 @@ const strictProblems=(s,at,out=[])=>{
   // what a telling can use: the fight's telling 811 → 800, the brawl's 1340 → 1329, the journey's to the mill 728 → 717 (in a fight only this
   // turn's part is trimmed, so a telling keeps sharing the earlier parts with the turn before it)
   // (a check's telling and a scene cue are held in verify-lean-turns.cjs).
-  const budgets={'fighter: to the mill':775,'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':865,'fighter: fight, words':880,'fighter: brawl':1435,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
+  // A written tale's turns are held too (2026-10-22: the staging never reaches the Dungeon Master; the chapter's where,
+  // agenda and pace, what is at stake and the clock's sign do).
+  {const written=sent.filter(x=>x.label.startsWith('written: '));assert.ok(written.length>=4);
+   for(const {label,q} of written){const text=JSON.stringify(q.input),scene=requestScene(q).context;
+    assert.ok(!('staging' in (scene.story??{}))&&!('written' in (scene.story??{})),label+': the plan and the shelf tag never reach the Dungeon Master');
+    for(const hidden of [fx.story.chapters[1].turn,fx.story.staging.endings[0].text,fx.story.staging.chapters[0].beats[0].line,fx.story.staging.chapters[1].pressure[2].tell])assert.ok(!text.includes(hidden.slice(0,40)),label+': nothing of the plan beyond what is due: '+hidden.slice(0,40));}
+   const calm=requestScene(at('written: calm')).context;assert.ok(calm.now.some(l=>/^At stake: Kettle Camp \(holding on\); The meal stores/.test(l)),'what is at stake is a now line');assert.ok(calm.now.some(l=>/Corran Stell is beyond reach for now/.test(l)),'and the foe beyond reach');
+   assert.ok(typeof calm.quest.where==='string'&&typeof calm.quest.agenda==='string'&&calm.quest.pace==='Short tale, chapter 1 of 2.'&&calm.quest.bossLater===true,'the chapter\'s where, agenda and pace');
+   const fightScene=requestScene(at('written: fight, words')).context;assert.ok(!('where' in (fightScene.quest??{}))&&!('agenda' in (fightScene.quest??{})),'not in a fight');assert.equal(fightScene.encounter?.objective,fx.story.staging.chapters[0].fight.objective,'where the set piece\'s objective is read');
+   const tail=requestParts(at('written: a beat due')).tail;assert.match(tail,/STORY BEAT THIS TURN: At the foot of the slide, beside the torn sack[^\n]*It happens now, whatever the player did/);assert.match(tail,/\nNARRATOR THIS TURN: [^\n]*$/,'the narrator still last');
+   for(const label of ['written: calm','written: fight, words'])assert.ok(!requestParts(at(label)).tail.includes('STORY BEAT'),label+': no beat note when nothing is due');}
+  // Measured on 2026-10-22: the fixture's calm turn 2097 tokens (its story, four people at the camp and the chapter's
+  // where and agenda are fuller than the ready journey's: about 100 of them the written chapter's own) and a fight's 989.
+  const budgets={'written: calm':2270,'written: fight, words':1070,'fighter: to the mill':775,'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':865,'fighter: fight, words':880,'fighter: brawl':1435,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
   const measured={standing:tokens(standingPrompt),schema:tokens(JSON.stringify(replySchemaFor()))};
   for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
   if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));
@@ -237,7 +260,10 @@ const strictProblems=(s,at,out=[])=>{
   // 8660 → 8951 in the standing prompt (cached), the budget raised by that much (291) and no more. The project review's
   // wording (the same day: scopes, THE LONG TALE without a check, a failure's cost the game can record) took it to 9015,
   // within that budget.
-  assert.ok(measured.standing<=9101,'the standing prompt within 9101 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A): '+measured.standing);
+  // Raised again on 2026-10-22 by the WRITTEN TALES paragraph (the written-tales spec's 3.4: the game paces a written
+  // tale; its agenda, beats, the foe beyond reach, the choices, what is at stake, the foe's voice): 9015 → 9159 in the
+  // standing prompt (cached), the budget raised by what it needs (9101 → 9160) and no more.
+  assert.ok(measured.standing<=9160,'the standing prompt within 9160 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A, 9015 before written tales): '+measured.standing);
   assert.ok(measured.schema<=2800,'the reply schema within 2800 tokens (2021 with every effect spelled out, 2226 before the tellings written ahead): '+measured.schema);
   // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
   measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));

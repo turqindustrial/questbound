@@ -29,6 +29,7 @@ import {spellDamageMax} from "./spellDamageRules";
 import {guidanceBonus} from "./spellBuffRules";
 import {mapMoves,shortRestsLeft,dmChoices,offeredChoices} from "./dmChoiceRules";
 import {briefText,skillLine,withNamedJourneys,storyWorld} from "./dmSceneRules";
+import {stagingObjective} from "./stagingRules";
 // The other players' heroes in a party at the shared table (partyRules.js): who they are and how they stand, never
 // what they will do (their own players decide that).
 export function partyOthers(game){
@@ -45,7 +46,9 @@ export function dmContext(hero,game,health,input='') {
   if(game.story)storyWorld(context,hero,game,health,input);
   // Fates: who has died, how the main foe ended, and whether the hero is dying or dead.
   if(context.encounter){const kind=foeKind(game);context.encounter={...context.encounter,signatureMove:kind?signatureMoves[kind]:null,yourCondition:game.heroCondition?heroConditions[game.heroCondition]:null,companionsFighting:fightingCompanions(game).map(n=>npcLore(game,n.id)?.name??n.name),wildCreature:!!game.wildFight,appearance:game.wildFight?.appearance??game.story?.foeAppearance??null,
-    alsoFighting:livingAllies(game).map(a=>{const s=allyStats(game,a.index,hero.level??1);return {name:a.name,kind:a.template,appearance:a.appearance,currentHP:a.hp,maximumHP:a.maximum,ac:s.ac,attack:'+'+s.attackBonus+' to hit, '+s.count+'d'+s.die+(s.bonus?'+'+s.bonus:'')+' '+s.type.toLowerCase()};})};}
+    alsoFighting:livingAllies(game).map(a=>{const s=allyStats(game,a.index,hero.level??1);return {name:a.name,kind:a.template,appearance:a.appearance,currentHP:a.hp,maximumHP:a.maximum,ac:s.ac,attack:'+'+s.attackBonus+' to hit, '+s.count+'d'+s.die+(s.bonus?'+'+s.bonus:'')+' '+s.type.toLowerCase()};})};
+   // A written tale's set piece or its boss fight: what the fight is for (stagingRules.js stagingObjective).
+   const objective=stagingObjective(game);if(objective)context.encounter.objective=objective;}
   {const others=partyOthers(game);if(others.length)context.party=others.map(m=>({name:m.name,species:m.species,class:m.heroClass,level:m.level,appearance:m.description,condition:m.status==='dead'?'dead':m.status==='down'?'down and dying':m.hp>=m.maxHp?'unhurt':m.hp>m.maxHp/2?'wounded':'badly wounded'}));}
   // A party's fight goes in turns: who acts in what order, and whose turn it is.
   {const turns=turnOrderView(game);if(turns)context.turnOrder={round:turns.round,order:turns.entries.map(e=>e.name+(e.kind==='hero'&&e.status!=='up'?' ('+e.status+')':'')),current:turns.current?.name??null,yourTurn:turns.mine};}

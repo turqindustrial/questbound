@@ -80,7 +80,30 @@ const largestWorld=[],memorySent=[];
   if(mode==='one'&&at==='p1'){assert.equal(w.morePlaces.length,r.placesByName);assert.ok(w.morePlacesNotListed>0);assert.ok(ctx.npcSocialState.filter(n=>n.present===false).length<=r.peopleInBrief);assert.ok(ctx.peopleElsewhere.length<=r.peopleByName);}
   if(mode==='spread'){assert.ok(w.farLands.length>=50);assert.ok(w.farLands.every(l=>l.road));{const listed=w.farLands.filter(l=>l.places).length;assert.ok(listed<=r.landsInFull&&listed>=r.landsInFull-3,'the nearest lands with their places by name: '+listed);}}
   if(mode==='spread'&&at==='inn')assert.ok(!ctx.npcSocialState.some(n=>n.present===false&&big.people[n.id]&&big.world.places.find(p=>p.id===big.people[n.id].home)?.region),'people of other lands are not sent');
-  const t=Date.now();for(let k=0;k<3;k++)r.dmContext(hero,big,hp,said);assert.ok((Date.now()-t)/3<1500,'and it is quick to tell: '+(Date.now()-t)/3+' ms');}}
+  const t=Date.now();for(let k=0;k<3;k++)r.dmContext(hero,big,hp,said);assert.ok((Date.now()-t)/3<1500,'and it is quick to tell: '+(Date.now()-t)/3+' ms');}
+ // A written Long tale at its largest (WRITTEN-TALES.md 17): six chapters and a staging of nearly 48,000 characters, in
+ // the largest world. The staging never reaches the Dungeon Master (only the chapter under way's where and agenda, and
+ // the beat that is due), so the request stays within the size the Dungeon Master accepts.
+ {const words=n=>long('A long stretch of written words for the plan of the tale',n).replace(/\s+\S*$/,'')+'.',mark=i=>'Hidden'+i+'. '+words(150);
+  const story={...camp.story,chapters:Array.from({length:6},(_,i)=>({title:'Chapter title '+(i+1),goal:words(280),turn:'Hidden truth '+i+'. '+words(180)})),chapter:0};
+  let k=0;const id=p=>p+(++k);
+  const chapter=i=>({where:i?mark(i):words(200),agenda:i?mark(i):words(160),found:{any:Array.from({length:6},(_,j)=>({reach:'Place number '+(j+1)}))},
+   beats:Array.from({length:4},()=>({id:id('b'),when:{reach:'Place number 2'},if:null,tell:mark(i)+words(60),line:mark(i),then:{fact:mark(i)}})),
+   complications:Array.from({length:3},()=>({id:id('x'),if:null,tell:mark(i),line:mark(i),then:{fact:mark(i)}})),
+   pressure:Array.from({length:4},(_,j)=>({id:id('p'),if:null,tell:mark(i),sign:'Hidden'+i+'.',line:mark(i),then:j===3?(i===5?{end:'late'}:{advance:true}):{fact:mark(i)}})),
+   choice:{id:id('c'),opens:null,ask:mark(i),options:Array.from({length:4},(_,j)=>({id:'o'+j,label:'Hidden option '+j,say:mark(i).slice(0,100)+'.',if:null,when:null,then:{fact:mark(i)}}))}});
+  const staging={v:1,length:'long',chapters:Array.from({length:6},(_,i)=>chapter(i)),endings:[{id:'e1',title:'Hidden ending',if:{flag:'late'},text:mark(9)},{id:'e2',title:'Hidden ending two',text:mark(9)}]};
+  while(JSON.stringify(staging).length>48000)staging.chapters.forEach(c=>c.beats.length>1&&c.beats.pop());
+  const due=staging.chapters[0].beats[0];due.tell='The beat due now. '+words(200);
+  const size=JSON.stringify(staging).length;assert.ok(size>40000&&size<=48000,'a staging near its largest: '+size);
+  const big={...atlas('one','p1'),story:{...story,staging},pace:{v:1,ch:0,turns:3,quiet:0,since:0,step:1,owed:0,held:0,day:0,due:{kind:'beat',id:due.id},told:[],fired:[due.id],seen:['reach:p1'],marks:{},flags:[],stakes:{},spoke:{},offers:[],leads:[],sign:'Hidden sign.',fight:null,ending:null,quietMax:2,clockAt:3}};
+  const said='I look around. '.repeat(72).slice(0,1000),ctx=r.dmContext(hero,big,hp,said),request={input:said,context:{...ctx,storyPreferences:{brutality:'gritty'},conversationWith:null,conversationParticipants:r.conversationPeople(big).map(n=>({id:n.id,name:n.name,role:n.role,attitude:n.attitude}))}};
+  const text=JSON.stringify(request),bytes=Buffer.byteLength(text);
+  assert.ok(!/Hidden\d|Hidden truth [1-5]|Hidden option|Hidden ending/.test(text),'nothing of the plan beyond the chapter under way and the beat due reaches the Dungeon Master');
+  assert.ok(text.includes('The beat due now.')&&ctx.taleNow.beat.kind==='beat','the beat due does');
+  assert.ok(bytes<64000,'a written Long tale at its largest in the largest world fits one request: '+bytes+' bytes');
+  largestWorld.push(bytes);}
+}
 // The fallen not yet searched reach the model as they are (lootRules.js).
 {const spoils=[{name:'Grey Widow',kind:'creature',what:'Giant spider',lair:true,feature:'A satchel under the webs.'}];assert.deepEqual(sceneFor({...body,context:{...full,spoils}},{}).context.spoils,spoils,'context.spoils survives the trim');}
 const quiet=sceneFor(body,{}).context;assert.equal(quiet.world.creatureTemplates,undefined,'Templates only when a creature can appear');
