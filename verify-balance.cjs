@@ -7,7 +7,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // a subclass's action turned on a person in a brawl, a subclass ward on another device's turn, and a short rest
 // offered to bring a fallen companion round. Every result is a valid save.
 const source=rulesSource({extra:['descriptions.js','playbackHp.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,encounterFoe,combatBasics,attackOptions,startParty,joinParty,partyView,settleParty,soloFromParty,foeScaleOf,sideStrength,brawlStrength,foeOffense,scaledFoe,foeScaling,sideWeightOf,dmChoices,dmCommand,quickActions,foeHitsPartyHero,equipmentFor,worldPlaces,subclassUses})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,hostileFoes,newAdventure,adventureStep,validAdventure,adventureSnapshot,encounterFoe,combatBasics,attackOptions,startParty,joinParty,partyView,settleParty,soloFromParty,foeScaleOf,sideStrength,brawlStrength,foeOffense,scaledFoe,foeScaling,sideWeightOf,dmChoices,dmCommand,quickActions,foeHitsPartyHero,equipmentFor,worldPlaces,subclassUses,aloneFoe,storyBossStats})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const plain=o=>JSON.parse(JSON.stringify(o));
 const always=v=>()=>v;
 const seeded=seed=>{let s=(seed*48271+12345)%2147483647;return ()=>(s=(s*16807)%2147483647)/2147483647;};
@@ -149,4 +149,12 @@ const make=(cls,sub,level=3)=>{const h={name:'Brawler',class:cls,species:'Human'
  assert.ok(r.dmChoices(kara,g,hpOf(kara)).some(c=>c.id==='short-rest'),'offered though the hero is unhurt');
  const rest=r.adventureStep(g,hpOf(kara),kara,'short-rest',always(.5));assert.ok(!rest.error,rest.error);assert.ok(rest.game.npcHP.mara>0,'the companion comes round');
  assert.ok(!r.dmChoices(kara,{...g,npcHP:{}},hpOf(kara)).some(c=>c.id==='short-rest'),'not offered with nothing to recover');}
+// A foe that strikes twice a turn (a written tale's foe from level 3) keeps its blows against a bigger side and gains
+// more; a creature's blows against a hero alone are sized to the hero's class, never against a party or a side.
+{const boss=r.storyBossStats(3,'Slashing','Fighter');assert.equal(boss.swings,2);const big=r.scaledFoe(boss,2.15);assert.ok(big.swings>=3&&big.swings<=r.foeScaling.maxSwings,'two blows grow with the side: '+big.swings);
+ assert.equal(r.scaledFoe({...boss,swings:undefined},2.15).swings,r.foeOffense(2.15).swings,'one blow scaled as before');
+ const orc={name:'Orc',maximum:30,ac:13,attackBonus:5,die:12,count:1,bonus:4,type:'Slashing'},wiz=r.readyHero('wizard');
+ assert.ok(r.aloneFoe(orc,wiz,{stage:'combat'}).bonus<orc.bonus,'softer against a Wizard alone');assert.equal(r.aloneFoe(orc,r.readyHero('fighter'),{stage:'combat'}),orc,'as written against a Fighter');
+ assert.equal(r.aloneFoe(orc,wiz,{stage:'combat',party:{lead:'A',members:{A:{}}}}),orc,'as the side says at a table');
+ assert.ok(Object.values(r.foeScaling.alone).every(w=>w>0&&w<=1),'never harder than written');}
 console.log('verify-balance: ok');

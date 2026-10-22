@@ -1,4 +1,5 @@
-import {templateKeys,allyTemplates,scaledFoe} from './encounterRules';
+import {templateKeys,allyTemplates,scaledFoe,makeAlly,bareFoeName,foeScaleOf,alliesScatter} from './encounterRules';
+import {fightOver} from './masteryRules';
 import {attitudeLevels,attitudeResponses} from './relationshipRules';
 import {isPersonId,metPerson,npcScene,npcLore} from './npcRules';
 import {mapLocation,mapState,worldPlaces,worldPlace,placeName} from './mapRules';
@@ -72,7 +73,7 @@ const stagingKeys={staging:['v','length','quiet','drift','ticks','confrontFrom',
  beat:['id','when','if','tell','line','then'],complication:['id','if','tell','line','then'],pressure:['id','if','tell','sign','line','then','spared'],spared:['tell','line','sign'],
  fight:['at','threat','objective','fromLevel','otherwise','deadline','hold'],threat:['template','name','appearance','ally'],creature:['template','name','appearance'],deadline:['turns','tell','then'],hold:['rounds','tell','then'],
  choice:['id','opens','ask','options','late'],option:['id','label','say','if','when','then'],
- stake:['id','name','state'],place:['colour'],lead:['id','opens','done'],boss:['if','objective','minions','bloodied','deadline','hold'],bloodied:['kind','tell','line'],ending:['id','title','if','text'],
+ stake:['id','name','state'],place:['colour'],lead:['id','opens','done'],boss:['if','objective','minions','bloodied','deadline','hold'],bloodied:['kind','tell','line','ally'],ending:['id','title','if','text'],
  arm:['at','template','name','appearance','ally','fromLevel','otherwise'],send:['who','to'],placeChange:['at','description','danger'],give:['name','note'],attitude:['who','to','memory'],spoke:['who','times'],with:['who','at'],fate:['who','is']};
 // Names are compared without case, spacing or a leading "The" (an author may write "the Lower Stage" or "The Lower Stage").
 export const stagingNameKey=name=>String(name??'').replace(/[’‘]/g,'\'').replace(/\s+/g,' ').trim().toLowerCase().replace(/^the /,'');
@@ -255,7 +256,9 @@ export function stagingProblems(story,{most=Infinity,strict=false}={}){
    optionalCondition(b.if,'staging.boss.if');
    if(b.objective!==undefined)text(b.objective,L.objective,'staging.boss.objective');
    if(b.minions!==undefined)listOf(b.minions,0,L.minions,'staging.boss.minions').forEach((m,i)=>creature(m,'staging.boss.minions['+i+']','creature'));
-   if(b.bloodied!==undefined){const d=b.bloodied;if(!stagingPlain(d))bad('staging.boss.bloodied','must be {"kind", "tell", "line"}');else{keysOf(d,'bloodied','staging.boss.bloodied');if(!['call','flee','rage'].includes(d.kind))bad('staging.boss.bloodied.kind','must be call, flee or rage');text(d.tell,L.bloodied,'staging.boss.bloodied.tell');text(d.line,L.line,'staging.boss.bloodied.line');}}
+   if(b.bloodied!==undefined){const d=b.bloodied;if(!stagingPlain(d))bad('staging.boss.bloodied','must be {"kind", "tell", "line"}');else{keysOf(d,'bloodied','staging.boss.bloodied');if(!['call','flee','rage'].includes(d.kind))bad('staging.boss.bloodied.kind','must be call, flee or rage');text(d.tell,L.bloodied,'staging.boss.bloodied.tell');text(d.line,L.line,'staging.boss.bloodied.line');
+    // The help a foe calls (kind "call"): one creature; without it the foe's first minion comes again.
+    if(d.ally!==undefined&&d.ally!==null){if(d.kind!=='call')bad('staging.boss.bloodied.ally','goes only with the kind "call": the creature that answers it');creature(d.ally,'staging.boss.bloodied.ally','creature');}}}
    if(b.deadline!==undefined&&timer(b.deadline,'staging.boss.deadline','deadline'))effects(b.deadline.then,'staging.boss.deadline.then');
    if(b.hold!==undefined&&timer(b.hold,'staging.boss.hold','hold'))effects(b.hold.then,'staging.boss.hold.then');}}
  // Endings: the engine takes the first whose condition holds, else the last (the default, which has none).
@@ -493,6 +496,12 @@ function stgArm(state,a){
  state.game={...g,world:{...g.world,places:worldPlaces(g).map(p=>{if(p.id!==id)return p;const q={...p,danger:'lair',threat};delete q.cleared;return q;})}};
  stgFire(state,key);
 }
+// The creature a set piece puts at its place for a hero of this level (its level rules): tale-balance.cjs fights it.
+export function stagedThreat(f,level){
+ if(!stagingPlain(f)||!stagingPlain(f.threat))return null;
+ const pick=Number.isInteger(f.fromLevel)&&level<f.fromLevel?(stagingPlain(f.otherwise)?f.otherwise:null):f.threat;
+ return pick?stgThreat(pick,level):null;
+}
 function stgArmFight(state,i){const f=state.staging.chapters[i]?.fight;if(stagingPlain(f)&&stagingPlain(f.threat))stgArm(state,{...f.threat,at:f.at,fromLevel:f.fromLevel,otherwise:f.otherwise});}
 // People a written tale offers as companions wait until they are with the hero, then the offer is made ("Take X along").
 function stgOffers(state){
@@ -566,7 +575,12 @@ function stgEffect(state,kind,v,from){
   if(v===1)p.owed=Math.min(left,p.owed+1);else if(v===-1)p.held=Math.min(99,p.held+1);
  }else if(kind==='advance'){if(v===true&&!last)stgClose(state,from);}
  else if(kind==='end'){if(v==='late'&&last)stgClose(state,from,{late:true});}
- // 'boss' (the boss's minions sent off, the boss hurt) is played from the fight-shape step (Phase C); accepted now.
+ // The foe's minions sent off (gone from its side now and when it is met), or the foe hurt before it is met.
+ else if(kind==='boss'){
+  if(!stagingPlain(v))return;
+  if(v.minions===false&&!p.fired.includes('boss:minions')){stgFire(state,'boss:minions');if(stgFightSrc(g)===1&&stgList(g.foeAllies).length){const gone=alliesScatter(g,a=>'The '+a.name+' breaks off and leaves the fight.');state.game=gone.game;for(const line of gone.lines)stgLog(state,line);}}
+  if(v.hurt===true&&!p.fired.includes('boss:hurt'))stgFire(state,'boss:hurt');
+ }
 }
 function stgCloseLead(state,id){
  const lead=stgList(state.game.story.leads).find(l=>l?.id===id);if(!lead||lead.done)return;
@@ -625,7 +639,10 @@ function stgClose(state,closer,{late=false}={}){
 }
 // A due beat the request carried is told: marked so (a spared step is not), and nothing is due.
 function stgTold(state,carried){
- const p=state.pace,key=paceDueKey(p.due);if(!key||!carried.has(key))return;
+ const p=state.pace;
+ // The fight's own due thing (a deadline, a hold, the foe bloodied), told in the fight.
+ {const f=paceDueKey(stgFightDue(state.game,p));if(f&&carried.has(f)){p.fight={...p.fight,due:0};state.happened=true;}}
+ const key=paceDueKey(p.due);if(!key||!carried.has(key))return;
  const d=p.due,id=typeof d.id==='string'?d.id:null;
  if(id&&stgFind(state.staging,id)&&!p.fired.includes('spared:'+id)&&!p.told.includes(id)&&p.told.length<400)p.told.push(id);
  p.due=null;state.happened=true;
@@ -742,6 +759,12 @@ export function withBeats(before,after,hero,{action=null,conversation=null}={}){
     p.due=stagingPlain(st.chapters[ch]?.opening)?{kind:'opening',id:'opening:'+(ch+1)}:null;
    }}
   const calm=()=>!state.closed&&!stgFighting(state.game)&&state.game.story.status==='active';
+  // A fight's deadline or hold that closes the chapter (or ends the tale) does so once the fight is over.
+  if(calm()&&stagingPlain(p.fight)&&stgFightSrc(state.game)===null){
+   const f=p.fight;p.fight=null;
+   if(stagingInt(f.close,1,2)){const src=f.src===1?1:0,t=stgTimers(state.game,src)[f.close===1?'deadline':'hold'],then=stagingPlain(t?.then)?t.then:{},tag=(f.close===1?'deadline:':'hold:')+stgFightTag(src,p.ch);
+    stgThen(state,{...(then.advance!==undefined?{advance:then.advance}:{}),...(then.end!==undefined?{end:then.end}:{})},tag);}
+  }
   // 4. Found: a route that holds closes the chapter (or completes the tale), replacing a beat due but untold.
   if(calm()&&stgList(st.chapters[p.ch]?.found?.any).some(r=>beatHolds(state.game,r,p)))stgClose(state,'found:'+(p.ch+1));
   // 5. Beats: when nothing is due, the first unfired beat whose `when` and `if` hold.
@@ -797,12 +820,157 @@ export function stagedPreview(before,preview,hero,action){
  const staged=withBeats(before,preview.game,hero,{action,conversation:null});
  return staged.game===preview.game?preview:{...preview,game:staged.game,events:[...stgList(preview.events),...staged.events]};
 }
+// ---------- Fight shape (the stories spec, Phase C, 2026-10-22) ----------
+// The tale's foe and a chapter's set piece are fights with a shape: the foe comes with its minions (boss.minions, seated
+// as game.foeAllies when the fight with it begins), turns once at half its hit points (boss.bloodied: call, flee or
+// rage), and a set piece or the foe may have a deadline (won within `turns` rounds, else its `then` applies) or a hold
+// (it cannot be beaten for `rounds` rounds; its `tell` is told as the fight begins and its `then` once it is held).
+// Played by the engine after every step (adventureRules.js adventureStep → withFightShape), on a device's preview, its
+// commit and the campaign server alike: nothing here rolls a die. What happens is told through the fight's own due
+// thing (game.pace.fight.due: deadline, hold or bloodied), which, unlike the calm beats, is told in the fight (the
+// next request to the Dungeon Master carries it; routineTelling gives way to it). The numbers are provisional, tuned
+// with balance-check.cjs --tale; survivalOdds and foeEase (deathRules.js, storyRules.js) are never touched.
+// `minionsFrom`: the level from which the foe's minions stand beside it (a gentle tale's foe fights alone anyway);
+// `callFrom` the same for help it calls; `hurt`: the share of its hit points a foe that comes hurt has lost; `fledShare`:
+// the least share of its hit points a foe that breaks away keeps when met again (it binds its wounds).
+// `minionShare`: a minion's hit points against its kind met alone; `minionDrop`: it is a creature of that many levels
+// below the hero (its blows and its hit points), so the foe's side is one fight, not three.
+export const fightShape={minionsFrom:2,callFrom:2,hurt:0.25,fledShare:0.5,minionShare:0.6,minionDrop:4};
+const stgFightKinds=['','deadline','hold','bloodied'],stgPackSingles={zombies:'skeleton',wolves:'wolf'};
+// Which staged fight is on: 1 the tale's foe at its stronghold, 0 the chapter's own set piece, null any other (a
+// creature by the road, a place armed by an effect, a brawl, the vault). In a party a hero who is down sees the
+// party's fight (party.stage).
+function stgFightSrc(game){
+ const st=stgStaging(game);if(!st)return null;
+ const stage=['dying','dead'].includes(game.stage)&&typeof game.party?.stage==='string'?game.party.stage:game.stage;
+ if(stage!=='combat'||game.dungeon?.active||game.npcCombat?.active)return null;
+ if(!game.wildFight)return 1;
+ const f=st.chapters[game.story.chapter??0]?.fight;
+ return stagingPlain(f)&&typeof f.at==='string'&&stagingIds(game).place(f.at)===game.wildFight.place?0:null;
+}
+const stgFightTag=(src,ch)=>src===1?'boss':'c'+(ch+1);
+// A fight's timers: the set piece's or the foe's deadline and hold, when sound.
+function stgTimers(game,src){
+ const st=stgStaging(game),t=src===1?st?.boss:st?.chapters?.[game.story.chapter??0]?.fight;
+ if(!stagingPlain(t))return {deadline:null,hold:null};
+ return {deadline:stagingPlain(t.deadline)&&stagingInt(t.deadline.turns,1,99)?t.deadline:null,hold:stagingPlain(t.hold)&&stagingInt(t.hold.rounds,1,99)?t.hold:null};
+}
+// The fight's due thing as {kind, id} (id "boss" or "c2", the chapter of the set piece), or null.
+function stgFightDue(game,p=game?.pace){
+ const f=p?.fight;if(!stagingPlain(f)||!stagingInt(f.due,1,3))return null;
+ return {kind:stgFightKinds[f.due],id:stgFightTag(f.src===1?1:0,Number.isInteger(p.ch)?p.ch:0)};
+}
+// While a hold lasts, the foe cannot be brought below 1 hit point (creatureRound reads it before the step).
+export function fightFloor(game){
+ try{
+  const src=stgFightSrc(game);if(src===null)return 0;
+  return stgTimers(game,src).hold&&!stgList(game.pace?.fired).includes('hold:'+stgFightTag(src,game.pace?.ch??0))?1:0;
+ }catch{return 0;}
+}
+// The foe in a rage (boss.bloodied kind "rage", once at half its hit points): one more blow a round (encounterFoe).
+export function bossRaged(game){
+ try{const st=stgStaging(game);return !!st&&st.boss?.bloodied?.kind==='rage'&&stgList(game.pace?.fired).includes('bloodied:boss')&&stgFightSrc(game)===1;}catch{return false;}
+}
+// A creature that stands beside the foe, as the engine seats it: a pack becomes one of its kind, the orc a goblin below
+// level 3, and only the kinds that can stand beside another (allyTemplates).
+function stgMinion(m,level){
+ if(!stagingPlain(m)||!templateKeys.includes(m.template))return null;
+ const single=stgPackSingles[m.template]??m.template,template=single==='orc'&&level<3?'goblin':single,name=stgClean(m.name,60),appearance=stgClean(m.appearance,400);
+ return allyTemplates.includes(template)&&name&&appearance?{template,name:bareFoeName(name),appearance}:null;
+}
+// A creature beside the foe, at the side's strength (a party, companions: encounterRules.js scaledFoe).
+function stgAlly(sketch,level,f){const lv=Math.max(1,level-fightShape.minionDrop),a=makeAlly(sketch,lv),most=Math.max(3,Math.min(500,Math.round(a.maximum/0.6*fightShape.minionShare*(f>1?f:1))));return {...a,maximum:most,hp:most,...(lv<level?{level:lv}:{})};}
+// The fight with the tale's foe begins: its minions stand beside it (unless sent off, or beaten once already), and a
+// foe that comes hurt has lost a share of its hit points.
+function stgBossBegins(state){
+ const g=state.game,st=state.staging,p=state.pace,level=stgLevel(state),max=scaledFoe(g.story.foeStats??{maximum:g.enemyHP},foeScaleOf(g))?.maximum??g.enemyHP;
+ if(stgList(p.fired).includes('boss:hurt')&&!stgList(p.fired).includes('boss:hurt-done')){stgFire(state,'boss:hurt-done');if(g.enemyHP>=max)state.game={...state.game,enemyHP:Math.max(1,g.enemyHP-Math.round(max*fightShape.hurt))};}
+ if(stgList(p.fired).includes('boss:minions')||level<fightShape.minionsFrom)return;
+ const minions=stgList(st.boss?.minions).map(m=>stgMinion(m,level)).filter(Boolean).slice(0,2);if(!minions.length)return;
+ const f=foeScaleOf(state.game),allies=minions.map(m=>stgAlly(m,level,f));
+ state.game={...state.game,foeAllies:allies};
+ stgLog(state,allies.length===1?'The '+allies[0].name+' stands beside '+g.story.foe+'.':'The '+allies[0].name+' and the '+allies[1].name+' stand beside '+g.story.foe+'.');
+}
+// Once at half its hit points the foe turns: help comes (call), it breaks away (flee) or it fights harder (rage).
+function stgBloodied(state){
+ const g=state.game,st=state.staging,b=st.boss?.bloodied;
+ if(stgFightSrc(g)!==1||!(g.enemyHP>0)||!stagingPlain(b)||!['call','flee','rage'].includes(b.kind)||state.pace.fired.includes('bloodied:boss'))return;
+ const max=scaledFoe(g.story.foeStats??{maximum:g.enemyHP},foeScaleOf(g))?.maximum??g.enemyHP;if(g.enemyHP*2>max)return;
+ stgFire(state,'bloodied:boss');state.happened=true;
+ if(!stagingPlain(state.pace.fight))state.pace.fight={turns:0,src:1,due:0,close:0};
+ if(!state.pace.fight.due)state.pace.fight={...state.pace.fight,due:3};
+ const level=stgLevel(state);
+ if(b.kind==='call'){
+  if(level<fightShape.callFrom)return;
+  const sketch=stgMinion(b.ally,level)??stgList(st.boss?.minions).map(m=>stgMinion(m,level)).find(Boolean)??null;if(!sketch)return;
+  const allies=stgList(g.foeAllies).slice(0,2),slot=allies.length<2?allies.length:allies.findIndex(a=>!(a?.hp>0));if(slot<0)return;
+  const ally=stgAlly(sketch,level,foeScaleOf(g)),next={...g,foeAllies:[...allies.slice(0,slot),ally,...allies.slice(slot+1)]};
+  if(stagingPlain(next.marks)&&next.marks['ally:'+slot]){next.marks={...next.marks};delete next.marks['ally:'+slot];if(!Object.keys(next.marks).length)delete next.marks;}
+  state.game=next;stgLog(state,'The '+ally.name+' joins the fight beside '+g.story.foe+'.');
+ }else if(b.kind==='flee'){
+  // It breaks away: the fight is over, the foe keeps at least its share of hit points and waits to be met again (the
+  // hero goes after it with Approach, at the stronghold); the creatures beside it scatter.
+  const scattered=alliesScatter(g,a=>'The '+a.name+' goes with it.');let next={...scattered.game,stage:'bridge',enemyHP:Math.min(max,Math.max(g.enemyHP,Math.round(max*fightShape.fledShare))),round:1,bonusUsed:false,reactionUsed:false,slotSpentThisTurn:false};
+  for(const k of ['actionUsed','surged','dodging','openingAttackAvailable','encounterInitiative','turnOrder','foeTricks','heroCondition','foeAllies'])delete next[k];
+  next=fightOver(next);state.game=next;stgFire(state,'boss:fled');
+  for(const line of scattered.lines)stgLog(state,line);
+  stgLog(state,'The '+g.story.foe+' breaks away from the fight and gets clear.');
+  state.pace.fight=null;state.pace.fightDue={kind:'bloodied',id:'boss'};
+ }
+}
+// A fight's rounds and timers: a staged fight begins (its timers start, the foe's minions stand beside it), goes on
+// (its rounds counted), or is over (only a deadline's or a hold's closing effects stay owed, applied once all is calm:
+// withBeats).
+function stgFightTimers(state,before){
+ const g=state.game,p=state.pace,src=stgFightSrc(g),was=stgFightSrc(before);
+ const begun=src!==null&&(was===null||src!==was||(src===0&&before.wildFight?.place!==g.wildFight?.place));
+ const round=x=>Number.isInteger(x?.turnOrder?.round)?x.turnOrder.round:Number.isInteger(x?.round)?x.round:1;
+ if(begun||(src!==null&&!stagingPlain(p.fight))){
+  p.fight={turns:0,src,due:0,close:stagingPlain(p.fight)&&stagingInt(p.fight.close,1,2)?p.fight.close:0};
+  // (a fight already under way when this build first saw it only starts counting)
+  if(begun&&src===1)stgBossBegins(state);
+  const hold=stgTimers(state.game,src).hold,tag=stgFightTag(src,p.ch);
+  if(begun&&hold&&!p.fired.includes('hold:'+tag)&&!p.fired.includes('holding:'+tag)){stgFire(state,'holding:'+tag);p.fight.due=2;state.happened=true;}
+ }else if(src!==null){const gone=round(g)-round(before);if(gone>0)p.fight={...p.fight,turns:Math.min(999,(p.fight.turns??0)+gone)};}
+ else if(src===null&&was!==null){
+  // Minions beaten stay beaten: the foe met again comes alone.
+  if(was===1&&stgList(before.foeAllies).length&&stgList(before.foeAllies).every(a=>!(a?.hp>0)))stgFire(state,'boss:minions');
+  if(stagingPlain(p.fight))p.fight=stagingInt(p.fight.close,1,2)?{turns:p.fight.turns??0,src:p.fight.src??0,due:0,close:p.fight.close}:null;
+  return;
+ }
+ if(src===null||!stagingPlain(p.fight))return;
+ const timers=stgTimers(state.game,src),tag=stgFightTag(src,p.ch);
+ // What a timer's then does at once; advance and end wait until the fight is over (withBeats closes the chapter then).
+ const now=(then,id,close)=>{if(!stagingPlain(then))return;const {advance,end,...rest}=then;stgThen(state,rest,id);if(advance!==undefined||end!==undefined)p.fight={...p.fight,close};};
+ if(timers.deadline&&p.fight.turns>=timers.deadline.turns&&!p.fired.includes('deadline:'+tag)){stgFire(state,'deadline:'+tag);state.happened=true;if(!p.fight.due)p.fight={...p.fight,due:1};now(timers.deadline.then,'deadline:'+tag,1);}
+ if(timers.hold&&p.fight.turns>=timers.hold.rounds&&!p.fired.includes('hold:'+tag)){stgFire(state,'hold:'+tag);state.happened=true;now(timers.hold.then,'hold:'+tag,2);}
+}
+// After every step of a written tale (adventureRules.js adventureStep): the fight's shape. Total: any input gives a
+// result and never throws; a game with no staging is left as it is.
+export function withFightShape(before,result,hero){
+ if(!result||result.error||result.waiting||!result.game||result.game===before)return result;
+ try{
+  const st=stgStaging(result.game);
+  if(!st||!stagingPlain(before?.story)||(before.story.id??null)!==(result.game.story.id??null)||result.game.story.status!=='active')return result;
+  if(stgFightSrc(before)===null&&stgFightSrc(result.game)===null&&!stagingPlain(result.game.pace?.fight))return result;
+  const state={game:result.game,pace:stgPace(result.game),events:[],hero,staging:st,ids:stagingIds(result.game),depth:0,closed:false,happened:false};
+  stgFightTimers(state,before);
+  stgBloodied(state);
+  // A foe that broke away is due its telling at once (out of the fight now): the calm due waits behind it.
+  const fled=state.pace.fightDue;delete state.pace.fightDue;
+  if(fled&&!state.pace.due)state.pace.due=fled;
+  return {...result,game:{...state.game,pace:state.pace},events:[...stgList(result.events),...state.events]};
+ }catch{return result;}
+}
 // ---------- What the Dungeon Master and the screens read ----------
 // The one thing due now that the next reply to the Dungeon Master tells: none in a fight (it waits), none of a kind this
 // build does not know.
 export function beatDue(game){
+ if(!stgStaging(game))return null;
+ // In a fight only the fight's own due thing is told (a deadline, a hold, the foe bloodied); the rest waits.
+ if(stgFighting(game)){try{return stgFightSrc(game)===null?null:stgFightDue(game);}catch{return null;}}
  const due=game?.pace?.due;
- if(!stgStaging(game)||!stagingPlain(due)||!paceDueKinds.includes(due.kind)||stgFighting(game))return null;
+ if(!stagingPlain(due)||!paceDueKinds.includes(due.kind))return null;
  return due;
 }
 export const beatKey=game=>paceDueKey(beatDue(game));
@@ -827,6 +995,9 @@ function stgBeatWords(game,due){
   return {kind,id,...(t.tell?{tell:t.tell}:{}),truth:stgClean(closed.turn,400),...(stagingPlain(o)?{opening:stgClean(o.tell,300)}:{}),line:[t.line,stgClean(closed.turn,400),stagingPlain(o)?stgClean(o.line,300):''].filter(Boolean).join(' ')};}
  if(kind==='opening'){const o=st.chapters[s.chapter??0]?.opening;if(!stagingPlain(o))return null;return {kind,id,tell:stgClean(o.tell,300),line:stgClean(o.line,300)};}
  if(kind==='choice'){const c=stgChoice(st,id);if(!c)return null;return {kind,id,ask:stgClean(c.ask,300),line:stgClean(c.ask,300)};}
+ // A fight's own: the set piece's or the foe's deadline and hold, the foe bloodied (or broken away).
+ if(['deadline','hold','bloodied'].includes(kind)){const src=id==='boss'?1:0,t=src===1?st.boss:st.chapters[s.chapter??0]?.fight,x=kind==='bloodied'?t?.bloodied:t?.[kind];if(!stagingPlain(x))return null;
+  const tell=stgClean(x.tell,300);if(!tell)return null;return {kind,id,tell,line:stgClean(x.line,300)||tell,...(kind==='bloodied'&&typeof x.kind==='string'?{turn:x.kind}:{})};}
  if(kind==='ending'){const e=stgList(st.endings).find(x=>stagingPlain(x)&&x.id===game.pace?.ending);if(!e)return null;const t=stgCloserTexts(st,game,id);
   return {kind,id,...(t.tell?{tell:t.tell}:{}),title:stgClean(e.title,60),text:stgClean(e.text,700),line:[t.line,stgClean(e.text,700)].filter(Boolean).join(' ')};}
  return null;

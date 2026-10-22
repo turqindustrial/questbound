@@ -58,6 +58,13 @@ const base=camp(kara);base.world={places:[{id:'p1',name:'Ford',description:'A fo
 assert.equal(r.startWildFight(base,kara,{...lair.lair,ally:{...hound,template:'bandit'}},{place:'p1'}).game.foeAllies,undefined,'Not the same kind');
 assert.equal(r.startWildFight(base,kara,{...lair.lair,ally:{...hound,template:'wolves'}},{place:'p1'}).game.foeAllies,undefined,'Not a pack');
 assert.ok(!valid(kara,{...g,foeAllies:[{...g.foeAllies[0],hp:999}]},hp));
+// ---- Beside the tale's own foe (a written tale's minions, stagingRules.js): they leave with the fight ----
+{const g0={...r.hostileEncounterGame(kara,r.newAdventure(kara),()=>0),openingAttackAvailable:false,encounterInitiative:{player:20,foe:1}};
+ const beside={...g0,foeAllies:[{template:'wolf',name:'War Hound',appearance:hound.appearance,hp:5,maximum:5}],enemyHP:1};
+ assert.ok(valid(kara,beside,hp),'a creature beside the tale\'s foe in its fight');
+ const won=r.adventureStep(beside,hp,kara,{type:'encounter-attack',weapon:'Greatsword'},()=>0.95);
+ assert.equal(won.game.stage,'victory');assert.equal(won.game.foeAllies,undefined,'gone once the foe falls');assert.ok(won.events.some(t=>/War Hound turns and flees/.test(t)),won.events.join(' | '));assert.ok(valid(kara,won.game,won.health));
+ const ran=r.adventureStep({...beside,enemyHP:10},hp,kara,'flee',()=>0.5);assert.equal(ran.game.foeAllies,undefined,'and when the hero runs');assert.ok(valid(kara,ran.game,ran.health));}
 // ---- The Dungeon Master server ----
 const {generate}=require('./dm-server.cjs');
 const reply=extra=>async()=>({ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,...extra})}]}]})});

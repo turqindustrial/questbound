@@ -4,7 +4,7 @@
 //   1. seating: chapter 1's set piece armed by the level rules, the stakes, the pace; a tale without staging untouched
 //   2. events latched for the chapter (reach, won, searched, checked, rest), who spoke, quiet, owed steps
 //   3. every effect, in one beat; an offer that waits; leads by their condition; the foe's name refused as a person
-//   4. one thing due at a time, never in a fight; the find first; the beat a request carried is the one marked told
+//   4. one thing due at a time, never in a fight (but the fight's own: a hold); the find first; the beat a request carried is the one marked told
 //   5. the preview and the commit agree; routine moves give way while a beat is due
 //   6. the clock: drift, quiet, rests and days owe steps; held and spared steps; the last step closes the chapter;
 //      the stall bound (a passive player), and the tale ends late with its default ending
@@ -131,6 +131,9 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  // Never in a fight: a beat whose moment comes while fighting waits for the fight's end, and is not carried meanwhile.
  const inFight=copy(s=>{ch(s,0).beats=[{id:'b1',when:{at:'The Log Slide'},if:null,tell:'Wolf-tracks everywhere.',line:'Wolf-tracks everywhere.',then:{}}];});
  let f=travel(seat(inFight),'p1').game;assert.equal(f.stage,'combat');assert.equal(f.pace.due,null,'no beat fires in a fight');assert.equal(r.beatDue(f),null);
+ // Only a fight's own due thing is told in it (a hold, a deadline, the foe bloodied: verify-fight-shape.cjs).
+ const held=copy(s=>{ch(s,0).fight={...ch(s,0).fight,hold:{rounds:2,tell:'The wolf circles and will not close.'}};ch(s,0).beats=[{id:'b1',when:{at:'The Log Slide'},if:null,tell:'Wolf-tracks everywhere.',line:'Wolf-tracks everywhere.',then:{}}];});
+ const heldUp=travel(seat(held),'p1').game;assert.equal(heldUp.pace.due,null,'still no calm beat in the fight');assert.equal(r.paceDueKey(r.beatDue(heldUp)),'hold:c1','the hold is told as the fight begins');
  const fought=fightIt(f);assert.equal(r.paceDueKey(fought.game.pace.due),'beat:b1','it fires once the fight is over');
  // The find first: a route holding replaces a beat due but untold (the truth is due, with what closed the chapter).
  const both=copy(s=>{ch(s,0).beats=[{id:'b1',when:{reach:'Fernmoot Spring'},if:null,tell:'The bell rings.',line:'The bell rings.',then:{}}];});

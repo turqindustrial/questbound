@@ -118,6 +118,8 @@ const beatNote=(body,{sceneTrigger=null,ooc=false,resolvingSpell=false}={})=>{
  if(b.kind==='turn')return '\nSTORY BEAT THIS TURN (the chapter\'s truth is found): '+closer+t(b.truth)+' Tell it as something seen or said here, at whatever cost the dice set'+(b.opening?'; then '+t(b.opening):'.')+' Up to four sentences.';
  if(b.kind==='choice')return '\nSTORY BEAT THIS TURN (a choice): '+t(b.ask)+' Put it to the player plainly, inside the scene. Never choose for them.';
  if(b.kind==='ending')return '\nSTORY BEAT THIS TURN (the ending, "'+t(b.title,80)+'"): '+closer+t(b.text,700)+' Tell it as the tale\'s last scene, up to five sentences.';
+ // A fight's own (stagingRules.js fight shape): the game has already played it; the telling puts it among the blows.
+ if(['deadline','hold','bloodied'].includes(b.kind)&&b.tell)return '\nSTORY BEAT THIS TURN (in the fight): '+t(b.tell)+' Tell it among the blows, after the results of the move, in a sentence or two. The game has already played what it does: the dice and hit points stand, anyone it brought is in the fight, a foe that broke away is gone from it.';
  if(!b.tell)return '';
  return '\nSTORY BEAT THIS TURN'+(b.kind==='opening'?' (a new chapter)':'')+': '+t(b.tell)+' It happens now, whatever the player did: tell it after the results of their move, here, through the people present or what the hero finds. It starts no fight and moves no one the game has not moved. Up to four sentences.';
 };

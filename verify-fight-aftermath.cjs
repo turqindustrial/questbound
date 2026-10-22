@@ -67,4 +67,19 @@ const lair={type:'discover',place:{name:'Wolf Hollow',description:'A den among t
  }
  assert.equal(g.npcCombat,undefined,'the record goes once the hero has left the inn');
 }
-console.log('Fight aftermath: a retreat and a short rest let time run on held spells and spell-given hit points; a spell on a creature of a finished fight reaches no one new; a finished crossroads brawl leaves nothing to spoil the bridge.');
+// A written tale's foe that breaks away at half its hit points (stagingRules.js, boss.bloodied "flee"): the fight is
+// over for good, nothing of it is left (initiative, the opening, a spent action, marks, the creatures beside it), and
+// the foe waits at its stronghold to be gone after.
+{
+ const fixture=JSON.parse(fs.readFileSync('written-fixture.json','utf8')),hero=r.readyHero('fighter');
+ assert.equal(fixture.story.staging.boss.bloodied.kind,'flee','the fixture\'s foe breaks away');
+ let g=r.freshStoryGame(hero,{...plain(fixture.story),id:'aftermath-flee',status:'active',libraryId:fixture.id,artId:'journey-'+fixture.id,written:{slug:fixture.slug,edition:1,length:'short'}},r.newAdventure(hero));
+ const last=g.story.chapters.length-1;g={...g,story:{...g.story,chapter:last},pace:{...g.pace,ch:last},stage:'bridge'};
+ const fight=r.adventureStep(g,null,hero,'approach',()=>0.5).game,half=Math.floor(fight.story.foeStats.maximum/2)+1;
+ const broke=r.adventureStep({...fight,enemyHP:half,openingAttackAvailable:false,encounterInitiative:{player:20,foe:1},marks:{foe:{prone:true}},foeAllies:[{template:'wolf',name:'Hound',appearance:'A lean grey hound with a torn ear.',hp:4,maximum:6}]},null,hero,{type:'encounter-attack',weapon:'Greatsword'},(()=>{let n=0;return()=>n++<3?0.9:0.01;})());
+ assert.equal(broke.game.stage,'bridge','it broke away');
+ for(const k of ['encounterInitiative','openingAttackAvailable','actionUsed','marks','foeAllies','turnOrder','heroCondition','foeTricks'])assert.equal(broke.game[k],undefined,k+' is left behind');
+ assert.ok(broke.game.enemyHP>0);assert.ok(r.validAdventure(plain(r.adventureSnapshot(hero,broke.game,broke.health,true)),hero),'a valid save');
+ assert.ok(r.dmChoices(hero,broke.game,broke.health).some(c=>c.id==='approach'),'and it can be gone after');
+}
+console.log('Fight aftermath: a retreat and a short rest let time run on held spells and spell-given hit points; a spell on a creature of a finished fight reaches no one new; a finished crossroads brawl leaves nothing to spoil the bridge; a written tale\'s foe that breaks away leaves nothing of the fight.');

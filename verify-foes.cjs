@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),r=require('./verify-dm-integration.cjs');
-const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({hostileEncounterGame,hostileFoes,foeStatsFor,validStory,storyText})',{combatBasics:r.combatBasics});
+const p=vm.runInNewContext(['deathRules.js','npcRules.js','relationshipRules.js','storyRules.js','mapRules.js','playbackRules.js','sceneTriggers.js','hostileEncounter.js'].map(f=>fs.readFileSync(f,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')).join('\n')+'\n({hostileEncounterGame,hostileFoes,foeStatsFor,validStory,storyText,storyBossStats})',{combatBasics:r.combatBasics});
 const a=vm.runInNewContext(fs.readFileSync('adventureRules.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'')+'\n({foeStanding})',{});
 const hero={name:'Foe tester',class:'Fighter',species:'Human',level:1,scores:{Strength:16,Dexterity:12,Constitution:14,Intelligence:10,Wisdom:12,Charisma:10},spells:[]};hero.equipment=r.equipmentFor(hero);
 const pick=key=>()=>(p.hostileFoes.findIndex(f=>f.key===key)+.5)/p.hostileFoes.length;
@@ -21,6 +21,9 @@ assert.ok(r.validAdventure(r.adventureSnapshot(hero,hit.game,hit.health,true),he
 // Story text keeps foe names intact (the legacy renamer only replaces whole words).
 const orc=p.hostileEncounterGame(hero,r.newAdventure(hero),pick('orc'));
 assert.equal(p.storyText(orc,'The Orc Marauder swings. Mara looks on.'),'The Orc Marauder swings. Tobin Reed looks on.');
+// A written tale's foe (storyRules.js storyBossStats): a valid stat block at every level, for a hero alone and a table.
+for(const level of [1,3,8,20])for(const cls of ['Fighter','Wizard',null])assert.ok(p.validStory({...bandit.story,foeStats:p.storyBossStats(level,'Fire',cls)}),'the foe of a written tale at level '+level+' ('+cls+')');
+assert.equal(p.validStory({...bandit.story,foeStats:{...p.storyBossStats(3),swings:5}}),false,'at most four blows a turn');
 // Invalid stat blocks are rejected.
 assert.equal(p.validStory({...bandit.story,foeStats:{...bandit.story.foeStats,die:7}}),false);
 assert.equal(p.validStory({...goblins.story,foeStats:{...goblins.story.foeStats,maximum:20}}),false);

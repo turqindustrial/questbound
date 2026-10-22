@@ -50,13 +50,14 @@ export const allyTemplates=['bandit','wolf','goblin','skeleton','boar','spider',
 export const naturalAllies={bandit:{template:'wolf',name:'War Hound',appearance:'A lean, scarred hound in a spiked leather collar, trained to go for the legs.'},goblin:{template:'wolf',name:'Worg',appearance:'A mangy, red-eyed worg with a crude goblin saddle strapped to its back.'},orc:{template:'goblin',name:'Goblin Lackey',appearance:'A snivelling goblin in the orc\'s cast-off mail, clutching a rusty knife.'}};
 export const validAllySketch=(a,lead)=>validFoeSketch(a)&&allyTemplates.includes(a.template)&&a.template!==lead;
 export function makeAlly(sketch,level){const max=Math.max(3,Math.round(wildFoeStats(sketch.template,sketch.name,level).maximum*.6));return {template:sketch.template,name:sketch.name.trim(),appearance:sketch.appearance.trim(),hp:max,maximum:max};}
-export function allyStats(game,i,level){const a=game.foeAllies?.[i];if(!a)return null;const s={...wildFoeStats(a.template,a.name,level),name:a.name,maximum:a.maximum};delete s.group;return s;}
+// (A minion of a written tale's foe is a creature of a lower level than the hero: `level`, kept with it.)
+export function allyStats(game,i,level){const a=game.foeAllies?.[i];if(!a)return null;const s={...wildFoeStats(a.template,a.name,Number.isInteger(a.level)&&a.level>=1?Math.min(a.level,level):level),name:a.name,maximum:a.maximum};delete s.group;return s;}
 export const livingAllies=game=>(game.foeAllies??[]).map((a,index)=>({...a,index})).filter(a=>a.hp>0);
 // Which of them an attack or spell is aimed at ("ally:0"), if that one still stands.
 export function aimedAlly(game,aim){const m=String(aim??'').match(/^ally:([01])$/);if(!m)return null;const i=Number(m[1]);return game.foeAllies?.[i]?.hp>0?i:null;}
 export function hurtAlly(game,i,damage){const a=game.foeAllies[i],hp=Math.max(0,a.hp-damage);return {game:{...game,foeAllies:game.foeAllies.map((x,j)=>j===i?{...x,hp}:x)},hp,line:hp===0?(game.subdue?`The ${a.name} drops, beaten.`:`The ${a.name} is slain.`):null};}
-export function alliesScatter(game){const lines=livingAllies(game).map(a=>`With its leader down, the ${a.name} turns and flees.`),next={...game};delete next.foeAllies;return {game:next,lines};}
-export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return (g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum);}
+export function alliesScatter(game,say=a=>`With its leader down, the ${a.name} turns and flees.`){const lines=livingAllies(game).map(say),next={...game};delete next.foeAllies;return {game:next,lines};}
+export function validFoeAllies(g){const a=g.foeAllies;if(a===undefined)return true;return (g.stage==='combat'||!!g.party&&['dying','dead'].includes(g.stage))&&Array.isArray(a)&&a.length>=1&&a.length<=2&&a.every(x=>!!x&&allyTemplates.includes(x.template)&&sketchText(x.name,60)&&sketchText(x.appearance,400)&&Number.isInteger(x.maximum)&&x.maximum>=1&&x.maximum<=500&&Number.isInteger(x.hp)&&x.hp>=0&&x.hp<=x.maximum&&(x.level===undefined||(Number.isInteger(x.level)&&x.level>=1&&x.level<=20)));}
 // A creature's own name without a leading "The" (the stories spec, Phase A6, 2026-10-22: a lair held by "The Tallow
 // Walkers" opened with "A The Tallow Walkers bursts out", and every line after said "the The ..."): the game's own lines
 // say "the" and "The" themselves, and the opening keeps the name's own "The". The name as given is kept beside it
@@ -235,7 +236,12 @@ export function partyTargets(game){
 // alone meets exactly what they always did. The strength is kept for the fight (game.foeScale {f, key}): it grows when someone joins
 // mid-fight and never shrinks as the side falls. Tuned with balance-check.cjs (--companion, --party).
 // A companion's share of a hero by their class (sturdy fighters stand in front and soak blows; casters less so).
-export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},hero:1.15,untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6};
+export const foeScaling={companion:{Fighter:0.75,Barbarian:0.75,Paladin:0.75,Ranger:0.6,Monk:0.6,Rogue:0.6,Cleric:0.55,Druid:0.55,Artificer:0.55,Bard:0.5,Wizard:0.5,Sorcerer:0.5,Warlock:0.5},hero:1.15,untrained:0.25,hp:1,offense:0.9,maxGroup:8,maxSwings:4,most:6,
+ // A hero fighting a creature alone (no party, nobody beside them): the creature's blows are sized to the hero's class,
+ // softer against those who stand in front poorly (the stories spec, Phase C, 2026-10-22: a level-1 Wizard fell to an
+ // orc 71 times in 100 while a Fighter of the same level always won). Never harder than written; provisional, tuned
+ // with balance-check.cjs. Unlisted classes: 1.
+ alone:{Rogue:0.85,Bard:0.85,Warlock:0.85,Monk:0.9,Druid:0.9,Artificer:0.9,Wizard:0.75,Sorcerer:0.75}};
 export const sideWeightOf=cls=>foeScaling.companion[cls]??0.5;
 const sideHeroLevel=character=>{try{const h=JSON.parse(character);return Number.isInteger(h?.level)?h.level:1;}catch{return 1;}};
 function sideCompanionWeight(game,id,mean){
@@ -267,8 +273,19 @@ export function foeOffense(f){
 export function scaledFoe(foe,f){
  if(!foe||!(f>1))return foe;
  if(foe.group){const size=Math.min(foeScaling.maxGroup,Math.max(foe.group.size,Math.round(foe.group.size*Math.pow(f,foeScaling.hp))));return {...foe,maximum:foe.group.memberHP*size,group:{...foe.group,size},scaled:f};}
- const {swings,mult}=foeOffense(f),avg=(foe.count??1)*((foe.die??4)+1)/2;
+ // A foe that already strikes more than once a turn (a written tale's foe from level 3) keeps its blows and gains more.
+ const base=Number.isInteger(foe.swings)&&foe.swings>1?foe.swings:1;
+ const {swings,mult}=base===1?foeOffense(f):(()=>{const o=Math.pow(f,foeScaling.offense)*base,s=Math.max(base,Math.min(foeScaling.maxSwings,Math.floor(o+0.25)));return {swings:s,mult:o/s};})(),avg=(foe.count??1)*((foe.die??4)+1)/2;
  return {...foe,maximum:Math.round(foe.maximum*Math.pow(f,foeScaling.hp)),swings,bonus:Math.max(0,Math.round((avg+(foe.bonus??0))*mult-avg)),scaled:f};
+}
+// The creature's blows against a hero who fights it alone, by the hero's class (foeScaling.alone): a softer bonus to
+// its damage, never below +0 and never harder than written. Worked out live, nothing kept; a party, or anyone fighting
+// beside the hero, is met as foeScaling says instead.
+export function aloneFoe(foe,hero,game){
+ const w=foeScaling.alone[hero?.class]??1;
+ if(!foe||!(w<1)||(game?.party?.members&&typeof game.party.lead==='string')||fightingCompanions(game).length)return foe;
+ const avg=(foe.count??1)*((foe.die??4)+1)/2,bonus=Math.max(0,Math.round((avg+(foe.bonus??0))*w-avg));
+ return bonus>=(foe.bonus??0)?foe:{...foe,bonus};
 }
 // Who the creature goes for: usually you, sometimes a companion beside you. In a party every standing hero is as
 // likely as you (companions draw a quarter of the blows when there are any).

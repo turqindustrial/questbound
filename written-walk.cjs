@@ -38,7 +38,7 @@ function walkTale({r,story,hero,heroAt=null,steps=null,mode='steps',seed=1,level
   if(done()&&before.story.status==='active')chapters.push({chapter:chapter+1,moves,byClock:byClock(),ending:game.pace?.ending??null});
   check();
   if(levelUps&&heroAt&&!fighting(game)&&r.levelUpReady(game,hero)){
-   const next=heroAt(hero.level+1);let advanced=r.advancedInPlace(game,hero,next);advanced=r.foeForLevel(advanced,next.level);advanced=r.levelCompanions(advanced,next.level);
+   const next=heroAt(hero.level+1);let advanced=r.advancedInPlace(game,hero,next);advanced=r.foeForLevel(advanced,next.level,next.class);advanced=r.levelCompanions(advanced,next.level);
    game=advanced;hero=next;health=null;levels++;note('level','Level '+next.level+'.');check();
   }
   return settled;

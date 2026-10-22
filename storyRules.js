@@ -3,12 +3,12 @@ import {validGeography,makeGeography,landmarkPlaces,farLandPlaces,terrains,place
 import {genders,npcClassList,companionLevelFor} from './npcRules';
 import {magicItems} from './lootRules';
 import {heroXp,xpForLevel} from './experienceRules';
-import {validStaging,validWrittenTag,seatStaging} from './stagingRules';
+import {validStaging,validWrittenTag,seatStaging,fightShape} from './stagingRules';
 import {appendJournal,journalForGame} from './journalRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
  const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
- return !!f&&int(f.maximum,1,500)&&int(f.ac,5,30)&&int(f.attackBonus,-5,20)&&[4,6,8,10,12].includes(f.die)&&int(f.count,1,6)&&int(f.bonus,-5,20)&&damageTypes.includes(f.type)
+ return !!f&&int(f.maximum,1,500)&&int(f.ac,5,30)&&int(f.attackBonus,-5,20)&&[4,6,8,10,12].includes(f.die)&&int(f.count,1,6)&&int(f.bonus,-5,20)&&damageTypes.includes(f.type)&&(f.swings===undefined||int(f.swings,1,4))
   &&!!f.saves&&Object.entries(f.saves).every(([k,v])=>['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'].includes(k)&&int(v,-10,20))
   &&(f.group===undefined||(int(f.group.size,2,6)&&int(f.group.memberHP,1,200)&&f.maximum===f.group.size*f.group.memberHP&&typeof f.group.plural==='string'&&f.group.plural.length>0&&f.group.plural.length<=80));
 }
@@ -85,7 +85,8 @@ export function validErrand(e){
 }
 // Creatures an errand may send a hero against. Below third level one of them, never a pack or the orc (the errand is
 // often a new hero's first fight): a pack or orc the writer chose anyway becomes a lighter creature of its kind.
-const errandSingles={zombies:'skeleton',wolves:'wolf',orc:'goblin'},errandKinds=['bandit','wolf','goblin','skeleton','boar','spider'],errandStrong=[...errandKinds,'orc','zombies','wolves'];
+export const errandSingles={zombies:'skeleton',wolves:'wolf',orc:'goblin'};
+const errandKinds=['bandit','wolf','goblin','skeleton','boar','spider'],errandStrong=[...errandKinds,'orc','zombies','wolves'];
 // The errand's place: the landmark it names, else the first risky one, else the first. Returns the places with that one
 // held by the errand's creature, and the errand as the story keeps it (null when there is no errand to be had).
 export function errandPlaces(written,places,hero){
@@ -138,10 +139,10 @@ export function levelUpReady(game,hero){
  return ['inn','bridge','tower','wild','victory'].includes(game.stage)&&!game.npcCombat?.active&&!game.dungeon?.active&&!game.wildFight&&!game.pendingSpell&&!game.turnOrder;
 }
 // The story's foe grows with a hero who levels before meeting it; once the fight has been joined it stays as it is.
-export function foeForLevel(game,level){
+export function foeForLevel(game,level,cls=null){
  const stats=game?.story?.foeStats;
  if(!stats||stats.group||game.foeFate||game.wildFight||game.enemyHP!==stats.maximum)return game;
- const grown=storyFoeStats(level,stats.type);
+ const grown=game.story.staging!==undefined?storyBossStats(level,stats.type,game.party?null:cls,game.story.staging):storyFoeStats(level,stats.type);
  return grown.maximum<=stats.maximum?game:{...game,story:{...game.story,foeStats:grown},enemyHP:grown.maximum};
 }
 // A new hero's first steps: up to 2nd level, a foe's blows (the creatures by the road, a pack's members, the tale's
@@ -154,6 +155,37 @@ export const easedBonus=(bonus,level)=>(level??1)<=foeEase.upToLevel?Math.max(0,
 export function storyFoeStats(level=1,type='Slashing'){
  const up=Math.max(0,Math.min(19,(level??1)-1));
  return {maximum:18+10*up,ac:12+Math.floor(up/4),attackBonus:3+Math.floor(up/2),die:6,count:1+Math.floor(up/5),bonus:easedBonus(1+Math.floor(up/3),level),type:damageTypes.includes(type)?type:'Slashing',saves:{Strength:1,Dexterity:2+Math.floor(up/4),Constitution:1,Intelligence:0,Wisdom:Math.floor(up/4),Charisma:0}};
+}
+// A written tale's foe (the stories spec, Phase C, 2026-10-22: the foe was one stat block that a Fighter beat every
+// time, keeping most of their hit points): the climax of a tale someone wrote by hand, so it has more hit points than
+// a story foe of its level and, from level 3, a second blow a turn. Its minions, its turn at half its hit points and
+// its timers are the staging's (stagingRules.js). Provisional, tuned with balance-check.cjs --tale against the
+// targets of WRITTEN-TALES.md 13 (check 8); foeEase applies as it does to every foe.
+// `hp`: its hit points against a story foe's, by level (the last for every level after); `secondFrom`: the level from
+// which it strikes twice a turn; `alone`: against a hero who meets it alone, its hit points by the hero's class (the
+// stories spec asked for the foe tuned per class: one stat block was a formality for a Fighter and a death for a Wizard).
+// At a table (`cls` null) the party's own scaling does that work (encounterRules.js foeScaling).
+// `alone` by class (levels 1 to 8, the last for every level after), from balance-check.cjs runs of the ready-made
+// heroes (2026-10-22): the second blow only for those who stand in front (a Rogue, a Wizard or a Cleric alone fell in
+// most fights against two blows a turn), and hit points that keep each class within the targets as nearly as one
+// stat block can. Classes with no ready-made hero take the nearest one's.
+// A foe with a shape spends some of its strength on it (`budget`: its minions, a rage or help it calls are part of the
+// same fight, not a second one): its hit points shrink by `minion` for each minion that stands beside it at this level,
+// and by `rage` or `call` for its turn at half.
+// At a table (`hp`, `secondFrom`) the foe gains its blows from the side's scaling (encounterFoe), so it keeps one of its
+// own: two blows a turn, scaled for a party of two, made four, and a pair with a Wizard lost nearly every fight.
+export const bossShape={hp:[1.3],secondFrom:99,alone:{},minion:0.2,rage:0.85,call:0.9};
+{const front={hp:[2.5,2.5,1.6,1.6,2.5,1.6,1.5,1.3],second:3},quick={hp:[1.1,1.6,1.6,1.3,1.1,0.7,0.7,0.7],second:99},learned={hp:[0.9,0.9,1.3,1.1,1.3,0.8,0.8,0.75],second:99},faithful={hp:[0.9,1.1,1.3,1.3,1.6,1.3,1.3,1.2],second:99};
+ Object.assign(bossShape.alone,{Fighter:front,Barbarian:front,Paladin:front,Rogue:quick,Monk:quick,Bard:quick,Warlock:quick,Wizard:learned,Sorcerer:learned,Cleric:faithful,Druid:faithful,Artificer:faithful,Ranger:faithful});}
+export function bossBudget(staging,level=1){
+ const b=staging?.boss;if(!b||typeof b!=='object')return 1;
+ const n=level>=fightShape.minionsFrom&&Array.isArray(b.minions)?Math.min(2,b.minions.length):0,kind=b.bloodied?.kind;
+ return Math.max(0.4,(1-bossShape.minion*n)*(kind==='rage'?bossShape.rage:kind==='call'&&level>=fightShape.callFrom?bossShape.call:1));
+}
+export function storyBossStats(level=1,type='Slashing',cls=null,staging=null){
+ const base=storyFoeStats(level,type),l=Math.max(1,Math.min(20,level??1)),own=bossShape.alone[cls]??null,at=list=>Array.isArray(list)?list[Math.min(list.length,l)-1]:list;
+ const mult=at(own?.hp??bossShape.hp)*bossBudget(staging,l),second=own?.second??bossShape.secondFrom;
+ return {...base,maximum:Math.max(1,Math.min(500,Math.round(base.maximum*mult))),...(l>=second?{swings:2}:{})};
 }
 // What the story writer may add that the game checks piece by piece: anything malformed is dropped, not refused.
 function tidyStory(written){
@@ -192,14 +224,14 @@ function retell(s,text){
  return text.replace(/You retreat to the inn\. The bridge remains dark, but you live to try again\./g,`You retreat to ${s.locations.inn.name}. The ${s.foe} is still out there, but you live to try again.`).replace(/\bThe keeper\b|\bthe keeper\b|\bkeeper\b/g,s.npcs.keeper.name).replace(/\bMara\b/g,s.npcs.mara.name).replace(/\bLantern Wisp\b|\bthe wisp\b|(?<!Starry )\bwisp\b/gi,s.foe).replace(/Crossroads Inn|crossroads inn/gi,s.locations.inn.name).replace(/\bOld Stone Bridge\b|\bthe bridge\b|\bbridge\b/gi,s.locations.bridge.name).replace(/\bAbandoned Watchtower\b|\bthe watchtower\b|\bwatchtower\b/gi,s.locations.tower.name)
  .replace(/You collapse\. .*?This demo ends here\./g,'You fall unconscious. This encounter ends.').replace(/.*(?:restored the crossing|wisp settles|missing bridge light).*\n?/gi,'');
 }
-export function freshStoryGame(hero,written,base){
+export function freshStoryGame(hero,written,base,{party=false}={}){
  if(!written||typeof written!=='object'||!written.locations||!written.npcs)throw Error('The new story was incomplete. Your current adventure is unchanged.');
  // Every story gets its own geography (from the writer's layout, or drawn from the story itself) and may mark a
  // few places on the map from the start. The people who live in its country, the errand (Easy to get into) and the
  // opening's lines are seated below, once the places are known; none of them is kept in the story as written.
  const {residents,errand:orders,openingDialogue:said,...told}=written;
  const {story,landmarks,lands}=tidyStory(told);
- if(!story.foeStats)story.foeStats=storyFoeStats(hero?.level??1,story.foeDamageType);
+ if(!story.foeStats)story.foeStats=story.staging!==undefined?storyBossStats(hero?.level??1,story.foeDamageType,party?null:hero?.class,story.staging):storyFoeStats(hero?.level??1,story.foeDamageType);
  if(!validStory(story))throw Error('The new story was incomplete. Your current adventure is unchanged.');
  const first=story.chapters?.[0];
  let game={...base,story,map:{visited:['inn'],accepted:true,clue:false,peaceful:false,minutes:0},enemyHP:story.foeStats.maximum,journal:{version:1,chapter:1,nextId:2,entries:[{id:1,chapter:1,kind:'quest',title:story.title,text:(story.opening+'\nGoal: '+story.objective+(first?'\nChapter 1: '+first.title+'. '+first.goal:'')).slice(0,3000)}]},log:[story.opening],worldFacts:[story.premise],

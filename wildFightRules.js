@@ -11,7 +11,7 @@ import {proficiencyBonus} from "./characterRules";
 import {updateHealth} from "./healthRules";
 import {sparedBlow} from "./deathRules";
 import {arrowsLeft,spendArrow,spendThrown} from "./inventoryRules";
-import {alliesScatter,endWildFight,allFoeTemplates,naturalAllies,startWildFight,validFoeSketch,hurtAlly,aimedAlly,fightingCompanions,allyStats,shieldBlow,heroConditions,livingAllies,undeadFortitude,companionsAttack,partyTargets,pickFoeTarget,foeRoundMoves,foeAttackMode,foeHitsCompanion,foeHitExtras} from "./encounterRules";
+import {aloneFoe,alliesScatter,endWildFight,allFoeTemplates,naturalAllies,startWildFight,validFoeSketch,hurtAlly,aimedAlly,fightingCompanions,allyStats,shieldBlow,heroConditions,livingAllies,undeadFortitude,companionsAttack,partyTargets,pickFoeTarget,foeRoundMoves,foeAttackMode,foeHitsCompanion,foeHitExtras} from "./encounterRules";
 import {offhandWeapons,masteryOf,withinGrip,creatureSize,grappledBy,holding,letGo,unarmedDC,unarmedSave,withMark,heroIdOf,heroEdge,edgeMode,isLight,markOf,endHeroTurn,creatureTurnStarts,foeEdge,boonKeyOf,sapSpent,sapsEnd} from "./masteryRules";
 import {packMagic,magicItems} from "./lootRules";
 import {subclassAction,subclassUsesLeft,subclassRiderRoll,subclassPassive,subclassWardRoll} from "./subclassRules";
@@ -21,6 +21,8 @@ import {attackBoost,helpless,spendGuidance,wokenByHarm,spellTurnStarts,charmedBy
 import {withDefenses,defended,riderDamage} from "./spellDamageRules";
 import {spellDefense,wardEdge,shieldReaction,resistedDamage,heroTurnBegins} from "./spellBuffRules";
 import {lastingTurn} from "./lastingSpellRules";
+import {fightFloor} from "./stagingRules";
+import {errandSingles} from "./storyRules";
 // A fight at a found place is over (won, fled or fallen): the step's lines and the game are told and left as it ends.
 export function wildFightEnds(game, result) {
   const w = game.wildFight, outcome = result.game.stage === 'victory' ? 'won' : result.game.stage === 'escaped' ? 'fled' : 'fell';
@@ -39,7 +41,10 @@ export function arrivalAmbush(game, result, hero, random) {
   const place = worldPlace(result.game, result.game.world.at), first = !mapState(game).visited.includes(place.id);
   let foe = place.threat ? {template: place.threat.template, name: place.threat.name, appearance: place.threat.appearance, ...(place.threat.ally ? {ally: place.threat.ally} : {})} : null, hpLeft = place.threat?.hp ?? null;
   if (!foe && first && place.danger === 'risky' && random() < 0.4) {
-    const pool = allFoeTemplates().filter(f => !(combatBasics(hero).hp < 10 && (hero.level ?? 1) <= 2 && (f.group || f.key === 'orc')));
+    // Below level 3 no pack and no orc springs out (as for an errand's lair: storyRules.js errandSingles), whatever the
+    // hero's class (until 2026-10-22 only a hero under 10 hit points was spared them: a level-1 Fighter fell to an orc
+    // in one fight in four).
+    const pool = allFoeTemplates().filter(f => !((hero.level ?? 1) <= 2 && (f.group || f.key === 'orc')));
     const pick = pool[Math.floor(random() * pool.length)];
     foe = {template: pick.key, name: pick.foe, appearance: pick.appearance};
     // From level 2, a bandit may come with a hound, a goblin with a worg, an orc with a goblin.
@@ -69,7 +74,9 @@ export function ambushStep(step) {
     health,
     error: 'You need to recover first.'
   };
-  const ambush = startWildFight(game, hero, action.foe, {place: game.world.at, from: game.world.at});
+  // Below level 3 a pack or the orc the Dungeon Master sends is a lighter creature of its kind (as an errand's lair is).
+  const lighter = (hero.level ?? 1) < 3 && errandSingles[action.foe.template] ? {...action.foe, template: errandSingles[action.foe.template]} : action.foe;
+  const ambush = startWildFight(game, hero, lighter, {place: game.world.at, from: game.world.at});
   ambush.game.log = [...ambush.entries, ...game.log].slice(0, 40);
   return {
     game: ambush.game,
@@ -85,6 +92,10 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
   const {game, health, hero, action, random, turnOptions, stats, foe, entries} = step;
   let {next, hp} = step;
   let turnOver = false, dodged = false;
+  // A written tale's hold (stagingRules.js fightFloor): until it has been held, the foe cannot be brought below 1 HP.
+  const floor = fightFloor(game);
+  let heldUp = false;
+  const holdUp = () => { if (floor > 0 && next.enemyHP < floor) { next.enemyHP = floor; if (!heldUp) { heldUp = true; entries.push('The ' + foe.name.replace(/^the /i, '') + ' reels but will not go down yet.'); } } };
   if (hp.current === 0) return {
     game: {
       ...game,
@@ -341,6 +352,7 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
       bonusAction = true;
       nickNow = nick;
     }
+    holdUp();
     const fortitude = undeadFortitude(next, foe, random, finalBlow);
     next = fortitude.game;
     if (fortitude.line) entries.push(fortitude.line);
@@ -350,6 +362,7 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
       entries.push('The wisp settles into the lantern. Warm light spills over the bridge. You have restored the crossing!');
     }
   }
+  if (next.stage === 'combat') holdUp();
   if (next.stage === 'combat' && next.enemyHP === 0 && !turnOptions.enemyOnly) {
     const fortitude = undeadFortitude(next, foe, random, spellResult?.damage > 0 ? {damage: spellResult.damage, type: automaticEffects[action?.request?.id ?? game.pendingSpell?.id]?.type} : null);
     next = fortitude.game;
@@ -391,13 +404,15 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
     const helped = companionsAttack(next, foe, random, subclassPassive(hero).companionBonus === 'proficiency' ? proficiencyBonus(hero.level) : 0);
     next = helped.game;
     entries.push(...helped.lines);
+    holdUp();
     if (next.enemyHP === 0) {
       const fortitude = undeadFortitude(next, foe, random);
       next = fortitude.game;
       if (fortitude.line) entries.push(fortitude.line);
     }
+    // Companions follow the hero's lead: a foe the hero set out to take alive is beaten, not slain.
     if (next.enemyHP === 0) {
-      next.foeFate = 'slain';
+      next.foeFate = game.subdue ? 'subdued' : 'slain';
       next.stage = 'victory';
       entries.push('The wisp settles into the lantern. You have restored the crossing!');
     }
@@ -509,7 +524,7 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
     let allyDowned = null;
     for (const ally of livingAllies(next)) {
       if (!fightOn()) break;
-      const a = allyStats(next, ally.index, hero.level ?? 1), allyBegins = lastingTurn(next, 'ally:' + ally.index, 'start', {...a, name: 'The ' + a.name}, random);
+      const a = aloneFoe(allyStats(next, ally.index, hero.level ?? 1), hero, next), allyBegins = lastingTurn(next, 'ally:' + ally.index, 'start', {...a, name: 'The ' + a.name}, random);
       next = allyBegins.game;
       entries.push(...allyBegins.lines);
       if (!(next.foeAllies?.[ally.index]?.hp > 0)) continue;
@@ -579,6 +594,7 @@ export function creatureRound(step, spellResult, aim, aimedFoe) {
     if (hp.current === 0) delete next.concentration;
   }
   // The foe dropped on its own turn by a lasting spell (burning, a held area).
+  if (next.stage === 'combat') holdUp();
   if (next.stage === 'combat' && next.enemyHP === 0) {
     const fortitude = undeadFortitude(next, foe, random);
     next = fortitude.game;

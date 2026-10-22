@@ -115,7 +115,7 @@ export function partyInTale(snapshot,lead,story,introId){
  const settled=settleParty(snapshot),host=settled.members[lead];
  if(!host||host.status==='dead')return {error:'Bring a living hero to the table before choosing its tale.'};
  const view=partyView(snapshot,lead),hero=parse(view.character);if(!hero)return {error:'Your hero could not be read.'};
- let game;try{game=freshStoryGame(hero,{...story,introId},newAdventure(hero,carriedBase(view.game)));}catch{return {error:'That tale could not be set up for the table. Choose another.'};}
+ let game;try{game=freshStoryGame(hero,{...story,introId},newAdventure(hero,carriedBase(view.game)),{party:true});}catch{return {error:'That tale could not be set up for the table. Choose another.'};}
  const lived=[...(view.game.storyHistory??[]),view.game.story?.title].filter(t=>typeof t==='string'&&t);
  if(lived.some(t=>t.toLowerCase()===game.story.title.toLowerCase()))return {error:'This table has already lived that tale. Choose another.'};
  game.storyHistory=[...new Set([...lived,game.story.title])].slice(-100);

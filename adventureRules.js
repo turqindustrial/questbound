@@ -14,7 +14,7 @@ import {placeName} from "./mapRules";
 import {journalForGame} from "./journalRules";
 import {recordConsequences,recordDeed} from "./relationshipRules";
 import {gearedHero,gatherThrown,setShield} from "./inventoryRules";
-import {partyHeroName,companionAid,allyStats,livingAllies,aimedAlly,sideStrength,foeScaleKey,foeScaleOf,scaledFoe} from "./encounterRules";
+import {partyHeroName,companionAid,allyStats,livingAllies,aimedAlly,sideStrength,foeScaleKey,foeScaleOf,scaledFoe,aloneFoe,alliesScatter} from "./encounterRules";
 import {isPartyGame} from "./partyRules";
 import {fightOver} from "./masteryRules";
 import {withSpoils,takeSpoils} from "./lootRules";
@@ -30,7 +30,7 @@ import {endSpellMarks} from "./spellConditionRules";
 import {withDefenses} from "./spellDamageRules";
 import {tickBuffs} from "./spellBuffRules";
 import {spellAgain,moveMark,markGone} from "./lastingSpellRules";
-import {taleChoiceStep,bossBlocked} from "./stagingRules";
+import {taleChoiceStep,bossBlocked,withFightShape,bossRaged} from "./stagingRules";
 // A pack carried into a new adventure: arrows shot stay spent, thrown weapons are back in hand.
 function thrownPickedUp(pack){
   if(!pack?.spent||Object.keys(pack.spent).every(k=>k==='Arrow'))return pack;
@@ -60,7 +60,10 @@ export const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,
   export function encounterFoe(hero, game) {
     // With what it is immune or vulnerable to (spellDamageRules.js creatureDefenses: the undead take no Poison, a skeleton
     // breaks under Bludgeoning).
-    return withDefenses(game, 'foe', scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game)));
+    // A written tale's foe in a rage (stagingRules.js bossRaged) strikes once more a round; a hero fighting alone meets
+    // blows sized to their class (encounterRules.js aloneFoe).
+    const scaled = scaledFoe(baseEncounterFoe(hero, game), foeScaleOf(game)), raged = bossRaged(game) && !scaled.group ? {...scaled, swings: (scaled.swings ?? 1) + 1} : scaled;
+    return withDefenses(game, 'foe', aloneFoe(raged, hero, game));
   }
   // A fight under way against a bigger side than it was written for: the foe's scale is set (or raised, when someone
   // joins) and its hit points (and any creature at its side) grow in proportion. Never lowered mid-fight.
@@ -179,6 +182,13 @@ export const fall=(game,source,overflow,maximum,who)=>fallAtZero(game,{overflow,
     // In a party, a hero who falls leaves the fight to the others while anyone stands (partyRules.js stageAfterFall).
     const partyFightsOn = isPartyGame(result.game) && ['dying', 'dead'].includes(result.game.stage) && anyoneStanding(result.game);
     if (game.wildFight && result.game.wildFight && result.game.stage !== 'combat' && !partyFightsOn) wildFightEnds(game, result);
+    // The creatures beside the tale's own foe (its minions: stagingRules.js) leave with the fight: they flee once it falls.
+    else if (!result.game.wildFight && result.game.foeAllies && result.game.stage !== 'combat' && !partyFightsOn) {
+      const gone = result.game.stage === 'victory' ? alliesScatter(result.game) : {game: {...result.game}, lines: []};
+      delete gone.game.foeAllies;
+      result.game = {...gone.game, log: [...gone.lines, ...(gone.game.log ?? [])].slice(0, 40)};
+      result.events = [...result.events, ...gone.lines];
+    }
     // Tricks and conditions belong to one fight.
     if (result.game.stage !== 'combat' && (result.game.heroCondition || (result.game.foeTricks && !partyFightsOn))) {
       result.game = {...result.game};
@@ -422,7 +432,9 @@ export function adventureStep(game,health,hero,action,random=Math.random){
  // Whatever fell in this step (a creature, a lair's owner, the tale's foe, a person) can be searched afterwards; an
  // errand whose place this step cleared closes its chapter (withErrandFound), so the preview a device or the campaign
  // server asks the Dungeon Master to tell already holds the find.
- return withErrandFound(withSpoils(game,result,hero),hero,game);
+ // A written tale's fights have a shape (stagingRules.js withFightShape): the foe's minions, the foe bloodied, a set
+ // piece's or the foe's deadline and hold.
+ return withErrandFound(withSpoils(game,withFightShape(game,result,hero),hero),hero,game);
 }
 // The errand closes where it is found (the stories spec, Phase A3, 2026-10-22): a tale with an errand and no staging of
 // its own closes chapter 1 once the errand's place is cleared (its lair won), out of a fight, so its find (the chapter's

@@ -314,7 +314,7 @@ function QuestboundApp() {
     // everything else untouched (the party at a shared table too), and a main foe not yet met grows to match.
     try{
       let advanced=advancedInPlace(game,hero,character);
-      advanced=foeForLevel(advanced,character.level);
+      advanced=foeForLevel(advanced,character.level,character.class);
       // Companions come along a step behind: one level below the hero.
       advanced=levelCompanions(advanced,character.level);
       advanced.journal=appendJournal(advanced.journal??game.journal,'level','Level gained',`${character.name} reached level ${character.level}.`);advanced.storyLog=appendStoryLog(game.storyLog,'level',`${character.name} reached level ${character.level}.`);

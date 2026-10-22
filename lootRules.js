@@ -177,6 +177,8 @@ export function withSpoils(before,result,hero){
   const kind=foeKind(before),place=sceneLocation(after);
   if(kind)found.push({kind:'creature',template:kind,name:trimmed(before.story.foe,60),place,...(foeTemplate(kind)?.group?{count:Math.min(4,foeTemplate(kind).group.size)}:{})});
   else if(spoilText(before.story.foe,60))found.push({kind:'boss',name:before.story.foe.trim(),place});
+  // The creatures that stood beside it (a written tale's minions: stagingRules.js), those slain.
+  for(const a of before.foeAllies??[])if(templateKeys.includes(a.template)&&(a.hp===0||(result.events??[]).some(t=>t===`The ${a.name} is slain.`)))found.push({kind:'creature',template:a.template,name:trimmed(a.name,60),place,ally:true});
  }
  // People who fell to the hero (dead or senseless), never a companion who was at their side.
  for(const id of Object.keys(after.npcFate??{})){

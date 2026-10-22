@@ -49,6 +49,14 @@ const out=r.adventureStep(camp,big,kara,{type:'discover',place:{...risky,danger:
 const sprung=r.commitDmTurn(kara,out,big,{type:'ambush',foe:{template:'boar',name:'Tusked Brute',appearance:'A boar with tusks like sickles and a hide like old bark.'}},{question:'I kick the sleeping boar.',narration:'It wakes, furious.'},()=>0.5);
 assert.equal(sprung.error,undefined);assert.equal(sprung.game.wildFight.name,'Tusked Brute');assert.equal(sprung.game.openingAttackAvailable,true);
 assert.match(r.adventureStep(camp,big,kara,{type:'ambush',foe:{template:'boar',name:'Tusked Brute',appearance:'x x x'}},()=>0.5).error,/out in the wilds/);
+// Below level 3 (the stories spec, Phase C, 2026-10-22: a level-1 Fighter fell to an orc one fight in four): an orc or a
+// pack the Dungeon Master sends comes as a lighter creature of its kind, as an errand's lair does; and no pack or orc
+// springs out of a risky place, whatever the hero's class.
+{const orcish=r.commitDmTurn(kara,out,big,{type:'ambush',foe:{template:'orc',name:'Tusker the Marauder',appearance:'A towering brute in rusted mail with a notched axe.'}},{question:'I shout at it.',narration:'It turns.'},()=>0.5);
+ assert.equal(orcish.game.wildFight.template,'goblin','an orc below level 3 comes as goblins');assert.equal(orcish.game.wildFight.name,'Tusker the Marauder','under its own name');
+ const pack=r.commitDmTurn(kara,out,big,{type:'ambush',foe:{template:'wolves',name:'Grey Pair',appearance:'Two grey wolves with torn ears.'}},{question:'I wait.',narration:'They come.'},()=>0.5);assert.equal(pack.game.wildFight.template,'wolf');
+ const seen=new Set();for(let i=0;i<20;i++){const a=r.adventureStep(camp,big,kara,{type:'discover',place:risky,travel:true},seq([0.1,i/20]));if(a.game.wildFight)seen.add(a.game.wildFight.template);}
+ assert.ok(seen.size>=4&&![...seen].some(t=>['orc','goblin','zombies','wolves'].includes(t)),'no pack and no orc below level 3: '+[...seen]);}
 assert.equal(r.dmContext(kara,out,big).world.canAmbush,true);assert.equal(r.dmContext(kara,camp,big).world.canAmbush,false);
 // ---- Falling out there ----
 const doomed=r.adventureStep({...found.game,openingAttackAvailable:false,potions:0,resources:{wind:2}},{current:1,temp:0},kara,'dodge',()=>0.9);
@@ -93,4 +101,4 @@ else assert.fail('Setup: the hero should be dying ('+dying.game.stage+')');
 // Chips and art keep up with the creature.
 assert.ok(r.quickActions(kara,found.game).some(a=>a.label==='Greatsword'));
 assert.equal(r.storyText(found.game,'The Grey Widow attacks with disadvantage this turn.'),'The Grey Widow attacks with disadvantage this turn.');
-console.log('Passed: lairs, risky arrivals and DM ambushes, winning (story foe untouched), fleeing and returning wounded, falling in the wilds, all nine signature moves, companions striking and being struck, and a companion pulling a dying hero to safety.');
+console.log('Passed: lairs, risky arrivals and DM ambushes (lighter below level 3), winning (story foe untouched), fleeing and returning wounded, falling in the wilds, all nine signature moves, companions striking and being struck, and a companion pulling a dying hero to safety.');
