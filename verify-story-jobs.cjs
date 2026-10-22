@@ -47,7 +47,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  await generate({input:'Create',context:{mode:'adventure',introId:'crown',choices:[],job:'verify-job-000000000002'}},{...keys,fetchImpl:bad});await tick();
  assert.match((await ask({mode:'art',storyJob:'verify-job-000000000002'})).error,/incomplete/);
  // ---- The Dungeon Master is told how a long tale is run ----
- assert.match(questInstructions,/THE LONG TALE:/);assert.match(questInstructions,/story-advance/);assert.match(questInstructions,/lead-done/);assert.match(questInstructions,/a chapter takes many turns/);
+ assert.match(questInstructions,/THE LONG TALE:/);assert.match(questInstructions,/story-advance/);assert.match(questInstructions,/lead-done/);assert.match(questInstructions,/Pace by the tale's length/);assert.match(questInstructions,/tell the truth in that very reply as something seen or said/);
  let turnRequest=null;await generate({input:'I look around.',context:{choices:[]}},{apiKey:'k',model:'m',fetchImpl:async(url,options)=>{turnRequest=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({narration:'You look.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null})}]}]})};}});
  assert.ok(requestParts(turnRequest).instructions.includes(questInstructions));
  // ---- A greeting that comes back as spoken words alone is whole ----

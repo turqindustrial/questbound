@@ -160,7 +160,111 @@ export function greeting(game,id,hero){
  // The same person does not say the same line twice running, and nobody says another's line.
  const said=new Set((game?.playback??[]).slice(-2).flatMap(t=>t.events.filter(e=>e.kind==='dialogue').map(e=>e.text)));
  const {mood,line}=standInGreetings(game,hero)[id]??poolLine(game,id,hero,said);
- return {mood,scene:'You turn to '+name+'.',aside:greetingAside(game,id,hero,mood),line};
+ // Someone the hero has never talked with, and not set against them, shows what they are after (greetingAgenda).
+ const aside=greetingAside(game,id,hero,mood),agenda=openMoods.includes(mood)&&mood!=='following'&&!spokeBefore(game,id)?greetingAgenda(game,id):'';
+ return {mood,scene:'You turn to '+name+'.',aside:agenda?aside+' '+agenda:aside,line};
+}
+// What someone met for the first time is after, in the aside (the stories spec, Phase A8, 2026-10-22: the game's written
+// greeting took the place of the Dungeon Master's, which was where a person's agenda used to surface), so the Dungeon
+// Master's first reply, which reads the feed, carries it on. Only a public want: something they would say or show to a
+// stranger, never a secret (the project review and the deployment check, 2026-10-22: hooks and motives are written for
+// the Dungeon Master, and "Calven is plainly hoping to … without drawing attention to himself" gave away a hidden prince,
+// "Milly was paid to keep quiet about a cellar" and "a crime from his youth" others). Safe by design:
+// - Told from a want (the motive), never from a hook: a library person's hook is by nature their secret thread ("cannot
+//   report it without exposing…"), and its words cannot show which hook is public (on the host's library, 7 of the 18
+//   hooks with none of the words below still held a secret: a predator fed under the ferry, a bell wagered away, a grave
+//   marker moved, a lord's forged will).
+// - Whose want: keeper's or mara's motive, or the library's own motive of someone met from the people library (who
+//   carries its hook too); never a resident's (the story writer's residents carry the tale's secrets in their motives).
+// - Nothing at all when the whole motive (not just the part said) touches secrecy, crime, deception, a hidden past or
+//   name, love kept from others, blackmail, bribes, theft, betrayal, debts and what is owed or borrowed, what someone
+//   saw, knows or must not learn, shame, blame, amends, curses, pacts and dreams, fear, or the hero, the party,
+//   outsiders and strangers (`agendaHush`). No agenda is better than a risky one, so the hush is wide on purpose.
+// - Only the want's first clause is said (cut before "even if", "without", "before", "while", "though" and the like),
+//   by name in a frame ("Oona is hoping to …"); never "you". verify-agendas.cjs runs it over the host's people library.
+const motiveNotVerb=/^(?:a|an|the|his|her|their|its|my|our|your|they|he|she|it|i|we|someone|something|nothing|no|not|to|for|wants?|needs?|is|was|has|had|being|only|just|very|more|most)\b/i;
+const agendaHushWords=[
+ // secrecy, hiding and keeping quiet
+ 'secret\\w*','hid','hid(?:e|es|den|ing)','hideout\\w*','conceal\\w*','disguis\\w*','cover(?:s|ed|ing)?','covert\\w*','private\\w*','quietly',
+ '(?:keep|keeps|kept|keeping|stay|stays|stayed|staying) (?:it |this |that |\\w+ )?quiet','quiet about','hush\\w*','suppress\\w*',
+ 'silen(?:ce|ced|ces|cing|t) (?:about|on|him|her|them)','say nothing','says nothing','said nothing','tell no one','tells no one',
+ 'anonym\\w*','nameless','unnamed','a certain','unseen','undiscover\\w*','unnoticed','undetected','buri(?:ed|es)','bury\\w*','sealed',
+ 'locked away','alone','unaware','privy',
+ // what someone saw, knows, or must not learn
+ 'knows?','knew','known','remembers?','suspect\\w*','recogni[sz]\\w*','witness\\w*','overh(?:ear|eard|ears)','eavesdrop\\w*',
+ 'what (?:he|she|they|it) (?:saw|did|does|witnessed|heard|found|took|was|were|is|are)','who (?:he|she|they) (?:was|were|is|are|used to be|really)',
+ '(?:anyone|anybody|nobody|no one|someone|everyone|people|others|family|kin|kinsfolk|relatives?|crew|camp|town|village|neighbou?rs?|owner|rival|patron|lord|officials?|creditors?|customers?|apprentice|master|parents?|husband|wife|brother|sister|sibling)\\s+(?:\\w+\\s+)?(?:learn\\w*|discover\\w*|notic\\w*|find(?:s|ing)? out|found out|realis\\w*|realiz\\w*|knows?|suspect\\w*|asks?|sees?|hears?|catch\\w*|expects?)',
+ '(?:before|without|until|unless|lest|so that|in case)\\b[^,;.]*?\\b(?:learn\\w*|discover\\w*|notic\\w*|find(?:s|ing)? out|found out|realis\\w*|realiz\\w*|reveal\\w*|expos\\w*|admit\\w*|explain\\w*|mention\\w*|discuss\\w*|guess\\w*|asking|questions?|recall\\w*|connect\\w*|trace\\w*|tracks? (?:him|her|them)|find (?:him|her|them))',
+ 'from\\s+(?:learning|knowing|finding|discovering|seeing|hearing)','nobody (?:knows|asks)','no one (?:knows|asks)','reveal\\w*','expos\\w*','uncover\\w*',
+ 'unmask\\w*','admit\\w*','confess\\w*','explain\\w*','mention\\w*','discuss\\w*','involv\\w*','implicat\\w*','attention','gossip\\w*','rumou?r\\w*',
+ 'scandal\\w*','talk of the',
+ // deception, a false face, a hidden name, origin or past
+ 'lie','lies','lied','lying','liar\\w*','pretend\\w*','preten[cs]e\\w*','false\\w*','fake\\w*','forg(?:e|ed|er|ers|ery|eries|ing)','counterfeit\\w*',
+ 'fraud\\w*','deceiv\\w*','decept\\w*','trick\\w*','cheat\\w*','swindl\\w*','impersonat\\w*','mislead\\w*','misled','feign\\w*','posing','poses? as',
+ 'guise','masquerad\\w*','alias\\w*','insist\\w*','swear\\w*','swore','sworn','den(?:y|ies|ied|ial)','identit\\w*',
+ '(?:true|real|old|other|another|assumed|false|new|chosen|birth|family|fresh|clean) name','names?\\s+(?:he|she|they)\\s+(?:left|chose|abandoned|used|bore|gave up)',
+ 'under (?:a|an|another|his|her|their|the) (?:\\w+ )?name','(?:clear|restore|redeem) (?:his|her|their|my) (?:own |good )?name',
+ 'remov\\w* (?:a |the |his |her |their )?name','eras(?:e|ed|es|ing|ure)','former\\w*','old life','new life','(?:his|her|their) (?:own )?past','the past',
+ 'past life','fresh start','clean (?:start|slate)','start (?:anew|over)','birthright','foundling\\w*','parentage','origins?','bastard\\w*','baby','babe',
+ 'infant','left with (?:her|him|them)','prince\\w*','royal\\w*','throne','crown','title','claim\\w*','reclaim\\w*','abandon\\w*','renounc\\w*','disown\\w*','exile\\w*',
+ 'banish\\w*','cast (?:her|him|them) out','cast out','reputation','disgrac\\w*','dishonou?r\\w*','shame\\w*','ashamed','infam\\w*','notorious',
+ 'dismiss\\w*','stripped of','read','reading','illitera\\w*','letters','unlettered','to disappear','to vanish','lie low','lying low','go to ground',
+ // crime, wrongdoing and blame
+ 'crim(?:e|es|inal\\w*)','steal\\w*','stole','stolen','theft\\w*','thie(?:f|ves|ving)','thief\\w*','rob','robs','robbed','robbing','robber\\w*',
+ 'burgl\\w*','loot\\w*','pilfer\\w*','embezzl\\w*','smuggl\\w*','contraband','poach\\w*','brib\\w*','paid to','(?:was|were|been|is|are) paid',
+ 'hush money','bought','blackmail\\w*','extort\\w*','ransom\\w*','murder\\w*','kill\\w*','slay\\w*','slew','slain','assassin\\w*','poison\\w*',
+ 'arson\\w*','fugitive\\w*','outlaw\\w*','the law','lawm[ae]n','wanted','bount(?:y|ies)','jail\\w*','gaol\\w*','prison\\w*','captur\\w*','escap\\w*',
+ 'fled','flee\\w*','runaway\\w*','gang\\w*','accomplice\\w*','illicit','illegal\\w*','unlawful\\w*','forbidden','taboo','grave[- ]?robb\\w*',
+ 'sabotag\\w*','tamper\\w*','disturbed','framed','frame','guilt\\w*','culprit\\w*','accus\\w*','blam\\w*','prove\\b[^.;]*\\bnever','wrong(?:ed|s|doing)?',
+ 'misdeed\\w*','mistake\\w*','harm(?:ed|s|ing|ful)?','youthful','fail(?:ed|ure|ures)','intimidat\\w*','sin','sins','sinned','crooked','black market',
+ // betrayal and spying
+ 'betray\\w*','traitor\\w*','treach\\w*','turncoat\\w*','informant\\w*','informer\\w*','inform on','spy','spies','spied','spying',
+ 'double[- ]cross\\w*','sold out','sell(?:s|ing)? out','agents?','broke(?:n)? (?:\\w+ )?(?:oath|oaths|vow|vows|promise|promises|word|faith)',
+ 'lur(?:e|ed|es|ing)','ambush\\w*','entrap\\w*','set up','trap(?:s|ped|ping)? (?:him|her|them)',
+ // love kept from others
+ 'lov(?:e|es|ed|er|ers|ing)','beloved','sweetheart\\w*','affair\\w*','tryst\\w*','romanc\\w*','elop\\w*','paramour\\w*','mistress\\w*',
+ 'engag(?:ed|ement\\w*)','betroth\\w*','courting','courtship','suitor\\w*','jilt\\w*',
+ // debts, bargains and what is owed or borrowed
+ 'debt\\w*','creditor\\w*','lender\\w*','loan\\w*','owe','owes','owed','owing','pay(?:s|ing)? off','paid off','repay\\w*','obligation\\w*',
+ 'borrow\\w*','lent','lend\\w*','collateral','pawn\\w*','wager\\w*','gambl\\w*','bargain\\w*','pact\\w*','patron\\w*','favou?rs?','bound','binding','indebted',
+ 'collect(?:s|ed|ing)? (?:on|the|a|what)',
+ // amends, regret, trust lost and fear
+ 'amends','aton\\w*','repent\\w*','redeem\\w*','redemption','forgiv\\w*','regret\\w*','remorse\\w*','penance','trust','confid(?:e|ed|ence|ences)',
+ 'fear\\w*','afraid','dread\\w*','haunt\\w*','again',
+ // curses, pacts, dreams and dangerous gifts
+ 'curse\\w*','dream\\w*','nightmare\\w*','dragon\\w*','demon\\w*','fiend\\w*','devil\\w*','presence','magic\\w*','power','powers','spell\\w*',
+ 'possess\\w*','inherit\\w*',
+ // one creature kept or fed (a hungry marsh creature, the thing below), never the wild creatures of a place
+ '(?:a|an|the|their|his|her|its) (?:\\w+ ){0,2}(?:creature|beast|predator|monster|thing)',
+ // avoidance and pursuit
+ 'avoid\\w*','evad\\w*','dodg\\w*','outrun\\w*','stay(?:s|ing)? ahead','keep(?:s|ing)? ahead','pursu\\w*','hunted','hunting (?:him|her|them)',
+ 'catch(?:es|ing)? up','caught','track(?:s|ed|ing)? (?:him|her|them)','follow(?:s|ed|ing)? (?:him|her|them)',
+ // the hero and their party, outsiders and strangers (a hook's "a stranger must…" means the hero)
+ 'hero','heroes','adventurers?','party','parties','outsiders?','strangers?',
+];
+const agendaHush=new RegExp('\\b(?:'+agendaHushWords.join('|')+')\\b','i');
+const agendaCut=/;|:|\.\s|,\s+(?:and|but|so|yet|or|while|though|whatever|no matter|even|despite|before|until|unless|without)\b|\s+(?:even if|even though|without|though|although|unless|before|until|while|whatever|no matter|despite|so that|and then|but|yet)\s/i;
+// A sentence of the aside starts with a capital ("the keeper" is a name in the old crossroads tale).
+const agendaSentence=t=>t?t[0].toUpperCase()+t.slice(1):t;
+// Whose motive may be told: keeper's or mara's, or the library's own of someone met from the people library (who carries
+// its hook beside it); never a resident's, which is the story writer's, nor anyone the Dungeon Master made up.
+function agendaMotive(game,id,lore){
+ if(id==='keeper'||id==='mara')return String(lore?.motive??'');
+ const p=game?.people?.[id];
+ return p&&!p.resident&&p.pool&&p.hook?String(lore?.motive??''):'';
+}
+export function greetingAgenda(game,id){
+ const lore=npcLore(game,id),whole=String(lore?.name??'').trim();if(!whole)return '';
+ const motive=agendaMotive(game,id,lore).replace(/\s+/g,' ').trim().replace(/[.!]+$/,'');
+ if(!motive||/[?;:"“”]/.test(motive)||agendaHush.test(motive))return '';
+ // "They want to …", "Wants to …", "To …", "Find her brother.": the first clause, as "to …".
+ const plain=motive.split(agendaCut)[0].trim().replace(/[,.!]+$/,'');
+ const wants=/^(?:(?:they|he|she|[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)?)\s+)?(?:wants?|hopes?|needs?|means|longs?|aims?|plans?|intends?|wish(?:es)?|seeks?|(?:is|are) (?:hoping|trying|determined|eager))\s+(to\s+.+)$/i.exec(plain);
+ const bare=/^to\s+\S+\s+\S/i.test(plain)?plain[0].toLowerCase()+plain.slice(1):'';
+ const aim=wants?wants[1]:bare||(/^[A-Za-z]+\s+\S+\s+\S/.test(plain)&&!motiveNotVerb.test(plain)&&!/^[A-Z][a-z]+\s+[A-Z]/.test(plain)?'to '+plain[0].toLowerCase()+plain.slice(1):'');
+ if(!aim||aim.length<12||aim.length>150||/\byou\b/i.test(aim)||agendaHush.test(aim))return '';
+ const called=ideaName(whole),random=seededRandom('agenda:'+id+':'+(game?.story?.id??''));
+ return agendaSentence(called+(random()<0.5?' is hoping ':' looks to be hoping ')+aim+'.');
 }
 // ---------- Greetings at moments the game notices (sceneTriggers.js) ----------
 // Coming back to the tale's starting place, and the morning after a long rest: the people there speak first in a line

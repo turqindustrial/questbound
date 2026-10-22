@@ -135,7 +135,9 @@ export function creatureArtSubject(game){
  // (its artId), so a journey's own errand threat is painted once, not once per copy.
  // Every creature is shown from the host's creature library (creature-library.cjs) by its best fit: the subject says
  // its template, the land it is met in and (a tale's foe) the kind the tale gave it, none of which changes the art key.
- if(game.wildFight){const w=game.wildFight;return {campaignId:artCampaign(game,true),kind:'creature',id:'wild-'+w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:w.name,description:('A creature: '+w.name+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{}),terrain:creatureLand(game,w.place)};}
+ // The creature's name as given ("The Hollow King": encounterRules.js keeps it as wildFight.called), so its picture key is
+ // the one it always had.
+ if(game.wildFight){const w=game.wildFight,called=typeof w.called==='string'&&w.called?w.called:w.name;return {campaignId:artCampaign(game,true),kind:'creature',id:'wild-'+called.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:called,description:('A creature: '+called+'. '+w.appearance).slice(0,1800),setting:(locationArtSubject(game)?.description??'').slice(0,800),...(w.template?{template:w.template}:{}),terrain:creatureLand(game,w.place)};}
  const room=game.dungeon?.active?dungeonRooms[game.dungeon.room]:null,name=room?.foe??game.story?.foe??'Lantern Wisp';
  const skirmish=!room&&game.story?.introId==='hostile'&&/^hostile-encounter-[a-z]+$/.test(String(game.story.id))?game.story.id.slice('hostile-encounter-'.length):null,campaignId=artCampaign(game,!room);
  // The Skirmish's foe is one of the game's own kinds (shared picture); a tale's own foe who is a person (a known

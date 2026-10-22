@@ -72,7 +72,7 @@ const srdSubclasses={Barbarian:'Path of the Berserker',Bard:'College of Lore',Cl
 // The SRD's own subclass comes first, then three of Questbound's own (subclassRules.js plays them; verify-subclasses.cjs
 // checks their names against the books' and their features against the catalog).
 for(const [cls,sub] of Object.entries(srdSubclasses)){const keys=Object.keys(r.subclassOptions[cls]);assert.equal(keys[0],sub,cls);assert.equal(keys.length,4,cls+' offers four paths');}
-assert.deepEqual(Object.keys(r.subclassOptions.Artificer),['Alchemist','Armorer','Artillerist','Battle Smith','Snarewright']);
+assert.deepEqual(Object.keys(r.subclassOptions.Artificer),['Draughtwright','Platewright','Siegewright','Steelwright','Snarewright']);
 {const catalog=JSON.parse(fs.readFileSync('classFeatureCatalog.json','utf8')),srd=new Set(Object.values(srdSubclasses));
  for(const f of catalog.filter(f=>f.subclass))assert.equal(f.source,srd.has(f.subclass)?'SRD 5.2':'Questbound',f.subclass+' '+f.name+' is marked with where it comes from');}
 assert.ok(Object.values(JSON.parse(JSON.stringify(r.legacySubclassOptions))).flat().length>=50,'what was offered before is still accepted for saved heroes');

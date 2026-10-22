@@ -123,7 +123,8 @@ export function HpFloaters({value,style}){
 }
 // An on/off switch with a label and an optional description underneath.
 export function Toggle({value,onChange,label,description,style,disabled=false}){
- return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value,disabled}} accessibilityLabel={label} disabled={disabled} onPress={()=>onChange(!value)} style={[s.toggleRow,disabled&&{opacity:.62},style]}>
+ // react-native-web reads aria-* (not accessibilityState) for the page: aria-checked tells a screen reader on from off.
+ return <Pressable accessibilityRole="switch" accessibilityState={{checked:!!value,disabled}} aria-checked={!!value} aria-disabled={disabled?true:undefined} accessibilityLabel={label} disabled={disabled} onPress={()=>onChange(!value)} style={[s.toggleRow,disabled&&{opacity:.62},style]}>
   <View style={{flex:1,minWidth:0}}><Text style={s.toggleLabel}>{label}</Text>{!!description&&<Text style={s.toggleDescription}>{description}</Text>}</View>
   <View dataSet={{qb:value?'btn-primary':'seg'}} style={[s.track2,value&&s.trackOn]}><View style={[s.knob,value&&s.knobOn]}/></View>
  </Pressable>;

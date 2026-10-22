@@ -232,7 +232,12 @@ const strictProblems=(s,at,out=[])=>{
   // Raised on 2026-10-22 by what the tellings written ahead need (the host: "merge telling into first call"): a check's
   // outcomes and a journey's arrival, 8487 → 8641 in the standing prompt and 2226 → 2730 in the schema (cached), each
   // budget raised by that much and no more.
-  assert.ok(measured.standing<=8810,'the standing prompt within 8810 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead): '+measured.standing);
+  // Raised again on 2026-10-22 by what the written-tales spec's Phase A needs (PLAY TO FIND OUT, the narration line, a
+  // failure that moves forward, THE LONG TALE's "find where found", the errand closed at its place, the dampers):
+  // 8660 → 8951 in the standing prompt (cached), the budget raised by that much (291) and no more. The project review's
+  // wording (the same day: scopes, THE LONG TALE without a check, a failure's cost the game can record) took it to 9015,
+  // within that budget.
+  assert.ok(measured.standing<=9101,'the standing prompt within 9101 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A): '+measured.standing);
   assert.ok(measured.schema<=2800,'the reply schema within 2800 tokens (2021 with every effect spelled out, 2226 before the tellings written ahead): '+measured.schema);
   // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
   measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));

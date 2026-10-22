@@ -249,7 +249,9 @@ function createCampaigns({dir,now=Date.now,operations,ask,randomImpl,moderate=nu
    else if(b.kind==='advance')snapshot=require('./campaign-advancement.cjs').advanceCharacter(snapshot,b.character);
    // The hero's portrait (HeroFacePicker.js): a ready-made face, their own painting, or none; only the portrait changes.
    else if(b.kind==='portrait'){const hero=JSON.parse(snapshot.character),portrait=b.portrait===null?undefined:b.portrait;if(!r.validPortraitChoice(portrait))throw fail(400,'Choose a ready-made face or your own painting for your portrait.');const next={...hero};if(portrait===undefined)delete next.portrait;else next.portrait=portrait;if(!r.isValidCharacter(next))throw fail(400,'That portrait could not be kept.');snapshot={...snapshot,character:JSON.stringify(next)};}
-   else if(b.kind==='lead'){if(typeof b.id!=='string'||!game.story?.leads?.some(l=>l.id===b.id))throw fail(400,'Unknown quest lead.');const hero=JSON.parse(snapshot.character),next={...game,story:{...game.story,leads:game.story.leads.map(l=>l.id!==b.id?l:l.done?{id:l.id,title:l.title,hook:l.hook}:{...l,done:true})}},xp=r.withExperience(game,next,hero);snapshot={...snapshot,game:r.withDeeds(r.withStoryLog(game,xp.game,hero,{}),hero).game};if(xp.gained>0)gained={amount:xp.gained,label:xp.labels.join(' · ')};}
+   // A lead ticked by hand is the player's own note (storyRules.js noteLead, the stories spec Phase A7): no experience;
+   // only the tale sees a lead through (the Dungeon Master's lead-done, in a turn), paid once.
+   else if(b.kind==='lead'){if(typeof b.id!=='string'||!game.story?.leads?.some(l=>l.id===b.id))throw fail(400,'Unknown quest lead.');snapshot={...snapshot,game:r.noteLead(game,b.id)};}
    else throw fail(400,'That campaign edit is not allowed.');
    return {...advance(c,snapshot,user),...(gained?{xp:gained}:{})};
   },

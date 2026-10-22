@@ -9,7 +9,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // (AdventureIntros.js, journeyLibrary.js, App.js); a journey's own places and people are painted once for all its
 // players (worldArtRules.js). Stand-in writers only: nothing here calls the provider.
 const lib=require('./tale-library.cjs'),{createLibrary,librarySettings,journeyTerrains,journeyMoods,journeySeeds,tidyPitch,validPitch,coverSubject}=lib;
-const {generate,topUpLibrary,journeyCheck,startLibrary}=require('./dm-server.cjs');
+const {generate,topUpLibrary,journeyCheck,startLibrary,libraryPaused}=require('./dm-server.cjs');
 const {generateAdventure}=require('./adventure-generator.cjs');
 const {journeyStory,journeyPitch}=require('./journey-fixtures.cjs');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-journeys-'));
@@ -110,6 +110,35 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false,spend:{background:()=>({ok:false,reason:'total'})}}),false,'past a ceiling nothing is written');assert.equal(d.list().length,0);
   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false,spend:{check:()=>({ok:true})}}),true,'a spending module without the background check does not stop it');await d.settled();
   assert.equal(topUpLibrary(d,{apiKey:'',storyModel:'m',fetchImpl:keys.fetchImpl,live:false}),false,'no key, no writing');}
+ // The host's pause (2026-10-22, the stories spec Phase 0): while .questbound-library-paused exists (read live, under
+ // QUESTBOUND_DATA when set) nothing is written, by a top-up, the start-up fill or a listing; journeys already written
+ // are still listed and started; a fill under way stops at its next journey; removing the file resumes it at once.
+ {const data=path.join(tmp,'paused-data'),was=process.env.QUESTBOUND_DATA;fs.mkdirSync(data,{recursive:true});process.env.QUESTBOUND_DATA=data;
+  try{
+   const flag=path.join(data,'.questbound-library-paused');fs.writeFileSync(flag,'Paused by the host');assert.equal(libraryPaused(),true);
+   const d=createLibrary({dir:path.join(tmp,'paused'),now:()=>clock,random,size:2,floor:2}),was2=calls.length;
+   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false}),false,'paused: nothing is written');
+   assert.equal(startLibrary({apiKey:'k',model:'m',library:d,fetchImpl:keys.fetchImpl}),false,'nor at start-up');
+   same((await generate({input:'Create a fresh adventure.',context:{mode:'art',journeys:'list',choices:[]}},{...keys,library:d})).journeys,[],'an empty library stays empty while paused');await d.settled();
+   assert.equal(calls.length,was2,'no request was made while paused');assert.equal(d.list().length,0);
+   const listing=await generate({input:'Create a fresh adventure.',context:{mode:'art',journeys:'list',choices:[]}},{...keys,library:dShelf});
+   assert.ok(listing.journeys.length>0,'journeys already written are still listed');
+   const copy=await generate({input:'Create a fresh adventure.',context:{mode:'adventure',introId:'easy',journey:listing.journeys[0].id,easyStart:true,choices:[]}},{...keys,library:dShelf});await dShelf.settled();
+   assert.ok(copy.journey&&copy.story.libraryId===listing.journeys[0].id,'and started');assert.equal(calls.length,was2,'with no request');
+   // A fill under way stops at its next journey: the write itself looks again, and a pause is not noted as a failure.
+   fs.rmSync(flag);const e=createLibrary({dir:path.join(tmp,'paused-fill'),now:()=>clock,random,size:3,floor:3});let wrote=0;
+   const pausing=async(url,options)=>{wrote++;if(wrote===1)fs.writeFileSync(flag,'Paused');return keys.fetchImpl(url,options);};
+   assert.equal(topUpLibrary(e,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:pausing,live:true,spend:{background:()=>({ok:true})}}),true);await e.settled();
+   assert.equal(wrote,1,'the fill stopped at its next journey');assert.equal(e.list().length,1);
+   const diag=path.join(data,'.questbound-diagnostics.jsonl');assert.ok(!fs.existsSync(diag)||!fs.readFileSync(diag,'utf8').includes('"write"'),'a pause is not a failure');
+   // The paused attempt is not a failure: no ten-minute wait after -ResumeLibrary, and it is not counted against the day
+   // (the project review, 2026-10-22).
+   assert.equal(e.info().writesToday,1,'only the journey written counts toward the day');
+   fs.rmSync(flag);assert.equal(libraryPaused(),false);
+   assert.equal(topUpLibrary(e,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false}),true,'resumed: writing again at once');await e.settled();assert.equal(e.list().length,3);
+  }finally{if(was===undefined)delete process.env.QUESTBOUND_DATA;else process.env.QUESTBOUND_DATA=was;}
+  const ps=fs.readFileSync('launch.ps1','utf8');assert.ok(/\[switch\]\$PauseLibrary,\[switch\]\$ResumeLibrary/.test(ps)&&ps.includes("Join-Path $root '.questbound-library-paused'")&&/if \(\$PauseLibrary\) \{ Set-Content \$libraryPauseFile/.test(ps)&&/if \(\$ResumeLibrary\) \{ Remove-Item \$libraryPauseFile/.test(ps),'Questbound.cmd -PauseLibrary / -ResumeLibrary');
+  assert.ok(![...ps].some(ch=>ch.charCodeAt(0)>127),'launch.ps1 stays pure ASCII');}
  // A failed write is noted in the diagnostics with its kind only (live runs), so the next failure can be told apart
  // (the first live journey was cut off by Node's own fetch after 308 s on 2026-10-13 and left no trace).
  {const data=path.join(tmp,'data'),was=process.env.QUESTBOUND_DATA;fs.mkdirSync(data,{recursive:true});process.env.QUESTBOUND_DATA=data;

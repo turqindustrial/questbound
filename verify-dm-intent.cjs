@@ -12,7 +12,12 @@ const look=(input,reply=quiet,context=base)=>secondLook({input,context},reply,{c
 // What is true now, in plain sentences.
 let now=situation(base);
 assert.ok(now[0]==='The player is at Caravan Camp.'&&now.some(l=>l.startsWith('No fight is in progress'))&&now.some(l=>l==='Bandit Cutthroat is not at Caravan Camp and is not attacking the player.'));
-assert.ok(now.at(-1).includes('Lookout Rock (travel-tower)')&&now.at(-1).includes('Nothing has to happen first'));
+assert.ok(now.at(-1).includes('Lookout Rock (travel-tower)'));
+// The written-tales spec's Phase A (2026-10-22): no now-line says "nothing has to happen first" (what waits at a place
+// may answer the player on arrival), and a journey's telling says the player has just arrived (never "already there").
+assert.ok(!now.some(l=>/nothing has to happen first/i.test(l)),'the damper is gone');
+assert.equal(situation({...base,engineResolved:['You travel to Caravan Camp. 1.2 miles; 30 minutes pass.']})[0],'The player has just arrived at Caravan Camp.','a journey turn: just arrived');
+assert.equal(situation({...base,engineResolved:['You search the fallen.']})[0],'The player is at Caravan Camp.','any other turn: at');
 assert.ok(situation({...base,foeFate:'slain',enemyHP:0}).includes('Bandit Cutthroat is dead and no longer a threat.'));
 assert.ok(situation({...base,foeFate:'subdued',enemyHP:0}).includes('Bandit Cutthroat is beaten and no longer a threat.'));
 now=situation({...base,stage:'combat',encounter:{name:'Bandit Cutthroat'}});

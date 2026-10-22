@@ -49,8 +49,14 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
   // A moment in which people speak first (a first arrival, a fight won) is told in this telling, as on a device; a table
   // plays no cues, so this is where those first words are heard.
   const cue=told?null:r.sceneTrigger(game,preview.game,command.action),first=cue&&r.conversationPeople(preview.game).some(n=>n.id===cue.speakerId)?{speakFirst:{speakerId:cue.speakerId,cue:cue.cue}}:{};
-  const body=told??await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40),...first});let i=0;
-  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),told?.told==='game'?{told:'game',fightRound:told.fightRound}:{});
+  // A calm move sent to the Dungeon Master only because it follows a milestone or two game-told moves is told by the
+  // game when the Dungeon Master cannot answer (calmLines.js calmFallback), as on a device.
+  let body=told;
+  if(!body){const fallback=narration===undefined?r.calmFallback({hero:ruled,before:game,preview,action:command.action,words:question,preferences:preferences(request.storyPreferences)}):null;
+   try{body=await post(preview.game,preview.health,{engineResolved:(preview.events??[]).map(t=>r.storyText(preview.game,t)).slice(0,40),...first});}
+   catch(e){if(!fallback)throw e;body=fallback;}}
+  let i=0;
+  return finish(command.action,{narration:body.narration??narration,dialogue:body.dialogue,relationships:body.relationships,remember:body.remember,loot:body.loot,introduce:body.introduce,suggestions:body.suggestions},command.normalizedCommand,()=>dice[i++]??randomImpl(),body.told==='game'?{told:'game',fightRound:body.fightRound}:{});
  }
  if(toDm)return finish(null,await post(game,health,{outOfCharacter:{canRewind:false,lastTurn:null}}));
  // A greeting is a trigger turn (no player line) in the line the game writes for that person (greetings.js), as on a
@@ -65,6 +71,8 @@ async function resolveTurn(snapshot,request,{ask,randomImpl=random,actorName='Ad
  if(command?.action)return cast(command);
  // A rule's refusal of a plain "I cast ..." is shown as it is; only a cast the game could not read goes to the DM.
  if(command?.error&&/^(?:I )?cast\s/i.test(question)&&!command.soft)throw fail(command.error);
+ // Dying, words that are not a death save are answered by the game (calmLines.js dyingTelling), as on a device: no request.
+ {const told=r.dyingTelling({hero:ruled,game,narrator:preferences(request.storyPreferences).narrator});if(told)return finish(null,told,undefined,randomImpl,{told:'game'});}
  const body=await post(game,health,command?.error?{castingIssue:command.error}:{});
  // The cast the Dungeon Master read from the player's words is settled as those words (as on a device), so the rules
  // recognise it as the player's own command.

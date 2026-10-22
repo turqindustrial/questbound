@@ -82,7 +82,7 @@ export default function DungeonMaster({hero,game,health,act,onConversationChange
   const turns=(person?(game.playback??[]).filter(t=>t.npcId===person.id||(t.participants??[]).some(id=>people.some(n=>n.id===id))):(game.playback??[])).map(t=>visibleTurn(t,game));
   const effects=activeEffectLines(game,health);
   // Names the playback uses to move the HUD's HP bars in step with the story, and portraits for speakers.
-  const foeTitle=game.wildFight?.name??game.story?.foe??'Encounter opponent',names=useMemo(()=>({hero:hero.name,foe:foeTitle}),[hero.name,foeTitle]);
+  const foeTitle=(game.wildFight?game.wildFight.called??game.wildFight.name:null)??game.story?.foe??'Encounter opponent',names=useMemo(()=>({hero:hero.name,foe:foeTitle}),[hero.name,foeTitle]);
   const avatarFor=id=>id?npcArtSubject(game,id):null,sceneFor=name=>placeArtSubject(game,name);
   const previousNarration=(game.journal?.entries??[]).filter(e=>e.title==='AI DM conversation').at(-1)?.text.split(/\n(?:AI DM|Dungeon Master): /).at(-1)?.split('\nResult:')[0];
   const standing=attitudeLabel(person),attitude={label:standing.label,color:{bad:colors.bloodBright,warn:tint('#e0a860'),good:colors.heal,best:colors.goldBright,calm:colors.heal,dead:colors.muted}[standing.tone]};

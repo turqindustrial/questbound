@@ -1,5 +1,5 @@
 import {commitDmTurn} from './dmContext';
-import {adventureStep} from './adventureRules';
+import {adventureStep,withErrandReward} from './adventureRules';
 import {withExperience} from './experienceRules';
 import {recordedTurn} from './playbackRules';
 import {withSceneTrigger} from './sceneTriggers';
@@ -16,6 +16,8 @@ import {withMemory} from './memoryRules';
 export function settleTurn({hero,ruled=hero,game,health,action=null,conversation=null,random=Math.random,sceneTrigger=true}){
  let result=conversation?commitDmTurn(ruled,game,health,action,conversation,random):adventureStep(game,health,ruled,action,random);
  if(result.error)return {error:result.error,result};
+ // An errand's reward owed since its place was cleared (adventureRules.js withErrandFound) is settled once keeper hands it over.
+ result={...result,game:withErrandReward(game,result.game,conversation)};
  const xp=withExperience(game,result.game,hero,{action});result={...result,game:xp.game,events:[...(result.events??[]),...xp.lines]};
  if(conversation)result=recordedTurn(hero,game,health,result,result.conversation??conversation,conversation.npcId??null);
  result={...result,game:{...result.game}};delete result.game.sceneCue;

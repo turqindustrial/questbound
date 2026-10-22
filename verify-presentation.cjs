@@ -145,4 +145,11 @@ for(const file of ['public/manifest.json','public/index.html','fullscreen.js','p
  const above=placeTip({left:600,right:640,top:820,bottom:856,width:40,height:36},tip,view);assert.ok(!above.below&&above.top+tip.height<=820,'above when there is no room below');
  const right=placeTip({left:20,right:56,top:80,bottom:116,width:36,height:36},tip,view,'right');assert.ok(right.left>=56&&right.top<116&&right.top+tip.height>80,'beside the rail button');
  assert.ok(read('Adventure.js').split('tipSide="right"').length===3,'the folded rail\'s buttons put their tooltips beside them');}
+// A switch tells a screen reader on from off (2026-10-22, the project review): react-native-web puts aria-checked on the
+// page, never accessibilityState, so Toggle (ui.js) and the Quest tab's lead circles (Adventure.js) carry aria-checked.
+{const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{Pressable}=require('react-native-web');
+ assert.ok(!/aria-checked/.test(renderToStaticMarkup(React.createElement(Pressable,{accessibilityRole:'switch',accessibilityState:{checked:true}}))),'accessibilityState alone never reaches the page');
+ assert.match(renderToStaticMarkup(React.createElement(Pressable,{accessibilityRole:'switch','aria-checked':false})),/aria-checked="false"/,'aria-checked reaches the page');
+ const ui=fs.readFileSync('ui.js','utf8'),toggle=ui.slice(ui.indexOf('export function Toggle'),ui.indexOf('export function KeyHint'));assert.ok(toggle.includes('aria-checked={!!value}'),'Toggle says whether it is on');
+ assert.ok(fs.readFileSync('Adventure.js','utf8').includes('aria-checked={!!(l.done||l.noted)}'),'a lead\'s circle says whether it is ticked');}
 console.log('Presentation: tips and primer roll, nothing scrolls sideways in '+sources.length+' files, the valley painting, and the emblem in seven places.');

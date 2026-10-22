@@ -76,7 +76,7 @@ export function weaponAttacks(hero) {
     const staff = !!hero.shillelagh && ['Club', 'Quarterstaff'].includes(name) && (hero.scores[hero.shillelagh] ?? 0) > hero.scores.Strength;
     const ability = staff ? hero.shillelagh : weapon.ranged || ((weapon.finesse || monk) && hero.scores.Dexterity > hero.scores.Strength) ? 'Dexterity' : 'Strength';
     const bonus = modifier(hero.scores[ability]);
-    const proficient = subclassActive(hero,'College of Valor') || subclassPassive(hero).martial || (hero.class==='Artificer' && subclassActive(hero,'Battle Smith')) || !weapon.martial || ['Barbarian','Fighter','Paladin','Ranger'].includes(hero.class) || (['Rogue','Monk'].includes(hero.class) && weapon.finesse);
+    const proficient = subclassActive(hero,'College of Valor') || subclassPassive(hero).martial || (hero.class==='Artificer' && subclassActive(hero,'Steelwright')) || !weapon.martial || ['Barbarian','Fighter','Paladin','Ranger'].includes(hero.class) || (['Rogue','Monk'].includes(hero.class) && weapon.finesse);
     // Shillelagh (SRD 5.2): a d8, then a d10 at level 5, a d12 at 11 and 2d6 at 17.
     const shilled = !!hero.shillelagh && ['Club', 'Quarterstaff'].includes(name), twoDice = shilled && hero.level >= 17;
     // Both hands on a versatile weapon (no shield on the arm): its larger die, before Shillelagh or Martial Arts.
@@ -168,6 +168,6 @@ export function rollDamage(weapon, critical=false, random=Math.random) {
 export function attacksPerAction(hero) {
   if(hero.class==='Fighter')return hero.level>=20?4:hero.level>=11?3:hero.level>=5?2:1;
   if(['Barbarian','Monk','Paladin','Ranger'].includes(hero.class) && hero.level>=5)return 2;
-  // A subclass's second attack (subclassRules.js): Steel Verses, the Armorer and the Battle Smith.
+  // A subclass's second attack (subclassRules.js): Steel Verses, the Platewright and the Steelwright.
   return subclassPassive(hero).extraAttack ? 2 : 1;
 }

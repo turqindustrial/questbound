@@ -18,10 +18,10 @@ import {modifier,proficiencyBonus,currentSubclass} from './characterRules';
 export const subclassLevels={Artificer:[3,5,9,15],Barbarian:[3,6,10,14],Bard:[3,6,14],Cleric:[3,6,17],Druid:[3,6,10,14],Fighter:[3,7,10,15,18],Monk:[3,6,11,17],Paladin:[3,7,15,20],Ranger:[3,7,11,15],Rogue:[3,9,13,17],Sorcerer:[3,6,14,18],Warlock:[3,6,10,14],Wizard:[3,6,10,14]};
 export const subclassEngine={
  // ---- Artificer ----
- Alchemist:{class:'Artificer',effects:[{level:3,kind:'action',id:'tonic',name:'Field Tonic',bonus:true,uses:'Intelligence',recharge:'long',effect:{heal:{count:1,die:8,plus:'Intelligence'}},say:/\bfield tonics?\b|\b(drink|down|swig) (a |my |one of my )?tonics?\b/i,chip:['⚗','Field Tonic','I drink one of my field tonics.','potion'],description:'Field Tonic: drink a tonic you mixed yourself and regain 1d8 + your Intelligence modifier hit points. A bonus action.'}]},
- Armorer:{class:'Artificer',effects:[{level:3,kind:'passive',name:'Plated Craft',acBonus:{n:1,when:'armor'}},{level:5,kind:'passive',name:'Second Swing',extraAttack:true}]},
- Artillerist:{class:'Artificer',effects:[{level:3,kind:'action',id:'engine',name:'Field Engine',bonus:false,uses:'Intelligence',recharge:'long',effect:{strike:{count:2,die:8,type:'Force',save:'Dexterity',half:true}},scale:{9:3,15:4},say:/\bfield engine\b|\bfire (my |the )?(engine|cannon)\b/i,chip:['✹','Field Engine','I fire my field engine at the foe.','cog'],description:'Field Engine: fire your arcane engine at the foe. It makes a Dexterity save against your spell save DC and takes Force damage, half as much on a success. Uses your action.'}]},
- 'Battle Smith':{class:'Artificer',effects:[{level:3,kind:'passive',name:"Smith's Drill",martial:true},{level:5,kind:'passive',name:'Drilled Strikes',extraAttack:true}]},
+ Draughtwright:{class:'Artificer',effects:[{level:3,kind:'action',id:'tonic',name:'Field Tonic',bonus:true,uses:'Intelligence',recharge:'long',effect:{heal:{count:1,die:8,plus:'Intelligence'}},say:/\bfield tonics?\b|\b(drink|down|swig) (a |my |one of my )?tonics?\b/i,chip:['⚗','Field Tonic','I drink one of my field tonics.','potion'],description:'Field Tonic: drink a tonic you mixed yourself and regain 1d8 + your Intelligence modifier hit points. A bonus action.'}]},
+ Platewright:{class:'Artificer',effects:[{level:3,kind:'passive',name:'Plated Craft',acBonus:{n:1,when:'armor'}},{level:5,kind:'passive',name:'Second Swing',extraAttack:true}]},
+ Siegewright:{class:'Artificer',effects:[{level:3,kind:'action',id:'engine',name:'Field Engine',bonus:false,uses:'Intelligence',recharge:'long',effect:{strike:{count:2,die:8,type:'Force',save:'Dexterity',half:true}},scale:{9:3,15:4},say:/\bfield engine\b|\bfire (my |the )?(engine|cannon)\b/i,chip:['✹','Field Engine','I fire my field engine at the foe.','cog'],description:'Field Engine: fire your arcane engine at the foe. It makes a Dexterity save against your spell save DC and takes Force damage, half as much on a success. Uses your action.'}]},
+ Steelwright:{class:'Artificer',effects:[{level:3,kind:'passive',name:"Smith's Drill",martial:true},{level:5,kind:'passive',name:'Drilled Strikes',extraAttack:true}]},
  Snarewright:{class:'Artificer',effects:[{level:3,kind:'action',id:'tangle',name:'Tangle-Bolt',bonus:false,uses:'Intelligence',recharge:'long',effect:{strike:{count:2,die:6,type:'Piercing',save:'Dexterity',half:true,mark:'prone'}},scale:{5:3,15:5},say:/\btangle-?bolt\b|\bweighted line\b/i,chip:['➶','Tangle-Bolt','I fire a weighted line at the foe.','cog'],description:'Tangle-Bolt: fire a weighted line at the foe. It makes a Dexterity save against your spell save DC: on a failure it takes Piercing damage and is knocked prone; on a success, half the damage. Uses your action.'}]},
  // ---- Barbarian ----
  'Path of the Bulwark':{class:'Barbarian',effects:[{level:3,kind:'ward',name:'Iron Brace',count:1,die:8,plus:'Constitution',uses:'proficiency',recharge:'long'}]},
@@ -336,25 +336,25 @@ export const subclassFeatures={
   [9,"Chain Reaction","When a snare or Tangle-Bolt catches a creature, a second creature within 10 ft makes the same save.",0],
   [15,"Master of Snares","Tangle-Bolt deals 5d6; creatures have Disadvantage on saves against your snares.",1]
  ],
- "Alchemist":[
+ "Draughtwright":[
   [3,"Field Tonic","Bonus Action: regain 1d8 + Intelligence modifier HP. Int mod uses (minimum 1) per Long Rest.",1],
   [5,"Reagent Boost","Add your Intelligence modifier to one healing roll, or one Acid, Fire or Poison damage roll, of your spells.",0],
   [9,"Restoring Draughts","Lesser Restoration without a slot (Int mod times per Long Rest); draughts you give restore extra HP equal to your Int modifier.",0],
   [15,"Proof Against Poison","Resistance to Acid and Poison; you cannot be Poisoned.",0]
  ],
- "Armorer":[
+ "Platewright":[
   [3,"Plated Craft","+1 AC while you wear armor.",1],
   [5,"Second Swing","Attack twice when you take the Attack action.",1],
   [9,"Tuned Plating","Your armor counts as magic; once per Short or Long Rest, Reaction when hit: Temporary HP equal to your Artificer level.",0],
   [15,"Masterwork Suit","Advantage on saves against Grappled, Restrained and Prone; +10 ft Speed while armored.",0]
  ],
- "Artillerist":[
+ "Siegewright":[
   [3,"Field Engine","Action: Dexterity save vs your spell DC, 2d8 Force (3d8 at 9, 4d8 at 15), half on a success. Int mod uses per Long Rest.",1],
   [5,"Steadied Barrel","Add your Intelligence modifier to one damage roll of an Artificer spell.",0],
   [9,"Burst the Engine","Magic action: creatures within 10 ft of a point make a Dex save, 3d8 Force, half on a success.",0],
   [15,"Entrenched Battery","You and allies within 10 ft of your field engine have Half Cover while you stand still.",0]
  ],
- "Battle Smith":[
+ "Steelwright":[
   [3,"Smith's Drill","Martial weapon proficiency.",1],
   [3,"Forged Companion","A small mechanical companion that can Help or make one attack on your turn (played by the Dungeon Master).",0],
   [5,"Drilled Strikes","Attack twice when you take the Attack action.",1],

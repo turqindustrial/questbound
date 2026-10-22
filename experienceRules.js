@@ -65,7 +65,7 @@ export function fightEnding(before,after){
 const xpTaleKey=game=>String(game?.story?.id??'crossroads').slice(0,120);
 const xpFreshTally=key=>({tale:key,fights:0,places:0,leads:[]});
 const xpTallyOf=game=>{const key=xpTaleKey(game),t=game?.xpTally;return t&&t.tale===key?{...t,leads:[...(t.leads??[])]}:xpFreshTally(key);};
-const xpFoeName=game=>game.dungeon?.active?dungeonRooms[game.dungeon.room]?.foe??'The guardian':game.wildFight?.name??game.story?.foe??'Lantern Wisp';
+const xpFoeName=game=>game.dungeon?.active?dungeonRooms[game.dungeon.room]?.foe??'The guardian':(game.wildFight?game.wildFight.called??game.wildFight.name:null)??game.story?.foe??'Lantern Wisp';
 const xpTitle=text=>{const t=String(text??'').trim();return t?t[0].toUpperCase()+t.slice(1):t;};
 // What one turn was worth: [{share,label,practice?}] and the tale's tally after it. Shares do not depend on level,
 // except a Skirmish win (practice), which pays only heroes below level 3.

@@ -67,6 +67,7 @@ const absent=[...calls].filter(([name])=>typeof r[name]!=='function').map(([name
 assert.deepEqual(absent,[],'every engine function the server calls exists');
 // The story so far is folded by settleTurn on the server as on a device, and the memory is checked with the save.
 for(const name of ['withMemory','rememberFacts','memoryBlock','validMemory'])assert.equal(typeof r[name],'function',name+' is on the engine');
-for(const name of ['settleTurn','withExperience','advancedInPlace','levelCompanions','withCompanionClasses','acceptOffer','attuneItem','speakingPeople','attackTargets'])assert.ok(calls.has(name),'the server uses '+name);
+// (withExperience is called through settleTurn; the lead edit no longer pays since 2026-10-22: a hand tick is a note, noteLead.)
+for(const name of ['settleTurn','noteLead','dyingTelling','calmFallback','advancedInPlace','levelCompanions','withCompanionClasses','acceptOffer','attuneItem','speakingPeople','attackTargets'])assert.ok(calls.has(name),'the server uses '+name);
 
 console.log('Rules engine: '+files.length+' files with all their imports, '+exported.length+' names, loaded in '+took+' ms; the '+calls.size+' functions the campaign server calls all exist, and partyVictory is gone.');

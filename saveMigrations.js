@@ -1,5 +1,4 @@
 import {currentSaveVersion} from './saveVersion';
-import {renamedSubclasses} from './characterRules';
 import {heroXp} from './experienceRules';
 import {withMemory} from './memoryRules';
 import {withCompanionClasses} from './followerRules';
@@ -19,7 +18,7 @@ import {grudgeWeight} from './npcRules';
 //   (13 October 2026). Retire no earlier than six months after the last build that wrote it, and never before the
 //   full launch.
 // - 1: this build. Upgrading 0 → 1:
-//   - the hero: a subclass planned under a name since changed takes its new name (renamedSubclasses); an old 'Elf'
+//   - the hero: a subclass planned under a name since changed takes its new name (formatOneRenames); an old 'Elf'
 //     or 'Dark Elf' is kept as it is (portraits are painted from the species as written, and heroSpecies reads it);
 //   - a solo adventure: experience from before experience points (a level owed on the road, a main foe beaten and its
 //     level not yet taken) becomes experience points (heroXp, which reads them the same way); companions from before
@@ -34,11 +33,15 @@ export const saveFormats=[
  {version:1,from:'2026-10-13',note:'saveVersion 1: heroes and snapshots carry their format; older ones upgraded on load'},
 ];
 export const saveVersionOf=value=>Number.isInteger(value?.saveVersion)&&value.saveVersion>0?value.saveVersion:0;
+// The renames format 1 makes, as they stood when it was written (an exact step never changes after the fact): later
+// renames (the Artificer's, 2026-10-22) are read where the name is used (characterRules.js currentSubclass) and never
+// written into a save, because the adventure is tied to the hero's exact text.
+const formatOneRenames={'Warrior of the Hidden Step':'Warrior of the Quiet Step'};
 // The hero, upgraded to the current format (the same object when it already is).
 export function upgradeCharacter(hero){
  if(!hero||typeof hero!=='object'||Array.isArray(hero)||saveVersionOf(hero)>=currentSaveVersion)return hero;
  const next={...hero};
- if(Object.hasOwn(renamedSubclasses,next.plannedSubclass??''))next.plannedSubclass=renamedSubclasses[next.plannedSubclass];
+ if(Object.hasOwn(formatOneRenames,next.plannedSubclass??''))next.plannedSubclass=formatOneRenames[next.plannedSubclass];
  next.saveVersion=currentSaveVersion;
  return next;
 }

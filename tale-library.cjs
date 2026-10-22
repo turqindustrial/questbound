@@ -18,7 +18,7 @@
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs); bump
 // `revision` (and the literal in dm-server.cjs loadLibrary) when it changes. Raise `generation` when the story writer's
 // output changes shape.
-const revision=4,generation=5;
+const revision=5,generation=5;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const day=86400000;
 // The library's numbers (see the report of 2026-10-13 for the cost reckoning).
@@ -136,7 +136,7 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
  function topUp(write,{accept=()=>true,onStocked=null,onFailure=null}={}){
   const state=readState();
   if(filling||now()-state.lastFailure<set.failurePause||!due())return false;
-  const on=offered(),b=brief(on);state.writes.push(now());saveState(state);
+  const on=offered(),b=brief(on),stamp=now();state.writes.push(stamp);saveState(state);
   filling=Promise.resolve().then(()=>write(b)).then(result=>{
    const story=result?.story;if(!story||typeof story!=='object'||Array.isArray(story))throw Object.assign(Error('no story'),{kind:'no-story'});
    if(!accept(story))throw Object.assign(Error('the rules refused the tale'),{kind:'rejected'});
@@ -146,7 +146,9 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
    writeJson(fileOf(entry.id),entry);
    const after=readState();after.seeds.push(b.seedIndex);saveState(after);
    try{onStocked?.(entry);}catch{}
-  }).then(()=>true,e=>{const after=readState();after.lastFailure=now();saveState(after);try{onFailure?.(e);}catch{}return false;}).then(ok=>{filling=null;if(ok)topUp(write,{accept,onStocked,onFailure});});
+  // The host's pause (e.kind 'paused', dm-server.cjs libraryPaused) is not a failure: the attempt is not counted against
+  // the day and writing may resume at once (the project review, 2026-10-22: it waited ten minutes after -ResumeLibrary).
+  }).then(()=>true,e=>{const after=readState();if(e?.kind==='paused'){const at=after.writes.lastIndexOf(stamp);if(at>=0)after.writes.splice(at,1);}else after.lastFailure=now();saveState(after);try{onFailure?.(e);}catch{}return false;}).then(ok=>{filling=null;if(ok)topUp(write,{accept,onStocked,onFailure});});
   return true;
  }
  // Resolves once nothing is being written (a chain of journeys included).

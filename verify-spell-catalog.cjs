@@ -1,7 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const catalog=JSON.parse(fs.readFileSync('spellCatalog.json')),progression=JSON.parse(fs.readFileSync('spellProgression.json'));
 const source=fs.readFileSync('spellOptions.js','utf8').replace(/^import .*;\r?\n/gm,'').replace(/export /g,'');
-const r=vm.runInNewContext(source+'\n({spellsForClass,spellLimits,spellSelectionError,automaticSpells})',{catalog,progression});
+// spellOptions.js alone: what it imports from characterRules.js is stubbed (currentSubclass reads a renamed subclass's
+// new name; no renamed subclass has spells of its own).
+const r=vm.runInNewContext(source+'\n({spellsForClass,spellLimits,spellSelectionError,automaticSpells})',{catalog,progression,currentSubclass:name=>name});
 assert.equal(catalog.length,339);assert.equal(new Set(catalog.map(s=>s.id)).size,339);
 for(const name of Object.keys(progression))for(let level=1;level<=20;level++){
  const hero={class:name,level,spellSelectionVersion:2},limits=r.spellLimits(hero),options=r.spellsForClass(name,level),auto=r.automaticSpells(hero);

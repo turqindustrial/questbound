@@ -12,12 +12,28 @@ const cases=[
  ['A healing draught restores 2d4+2 HP.','A healing draught restores 2d4+2 HP.'],
  ['It drops to 2 HP and howls.','It is badly hurt and howls.'],
  ['The cut leaves him with only 2 hit points remaining.','The cut leaves him with only 2 hit points remaining.'.replace('with only 2 hit points remaining','badly wounded')],
- ['You strike for 11 damage.','You strike for 11 damage.'],
+ // Damage figures are told as action, right or wrong (the stories spec, Phase A6, 2026-10-22: "exactly 4 fire damage").
+ ['You strike for 11 damage.','You strike hard.'],
+ ['The bolt sears the cultist for exactly 4 fire damage.','The bolt sears the cultist hard.'],
+ ['You take 7 slashing damage as the blade bites.','You take a cut as the blade bites.'],
+ ['The goblin staggers (8 piercing damage) and hisses.','The goblin staggers and hisses.'],
+ ['Fire licks the beam, dealing an extra 3 fire damage to it.','Fire licks the beam, dealing a burn to it.'],
+ ['The spell deals 12 points of necrotic damage.','The spell deals a withering wound.'],
+ // A dice sum is one figure, "a total of" goes with it, a sentence keeps its capital, and every harm reads after "deals"
+ // (the project review, 2026-10-22: "for 1d8+a cut", "a total of a wound", "a wound lands", "Deals a searing light").
+ ['You strike for 1d8+3 slashing damage.','You strike hard.'],
+ ['It deals a total of 9 damage.','It deals a wound.'],
+ ['6 damage lands on the bandit.','A wound lands on the bandit.'],
+ ['The bolt hits. 5 fire damage scorches its hide.','The bolt hits. A burn scorches its hide.'],
+ ['Deals 7 radiant damage.','Deals a searing wound.'],
+ ['He takes no damage and carries 2 daggers.','He takes no damage and carries 2 daggers.'],
  ['You are back up to 4 HP now.','You are back up now.'],
  ['You sit at 3 HP, shaking.','You sit wounded, shaking.'],
  ['You are at 9 HP.','You are at 9 HP.'],
 ];
 for(const [said,want] of cases)assert.equal(checkedHp(said,ctx),want,said);
+// Out of character the Dungeon Master explains the dice plainly: damage figures stay.
+assert.equal(checkedHp('Your Fire Bolt rolled a 2, so it dealt 2 fire damage.',{player:ctx.player,outOfCharacter:{canRewind:false}}),'Your Fire Bolt rolled a 2, so it dealt 2 fire damage.');
 // Hit points part-way through a turn are real too: healed from 5 to 11, then struck down to 7.
 const mid={player:{health:{current:7,temp:0}},turnStart:{hp:5,max:12},engineResolved:['Second Wind: 5 + 1; restored 6 HP.','1d6 [3] + 1 = 4 Slashing damage. 4 damage recorded: 0 absorbed by temporary HP, 4 HP lost.']};
 assert.equal(checkedHp('You regain 6 hit points, leaving you at 11 HP, then the blade leaves you at 7 HP.',mid),'You regain 6 hit points, leaving you at 11 HP, then the blade leaves you at 7 HP.');

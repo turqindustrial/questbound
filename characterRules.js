@@ -92,7 +92,9 @@ export const validLevel = level => Number.isInteger(level) && level >= 1 && leve
 export const proficiencyBonus = level => validLevel(level) ? 2 + Math.floor((level-1)/4) : 0;
 export const martialDie = level => level >= 17 ? 12 : level >= 11 ? 10 : level >= 5 ? 8 : 6;
 // Subclasses renamed since heroes could plan them: a hero who planned the old name keeps the subclass and all it does.
-export const renamedSubclasses = {'Warrior of the Hidden Step': 'Warrior of the Quiet Step'};
+// Subclasses renamed because the old name was a published book's (every old name stays a valid plan and plays as the
+// new one; saves keep the name they were written with: currentSubclass reads it). The Artificer's four on 2026-10-22.
+export const renamedSubclasses = {'Warrior of the Hidden Step': 'Warrior of the Quiet Step', Alchemist: 'Draughtwright', Armorer: 'Platewright', Artillerist: 'Siegewright', 'Battle Smith': 'Steelwright'};
 export function currentSubclass(name) { return Object.hasOwn(renamedSubclasses, name ?? '') ? renamedSubclasses[name] : name; }
 export const subclassActive = (hero,name) => hero.level >= 3 && currentSubclass(hero.plannedSubclass) === name;
 export const advancementLevels = name => [4,8,12,16,...(name === 'Fighter' ? [6,14] : name === 'Rogue' ? [10] : [])].sort((a,b)=>a-b);

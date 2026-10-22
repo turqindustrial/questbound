@@ -28,20 +28,20 @@ const legacyNames=new Set(Object.values(plain(r.legacySubclassOptions)).flat());
 const ours=[];
 for(const [cls,options] of Object.entries(plain(r.subclassOptions))){
  const names=Object.keys(options);
- if(cls==='Artificer')assert.deepEqual(names,['Alchemist','Armorer','Artillerist','Battle Smith','Snarewright']);
+ if(cls==='Artificer')assert.deepEqual(names,['Draughtwright','Platewright','Siegewright','Steelwright','Snarewright']);
  else{assert.equal(names.length,4,cls+' offers four paths');assert.equal(names[0],srd[cls],cls+': the SRD subclass first');}
  for(const [name,pitch] of Object.entries(options)){
   assert.ok(pitch.length>=36&&pitch.length<=120&&/\.$/.test(pitch),name+' pitch: '+pitch);
   assert.equal(r.validPlannedSubclass({class:cls,plannedSubclass:name}),true,name);
-  if(name!==srd[cls]&&!['Alchemist','Armorer','Artillerist','Battle Smith'].includes(name)){assert.ok(!legacyNames.has(name),name+' is not an old name');ours.push([cls,name]);}
+  if(name!==srd[cls]){assert.ok(!legacyNames.has(name),name+' is not an old name');ours.push([cls,name]);}
  }
 }
-assert.equal(ours.length,37,'37 new subclasses: three for each SRD class and a fifth Artificer speciality');
+assert.equal(ours.length,41,'41 of our own: three for each SRD class and the five Artificer specialities');
 for(const [cls,list] of Object.entries(plain(r.legacySubclassOptions)))for(const name of list)assert.equal(r.validPlannedSubclass({class:cls,plannedSubclass:name}),true,'old saves keep '+name);
 assert.equal(r.validPlannedSubclass({class:'Wizard',plannedSubclass:'Snarewright'}),false,'a subclass belongs to its class');
 
 // ---- 2. The catalog and the engine's table agree ----
-const questbound=[...ours.map(([,n])=>n),'Alchemist','Armorer','Artillerist','Battle Smith'];
+const questbound=ours.map(([,n])=>n);
 const featureNames=new Set();
 for(const name of questbound){
  const spec=r.subclassEngine[name];assert.ok(spec,name+' is in subclassRules.js');
@@ -66,7 +66,9 @@ assert.equal(catalog.find(f=>f.subclass==='College of Lore'&&f.name==='Cutting W
 
 // ---- 3. Licence guard: no subclass or feature of ours bears a name from a book outside the SRDs ----
 const deny=['Hidden Step','Fey Step','Elder Champion','Battle Master','Eldritch Knight','Arcane Archer','Cavalier','Samurai','Psi Warrior','Rune Knight','Echo Knight','Banneret','Totem Warrior','Ancestral Guardian','Storm Herald','Zealot','Wild Heart','World Tree','Path of the Beast','Path of the Giant','Valor','Glamour','Swords','Whispers','Creation','Eloquence','Spirits','Dance','Knowledge','Light Domain','Nature Domain','Tempest','Trickery','War Domain','Death Domain','Forge','Grave','Order','Peace','Twilight','Moon','Dreams','Shepherd','Spores','Stars','Wildfire','Circle of the Sea','Shadow','Elements','Mercy','Drunken','Kensei','Sun Soul','Long Death','Astral Self','Ancients','Vengeance','Conquest','Redemption','Glory','Watchers','Crown','Noble Genies','Beast Master','Gloom Stalker','Horizon Walker','Monster Slayer','Fey Wanderer','Swarmkeeper','Drakewarden','Winter Walker','Assassin','Arcane Trickster','Inquisitive','Mastermind','Scout','Swashbuckler','Phantom','Soulknife','Wild Magic','Divine Soul','Shadow Magic','Storm Sorcery','Aberrant','Clockwork','Lunar','Spellfire','Archfey','Great Old One','Celestial','Hexblade','Fathomless','Genie','Undead Patron','Undying','Abjur*','Conjur*','Divin*','Enchant*','Illusion*','Necroman*','Transmut*','Bladesing*','War Magic','Chronurgy','Graviturgy','Scribes','Cartographer',
- 'Combat Superiority','Superiority Dice','Arcane Ward','Portent','Shadow Step','Dread Ambusher',"Hexblade's Curse",'Eldritch Cannon','Steel Defender','Experimental Elixir','Arcane Armor','Vow of Enmity','Bladesong','Rakish Audacity','Colossus Slayer','Arcane Jolt','Battle Ready','Fortified Position','Explosive Cannon','Arcane Firearm','Restorative Reagents','Chemical Mastery','Alchemical Savant','Perfected Armor','Improved Defender','Armor Model','Coordinated Attack'];
+ 'Combat Superiority','Superiority Dice','Arcane Ward','Portent','Shadow Step','Dread Ambusher',"Hexblade's Curse",'Eldritch Cannon','Steel Defender','Experimental Elixir','Arcane Armor','Vow of Enmity','Bladesong','Rakish Audacity','Colossus Slayer','Arcane Jolt','Battle Ready','Fortified Position','Explosive Cannon','Arcane Firearm','Restorative Reagents','Chemical Mastery','Alchemical Savant','Perfected Armor','Improved Defender','Armor Model','Coordinated Attack',
+ // The Artificer's specialities as another publisher named them (renamed 2026-10-22; this list would have caught them).
+ 'Alchemist','Armorer','Artillerist','Battle Smith'];
 const banned=deny.map(d=>new RegExp('\\b'+d.replace(/\*$/,'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/'/g,"['’]")+(d.endsWith('*')?'\\w*':'\\b'),'i'));
 for(const name of [...ours.map(([,n])=>n),...catalog.filter(f=>f.source==='Questbound').map(f=>f.name)])for(const re of banned)assert.ok(!re.test(name),name+' matches a book name ('+re+')');
 
@@ -156,7 +158,11 @@ assert.ok(r.trainedSkills(make('Rogue','Silvertongue')).includes('Persuasion'));
  // A hero who planned the subclass under its old name (renamed: it bore a published feature's name) keeps it.
  const old={...hidden,plannedSubclass:'Warrior of the Hidden Step'};assert.ok(r.validPlannedSubclass(old),'the old name is still a valid plan');
  const o=r.adventureStep(fightFor(old),hpOf(old),old,'class:strike',always(.9));assert.match(lines(o),/Slip Behind/,'and still plays its features');
- assert.ok(!Object.hasOwn(r.subclassOptions.Monk,'Warrior of the Hidden Step'),'the old name is no longer offered');}
+ assert.ok(!Object.hasOwn(r.subclassOptions.Monk,'Warrior of the Hidden Step'),'the old name is no longer offered');
+ // The Artificer's four renamed specialities (2026-10-22): an old name is still a valid plan and plays as the new one.
+ for(const [old,now] of [['Alchemist','Draughtwright'],['Armorer','Platewright'],['Artillerist','Siegewright'],['Battle Smith','Steelwright']]){
+  assert.ok(r.validPlannedSubclass({class:'Artificer',plannedSubclass:old}),old+' is still a valid plan');assert.ok(!Object.hasOwn(r.subclassOptions.Artificer,old),old+' is no longer offered');
+  const a=make('Artificer',old,{level:5}),b=make('Artificer',now,{level:5});assert.equal(r.attacksPerAction(a),r.attacksPerAction(b),old+' plays as '+now);assert.equal(JSON.stringify(r.subclassBriefs(a)),JSON.stringify(r.subclassBriefs(b)),old+': the same features told');}}
 
 {// Against people: once in the attack, at the person's own defences, and nothing left behind.
  const ash=make('Paladin','Oath of Ashes',{level:5}),g={...fightFor(ash),stage:'inn',enemyHP:0};
@@ -194,7 +200,7 @@ assert.ok(r.trainedSkills(make('Rogue','Silvertongue')).includes('Persuasion'));
  assert.match(lines(turn),/Cutting Words: the blow is reduced by \d+ \(1d6 \[\d\]\)\./,lines(turn));}
 
 // ---- 8. Class actions of the subclasses ----
-const actionCases=[['Bard','College of Borrowed Faces','jest'],['Bard','College of the Long Road','hearthsong'],['Druid','Circle of the Thornwall','briar'],['Rogue','Silvertongue','feint'],['Sorcerer','Veilborn Sorcery','veil'],['Warlock','Lantern-Keeper Patron','kindly'],['Artificer','Snarewright','tangle'],['Artificer','Alchemist','tonic'],['Artificer','Artillerist','engine'],['Wizard','Fateweaver','thread']];
+const actionCases=[['Bard','College of Borrowed Faces','jest'],['Bard','College of the Long Road','hearthsong'],['Druid','Circle of the Thornwall','briar'],['Rogue','Silvertongue','feint'],['Sorcerer','Veilborn Sorcery','veil'],['Warlock','Lantern-Keeper Patron','kindly'],['Artificer','Snarewright','tangle'],['Artificer','Draughtwright','tonic'],['Artificer','Siegewright','engine'],['Wizard','Fateweaver','thread']];
 for(const [cls,sub,id] of actionCases){
  const hero=make(cls,sub),spec=r.subclassEngine[sub].effects.find(e=>e.kind==='action'),limit=r.subclassUses(hero,spec.uses),healing=!!spec.effect.heal;
  const hurt={current:Math.max(1,r.combatBasics(hero).hp-6),temp:0};

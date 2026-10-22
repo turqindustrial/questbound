@@ -3718,7 +3718,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Alchemist",
+    "subclass": "Draughtwright",
     "level": 3,
     "name": "Field Tonic",
     "description": "As a Bonus Action you drink a tonic you mixed in the field and regain Hit Points equal to 1d8 + your Intelligence modifier. You can do this a number of times equal to your Intelligence modifier (minimum once), and you regain all uses when you finish a Long Rest.",
@@ -3727,7 +3727,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Alchemist",
+    "subclass": "Draughtwright",
     "level": 5,
     "name": "Reagent Boost",
     "description": "When you cast a spell that restores Hit Points or deals Acid, Fire or Poison damage, you can add your Intelligence modifier to one roll of it.",
@@ -3736,7 +3736,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Alchemist",
+    "subclass": "Draughtwright",
     "level": 9,
     "name": "Restoring Draughts",
     "description": "You can cast Lesser Restoration without a spell slot a number of times equal to your Intelligence modifier, regaining the uses on a Long Rest, and a healing draught you hand to an ally restores extra Hit Points equal to your Intelligence modifier.",
@@ -3745,7 +3745,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Alchemist",
+    "subclass": "Draughtwright",
     "level": 15,
     "name": "Proof Against Poison",
     "description": "You have Resistance to Acid and Poison damage, and you cannot be Poisoned.",
@@ -3754,7 +3754,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Armorer",
+    "subclass": "Platewright",
     "level": 3,
     "name": "Plated Craft",
     "description": "While you wear armor, you gain a +1 bonus to your Armor Class: you have fitted and tuned every plate of it yourself.",
@@ -3763,7 +3763,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Armorer",
+    "subclass": "Platewright",
     "level": 5,
     "name": "Second Swing",
     "description": "You can attack twice, instead of once, whenever you take the Attack action on your turn.",
@@ -3772,7 +3772,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Armorer",
+    "subclass": "Platewright",
     "level": 9,
     "name": "Tuned Plating",
     "description": "Your armor counts as a magic item for you, and once per Short or Long Rest, when you are hit, you can take a Reaction to gain Temporary Hit Points equal to your Artificer level.",
@@ -3781,7 +3781,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Armorer",
+    "subclass": "Platewright",
     "level": 15,
     "name": "Masterwork Suit",
     "description": "Your armor grants you Advantage on saving throws against being Grappled, Restrained or knocked Prone, and your Speed increases by 10 feet while you wear it.",
@@ -3790,7 +3790,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Artillerist",
+    "subclass": "Siegewright",
     "level": 3,
     "name": "Field Engine",
     "description": "As an action you fire a small arcane engine you built at a creature within 60 feet. It makes a Dexterity saving throw against your spell save DC, taking 2d8 Force damage on a failure or half as much on a success. The damage grows to 3d8 at Artificer level 9 and 4d8 at level 15. You can do this a number of times equal to your Intelligence modifier (minimum once), regaining the uses on a Long Rest.",
@@ -3799,7 +3799,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Artillerist",
+    "subclass": "Siegewright",
     "level": 5,
     "name": "Steadied Barrel",
     "description": "When you cast an Artificer spell that deals damage, you can add your Intelligence modifier to one of its damage rolls.",
@@ -3808,7 +3808,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Artillerist",
+    "subclass": "Siegewright",
     "level": 9,
     "name": "Burst the Engine",
     "description": "As a Magic action you can make your field engine burst: each creature within 10 feet of the point you choose makes a Dexterity saving throw against your spell save DC, taking 3d8 Force damage on a failure or half as much on a success.",
@@ -3817,7 +3817,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Artillerist",
+    "subclass": "Siegewright",
     "level": 15,
     "name": "Entrenched Battery",
     "description": "While you stand still behind your field engine, you and allies within 10 feet of you have Half Cover.",
@@ -3826,7 +3826,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Battle Smith",
+    "subclass": "Steelwright",
     "level": 3,
     "name": "Smith's Drill",
     "description": "You gain proficiency with Martial weapons.",
@@ -3835,7 +3835,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Battle Smith",
+    "subclass": "Steelwright",
     "level": 3,
     "name": "Forged Companion",
     "description": "You build a small mechanical companion that follows your commands. It acts on your turn, can take the Help action or make one attack, and you repair it during a Short or Long Rest (the Dungeon Master plays it).",
@@ -3844,7 +3844,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Battle Smith",
+    "subclass": "Steelwright",
     "level": 5,
     "name": "Drilled Strikes",
     "description": "You can attack twice, instead of once, whenever you take the Attack action on your turn.",
@@ -3853,7 +3853,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Battle Smith",
+    "subclass": "Steelwright",
     "level": 9,
     "name": "Spark Strike",
     "description": "Once on each of your turns, when you or your companion hits a creature, you can deal an extra 2d6 Force damage to it, or restore 2d6 Hit Points to a creature within 30 feet. You can do this a number of times equal to your Intelligence modifier per Long Rest.",
@@ -3862,7 +3862,7 @@
   },
   {
     "class": "Artificer",
-    "subclass": "Battle Smith",
+    "subclass": "Steelwright",
     "level": 15,
     "name": "Reforged Companion",
     "description": "Your companion gains a +2 bonus to Armor Class, and when it is hit it deals 1d4 + your Intelligence modifier Force damage back to the attacker.",

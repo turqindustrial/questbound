@@ -6,10 +6,10 @@ import {currentSubclass} from './characterRules';
 // out itself is in subclassRules.js (and the Champion's crits, the Draconic and Life features and the Fiend's gift).
 export const subclassOptions={
  Artificer: {
-  Alchemist: 'Experiment with magical mixtures and restorative elixirs.',
-  Armorer: 'Make enchanted armor the center of your adventuring craft.',
-  Artillerist: 'Build magical artillery to support your allies.',
-  'Battle Smith': 'Pair your magic with a mechanical companion and a steady blade.',
+  Draughtwright: 'Experiment with magical mixtures and restorative elixirs.',
+  Platewright: 'Make enchanted armor the center of your adventuring craft.',
+  Siegewright: 'Build magical artillery to support your allies.',
+  Steelwright: 'Pair your magic with a mechanical companion and a steady blade.',
   "Snarewright": "Rig traps, tangle-bolts and tripwires that stop a charging foe in its tracks."
  },
  Barbarian: {
@@ -87,7 +87,9 @@ export const subclassOptions={
 };
 // Subclasses offered before 2026-10-02, when the game was limited to licensed content. A hero who planned one keeps
 // it (the name stays on their sheet and goes to the Dungeon Master as flavour), but it is not offered to anyone new.
-// The game plays out only what it did before for such heroes (College of Valor's and Battle Smith's martial weapons,
+// The Artificer's four specialities that bore another publisher's names (Alchemist, Armorer, Artillerist, Battle Smith)
+// were renamed on 2026-10-22 (characterRules.js renamedSubclasses: a hero who planned one plays it under its new name).
+// The game plays out only what it did before for such heroes (College of Valor's and the old Battle Smith's martial weapons,
 // Gloom Stalker's initiative, College of Dance's armour class); nothing new is added for them.
 export const legacySubclassOptions={
  Artificer: [

@@ -4,6 +4,7 @@ import {genders,npcClassList,companionLevelFor} from './npcRules';
 import {magicItems} from './lootRules';
 import {heroXp,xpForLevel} from './experienceRules';
 import {validStaging,validWrittenTag} from './stagingRules';
+import {appendJournal,journalForGame} from './journalRules';
 const damageTypes=['Slashing','Piercing','Bludgeoning','Cold','Fire','Poison','Necrotic'];
 function validFoeStats(f){
  const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -76,7 +77,9 @@ export const introductionCard=intro=>['Your tale begins.',...introductionLines(i
 // close by. The errand's place is a landmark held by a creature (a lair on the map), and chapter 1 is the errand.
 export function validErrand(e){
  const text=(v,min,max)=>typeof v==='string'&&v.trim().length>=min&&v.length<=max;
- return !!e&&typeof e==='object'&&!Array.isArray(e)&&text(e.title,1,80)&&text(e.task,1,240)&&text(e.reward,0,160)&&/^p\d{1,2}$/.test(String(e.place));
+ return !!e&&typeof e==='object'&&!Array.isArray(e)&&text(e.title,1,80)&&text(e.task,1,240)&&text(e.reward,0,160)&&/^p\d{1,2}$/.test(String(e.place))
+  // The reward owed once the game closed chapter 1 at the cleared place (adventureRules.js withErrandFound).
+  &&(e.rewardDue===undefined||e.rewardDue===true);
 }
 // Creatures an errand may send a hero against. Below third level one of them, never a pack or the orc (the errand is
 // often a new hero's first fight): a pack or orc the writer chose anyway becomes a lighter creature of its kind.
@@ -104,7 +107,17 @@ export function validChapters(s){
  return Array.isArray(s.chapters)&&s.chapters.length>=2&&s.chapters.length<=maxChapters&&s.chapters.every(c=>c&&sagaText(c.title,80)&&sagaText(c.goal,300)&&sagaText(c.turn,400))&&Number.isInteger(s.chapter)&&s.chapter>=0&&s.chapter<s.chapters.length;
 }
 export function validLeads(s){
- return s.leads===undefined||(Array.isArray(s.leads)&&s.leads.length>=1&&s.leads.length<=maxLeads&&new Set(s.leads.map(l=>l?.id)).size===s.leads.length&&s.leads.every(l=>l&&/^l[1-4]$/.test(l.id)&&sagaText(l.title,80)&&sagaText(l.hook,300)&&(l.done===undefined||l.done===true)));
+ return s.leads===undefined||(Array.isArray(s.leads)&&s.leads.length>=1&&s.leads.length<=maxLeads&&new Set(s.leads.map(l=>l?.id)).size===s.leads.length&&s.leads.every(l=>l&&/^l[1-4]$/.test(l.id)&&sagaText(l.title,80)&&sagaText(l.hook,300)&&(l.done===undefined||l.done===true)&&(l.noted===undefined||l.noted===true)));
+}
+// A lead ticked or unticked by hand (the Quest tab; at a table the `lead` campaign edit) is the player's own note, never
+// the lead seen through (the stories spec, Phase A7, 2026-10-22: a tick paid as much as seeing the lead through, and the
+// Quest tab read as a checklist): it marks the lead `noted` (the Dungeon Master reads it as ticked, still open) and, when
+// ticked, writes a note in the journal; no experience, story-log line or deed. Only the tale closes a lead (the Dungeon
+// Master's lead-done), paid once. A lead seen through stays so.
+export function noteLead(game,id){
+ const lead=(game?.story?.leads??[]).find(l=>l.id===id);if(!lead||lead.done)return game;
+ const on=!lead.noted,leads=game.story.leads.map(l=>l.id!==id?l:on?{...l,noted:true}:(({noted:_n,...rest})=>rest)(l));
+ return {...game,story:{...game.story,leads},...(on?{journal:appendJournal(journalForGame(game),'note',('Your note: '+lead.title).slice(0,100),('Marked for yourself: '+lead.hook).slice(0,3000))}:{})};
 }
 // Where the tale stands: the chapter under way, the one after it, whether this is the last, and the leads.
 export function questState(game){

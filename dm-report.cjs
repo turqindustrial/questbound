@@ -77,7 +77,9 @@ else{
  console.log('  Background writing (tales written ahead) today: '+usd(s.background)+'.');
  console.log('  This month, guests and background writing: '+w.month+' (.questbound-month-budget).');
  console.log('  Host jobs (you fund these) today: '+usd(s.hostJobs??0)+': the people, place and creature libraries you build by hand; never counted against any ceiling.');
- console.log(s.paused?'  GUESTS ARE PAUSED: every guest request is refused. Resume with Questbound.cmd -ResumeGuests.':'  Guests are not paused (pause them at once with Questbound.cmd -PauseGuests).');}
+ console.log(s.paused?'  GUESTS ARE PAUSED: every guest request is refused. Resume with Questbound.cmd -ResumeGuests.':'  Guests are not paused (pause them at once with Questbound.cmd -PauseGuests).');
+ // The ready-journey library (dm-server.cjs libraryPaused): paused, nothing new is written; journeys on offer stay.
+ console.log(fs.existsSync(path.join(dir,'.questbound-library-paused'))?'  THE JOURNEY LIBRARY IS PAUSED: no new ready journey is written. Resume with Questbound.cmd -ResumeLibrary.':'  The journey library writes new journeys as old ones retire (pause it with Questbound.cmd -PauseLibrary).');}
 console.log('\nRejected replies: '+rejections.length+(usage.length?' of '+usage.length+' live requests':''));
 const byError={};for(const r of rejections)byError[r.error]=(byError[r.error]??0)+1;
 for(const [error,n] of Object.entries(byError).sort((a,b)=>b[1]-a[1]))console.log('  '+String(n).padStart(4)+'  '+error);

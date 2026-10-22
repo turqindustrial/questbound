@@ -1,11 +1,11 @@
 import {storyText,questState} from './storyRules';
-import {recordNpcAggression,npcServiceError,npcProfile,npcLore,npcIdsOf} from "./npcRules";
+import {recordNpcAggression,npcServiceError,npcProfile,npcLore,npcIdsOf,npcScene} from "./npcRules";
 import {automaticEffects,requestSpell,resolveSpellRuling,knownSpells} from "./spellRules";
 import {slotChoices,slotUsed} from "./spellOptions";
 import {dungeonRooms,dungeonAction} from "./dungeonRules";
 import {campaignState,campaignAction} from "./campaignRules";
 import {beginJournal,recordJournalTransition,appendJournal} from "./journalRules";
-import {mapState,mapLocation,travelRoute,timePasses} from "./mapRules";
+import {mapState,mapLocation,travelRoute,timePasses,worldPlace} from "./mapRules";
 import {turnCost} from "./classActions";
 import {combatBasics} from "./combatRules";
 import {modifier} from "./characterRules";
@@ -418,8 +418,45 @@ export function adventureStep(game,health,hero,action,random=Math.random){
  // A party at the shared table takes its fights in turns.
  const played=isPartyGame(scaled)?partyStep(scaled,health,hero,action,random):heroStep(scaled,health,hero,action,random);
  const result=played.error||played.waiting||!played.game||played.game===scaled?{...played,game:played.game===scaled?game:played.game}:{...played,game:withFoeScale(played.game,hero)};
- // Whatever fell in this step (a creature, a lair's owner, the tale's foe, a person) can be searched afterwards.
- return withSpoils(game,result,hero);
+ // Whatever fell in this step (a creature, a lair's owner, the tale's foe, a person) can be searched afterwards; an
+ // errand whose place this step cleared closes its chapter (withErrandFound), so the preview a device or the campaign
+ // server asks the Dungeon Master to tell already holds the find.
+ return withErrandFound(withSpoils(game,result,hero),hero,game);
+}
+// The errand closes where it is found (the stories spec, Phase A3, 2026-10-22): a tale with an errand and no staging of
+// its own closes chapter 1 once the errand's place is cleared (its lair won), out of a fight, so its find (the chapter's
+// truth, in advanceChapter's "Chapter 1 complete" line) is told there, in the telling of the fight's end. The reward stays
+// owed (story.errand.rewardDue) until keeper hands it over the next time the hero speaks with them (withErrandReward).
+// Before this, chapter 1 waited for the hero to report back and for the Dungeon Master to move it on, and no tale moved.
+// Every step goes through it (adventureStep), so a device's preview, its commit and the campaign server agree; a save
+// stalled with its errand place cleared closes its chapter at its next move, owing no reward (its keeper may already
+// have paid while it stalled: the reward is owed only when this very step cleared the place).
+export function errandFound(game){
+ const s=game?.story,e=s?.errand;
+ if(!s||!e||s.staging||s.status!=='active'||(s.chapter??0)!==0||!Array.isArray(s.chapters)||s.chapters.length<2)return false;
+ if(['combat','dying','dead','defeat'].includes(game.stage)||game.npcCombat?.active||game.turnOrder||game.pendingSpell||game.wildFight)return false;
+ return worldPlace(game,e.place)?.cleared===true;
+}
+export function withErrandFound(result,hero,before=null){
+ if(!result||result.error||result.waiting||!result.game||!errandFound(result.game))return result;
+ const advanced=advanceChapter(result.game,result.health,hero);if(advanced.error)return result;
+ const errand=advanced.game.story.errand,owed=String(errand.reward??'').trim().length>0&&!(before&&worldPlace(before,errand.place)?.cleared===true);
+ return {...result,game:{...advanced.game,story:{...advanced.game.story,errand:owed?{...errand,rewardDue:true}:errand}},events:[...(result.events??[]),...advanced.events]};
+}
+// The errand's reward handed over: keeper, here, gave gold or goods with nothing paid for them, in a turn spoken with
+// keeper or one whose loot says it is the reward (the Dungeon Master's loot, or the game's own payment of the promised
+// purse: dm-replies.cjs errandPaidTurn); or it can no longer be paid (keeper dead, the tale two chapters on or over). A
+// purchase, a gift from someone else or a find while keeper is about is not the reward. Run in settleTurn after the
+// step, where the move was made.
+const errandRewardWords=/\b(?:reward|promised|purse|payment|pay|paid|fee|wages?|bounty|owed)\b/i;
+export function withErrandReward(before,after,conversation){
+ const e=after?.story?.errand;if(!e?.rewardDue)return after;
+ const loot=conversation?.loot,gold=Number(loot?.gold)||0,given=!!loot&&gold>=0&&(gold>0||(Array.isArray(loot.items)&&loot.items.some(i=>(Number(i?.qty)||0)>0)));
+ const fromKeeper=conversation?.npcId==='keeper'||errandRewardWords.test(String(loot?.reason??''));
+ const paid=given&&fromKeeper&&npcScene(after).some(n=>n.id==='keeper'&&n.present);
+ const lost=after.npcFate?.keeper==='dead'||(after.story.chapter??0)>=2||after.story.status!=='active';
+ if(!paid&&!lost)return after;
+ const {rewardDue,...rest}=e;return {...after,story:{...after.story,errand:rest}};
 }
 // A whole turn from one sentence: an action and a bonus action (or a free move) in a fight, in the order said; or one
 // move with the rest of the sentence told to wait (`rest`, `why`). The second move follows only while it is still this

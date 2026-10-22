@@ -8,7 +8,7 @@
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const {rulesSource,readText}=require('./rules-files.cjs');
 const {journeyStory}=require('./journey-fixtures.cjs');
-const x=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,freshStoryGame,adventureStep,settleTurn,routineTelling,routineCalmTurn,calmTelling,calmLineBook,calmBarks,calmLineCases,plainCalmWords,quickActions,dmChoices,dmCommand,validAdventure,adventureSnapshot,npcScene,sceneLocation,startParty,joinParty,partyView,heroesAtTable})',{AsyncStorage:{}});
+const x=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,freshStoryGame,adventureStep,settleTurn,routineTelling,routineCalmTurn,calmFallback,calmTelling,calmLineBook,calmBarks,calmLineCases,plainCalmWords,quickActions,dmChoices,dmCommand,validAdventure,adventureSnapshot,npcScene,sceneLocation,startParty,joinParty,partyView,heroesAtTable})',{AsyncStorage:{}});
 const r=require('./rules-engine.cjs').rules(),{resolveTurn}=require('./server-turn.cjs');
 const plain=v=>JSON.parse(JSON.stringify(v));
 const lcg=(s=7)=>{s=(s*2654435761)%2147483647||1;return ()=>(s=(s*16807)%2147483647)/2147483647;};
@@ -50,6 +50,44 @@ notable('a rest with a plan',/words/,back.game,hurt,kara,'short-rest','I take a 
 // A companion knocked senseless who comes round is the Dungeon Master's to tell.
 {const g={...back.game,followers:{mara:{status:'following',location:'inn',reason:'Test.',terms:''}},npcHP:{...back.game.npcHP,mara:0},npcFate:{...(back.game.npcFate??{}),mara:'unconscious'}};
  notable('a companion who comes round',null,g,hurt,kara,'long-rest','I take a long rest.');}
+
+// ---- 2b. Moves with story weight go to the Dungeon Master (the stories spec, Phase A4, 2026-10-22) ----
+// The walk back after something that mattered (a lair cleared or the tale's own foe beaten, a chapter, lead or tale
+// closed, a death) and the first long rest after it are the Dungeon Master's; so is a journey or a rest after two calm
+// moves in a row told by the game. A fight won elsewhere (an ambush, a risky place) is not a milestone (the project
+// review, 2026-10-22: the spec names a lair cleared).
+{const log=back.game.storyLog??[],next=log.at(-1)?.id??0,line=(kind,text,i=1)=>({id:next+i,kind,text});
+ const den=back.game.world.places.find(p=>p.danger==='lair'),open=back.game.world.places.find(p=>p.danger!=='lair');assert.ok(den&&open,'a lair and a place that is not one');
+ const won={...back.game,storyLog:[...log,line('fight','Fought the Mill wolf at '+den.name+'.'),line('victory','Slew the Mill wolf.',2)]},chaptered={...back.game,storyLog:[...log,line('quest','Finished chapter 1: The Mill.')]};
+ const ambushed={...back.game,storyLog:[...log,line('fight','Fought the dire wolf at '+open.name+'.'),line('victory','Slew the dire wolf.',2)]};
+ routine('the walk back from an ambush won is the game\'s',ambushed,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ const foe={...back.game,storyLog:[...log,line('victory','Slew '+back.game.story.foe+'.')]};notable('the walk back from the tale\'s own foe beaten',/mattered/,foe,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the walk back from a lair won',/mattered/,won,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the walk after a chapter closed',/mattered/,chaptered,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the first night after it',/mattered/,won,hurt,kara,'long-rest','I take a long rest.');
+ routine('a draught after it is still the game\'s',won,hurt,kara,'potion','I drink a healing draught.');
+ const walked={...won,storyLog:[...won.storyLog,line('travel','Returned to Saltmarsh Chapel.',3)]};
+ routine('the next walk is the game\'s again',walked,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('the night after the walk is still the first since',/mattered/,walked,hurt,kara,'long-rest','I take a long rest.');
+ const slept={...walked,storyLog:[...walked.storyLog,line('rest','Took a long rest at Stillwater Market.',4)]};
+ routine('the second night is the game\'s',slept,hurt,kara,'long-rest','I take a long rest.');
+ const told=t=>({id:t,npcId:null,told:'game',events:[{kind:'narration',text:'You walk on.'}]}),last=back.game.playback?.at(-1)?.id??1;
+ assert.equal(back.game.playback.at(-1).told,'game','the journey back was told by the game');const twice={...back.game,playback:[...(back.game.playback??[]),told(last+1)]},once=back.game;
+ notable('a third calm move in a row (a journey)',/in a row/,twice,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ notable('a third calm move in a row (a rest)',/in a row/,twice,hurt,kara,'short-rest','I take a short rest.');
+ routine('a draught is never sent for it',twice,hurt,kara,'potion','I drink a healing draught.');
+ routine('after one, the game tells it',once,back.health,kara,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel');
+ // The Dungeon Master is preferred there, never required (the project review, 2026-10-22: past the guests' ceiling a hero
+ // who had made two such moves could never travel or rest again): when it cannot answer, the game tells the move
+ // (calmFallback); a move that needs it for any other reason has no such telling.
+ for(const [g,h,a,w] of [[won,back.health,{type:'travel',destination:'tower'},'I go back to Saltmarsh Chapel'],[twice,hurt,'short-rest','I take a short rest.'],[won,hurt,'long-rest','I take a long rest.']]){
+  const p=preview(g,h,kara,a),told=x.calmFallback({hero:kara,before:g,preview:p,action:a,words:w,preferences:{narrator:'bard'}});assert.ok(told&&told.told==='game'&&told.narration,JSON.stringify(a));}
+ {const p=preview(won,back.health,kara,{type:'travel',destination:'tower'});assert.equal(x.calmFallback({hero:kara,before:won,preview:p,action:{type:'travel',destination:'tower'},words:'I go back to Saltmarsh Chapel and ask about the mill.'}),null,'not for words that say more');}
+ // A move the Dungeon Master chose is told by its own reply either way.
+ assert.equal(x.routineCalmTurn(won,preview(won,back.health,kara,{type:'travel',destination:'tower'}).game,{type:'travel',destination:'tower'},'Back we go.',{events:preview(won,back.health,kara,{type:'travel',destination:'tower'}).events,chosen:true}).routine,true,'chosen: its own telling');}
+// No line announces that nothing happened: the game's calm lines are movement, never "without incident".
+{const flat=/without incident|unremarkable|uneventful|much as (?:you|they|\{hero\}) left|unchanged|nothing (?:happens|attacks|tries|bothers)|as dull as|a quiet one|just as (?:you|they) remember|just as before|has not missed|never change|as unimpressed|right where (?:you|\{hero\}) left|Nobody (?:bothers|throws)|underwhelming|not burned down|asks nothing|without trouble|passes quietly|Things are quiet|Still standing/i;
+ for(const [voice,book] of Object.entries(x.calmLineBook))for(const [kind,lines] of Object.entries(book))if(!/^search/.test(kind))for(const l of lines)assert.ok(!flat.test(l),voice+' '+kind+' says nothing happened: '+l);}
 
 // ---- 3. Searching the fallen ----
 {const here=x.sceneLocation(atChapel.game),alone={...atChapel.game,spoils:[{kind:'creature',template:'wolf',name:'Mill wolf',count:1,place:here}]};
@@ -145,5 +183,15 @@ assert.ok(!/survivalOdds|sparedBlow/.test(readText('calmLines.js')),'the hidden 
    assert.equal(n,1,'a night\'s rest the Dungeon Master chose: one request');assert.ok(slept.narration.length>'The keeper shows you a bed upstairs.'.length,'and the night is seen through: '+slept.narration);
    n=0;queue.push({narration:'The keeper nods.',actionId:'story-advance'});
    await resolveTurn(one.snapshot,{question:'The mill is clear, reeve.'},{ask:dm,randomImpl:lcg(4)});assert.equal(n,2,'a chapter closing is still told by the Dungeon Master');}
+
+  // ---- 10. When the Dungeon Master cannot answer, a calm move sent to it only by preference is told by the game ----
+  // (the project review, 2026-10-22: a guest past the day's ceiling, the guests' pause, a rate limit or an outage left a
+  // hero who had made two game-told moves unable ever to travel or rest again). Somewhere new still needs it.
+  {const refused=async()=>{throw Object.assign(Error('The game has reached today\'s limit for guests.'),{status:503});};
+   let s=snap;for(const [dest,words] of [['inn','I travel to Stillwater Market.'],['tower','I travel to Saltmarsh Chapel.'],['inn','I travel to Stillwater Market.'],['tower','I travel to Saltmarsh Chapel.']]){
+    const t=await resolveTurn(s,{question:words,action:{type:'travel',destination:dest}},{ask:refused,randomImpl:lcg(4)});assert.equal(t.turn.told,'game',words);s=t.snapshot;}
+   const rested=await resolveTurn({...s,health:{current:4,temp:0}},{question:'I take a short rest.',action:'short-rest'},{ask:refused,randomImpl:lcg(4)});assert.equal(rested.turn.told,'game','and rest');
+   await assert.rejects(resolveTurn(one.snapshot,{question:'I travel to The Old Mill.',action:x.dmChoices(kara,one.snapshot.game,one.snapshot.health).find(c=>/^travel-/.test(c.id)&&/Mill/.test(c.label)).action},{ask:refused,randomImpl:lcg(4)}),/limit for guests/,'somewhere new is refused as before');
+   const src=readText('useDmTurn.js');assert.ok(/calmFallback\(\{hero,before:game,preview,action:command\.action,words:question,preferences:storyPreferences\(\)\}\)/.test(src)&&/catch\(e\)\{if\(!fallback\|\|benignTurnFailure\(String\(e\?\.message\?\?e\)\)\)throw e;body=fallback;\}/.test(src),'a device does the same (a scene that changed meanwhile still refuses)');}
   console.log('verify-calm-lines: ok ('+raw.length+' lines)');
  })().catch(e=>{console.error(e);process.exit(1);});}

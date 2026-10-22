@@ -14,7 +14,9 @@
 #   -TrustNetwork    retained for compatibility; remote HTTP play is disabled
 #   -PauseGuests     refuse every guest's AI at once (turns, new tales, new pictures) until -ResumeGuests; no restart
 #   -ResumeGuests    let guests play again
-param([switch]$PauseGuests,[switch]$ResumeGuests,[switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork,[switch]$SetupDiscord,[switch]$ForgetDiscord,[switch]$AnnounceLink)
+#   -PauseLibrary    stop the Dungeon Master writing new ready journeys (those written stay on offer) until -ResumeLibrary
+#   -ResumeLibrary   let the journey library write new journeys again; no restart for either
+param([switch]$PauseGuests,[switch]$ResumeGuests,[switch]$PauseLibrary,[switch]$ResumeLibrary,[switch]$Stop,[switch]$Dev,[switch]$NoBrowser,[switch]$ForgetKey,[switch]$Models,[switch]$InstallStartup,[switch]$RemoveStartup,[switch]$Share,[switch]$SetupTunnel,[switch]$ForgetTunnel,[switch]$TrustNetwork,[switch]$SetupDiscord,[switch]$ForgetDiscord,[switch]$AnnounceLink)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -30,6 +32,7 @@ $tunnelHostFile = Join-Path $root '.questbound-tunnel-host'
 $discordFile = Join-Path $root '.questbound-discord.dpapi'
 $discordLastFile = Join-Path $root '.questbound-discord-last'
 $pauseFile = Join-Path $root '.questbound-guests-paused'
+$libraryPauseFile = Join-Path $root '.questbound-library-paused'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
@@ -79,6 +82,10 @@ if ($Stop) {
 # The host's switch for guests: the share gateway and the Dungeon Master refuse all guest AI while the file exists.
 if ($PauseGuests) { Set-Content $pauseFile ("Paused by the host at " + (Get-Date).ToString('s')) -Encoding ASCII; Say '  Guests are paused: every guest request to the Dungeon Master is refused. Your own play on this PC goes on.' 'Yellow'; Say '  Let them play again with: Questbound.cmd -ResumeGuests' 'DarkGray'; return }
 if ($ResumeGuests) { Remove-Item $pauseFile -ErrorAction SilentlyContinue; Say '  Guests may play again.' 'Green'; return }
+# The host's switch for the ready-journey library: while the file exists the Dungeon Master writes no new journey (read
+# live, no restart); the journeys already written are still offered and started.
+if ($PauseLibrary) { Set-Content $libraryPauseFile ('Paused by the host at ' + (Get-Date).ToString('s')) -Encoding ASCII; Say '  The journey library is paused: no new ready journey is written. Journeys already written stay on offer.' 'Yellow'; Say '  Let it write again with: Questbound.cmd -ResumeLibrary' 'DarkGray'; return }
+if ($ResumeLibrary) { Remove-Item $libraryPauseFile -ErrorAction SilentlyContinue; Say '  The journey library may write new journeys again.' 'Green'; return }
 if ($ForgetKey) { Remove-Item $keyFile, $modelFile, $storyModelFile -ErrorAction SilentlyContinue; Say 'The remembered API key was deleted from this PC.' 'Green'; return }
 if ($Models) {
   $model = if (Test-Path $modelFile) { (Get-Content $modelFile -Raw).Trim() } else { 'gpt-6-luna' }
