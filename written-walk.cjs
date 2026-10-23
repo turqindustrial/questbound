@@ -5,7 +5,7 @@
 // (fightLines.js routineTelling, which gives way while a beat is due), else a request whose scene's beat is recorded
 // (beatSent), then the commit with the beats the requests carried. Used by check-written-tale.cjs (checks 5 and 9) and
 // verify-staging.cjs. No AI, no network, no ports.
-//   walkTale({r, story, hero, heroAt, steps|mode, seed, levelUps}) -> {ok, ending, moves, chapters, levels, log, error}
+//   walkTale({r, story, hero, heroAt, steps|mode, seed, levelUps, prepare}) -> {ok, ending, moves, chapters, levels, log, error}
 // `r` is the rules (rules-files.cjs, run in a context of the caller's own: it must export the names in `needs`).
 'use strict';
 const needs=['dmCommand','freshStoryGame','newAdventure','adventureStep','stagedPreview','settleTurn','commitDmTurn','routineTelling','dmChoices','mapMoves','beatSent','beatKey','stagingIds','validAdventure','adventureSnapshot','withAttackIntent','npcScene','levelUpReady','advancedInPlace','foeForLevel','levelCompanions','combatBasics','standingOffers','mapLocation','worldPlaces','lootError','placeName','storyText'];
@@ -14,11 +14,12 @@ function seeded(seed){let a=(seed>>>0)||1;return()=>{a=(a+0x6D2B79F5)>>>0;let t=
 const plain=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const fighting=g=>['combat','dying','dead','defeat'].includes(g.stage)||!!g.npcCombat?.active||!!g.turnOrder||!!g.pendingSpell||!!g.wildFight;
 class WalkError extends Error{}
-function walkTale({r,story,hero,heroAt=null,steps=null,mode='steps',seed=1,levelUps=true,limit=1200,narrator='chronicler',trace=false}){
+function walkTale({r,story,hero,heroAt=null,steps=null,mode='steps',seed=1,levelUps=true,limit=1200,narrator='chronicler',trace=false,prepare=null}){
  for(const n of needs)if(typeof r[n]!=='function')throw Error('written-walk.cjs needs '+n+' from the rules');
  const random=seeded(seed),log=[],chapters=[];
  let game,health=null,moves=0,levels=0;
- try{game=r.freshStoryGame(hero,story,r.newAdventure(hero));}catch(e){return {ok:false,error:'the tale does not seat: '+(e?.message??e),moves:0,chapters,levels:0,log};}
+ // `prepare`: what becomes of the tale once seated (a next tale joined to the hero's earlier world: verify-campaign-world.cjs).
+ try{game=r.freshStoryGame(hero,story,r.newAdventure(hero));if(prepare)game=prepare(game);}catch(e){return {ok:false,error:'the tale does not seat: '+(e?.message??e),moves:0,chapters,levels:0,log};}
  const startLevel=hero.level??1,ids=()=>r.stagingIds(game),staging=game.story.staging;
  const note=(kind,text)=>log.push({move:moves,kind,text});
  const check=()=>{if(!r.validAdventure(r.adventureSnapshot(hero,game,health,true),hero))throw new WalkError('after move '+moves+' the game is not a valid adventure');};

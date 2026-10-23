@@ -3,7 +3,7 @@ import DynamicArt from './DynamicArt';
 import {locationArtSubject} from './worldArtRules';
 import React,{useState,useEffect,useRef} from 'react';
 import {View,Image,Pressable,Platform,StyleSheet,Modal,ScrollView,useWindowDimensions} from 'react-native';
-import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords} from './mapRules';
+import {mapPlaces,mapState,mapLocation,mapRoute,knownPlaceIds,placeCoordinates,placeName,placeDescription,worldPlace,worldPlaces,worldLinks,travelRoute,distanceText,durationText,placeIcons,mapRegions,regionOfPlace,currentRegion,beyondWords,beyondBarred} from './mapRules';
 import {fonts,colors,type,tint} from './theme';
 import Icon from './Icon';
 import {WrapRow} from './ui';
@@ -100,15 +100,16 @@ function RegionSheet({game,w,h,selected,onSelect,region,onRegion}){
  </View>;
 }
 // Beyond the edge of the map: a compass of the ways out of the land the hero stands in. A direction is picked first and
-// then confirmed (the road takes days), and the game opens a new land out there (mapRules.js goBeyond).
+// then confirmed (the road takes days), and the game opens a new land out there (mapRules.js goBeyond). While the tale
+// bars the road out (beyondBarred), the card says so: whoever watches it must be fought on arrival.
 const roseRows=[['NW','N','NE'],['W',null,'E'],['SW','S','SE']];
-function BeyondCard({land,beyond,onBeyond,close}){
+function BeyondCard({land,beyond,onBeyond,close,barred=false}){
  const [aim,setAim]=useState(null),ok=b=>beyond.includes(b);
  return <View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLabel={'Beyond the map of '+land}>
   <View style={s.rose}>{roseRows.map((row,i)=><View key={i} style={s.roseRow}>{row.map(b=>b?<Pressable key={b} accessibilityRole="button" accessibilityLabel={'Beyond the map to the '+beyondWords[b]} accessibilityState={{selected:aim===b,disabled:!ok(b)}} disabled={!ok(b)} onPress={()=>setAim(aim===b?null:b)} dataSet={{qb:aim===b?'seg-on':'chip'}} style={[s.roseCell,aim===b&&s.roseOn,!ok(b)&&{opacity:.35}]}><PlainText style={[s.roseText,aim===b&&{color:colors.goldBright}]}>{b}</PlainText></Pressable>:<View key="centre" style={s.roseCentre}><Icon name="compass" size={16} color={colors.goldMid}/></View>)}</View>)}</View>
   <View style={{flex:1,minWidth:0}}>
    <Text style={s.detailName}>Beyond the map</Text>
-   <PlainText style={s.beyondText}>{aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, and you can always travel back.'}</PlainText>
+   <PlainText style={s.beyondText}>{(aim?'Leave '+land+' by the road '+beyondWords[aim]+': days on the road, to a land not yet on any map.':'Pick a way out of '+land+' to find a new land past the edge. Lands you leave stay on your map, and you can always travel back.')+(barred?' The road out is watched while this tale’s trouble lasts: you will have to fight your way through.':'')}</PlainText>
    {!!aim&&<Pressable accessibilityRole="button" accessibilityLabel={'Set out '+beyondWords[aim]+', beyond the map'} onPress={()=>{onBeyond(aim);setAim(null);close?.();}} dataSet={{qb:'chip'}} style={[s.travel,{alignSelf:'flex-start',marginTop:8}]}><View style={s.travelRow}><Icon name="travel" size={14} color={colors.gold}/><PlainText style={s.travelText}>Set out</PlainText></View></Pressable>}
   </View>
  </View>;
@@ -145,7 +146,7 @@ function RegionMap({game,travelTo,onTravel,beyond=[],onBeyond}){
  const regionTabs=(inline=false)=>regions.length>1&&<WrapRow rows={1} openRows={4} rowHeight={34} gap={6} resetKey={shown.id} label="Lands" accessibilityRole="tablist" style={[s.regionBar,inline&&s.regionInline]}>{tabOrder.map(r=>{const on=r.id===shown.id;return <Pressable key={r.id} accessibilityRole="tab" accessibilityState={{selected:on}} accessibilityLabel={'Map of '+r.name+(r.id===home?', where you are':'')} onPress={()=>turnTo(r.id)} dataSet={{qb:on?'seg-on':'chip'}} style={[s.regionTab,on&&s.regionTabOn]}>{r.id===home&&<View style={s.regionDot}/>}<PlainText numberOfLines={1} style={[s.regionTabText,on&&{color:colors.goldBright}]}>{r.name}</PlainText></Pressable>;})}</WrapRow>;
  const fighting=game.stage==='combat'||!!game.npcCombat?.active;
  // The ways off the edge of the land the hero stands in, on that land's own sheet.
- const beyondCard=close=>shown.id===home&&!!onBeyond&&beyond.length>0&&<BeyondCard land={shown.name} beyond={beyond} onBeyond={onBeyond} close={close}/>;
+ const beyondCard=close=>shown.id===home&&!!onBeyond&&beyond.length>0&&<BeyondCard land={shown.name} beyond={beyond} onBeyond={onBeyond} close={close} barred={beyondBarred(game)}/>;
  const pickCard=close=>pick&&<View dataSet={{qb:'card'}} style={s.pickCard} accessibilityLiveRegion="polite">
    <View style={{flex:1,minWidth:0}}>
     <Text style={s.detailName}>{placeName(game,pick)}</Text>

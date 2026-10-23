@@ -9,9 +9,13 @@ const {rulesSource}=require('./rules-files.cjs');
 // and the campaign server agree). Lands travelled are never forgotten (2026-10-12): sixty lands and 150 places fit;
 // when the map is full only what the hero merely heard of gives way (a rumour never visited, a land never reached),
 // and every land on the map can be travelled back to: on the map, among the choices, by name and at the shared table.
+// Every tale lets the hero leave (2026-10-23, the host's words: "make sure every single one of the stories allows
+// players to leave the map if they so desire, whether that is by easy travel, or by overcoming some sort of obstacle put
+// in their way"): a written tale that keeps its hero close (staging.noBeyond) bars the road with a fight on arrival
+// (beyondBarred), never refuses it; win and the road is open, flee and the hero is back where they set out.
 // Synthetic heroes and a stand-in Dungeon Master only: no network, no AI.
 const source=rulesSource({extra:['mapLayout.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,adventureStep,dmChoices,dmContext,mapMoves,quickActions,validAdventure,adventureSnapshot,mapRegions,worldPlaces,worldPlace,currentRegion,mapLocation,travelRoute,travelChoices,roomToMake,commitDmTurn,landsInFull,beyondError,beyondPlan,edgePlace,maxRegions,maxWorldPlaces,regionLayout,withStoryLog,withExperience,freshStoryGame,joinRegion,carriedBase,npcScene,metPerson})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,hostileEncounterGame,adventureStep,dmChoices,dmContext,mapMoves,quickActions,validAdventure,adventureSnapshot,mapRegions,worldPlaces,worldPlace,currentRegion,mapLocation,travelRoute,travelChoices,roomToMake,commitDmTurn,landsInFull,beyondError,beyondPlan,edgePlace,maxRegions,maxWorldPlaces,regionLayout,withStoryLog,withExperience,freshStoryGame,joinRegion,carriedBase,npcScene,metPerson,beyondBarred,attackOptions,roadWatchFor,settleTurn})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const hero=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=g=>r.validAdventure(r.adventureSnapshot(hero,JSON.parse(JSON.stringify(g)),hp,true),hero);
@@ -120,6 +124,56 @@ assert.ok(valid(crowd),'a full map is a valid save');
  assert.ok(r.mapRegions(joined).length>=r.mapRegions(w).length+1,'every land travelled comes along as a land of its own');
  for(const p of r.worldPlaces(joined).filter(p=>joined.map.visited.includes(p.id)))assert.ok(r.travelRoute(joined,'inn',p.id),'and can be travelled back to: '+p.name);
  assert.ok(valid(joined));}
+// ---- A written tale's road out is barred, never refused ----
+const fixture=JSON.parse(fs.readFileSync('written-fixture.json','utf8'));let copies=0;
+const writtenCopy=(mutate=null)=>{const s=JSON.parse(JSON.stringify(fixture.story));if(mutate)mutate(s);return {...s,id:'barred-'+(++copies),status:'active',libraryId:fixture.id,artId:'journey-'+fixture.id,written:{slug:fixture.slug,edition:1,length:fixture.length}};};
+const seated=(mutate,who=hero)=>r.freshStoryGame(who,writtenCopy(mutate),r.newAdventure(who));
+const fight=(game,health)=>{const weapon=r.attackOptions(hero)[0].name;for(let i=0;i<30&&game.stage==='combat';i++){const t=r.adventureStep(game,health,hero,'attack:'+weapon,()=>0.95);assert.equal(t.error,undefined,t.error);game=t.game;health=t.health;}return {game,health};};
+const barred=seated();
+{assert.equal(fixture.length,'short');assert.notEqual(barred.story.staging.noBeyond,false,'the fixture keeps its hero close');
+ assert.equal(r.beyondBarred(barred),true,'a short tale before its last chapter bars the road out');assert.equal(r.beyondError(barred,'N'),'','but never refuses it');
+ const ways=r.dmChoices(hero,barred,hp).filter(c=>c.id.startsWith('beyond-'));assert.equal(ways.length,8,'all eight ways are offered');
+ assert.ok(ways.every(c=>/the road out is watched while this tale's trouble lasts: you will have to fight your way through/.test(c.label)&&c.label.length<=150),'each says the road is watched');
+ assert.ok(r.mapMoves(barred).filter(m=>m.action.type==='beyond').every(m=>/watched/.test(m.label)),'and so does the map');
+ assert.ok(!r.dmChoices(hero,g,hp).some(c=>/watched/.test(c.label)),'never for a tale without staging');
+ // Going: the new land, its arrival held by something that watches the road, and the fight begun there.
+ const out=r.adventureStep(barred,hp,hero,{type:'beyond',bearing:'N'},()=>0.9),arrival=r.worldPlace(out.game,out.game.wildFight?.place);
+ assert.equal(out.error,undefined,out.error);assert.equal(out.game.stage,'combat','a fight on arrival');assert.ok(arrival&&arrival.region===r.mapRegions(out.game).at(-1).id,'at the new land\'s arrival place');
+ assert.equal(arrival.danger,'risky');assert.ok(arrival.threat&&['bandit','wolf','skeleton','boar','spider'].includes(arrival.threat.template),'one creature alone below third level: '+JSON.stringify(arrival.threat));
+ assert.equal(r.worldPlaces(out.game).filter(p=>p.region===arrival.region).length,1,'nothing past it is heard of, so no journey goes round it');
+ assert.ok(out.game.pace.fired.includes('beyond:'+arrival.id),'the barred arrival is remembered');assert.ok(valid(out.game),'the save holds');
+ assert.ok(out.events.some(e=>/bursts? out at /.test(e)),JSON.stringify(out.events));
+ same(r.adventureStep(barred,hp,hero,{type:'beyond',bearing:'N'},()=>0.1).game.world,out.game.world,'the same land and watcher whatever the dice (seeded from the game)');
+ // The kinds a watcher may be: from the land, one creature alone below third level, any from the third.
+ for(const terrain of ['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns'])for(let i=0;i<12;i++){const low=r.roadWatchFor(terrain,1,()=>i/12),high=r.roadWatchFor(terrain,5,()=>i/12);
+  assert.ok(!['goblin','orc','wolves','zombies'].includes(low.template),terrain+': '+low.template);assert.ok(low.name.length<=60&&low.appearance.length<=400&&high.name&&high.appearance);}
+ {const strong={...barred,encounterLevel:5},o=r.adventureStep(strong,hp,hero,{type:'beyond',bearing:'E'},()=>0.9);assert.equal(o.error,undefined);assert.ok(r.worldPlace(o.game,o.game.wildFight.place).threat,'barred at any level');}
+ // Fled: back where the hero set out, the watcher still there (its wounds kept), the road still barred.
+ const fled=r.adventureStep(out.game,out.health??hp,hero,'flee',()=>0.9);assert.equal(fled.error,undefined,fled.error);
+ assert.notEqual(fled.game.stage,'combat');assert.equal(r.mapLocation(fled.game),r.mapLocation(barred),'back the way they came');
+ assert.ok(r.worldPlace(fled.game,arrival.id).threat,'the watcher waits');assert.equal(r.beyondBarred(fled.game),true,'and the road out is still barred');assert.ok(valid(fled.game));
+ // Won: the place cleared and the road out open for the rest of the tale (another way beyond is easy travel).
+ const won=fight(out.game,out.health??hp);assert.ok(!['combat','dying','dead'].includes(won.game.stage),'the fight is won: '+won.game.stage);
+ assert.equal(r.worldPlace(won.game,arrival.id).cleared,true);assert.equal(r.beyondBarred(won.game),false,'the road out is open');assert.ok(valid(won.game));
+ {const home=r.adventureStep(won.game,won.health,hero,{type:'travel',destination:'inn'},()=>0.9);assert.equal(home.error,undefined,home.error);assert.equal(r.beyondBarred(home.game),false,'from home too, once won through');
+  const again=r.adventureStep(home.game,home.health,hero,{type:'beyond',bearing:'S'},()=>0.9);assert.equal(again.error,undefined);assert.notEqual(again.game.stage,'combat','easy travel now');
+  assert.ok(!dmLabels(home.game).some(l=>/watched/.test(l)),'and the ways no longer say it is watched');}
+ // Never barred: a long tale (its default), a tale that says noBeyond false, the last chapter, a tale complete, an AI
+ // journey (no staging), a land beyond already reached (setting out from it), the lands of earlier tales.
+ assert.equal(r.beyondBarred(seated(s=>{s.staging.noBeyond=false;})),false,'noBeyond false: easy travel');
+ assert.equal(r.beyondBarred({...barred,story:{...barred.story,staging:{...barred.story.staging,length:'long',noBeyond:undefined}}}),false,'a long tale by default');
+ assert.equal(r.beyondBarred({...barred,story:{...barred.story,staging:{...barred.story.staging,length:'long',noBeyond:true}}}),true,'unless it says so');
+ assert.equal(r.beyondBarred({...barred,story:{...barred.story,chapter:barred.story.chapters.length-1}}),false,'the last chapter');
+ assert.equal(r.beyondBarred({...barred,story:{...barred.story,status:'complete'}}),false,'a tale complete');
+ {const journey={...barred,story:{...barred.story}};delete journey.story.staging;assert.equal(r.beyondBarred(journey),false,'an AI journey');}
+ const beyondLand={...won.game,world:{...won.game.world,regions:[...won.game.world.regions,{id:'r9',name:'The Elder Downs',terrain:'plains'}],places:[...won.game.world.places,{id:'p90',name:'Elder Gate',description:'A gate on the old downs road.',kind:'road',x:0,y:-900000,from:'inn',region:'r9'}],at:'p90'},stage:'wild',map:{...won.game.map,visited:[...won.game.map.visited,'p90']},pace:{...won.game.pace,fired:won.game.pace.fired.filter(f=>!f.startsWith('beyond:'))}};
+ assert.ok(valid(beyondLand));assert.equal(r.beyondBarred(beyondLand),false,'setting out from a land beyond, or an earlier tale\'s land');
+ assert.equal(r.beyondBarred({...beyondLand,pace:{...beyondLand.pace,fired:[...beyondLand.pace.fired,'land:r9']}}),true,'but a land the tale itself speaks of is its own country');
+ // A tale's own lands are noted as it is seated.
+ {const withLand=seated(s=>{s.lands=[{name:'The Salt Reach',terrain:'coast',bearing:'E',miles:40,place:{name:'Brinewater Quay',description:'A busy quay on the salt reach, nets drying.',kind:'water'}}];});
+  assert.equal(withLand.world.regions.length,1);assert.ok(withLand.pace.fired.includes('land:'+withLand.world.regions[0].id),'the tale\'s own land is its country');}
+}
+function dmLabels(game){return r.dmChoices(hero,game,hp).map(c=>c.label);}
 // ---- The Dungeon Master: told the lands remembered; asked to act on "beyond the map" ----
 const ctx=r.dmContext(hero,north.game,hp);assert.equal(ctx.world.landsRemembered,2);assert.ok(ctx.world.regions.includes(land.name));
 const {secondLook}=require('./dm-intent.cjs'),{generate,contractInstructions}=require('./dm-server.cjs');
@@ -151,9 +205,16 @@ assert.equal(look('I want to leave this land.')?.sure??false,false);assert.equal
   const guide=async body=>{told.push(body);return {narration:'You take the long road back.',actionId:'travel-'+there.id,suggestions:[]};};
   const t=await resolveTurn(far,{question:'I go back to '+there.name+'.'},{ask:guide,randomImpl:()=>0.9});
   assert.ok(told[0].context.choices.some(c=>c.id==='travel-'+there.id),'the table offers the journey the player named');assert.equal(t.snapshot.game.world.at,there.id,'and takes it');}
+ // A barred road at the table: the same land, the same watcher and the same fight as on a device.
+ {const snapB=JSON.parse(JSON.stringify(r.adventureSnapshot(hero,barred,hp,true))),device=r.adventureStep(barred,hp,hero,{type:'beyond',bearing:'W'},()=>0.9);
+  const tableB=await resolveTurn(snapB,{question:'I leave this land and head west, beyond the edge of the map.',action:{type:'beyond',bearing:'W'}},{ask,randomImpl:()=>0.9});
+  assert.equal(tableB.snapshot.game.stage,'combat','the table starts the fight on arrival');same(tableB.snapshot.game.world,device.game.world,'with the same land and watcher');
+  same(tableB.snapshot.game.wildFight.template,device.game.wildFight.template);assert.ok(tableB.snapshot.game.pace.fired.includes('beyond:'+device.game.wildFight.place));}
  // ---- The map screen: a compass of ways out, confirmed before the long road ----
  const map=fs.readFileSync('AdventureMap.js','utf8'),screen=fs.readFileSync('Adventure.js','utf8');
  assert.ok(map.includes('function BeyondCard')&&map.includes("accessibilityLabel={'Beyond the map to the '+beyondWords[b]}")&&map.includes('Set out'),'the map has a way beyond its edge');
- assert.ok(map.includes('{beyondCard(()=>setOpen(false))}'),'on the full map too');assert.ok(screen.includes('onBeyond={goBeyond}')&&screen.includes('mapMoves(game)'));
+ assert.ok(map.includes('{beyondCard(()=>setOpen(false))}'),'on the full map too');
+ assert.ok(map.includes('barred={beyondBarred(game)}')&&map.includes('The road out is watched while this tale’s trouble lasts: you will have to fight your way through.'),'the compass says when the road out is watched');
+ assert.ok(require('./dm-instructions.cjs').standingPrompt.includes('A road out that is watched: the game starts a fight on arrival, told as what bars the way.'),'the Dungeon Master tells it as what bars the way');assert.ok(screen.includes('onBeyond={goBeyond}')&&screen.includes('mapMoves(game)'));
  console.log('Beyond the map: eight ways off any land (choices, never chips; typed or from the map\'s compass), a new seeded land with a road from the edge, days on the road, the same at the table; lands travelled never forgotten (24 kept and travelled back to, solo and at the table, offered by name to the Dungeon Master and told in brief); only rumours and lands never reached give way when the map is full, else the road goes no further; the next tale keeps them all.');
 })().catch(e=>{console.error(e);process.exit(1);});

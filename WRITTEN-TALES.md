@@ -234,7 +234,8 @@ warning (the Dungeon Master may bring that person into play later).
                                      // `drift` chapter moves regardless (4-30). Defaults: short 3/8, medium 4/10, long 5/12
   "ticks": {"rest": false, "days": 1},  // optional: what else ticks the clock (below). A hard tale has "rest": true
   "confrontFrom": 2,                 // optional: the chapter (1-based) from which "Confront <foe>" is offered; default the last
-  "noBeyond": true,                  // optional: no "beyond the map" journeys before the last chapter (keep true for short and medium)
+  "noBeyond": true,                  // optional: the road beyond the map is barred (fought through) before the last chapter.
+                                     // Default true for short and medium, false for long (see 4.5)
   "firstSay": ["≤110", "≤110", "≤110"],                          // exactly 3 things the player might say first
   "stakes": [ {"id": "s1", "name": "≤60", "state": "≤80"} ],     // 0-4; ids s1-s4
   "places": { "<exact place name>": {"colour": ["≤140"]} },     // 0-12 places; 1-3 lines each
@@ -375,6 +376,19 @@ step's `tell` first, then the truth or the ending. Whatever else would fire wait
 whole chapter**, so nothing loses its moment while it waits.
 
 ---
+
+### 4.5 Leaving the map (noBeyond)
+
+Every tale lets the player leave the map whenever they wish (the host, 2026-10-23: "make sure every single one of the
+stories allows players to leave the map if they so desire, whether that is by easy travel, or by overcoming some sort of
+obstacle put in their way"). `noBeyond` never refuses the road: it **bars** it. While it holds (by default for short and
+medium tales; `false` makes the road easy travel, and a long tale's default) and the tale is before its last chapter, the
+first land beyond the map reached from the tale's own country (its home land and the `lands` it speaks of) holds a
+creature on its arrival place, chosen by the game from the new land's terrain and the hero's level (one creature alone
+below third level), and the fight starts on arrival. Win and the road out is open for the rest of the tale; flee and the
+hero is back where they set out from. The ways beyond the map, the map's Beyond the map card and the Dungeon Master all
+say the road out is watched. Nothing to write for it: the game names and draws what watches the road. Write `false` only
+when the tale is happy to let its hero wander off easily before its end.
 
 ## 5. Conditions
 
@@ -724,7 +738,8 @@ never a hero field, never carried into the next tale. `validPace(pace, game)` (s
 ```jsonc
 "pace": {"v": 1, "ch": 0, "turns": 0, "quiet": 0, "quietMax": 0, "since": 0, "day": 0, "step": 0, "owed": 0, "held": 0,
          "due": null,                 // or {"kind", "id"?}: turn, opening, beat, complication, pressure, choice, ending, deadline, hold, bloodied
-         "told": [], "fired": [],     // ids (a beat, complication, step, choice or ending; "found:1", "opening:2"...), at most 400 each
+         "told": [], "fired": [],     // ids (a beat, complication, step, choice or ending; "found:1", "opening:2"; the
+                                      // tale's own lands "land:r1" and barred roads "beyond:p57", 4.5), at most 400 each
          "seen": [],                  // the chapter's events: "reach:p3", "won:p3", "searched:p3", "checked:inn", "rest"; at most 400
          "marks": {}, "flags": [],    // choice id -> option id; the tale's flags, "late" with them (at most 25)
          "stakes": {}, "spoke": {},   // stake id -> its state now; person id -> DM-told turns they spoke in this chapter
@@ -859,6 +874,9 @@ the listing gives cards only; a start is a copy with its own id, `libraryId`, `a
 - **Choices.** A choice made applies its option's `then` once; `decide` and `late` apply theirs too and are told "Left
   to fate: <label>." (the story log and the feed), a choice made "You chose: <label>.". A written tale offers no
   `story-complete`: it ends where the engine finds it ends (the DM's `story-advance` still closes a chapter, as below, once the chapter's set piece is beaten and its choice made: the review of 2026-10-22).
+- **The road out** (2026-10-23, 4.5): `noBeyond` bars the road beyond the map with a fight on arrival
+  (`beyondBarred`, `beyondPlan` in mapRules.js); it no longer refuses it. seatStaging keeps the tale's own lands as
+  `land:<id>` in `pace.fired`, goBeyond a barred arrival as `beyond:<id>`; one won (its place cleared) opens the road.
 - **Leads.** A lead whose `opens` is a later chapter is not told to the Dungeon Master (nor offered as `lead-done`) before
   it, unless an effect opened it.
 - **The fight shape** (the same day, `withFightShape` after every step, `verify-fight-shape.cjs`): the foe of a written

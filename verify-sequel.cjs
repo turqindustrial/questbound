@@ -5,7 +5,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // draughts; setting out somewhere new keeps only the companions and the pack. The roster sets heroes aside with
 // their adventures; the fallen go to the graveyard.
 const source=rulesSource({extra:['worldArtRules.js','rosterRules.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute,worldPlaces,mapRegions,oldPlaceLimit,memoryOf})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,commitDmTurn,dmContext,validAdventure,adventureSnapshot,npcScene,introducePerson,resolveRecruitment,freshStoryGame,carriedBase,joinRegion,canContinueRegion,regionSummary,storyText,packOf,setAside,validRosterEntry,restoreEntry,validGrave,maxRoster,mapLocation,placeName,travelRoute,worldPlaces,mapRegions,oldPlaceLimit,memoryOf,metPerson,greeting,nextTalePlacement,sequelMiles,stagingNameKey,regionOfPlace,knownPlaceIds,libraryPeopleMet,stagingIds})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const kara=r.readyHero('fighter'),hp={current:12,temp:0};
 const valid=(g,h=null)=>r.validAdventure(r.adventureSnapshot(kara,JSON.parse(JSON.stringify(g)),h,true),kara);
@@ -89,8 +89,71 @@ assert.match(r.setAside(full,[],pip,r.newAdventure(pip),null,false).error,/alrea
  {const heard=names.filter(n=>n.startsWith('Heard-of Cairn')).length;assert.ok(heard<=r.oldPlaceLimit&&heard>=r.oldPlaceLimit-2,'and up to twenty places only heard of: '+heard);}
  assert.ok(r.mapRegions(joined).some(x=>x.name==='The Glass Coast'),'as a land of its own');
  assert.ok(r.travelRoute(joined,'inn',r.worldPlaces(joined).find(p=>p.name==='Glass Market').id),'with the road back');assert.ok(valid(joined));}
+// ---- Every land of a campaign remembered (2026-10-23, the host's words: "all areas traveled in a single campaign should
+// be remembered so they can be returned to. and NPCs should all have memory of seeing the player before if they have"):
+// the next tale joins the earlier world where the hero stands (the anchor), near or days away, in whichever land ----
+{for(let i=0;i<40;i++){const near=r.nextTalePlacement(Math.random),far=r.nextTalePlacement(Math.random,{far:true});
+  assert.ok(near.miles>=4&&near.miles<=7&&far.miles>=60&&far.miles<=200,JSON.stringify([near,far]));}
+ same(r.sequelMiles,{near:[4,7],far:[60,200]});
+ // The earlier world: a far land with a market the hero walked to and stands in (never back at the start).
+ let w=r.adventureStep(g,hp,kara,{type:'discover',place:{name:'Saltglass Harbour',description:'A harbour of green glass towers across the strait.',kind:'settlement',bearing:'E',miles:120,region:{name:'The Glass Coast',terrain:'coast'}},travel:true},()=>0.9).game;
+ w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'Glass Market',description:'A market of glassblowers above the harbour.',kind:'settlement',bearing:'N',miles:2},travel:true},()=>0.9).game;
+ w=r.adventureStep(w,hp,kara,{type:'discover',place:{name:'The Mill',description:'A tide mill on the glass coast, its wheel still.',kind:'landmark',bearing:'S',miles:1},travel:false},()=>0.9).game;
+ // People of the earlier tale: one met at the market, a resident there never met (someone the hero never reached), one
+ // still out of sight where the hero has been, and one met who lives where the hero stood.
+ const market=r.worldPlaces(w).find(p=>p.name==='Glass Market').id,mill=r.worldPlaces(w).find(p=>p.name==='The Mill').id,hut=r.worldPlaces(w).find(p=>p.name==='Smokewood Hut').id;
+ const person=(name,home,extra={})=>({name,species:'Human',role:'A glassblower on the coast.',appearance:'A lean woman with burn-scarred hands and a leather apron.',personality:'Quick and wry.',toughness:'common',home,foe:'neutral',gender:'woman',...extra});
+ w={...w,people:{...w.people,n4:person('Ilse Varro',market,{resident:true}),n5:person('Odile Marsh',mill,{resident:true}),n6:person('Bettany Crow',hut,{resident:true,hidden:true}),n7:person('Wenna Hask',hut,{resident:true})},
+  npcMemory:{...w.npcMemory,n4:{attitude:'indifferent',response:'Neutral toward the player.',memories:['The traveller asked about the kilns.']},n7:{attitude:'indifferent',response:'Neutral toward the player.',memories:['The traveller bought a lamp from me at the hut.']}}};
+ assert.ok(valid(w),'the earlier world is a valid save');assert.equal(r.mapLocation(w),market,'the hero stands in the far land');
+ same(['n4','n5','n6','n7'].map(id=>r.metPerson(w,id)),[true,false,false,true],'met, never reached, still out of sight, met');
+ // A far placement (somewhere new), anchored where the hero stands: the market lies those miles off the new start, a
+ // road runs to it, and every place the hero ever went to can be walked back to from the new start.
+ const s4={...story2,id:'s4',title:'The Tide Road',locations:{...story2.locations,bridge:{name:'Mill',description:'A watermill on the tide road, wheel turning.'}}};
+ const joined=r.joinRegion(r.freshStoryGame(kara,s4,r.newAdventure(kara,r.carriedBase(w))),w,{sameRegion:true,bearing:'W',miles:150,anchor:r.mapLocation(w)});
+ assert.ok(valid(joined),'the joined tale is a valid save');
+ const at=r.worldPlaces(joined).find(p=>p.name==='Glass Market');assert.equal(at.from,'inn','the road from the new start runs to where the hero stood');
+ assert.equal(Math.round(Math.hypot(at.x,at.y)/5280),150,'150 miles off');assert.ok(at.x<0,'to the west');
+ assert.ok(r.travelRoute(joined,'inn',at.id).minutes>480*3*2,'days on the road');
+ const keyOf=p=>p.name,oldVisited=w.map.visited.length;assert.equal(joined.map.visited.length,1+oldVisited,'every place the hero went to comes along');
+ for(const id of joined.map.visited)assert.ok(r.travelRoute(joined,'inn',id),'and can be walked back to: '+id);
+ assert.ok(r.mapRegions(joined).some(x=>x.name==='The Glass Coast')&&r.mapRegions(joined).some(x=>x.name==='Lands about Caravan Camp'),'both earlier lands kept as lands of their own');
+ assert.equal(r.regionOfPlace(joined,at.id),r.mapRegions(joined).find(x=>x.name==='The Glass Coast').id,'the anchor keeps its land');
+ {const camp=r.worldPlaces(joined).find(p=>p.name==='Caravan Camp');assert.ok(camp&&r.travelRoute(joined,'inn',camp.id),'the earlier start is reached through the far land');}
+ // Names as the staging compares them: "The Mill" of the earlier tale and the new tale's "Mill" never both show.
+ const keys=[...Object.values(joined.story.locations).map(l=>l.name),...r.worldPlaces(joined).map(keyOf)].map(r.stagingNameKey);
+ assert.equal(new Set(keys).size,keys.length,'no two places read as one name');assert.ok(r.worldPlaces(joined).some(p=>p.name==='The Old Mill'),'the earlier one is the Old Mill');
+ // People: met stays met (with memories, greeted as someone known), never reached stays unmet, out of sight stays so.
+ const nid=name=>Object.entries(joined.people).find(([,p])=>p.name===name)?.[0];
+ same(['Ilse Varro','Odile Marsh','Bettany Crow','Wenna Hask'].map(n=>r.metPerson(joined,nid(n))),[true,false,false,true],'who was met is met, who was not is not');
+ assert.ok(joined.people[nid('Odile Marsh')].resident&&joined.people[nid('Bettany Crow')].hidden,'kept as residents of their homes');
+ same(joined.npcMemory[nid('Ilse Varro')].memories,['The traveller asked about the kilns.'],'their memories with them');
+ {const there=r.adventureStep(joined,hp,kara,{type:'travel',destination:at.id},()=>0.9).game;assert.equal(r.greeting(there,nid('Ilse Varro'),kara).mood,'again','greeted as someone met before');}
+ // Near, from the start (the default anchor), as before: the earlier start a few miles off.
+ const nearby=r.joinRegion(r.freshStoryGame(kara,{...s4,id:'s5'},r.newAdventure(kara,r.carriedBase(w))),w,{sameRegion:true,bearing:'N',miles:5});
+ assert.equal(r.worldPlaces(nearby).find(p=>p.name==='Caravan Camp').y,26400,'the default anchor is the earlier start');assert.ok(valid(nearby));
+ assert.ok(nearby.storyLog.some(e=>/a new tale began nearby/.test(e.text))&&joined.storyLog.some(e=>/a new tale began, days down the road/.test(e.text)),'the story log says how far');
+ // Someone met where they stood rather than at their home: still met once their home is on the map unvisited.
+ {const metAway={...w,people:{...w.people,n8:person('Cass Orrin',mill,{resident:true})},npcMemory:{...w.npcMemory}};const seen={...metAway,world:{...metAway.world,at:mill},stage:'wild'};
+  assert.equal(r.metPerson(seen,'n8'),true,'met where they live, standing there');const j=r.joinRegion(r.freshStoryGame(kara,{...s4,id:'s6'},r.newAdventure(kara,r.carriedBase(seen))),seen,{sameRegion:true,bearing:'N',miles:5,anchor:'wild'});
+  const id=Object.entries(j.people).find(([,p])=>p.name==='Cass Orrin')[0];assert.equal(r.metPerson(j,id),true,'and still met in the next tale');assert.ok(valid(j));}
+}
+// The story writer never knows whom the hero has met, so a next tale may cast a library person the hero already knows:
+// the new tale's one keeps the library's identity (its name, which a written tale's staging uses); the earlier one keeps
+// the hero's history but stands for nobody in the library ("the Elder", no pool or hook), so no library person is in a
+// game twice, and every other library person kept still counts as met (poolTaken).
+{const known={...g,people:{...g.people,n1:{...g.people.n1,pool:'np042',hook:'Keeps a letter he never sent.'},n2:{name:'Mirela Danu',species:'Human',role:'A ferrywoman on the hill road.',appearance:'A broad woman with tar-black hands and a rope coil.',personality:'Blunt.',toughness:'common',home:g.people.n1.home,foe:'neutral',gender:'woman',pool:'np043',hook:'Owes the toll-keeper a season of wages.'}},
+  npcMemory:{...g.npcMemory,n2:{attitude:'friendly',response:'Friendly toward the player.',memories:['The traveller helped me with the ferry rope.']}}};
+ assert.ok(valid(known));same(r.libraryPeopleMet(known).sort(),['np042','np043']);
+ const recast={...story2,id:'s7',npcs:{...story2.npcs,keeper:{...story2.npcs.keeper,name:'Harlan Voss',pool:'np042'}}};
+ const j=r.joinRegion(r.freshStoryGame(kara,recast,r.newAdventure(kara,r.carriedBase(known))),known,{sameRegion:true,bearing:'N',miles:5});
+ assert.ok(valid(j),'still a valid save');same(r.libraryPeopleMet(j).sort(),['np042','np043'],'each library person once: the new tale\'s keeper and the ferrywoman kept');
+ const elder=Object.values(j.people).find(p=>p.name==='Harlan Voss the Elder');assert.ok(elder,'the earlier one is told apart by name');assert.equal(elder.pool,undefined);assert.equal(elder.hook,undefined);
+ assert.equal(j.npcMemory[Object.entries(j.people).find(([,p])=>p===elder)[0]].bond,'The player saved my brother.','and keeps the hero\'s history');
+ assert.equal(r.stagingIds(j).person('Harlan Voss'),'keeper','the name resolves to the new tale\'s own');
+ const mirela=Object.values(j.people).find(p=>p.name==='Mirela Danu');assert.equal(mirela.pool,'np043');assert.equal(mirela.hook,'Owes the toll-keeper a season of wages.');}
 // The hero's whole story comes along either way (memoryRules.js, verify-memory.cjs): the earlier tale closed in the
 // chronicle, the new one under way.
 for(const sameRegion of [true,false]){const m=r.memoryOf(r.joinRegion(r.freshStoryGame(kara,story2,r.newAdventure(kara,r.carriedBase(g))),g,{sameRegion,bearing:'N'}));
  assert.deepEqual(JSON.parse(JSON.stringify(m.tales.map(t=>[t.title,t.status,!!t.summary]))),[[g.story.title,'complete',true],['The Salt Road','active',false]],'the chronicle carries on ('+(sameRegion?'same region':'somewhere new')+')');}
-console.log('Passed: the next chapter keeps the region (old places joined a few miles off, people with homes, ties, memories, fates and companions, the pack and the history), somewhere new keeps only companions and the pack (and the whole chronicle, both ways), names are told apart, and heroes are set aside in the roster or remembered in the graveyard.');
+console.log('Passed: the next chapter keeps the region (old places joined a few miles off or days away, at the place where the hero stood, in any land, every place visited reachable, people met kept met and those never reached unmet, names told apart as the staging reads them; people with homes, ties, memories, fates and companions, the pack and the history), somewhere new keeps only companions and the pack (and the whole chronicle, both ways), names are told apart, and heroes are set aside in the roster or remembered in the graveyard.');

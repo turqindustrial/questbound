@@ -7,7 +7,7 @@ import {npcScene,npcMaxHP,npcLore,npcServiceError} from "./npcRules";
 import {dungeonChoices} from "./dungeonRules";
 import {shortRestLimit} from "./classActions";
 import {subclassShortRecharge} from "./subclassRules";
-import {mapLocation,knownPlaceIds,travelError,travelRoute,regionOfPlace,placeName,beyondWords,beyondBearings,beyondError,mapState} from "./mapRules";
+import {mapLocation,knownPlaceIds,travelError,travelRoute,regionOfPlace,placeName,beyondWords,beyondBearings,beyondError,beyondBarred,mapState} from "./mapRules";
 import {campaignState,interactionOptions} from "./campaignRules";
 import {attackOptions,canThrow} from "./weaponRules";
 import {unarmedDC,withinGrip,creatureSize,grappledBy,markOf} from "./masteryRules";
@@ -36,8 +36,11 @@ export function travelChoices(game,limit=8){
 // back to from its sheet, however far it lies.
 export function mapMoves(game){
   if(!game?.story||['combat','dying','dead','defeat','escaped'].includes(game.stage)||game.npcCombat?.active)return [];
-  return [...travelChoices(game,Infinity).map(id=>({id:'travel-'+id,label:'Travel to '+placeName(game,id),action:{type:'travel',destination:id}})),...beyondChoices(game).map(b=>({id:'beyond-'+b,label:'Go beyond the map to the '+beyondWords[b]+' (days on the road to a land not yet on any map)',action:{type:'beyond',bearing:b}}))];
+  return [...travelChoices(game,Infinity).map(id=>({id:'travel-'+id,label:'Travel to '+placeName(game,id),action:{type:'travel',destination:id}})),...beyondChoices(game).map(b=>({id:'beyond-'+b,label:beyondLabel(game,b),action:{type:'beyond',bearing:b}}))];
 }
+// How a way beyond the map reads: days on the road, and, while this tale bars the road out (mapRules.js beyondBarred),
+// that it is watched and must be fought through (the Dungeon Master reads the same words).
+export function beyondLabel(game,b){return 'Go beyond the map to the '+beyondWords[b]+(beyondBarred(game)?' (the road out is watched while this tale\'s trouble lasts: you will have to fight your way through)':' (days on the road to a land not yet on any map)');}
 // The directions in which the hero may go beyond the edge of the map now (mapRules.js beyondError).
 export function beyondChoices(game){
   const scene={...game,stage:game.stage==='victory'?'bridge':game.stage};
@@ -110,7 +113,7 @@ export function dmChoices(hero,game,health=null) {
     if(['inn','bridge','tower','wild'].includes(game.stage))for(const npc of victims){for(const w of attackChoices(hero))add('npc-attack:'+npc.id+':'+w.name,'Attack '+(npcLore(game,npc.id)?.name??npc.name)+' with '+w.name,{type:'npc-attack',target:npc.id,weapon:w.name});for(const w of throwChoices(hero))add('npc-throw:'+npc.id+':'+w.name,'Throw '+w.name+' at '+(npcLore(game,npc.id)?.name??npc.name),{type:'npc-attack',target:npc.id,weapon:w.name,thrown:true});addPersonUnarmed(npc);}
     if(game.npcCombat?.active){for(const id of ['dodge','flee','wait','surrender'])add('npc-'+id,id);for(const [id,label,action] of brawlBonusChoices(hero,game,health))add(id,label,action);for(const [id,label,action] of brawlFeatChoices(hero,game))add(id,label,action);for(const [id,label,action] of sustainActions(game))add(id,label,action);return choices;}
     if(game.stage==='combat'){for(const w of attackOptions(hero))add('attack:'+w.name,'Attack with '+w.name);for(const w of throwChoices(hero))add('throw:'+w.name,'Throw '+w.name);for(const a of livingAllies(game)){for(const w of attackChoices(hero))add('ally-attack:'+a.index+':'+w.name,'Attack the '+a.name+' with '+w.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index});for(const w of throwChoices(hero))add('ally-throw:'+a.index+':'+w.name,'Throw '+w.name+' at the '+a.name,{type:'encounter-attack',weapon:w.name,target:'ally:'+a.index,thrown:true});}addUnarmed();addMagicItems();for(const [id,label] of featChoices(hero,game))add(id,label);for(const [id,label,action] of sustainActions(game))add(id,label,action);for(const id of ['dodge','flee'])add(id,id);for(const [id,label,action] of bonusChoices(hero,game,health))add(id,label,action);add('end-turn','End your turn without acting');}
-    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});for(const b of beyondChoices(game))add('beyond-'+b,'Go beyond the map to the '+beyondWords[b]+' (days on the road to a land not yet on any map)',{type:'beyond',bearing:b});if(game.stage==='bridge'&&game.enemyHP>0&&bossOpen(game))add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn'&&!npcServiceError(game,'long-rest'))add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0&&!!health&&health.current<combatBasics(hero).hp)add('potion','Drink a healing draught');addPotionGifts();
+    else if(!['defeat','escaped'].includes(game.stage)){for(const id of travelChoices(game))add('travel-'+id,'Travel to '+placeName(game,id),{type:'travel',destination:id});for(const b of beyondChoices(game))add('beyond-'+b,beyondLabel(game,b),{type:'beyond',bearing:b});if(game.stage==='bridge'&&game.enemyHP>0&&bossOpen(game))add('approach','Confront '+game.story.foe);if(canShortRest(hero,game,health))add('short-rest','Take a short rest ('+shortRestsLeft(hero,game)+' left): regain half your HP');if(game.stage==='inn'&&!npcServiceError(game,'long-rest'))add('long-rest','Rest safely if the residents permit');if((game.potions??0)>0&&!!health&&health.current<combatBasics(hero).hp)add('potion','Drink a healing draught');addPotionGifts();
       // Searching the fallen (and any lair) that lie here; and stronger draughts when hurt.
       if(!lootError(game,health))add('loot','Search the fallen and anything they guarded',{type:'loot'});
       for(const c of companionChoices(game))add(c.id,c.label,c.action);

@@ -105,6 +105,8 @@ export function stagingProblems(story,{most=Infinity,strict=false}={}){
  if(s.drift!==undefined&&!stagingInt(s.drift,...(strict?L.drift:[1,99])))bad('staging.drift','must be a whole number from '+(strict?L.drift.join(' to '):'1 to 99'));
  if(s.ticks!==undefined){if(!stagingPlain(s.ticks))bad('staging.ticks','must be {"rest": true|false, "days": 0, 1 or 2}');else if(!strict)small(s.ticks,'staging.ticks');else{keysOf(s.ticks,'ticks','staging.ticks');if(s.ticks.rest!==undefined&&typeof s.ticks.rest!=='boolean')bad('staging.ticks.rest','must be true or false');if(s.ticks.days!==undefined&&!stagingInt(s.ticks.days,...L.tickDays))bad('staging.ticks.days','must be 0, 1 or 2 (steps owed for each day of the tale\'s time)');}}
  if(s.confrontFrom!==undefined&&!stagingInt(s.confrontFrom,1,Math.max(1,storyChapters.length)))bad('staging.confrontFrom','must be a chapter number from 1 to '+storyChapters.length);
+ // noBeyond: the road beyond the map is barred (a fight on arrival: mapRules.js beyondBarred) before the last chapter;
+ // never refused (WRITTEN-TALES.md 4.5).
  if(s.noBeyond!==undefined&&typeof s.noBeyond!=='boolean')bad('staging.noBeyond','must be true or false');
  if(s.firstSay!==undefined)listOf(s.firstSay,1,L.firstSay,'staging.firstSay').forEach((t,i)=>text(t,L.say,'staging.firstSay['+i+']'));
  // Ids first, so that references can be checked against them.
@@ -716,6 +718,9 @@ export function seatStaging(game,hero){
   const state={game:{...game},pace:openingPace(game),events:[],hero,staging:st,ids:stagingIds(game),depth:0,closed:false,happened:false};
   state.pace.stakes=Object.fromEntries(stgList(st.stakes).filter(k=>stagingPlain(k)&&typeof k.id==='string'&&stagingText(k.state,stagingLimits.stakeState)).map(k=>[k.id,k.state]));
   stgArmFight(state,state.pace.ch);
+  // The lands the tale itself speaks of from the start are its own country (with its home land): the road beyond the
+  // map from any of them is barred while the tale keeps its hero close (mapRules.js beyondBarred).
+  for(const r of stgList(state.game.world?.regions))if(typeof r?.id==='string')stgFire(state,'land:'+r.id);
   return {...state.game,pace:state.pace};
  }catch{return game;}
 }

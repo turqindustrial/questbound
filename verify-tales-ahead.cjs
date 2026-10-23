@@ -80,12 +80,15 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  // startTale.js builds the story writer's request from the choice (App.playCharacter only sends it): run here with the
  // rules, storyPreferences.js's taleStart and journeyLibrary.js's fateJourney beside it.
  {const {rulesSource}=require('./rules-files.cjs'),strip=f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'');
-  const r=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,regionSummary,sequelBearings,storySoFarForWriter,heroSpecies})',{AsyncStorage:{}});
+  const r=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,regionSummary,sequelBearings,nextTalePlacement,storySoFarForWriter,heroSpecies})',{AsyncStorage:{}});
   const prefs=vm.runInNewContext(strip('storyPreferences.js')+'\n({taleStart})',{}),fate=vm.runInNewContext(fs.readFileSync('journeyLibrary.js','utf8').match(/export const fateJourney=.*$/m)[0].replace('export ','')+'\nfateJourney',{});
   const shelfHelpers=vm.runInNewContext(strip('shelfRules.js')+'\n({writtenIdOf,fateWritten})',{});
-  const st=vm.runInNewContext(strip('startTale.js')+'\n({sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory})',{...shelfHelpers,taleStart:prefs.taleStart,fateJourney:fate,regionSummary:r.regionSummary,sequelBearings:r.sequelBearings,storySoFarForWriter:r.storySoFarForWriter,heroSpecies:r.heroSpecies,Math,Date});
+  const st=vm.runInNewContext(strip('startTale.js')+'\n({sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory})',{...shelfHelpers,taleStart:prefs.taleStart,fateJourney:fate,regionSummary:r.regionSummary,sequelBearings:r.sequelBearings,nextTalePlacement:r.nextTalePlacement,storySoFarForWriter:r.storySoFarForWriter,heroSpecies:r.heroSpecies,Math,Date});
   const kara=r.readyHero('fighter'),fresh=r.newAdventure(kara),offer=[{id:'0f8fad5b-d9cb-469f-a165-70867728950e'}];
   const place=st.sequelPlacement();assert.ok(r.sequelBearings.includes(place.bearing)&&place.miles>=4&&place.miles<=7,'a next tale lies a few miles off');
+  // Somewhere new (the 2026-10-23 campaign: every land kept): the earlier world lies days away, never forgotten.
+  for(let i=0;i<20;i++){const far=st.sequelPlacement(Math.random,{far:true});assert.ok(r.sequelBearings.includes(far.bearing)&&far.miles>=60&&far.miles<=200,'somewhere new lies days off');}
+  {let n=0;const seeded=()=>[0,.999,.5][n++%3];const a=st.sequelPlacement(seeded,{far:true});assert.equal(a.bearing,'N');assert.ok(a.miles>=199,'its miles from the random given');}
   assert.throws(()=>st.taleChoice({selectedIntro:'idea',continuing:false,idea:'  ',easyStart:true,journeysOnOffer:null}),/Write your idea/);
   const own=st.taleChoice({selectedIntro:'idea',continuing:false,idea:' A heist on a frozen river. ',easyStart:false,journeysOnOffer:offer});assert.equal(own.wish,'A heist on a frozen river.');assert.equal(own.journeyId,null);
   const ready=st.taleChoice({selectedIntro:'journey:'+offer[0].id,continuing:false,idea:'',easyStart:false,journeysOnOffer:offer});assert.equal(ready.journeyId,offer[0].id);assert.equal(ready.introId,'easy','a journey is asked for as Easy to get into');

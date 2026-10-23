@@ -3,7 +3,8 @@ import {gearedHero} from './inventoryRules';
 import {heroSpecies} from './characterRules';
 import {newAdventure} from './adventureRules';
 import {freshStoryGame} from './storyRules';
-import {carriedBase} from './sequelRules';
+import {carriedBase,joinRegion,nextTalePlacement} from './sequelRules';
+import {seededRandom,mapLocation} from './mapRules';
 import {adventureSnapshot} from './adventureStorage';
 // A party at the shared table: every player brings their own hero into one adventure. The world (the story, the map,
 // the people, the fight) is shared; each hero's own state (hit points, draughts, pack, slots, deeds, dying...) is kept
@@ -109,13 +110,23 @@ export function partyMembers(game){
 // into a next tale (carriedBase: pack, draughts, training, experience, deeds and the story so far); then every other
 // living hero at the table is seated again with what they carry. A member whose hero has died is not seated: they
 // bring a new hero (campaigns.cjs). Returns the table seen from the host, or an error.
+// The table's world comes along (the 2026-10-23 campaign: "all areas traveled in a single campaign should be
+// remembered"): the lands, places and people of the tale before, as the host's view holds them, join the new tale's map
+// a few miles from where the party stands (joinRegion, as a device joins a next tale), placed by a seed from the new
+// tale, so the same request gives the same map. `previous`: the world to join (by default the host's view; null for
+// none). A table with no tale (or only the Skirmish) has no world to bring.
 const carried=hero=>({...(hero?.pack?{pack:hero.pack}:{}),potions:Math.max(1,hero?.potions??1),...(hero?.skillTraining?{skillTraining:hero.skillTraining}:{}),...(Number.isInteger(hero?.xp)?{xp:hero.xp}:{}),...(hero?.levelsOwed?{levelsOwed:hero.levelsOwed}:{}),...(hero?.deeds?.length?{deeds:hero.deeds}:{})});
-export function partyInTale(snapshot,lead,story,introId){
+export function partyInTale(snapshot,lead,story,introId,options={}){
  if(!isPartyGame(snapshot?.game))return {error:'This table has no party to begin a tale with.'};
  const settled=settleParty(snapshot),host=settled.members[lead];
  if(!host||host.status==='dead')return {error:'Bring a living hero to the table before choosing its tale.'};
  const view=partyView(snapshot,lead),hero=parse(view.character);if(!hero)return {error:'Your hero could not be read.'};
  let game;try{game=freshStoryGame(hero,{...story,introId},newAdventure(hero,carriedBase(view.game)),{party:true});}catch{return {error:'That tale could not be set up for the table. Choose another.'};}
+ const previous=options.previous===undefined?view.game:options.previous;
+ if(previous?.story&&previous.story.introId!=='hostile'){
+  try{const {bearing,miles}=nextTalePlacement(seededRandom('table-tale:'+game.story.id));game=joinRegion(game,previous,{sameRegion:true,bearing,miles,anchor:mapLocation(previous)});}
+  catch{return {error:'That tale could not be set up for the table. Choose another.'};}
+ }
  const lived=[...(view.game.storyHistory??[]),view.game.story?.title].filter(t=>typeof t==='string'&&t);
  if(lived.some(t=>t.toLowerCase()===game.story.title.toLowerCase()))return {error:'This table has already lived that tale. Choose another.'};
  game.storyHistory=[...new Set([...lived,game.story.title])].slice(-100);

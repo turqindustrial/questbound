@@ -19,7 +19,7 @@
 'use strict';
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const {rulesSource}=require('./rules-files.cjs'),W=require('./written-walk.cjs');
-const names=[...new Set([...W.needs,'readyHero','freshStoryGame','newAdventure','withBeats','stagedPreview','seatStaging','beatHolds','taleNow','endingOf','stagingChoices','writtenCheck','beatKey','beatSent','beatDue','withBeatLine','beatLineOf','taleSayLines','placeColour','pressureSign','stagingQuest','bossOpen','bossBlocked','leadOpenNow','isStaged','validPace','validAdventure','adventureSnapshot','dmChoices','quickActions','offeredChoices','mapMoves','beyondError','introducePerson','dmContext','validStaging','stagingIds','upgradeCharacter','upgradeAdventure','startParty','joinParty','partyInTale','partyView','routineTelling','paceDueKey','calmTelling','worldPlace','noteLead'])];
+const names=[...new Set([...W.needs,'readyHero','freshStoryGame','newAdventure','withBeats','stagedPreview','seatStaging','beatHolds','taleNow','endingOf','stagingChoices','writtenCheck','beatKey','beatSent','beatDue','withBeatLine','beatLineOf','taleSayLines','placeColour','pressureSign','stagingQuest','bossOpen','bossBlocked','beyondBarred','leadOpenNow','isStaged','validPace','validAdventure','adventureSnapshot','dmChoices','quickActions','offeredChoices','mapMoves','beyondError','introducePerson','dmContext','validStaging','stagingIds','upgradeCharacter','upgradeAdventure','startParty','joinParty','partyInTale','partyView','routineTelling','paceDueKey','calmTelling','worldPlace','noteLead'])];
 const r=vm.runInNewContext(rulesSource()+'\n;({'+names.join(',')+'})',{AsyncStorage:{},console},{timeout:20000});
 const plain=v=>JSON.parse(JSON.stringify(v));
 const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'written-fixture.json'),'utf8'));
@@ -240,13 +240,13 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  let fightChoice=travel(settled,'p1').game;assert.equal(r.stagingChoices(kara,fightChoice).length,0,'none in a fight');
 }
 
-// ---------- 8. The foe held back; no road beyond the map; story-advance; story-complete not offered ----------
+// ---------- 8. The foe held back; the road beyond the map barred; story-advance; story-complete not offered ----------
 {
  let g=seat(copy(s=>{s.landmarks[0].danger='safe';}));g=travel(g,'bridge').game;
  assert.equal(r.bossOpen(g),false,'chapter 1 of a tale whose foe is met from chapter 2');assert.ok(!r.dmChoices(kara,g,null).some(c=>c.id==='approach'||c.id.startsWith('encounter-attack')),'no confronting it');
  assert.match(r.adventureStep(g,null,kara,'approach',()=>0.5).error,/beyond your reach for now/,'and the engine refuses it');
  assert.ok(r.dmContext(kara,g,null,'x').quest.bossLater===true);
- assert.match(r.beyondError(g,'N'),/keeps to its own land/,'no road beyond the map before the last chapter');
+ assert.equal(r.beyondError(g,'N'),'','the road beyond the map is never refused (2026-10-23)');assert.equal(r.beyondBarred(g),true,'but barred before the last chapter: a fight on arrival (verify-beyond.cjs)');
  // The Dungeon Master is offered story-advance only once the chapter's set piece is beaten (and its choice made, when it
  // has one): before that the scene carries no truth to tell early, and the move is refused (the review of 2026-10-22:
  // a story-advance on the first move skipped the set piece and paid the chapter's experience).

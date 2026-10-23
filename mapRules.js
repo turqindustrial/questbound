@@ -389,14 +389,47 @@ export function beyondError(game,bearing){
  if(!Object.hasOwn(bearings,bearing))return 'Choose a direction: north, south, east or west.';
  if(game.pendingSpell)return 'Resolve or cancel the pending spell first.';
  if(!['inn','bridge','tower','wild'].includes(game.stage)||game.wildFight||game.npcCombat?.active||game.dungeon?.active)return 'Finish this encounter before setting out for another land.';
- // A written tale keeps the hero on its own map until its last chapter (staging.noBeyond, by default for short and
- // medium tales: WRITTEN-TALES.md).
- {const st=game.story.staging,chapters=Array.isArray(game.story.chapters)?game.story.chapters.length:0;if(st&&typeof st==='object'&&(st.noBeyond??st.length!=='long')===true&&(game.story.chapter??0)<chapters-1)return 'Not yet: this tale keeps to its own land until its last chapter.';}
+ // Every tale lets the hero leave (the host, 2026-10-23: "make sure every single one of the stories allows players to
+ // leave the map if they so desire, whether that is by easy travel, or by overcoming some sort of obstacle put in their
+ // way"): a written tale that keeps its hero close (staging.noBeyond) bars the road with a fight instead (beyondBarred).
  {const down=downPartyMember(game);if(down)return down+' lies dying here. Help them up, or wait until they wake, before you travel.';}
  if(!roomToMake(game,{lands:1,places:1}))return 'The road goes no further: your map is full, and every land and place on it is one you have been to or still need. Travel back to a land you know.';
  const edge=edgePlace(game,bearing);
  if(edge!==mapLocation(game)&&!travelRoute(game,mapLocation(game),edge))return 'No known road leads to that side of the map.';
  return '';
+}
+// The road out is barred (staging.noBeyond, by default for short and medium written tales: WRITTEN-TALES.md) while the
+// tale is before its last chapter and the hero sets out from the tale's own country: its home land and the lands it
+// spoke of from the start (seatStaging keeps their ids as 'land:<id>' in pace.fired). Barred is not refused: something
+// waits on the arrival place of the new land (beyondPlan) and the hero must fight through it (arrivalAmbush starts the
+// fight; fleeing goes back the way they came). Once a barred arrival is won (its place cleared; goBeyond keeps its id as
+// 'beyond:<id>'), the road out is open for the rest of the tale. Lands beyond already reached, and the lands of earlier
+// tales, are never barred.
+export function beyondBarred(game){
+ const s=game?.story,st=s?.staging,chapters=Array.isArray(s?.chapters)?s.chapters.length:0;
+ if(!st||typeof st!=='object'||Array.isArray(st)||(st.noBeyond??st.length!=='long')!==true||s.status!=='active'||(s.chapter??0)>=chapters-1)return false;
+ const fired=Array.isArray(game.pace?.fired)?game.pace.fired.filter(f=>typeof f==='string'):[],here=currentRegion(game);
+ if(here!=='home'&&!fired.includes('land:'+here))return false;
+ return !fired.some(f=>f.startsWith('beyond:')&&worldPlace(game,f.slice(7))?.cleared===true);
+}
+// What watches a barred road, by the new land's terrain: creatures a lair can hold, named and drawn in our own words.
+// Below third level one creature alone: never a pack, a band of goblins or the orc (as for a risky place's ambush,
+// wildFightRules.js arrivalAmbush).
+const roadWatch={
+ bandit:{name:'Tollgate Cutthroat',appearance:'A rangy bandit in a stolen watchman\'s cloak who has made the road out his own toll gate, a notched blade across his knees and a horn at his belt.'},
+ wolf:{name:'Border Dire Wolf',appearance:'A great grey wolf that has made the narrow of the road its hunting ground, scarred about the muzzle and slow to give ground to anyone.'},
+ skeleton:{name:'Waymarker Skeleton',appearance:'A skeleton in rotted mail that never left its last post on the road out, a rusted spear still levelled at whoever comes.'},
+ boar:{name:'Ridgeback Boar',appearance:'A huge boar with one broken tusk that has rooted up the road and charges anything that walks it.'},
+ spider:{name:'Gatepost Spider',appearance:'A spider as big as a hound that has strung the way out with grey web from post to post and waits above it.'},
+ goblin:{name:'Roadblock Goblin',appearance:'A small band of goblins behind a heap of cart wheels and stakes across the road, jeering and waving rusty blades.'},
+ orc:{name:'Pass Warden Orc',appearance:'A grey-green orc with a split shield who has claimed the way out as his own and means to take a toll in blood.'},
+ wolves:{name:'Road Wolf',appearance:'A lean grey wolf of a pack that runs the road out, the others never far behind it.'},
+ zombies:{name:'Mire Walker',appearance:'A slow, sodden dead thing in a ferryman\'s rags, one of a pair that wander the road out and never tire.'}};
+const watchKinds={plains:['bandit','wolf','boar','goblin','wolves'],forest:['wolf','spider','boar','goblin','wolves'],hills:['bandit','boar','wolf','goblin','orc'],mountains:['wolf','skeleton','goblin','orc','wolves'],coast:['bandit','skeleton','goblin','zombies'],marsh:['spider','skeleton','boar','zombies'],desert:['bandit','skeleton','spider','orc'],snow:['wolf','skeleton','goblin','wolves'],caverns:['spider','skeleton','goblin','zombies','orc']};
+const strongWatch=['goblin','orc','wolves','zombies'];
+export function roadWatchFor(terrain,level,random){
+ const kinds=(watchKinds[terrain]??watchKinds.plains).filter(k=>(level??1)>=3||!strongWatch.includes(k)),key=kinds[Math.floor(random()*kinds.length)%kinds.length]??'bandit';
+ return {template:key,...roadWatch[key]};
 }
 // The new land and its places, worked out from the seed (the game must already have room for them).
 // `also`: ids not to use again (a land forgotten this turn).
@@ -414,14 +447,17 @@ export function beyondPlan(game,bearing,also={places:[],regions:[]}){
  const kind=random()<.5?'settlement':random()<.4?'camp':arrivalKinds[terrain];
  const at={x:Math.round(origin.x+dx*miles*FEET_PER_MILE),y:Math.round(origin.y+dy*miles*FEET_PER_MILE)};
  const arrival={id:nextId(),name:named(placePatterns[kind])??(region.name.replace(/^The /,'')+' Road').slice(0,60),description:(kindNouns[kind][0].toUpperCase()+kindNouns[kind].slice(1)+' where the road from '+placeName(game,from)+' comes into '+region.name+': '+terrainLines[terrain]+'.').slice(0,300),kind,...at,from,region:region.id};
- const places=[arrival],room=maxWorldPlaces-worldPlaces(game).length-1;
+ const places=[arrival],room=maxWorldPlaces-worldPlaces(game).length-1,barred=beyondBarred(game);
+ // A barred road: something waits where the road comes in (drawn from the same seed, after the land and its arrival,
+ // so they are named the same barred or not), and nothing past it is heard of yet, so no journey goes round it.
+ if(barred)Object.assign(arrival,{danger:'risky',threat:roadWatchFor(terrain,game.encounterLevel,random)});
  // One or two places heard of on the way in, a few miles on.
- for(let i=0,n=Math.min(room,1+Math.floor(random()*2));i<n;i++){
+ for(let i=0,n=barred?0:Math.min(room,1+Math.floor(random()*2));i<n;i++){
   const k=pickOf(random,['ruin','shrine','wilds','landmark','forest','water',arrivalKinds[terrain]]),angle=random()*Math.PI*2,far=1+random()*5,name=named(placePatterns[k]);
   if(!name)continue;
   places.push({id:nextId(),name,description:(kindNouns[k][0].toUpperCase()+kindNouns[k].slice(1)+' in '+region.name+', a few miles from '+arrival.name+'.').slice(0,300),kind:k,x:Math.round(at.x+Math.cos(angle)*far*FEET_PER_MILE),y:Math.round(at.y+Math.sin(angle)*far*FEET_PER_MILE),from:arrival.id,region:region.id,...(k==='ruin'||k==='wilds'?{danger:'risky'}:{})});
  }
- return {region,places,from,miles};
+ return {region,places,from,miles,barred};
 }
 // Setting out: the new land is put on the map and the hero walks there (eight hours a day: travelRoute).
 export function goBeyond(game,health,bearing,also){
@@ -429,6 +465,8 @@ export function goBeyond(game,health,bearing,also){
  const world={...(game.world??{at:null}),places:[...worldPlaces(game),...plan.places],regions:[...(game.world?.regions??[]),plan.region],at:game.world?.at??null};
  const line='You leave '+left+' by the road '+beyondWords[bearing]+' from '+placeName(game,plan.from)+', beyond the edge of your map, for a land new to you: '+plan.region.name+'.';
  const found={...game,world,log:[line,...game.log].slice(0,40)};
+ // A barred arrival is remembered, so that winning it opens the road (beyondBarred).
+ if(plan.barred&&Array.isArray(game.pace?.fired))found.pace={...game.pace,fired:[...game.pace.fired,'beyond:'+plan.places[0].id].slice(-400)};
  const trip=travelTo(found,health,plan.places[0].id);
  return {...trip,events:[line,trip.game.log[0]],plan};
 }

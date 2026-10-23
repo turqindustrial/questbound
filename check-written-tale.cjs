@@ -547,7 +547,8 @@ function checkTale(file,options={}){
   if(staging.length!==undefined&&staging.length!==tale.length)fail(4,'story.staging.length','must match the file\'s length ("'+tale.length+'")');
   if(!Array.isArray(staging.firstSay)||staging.firstSay.length!==3)fail(4,'story.staging.firstSay','must be exactly three things the player might say first');
   else if(new Set(staging.firstSay.map(nameKey)).size!==3)fail(4,'story.staging.firstSay','the three lines must differ');
-  if(staging.noBeyond===false&&tale.length!=='long')warn(4,'story.staging.noBeyond','short and medium tales keep the hero on their own map until the last chapter');
+  // noBeyond bars the road beyond the map with a fight until the last chapter (WRITTEN-TALES.md 4.5); false makes it easy
+  // travel. Either is sound (every tale lets the hero leave), so neither is warned about.
   // The clock: a stalled chapter lasts at most the tier's bound (its steps times drift), and the quiet before the clock
   // acts stays near the tier's own. A hard tale's clock ticks on long rests (its card says so).
   {const pace=r.stagingPacing[tale.length]??r.stagingPacing.short,drift=Number.isInteger(staging.drift)?staging.drift:pace.drift,quiet=Number.isInteger(staging.quiet)?staging.quiet:pace.quiet;

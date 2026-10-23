@@ -4,7 +4,7 @@
 import {taleStart} from './storyPreferences';
 import {fateJourney} from './journeyLibrary';
 import {writtenIdOf,fateWritten} from './shelfRules';
-import {regionSummary,sequelBearings} from './sequelRules';
+import {regionSummary,nextTalePlacement} from './sequelRules';
 import {storySoFarForWriter} from './memoryRules';
 import {heroSpecies} from './characterRules';
 import {hasTale} from './storyRules';
@@ -12,9 +12,9 @@ import {isPartyGame} from './partyRules';
 import {newAdventure} from './adventureRules';
 import {carriedBase} from './sequelRules';
 import {adventureSnapshot} from './adventureStorage';
-// The next chapter in the same region: the story writer is told what the hero leaves behind, and the old region joins
-// the new map a few miles away, on a bearing by chance.
-export const sequelPlacement=()=>({bearing:sequelBearings[Math.floor(Math.random()*sequelBearings.length)],miles:4+Math.round(Math.random()*30)/10});
+// The next tale: the story writer is told what the hero leaves behind, and the earlier world joins the new map on a
+// bearing by chance, a few miles away (near: 4 to 7 miles) or days away (far: 60 to 200 miles; somewhere new).
+export const sequelPlacement=(random=Math.random,{far=false}={})=>nextTalePlacement(random,{far});
 export function taleChoice({selectedIntro,continuing,idea,easyStart,journeysOnOffer,written=null}){
   // The player's own idea: the whole brief for Your own tale, an optional wish for the next tale in a region.
   const wish=(continuing||selectedIntro==='idea')&&idea.trim()?idea.trim().slice(0,300):null;

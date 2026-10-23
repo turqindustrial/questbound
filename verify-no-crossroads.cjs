@@ -7,7 +7,7 @@
 // Fails if any player path can produce or play a game with no story that is not the Skirmish.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm'),crypto=require('node:crypto');
 const {rulesSource}=require('./rules-files.cjs'),{journeyStory}=require('./journey-fixtures.cjs');
-const r=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,freshStoryGame,hostileEncounterGame,hasTale,dmChoices,quickActions,adventureStep,adventureSnapshot,startParty,joinParty,partyView,settleParty,partyInTale,carriedBase,isPartyGame,validAdventure,isValidCharacter,canContinueRegion})',{AsyncStorage:{},console});
+const r=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,freshStoryGame,hostileEncounterGame,hasTale,dmChoices,quickActions,adventureStep,adventureSnapshot,startParty,joinParty,partyView,settleParty,partyInTale,carriedBase,isPartyGame,validAdventure,isValidCharacter,canContinueRegion,worldPlaces,mapRegions,travelRoute,stagingNameKey})',{AsyncStorage:{},console});
 const read=f=>fs.readFileSync(f,'utf8');
 const tale=(hero,n=0)=>r.freshStoryGame(hero,journeyStory(n),r.newAdventure(hero));
 const kara=r.readyHero('fighter'),ilyra=r.readyHero('wizard'),bram=r.readyHero('cleric');
@@ -64,6 +64,18 @@ for(const f of fs.readdirSync('.').filter(f=>/\.js$/.test(f)))assert.ok(!/restar
  const bo=r.partyView(begun.snapshot,'seat-'+'b'.repeat(16));assert.equal(bo.game.potions,3,'Bo keeps what he carries');assert.equal(bo.game.xp,40);assert.ok(r.validAdventure(bo,ilyra));
  assert.equal(r.partyInTale(begun.snapshot,'seat-'+'a'.repeat(16),journeyStory(2),'easy').error,'This table has already lived that tale. Choose another.');
  assert.match(r.partyInTale(table,'seat-'+'c'.repeat(16),journeyStory(3),'easy').error,/living hero/);
+ // The table's lands are kept from tale to tale (2026-10-23: "all areas traveled in a single campaign should be
+ // remembered"): the next tale joins the world of the one before (the host's view), a few miles from where the party
+ // stands, the same way every time (placed by a seed from the new tale); null brings none.
+ {const before=begun.snapshot.game,third=r.partyInTale(begun.snapshot,'seat-'+'a'.repeat(16),journeyStory(3),'easy');assert.equal(third.error,undefined,third.error);
+  const g3=third.snapshot.game,start=r.worldPlaces(g3).find(p=>r.stagingNameKey(p.name)===r.stagingNameKey(before.story.locations.inn.name));
+  assert.ok(start,'the earlier tale\'s start is on the new map');assert.equal(start.from,'inn','joined to the new start by a road');assert.ok(r.travelRoute(g3,'inn',start.id),'and walked back to');
+  const miles=Math.hypot(start.x,start.y)/5280;assert.ok(miles>=4&&miles<=7.1,'a few miles off: '+miles);
+  assert.ok(r.mapRegions(g3).length>r.mapRegions(before).length,'the earlier land is a land of the new map');
+  assert.equal(JSON.stringify(r.partyInTale(begun.snapshot,'seat-'+'a'.repeat(16),journeyStory(3),'easy').snapshot.game.world),JSON.stringify(g3.world),'the same map every time');
+  assert.ok(r.validAdventure(third.snapshot,kara),'a valid table');assert.ok(r.validAdventure(r.partyView(third.snapshot,'seat-'+'b'.repeat(16)),ilyra),'from every seat');
+  assert.deepEqual(Object.keys(g3.party.members).sort(),['seat-'+'a'.repeat(16),'seat-'+'b'.repeat(16)],'every living hero seated again');
+  assert.equal(r.partyInTale(begun.snapshot,'seat-'+'a'.repeat(16),journeyStory(3),'easy',{previous:null}).snapshot.game.world?.regions?.length??0,0,'previous null: no earlier world');}
 }
 
 // ---- 4. The campaign server: tales, heroes and invites ----
