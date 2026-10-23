@@ -882,6 +882,9 @@ function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySche
   // turn, last). prompt_cache_key sends a hero's requests to the same provider machines (cacheKeyFor); a provider that
   // does not know it is asked again without it.
   const cacheKey=cacheKeyFor(body),request=turnRequest(body,{canDiscover,canAmbush},phaseInstructions+note+narratorVoice(body));
+  // How long the provider took (usage lines carry ms, and firstMs to the first words of a streamed reply: what a player
+  // waits for; 2026-10-23, replies of 5 to 13 s with the PC idle could not be told apart from the feed's own pacing).
+  const sentAt=Date.now();let firstAt=0;
   for(let waits=0;;waits++){
   const keyed=!globalThis.__questboundNoCacheKey?cacheKey:{},held=cacheHoldFor(model,holdCache??(live?cacheHold('12h'):'off')),sent=held?held.apply(request):request;
   // A provider that refuses the effects list (its anyOf items) is asked with every effect spelled out as a field, as
@@ -906,8 +909,8 @@ function turnAsker(body,{canDiscover,canAmbush,phaseInstructions,shape,replySche
   if(left()<wait+10000)throw failure;
   await new Promise(resolve=>setTimeout(resolve,wait));
   }
-  const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{}),...(state.held?{hold:state.held}:{}),...(body.context?.storyPreferences?.length==='brief'?{length:'brief'}:{})});};
-  if(onNarration)return streamedText(response,part=>onNarration(checkedHp(part,body.context)),usage,c=>{state.lastReply=c;});
+  const usage=u=>{if(u&&typeof u==='object')recordUsage('turn',model,u,live,guest,{ask:asked,layout:promptLayout,phase:shape,...(aside?{aside:true}:{}),...(state.held?{hold:state.held}:{}),...(body.context?.storyPreferences?.length==='brief'?{length:'brief'}:{}),ms:Date.now()-sentAt,...(firstAt?{firstMs:firstAt-sentAt}:{})});};
+  if(onNarration)return streamedText(response,part=>{if(!firstAt)firstAt=Date.now();onNarration(checkedHp(part,body.context));},usage,c=>{state.lastReply=c;});
   const data=await response.json();state.lastReply=data;usage(data.usage);
   // Cut short (the output limit, or the provider stopping): what was written is kept on the error for the last resort.
   if(data.status!=='completed')throw Object.assign(Error('The AI reply was incomplete. No game action was applied.'),{partial:outputText(data),incomplete:data.incomplete_details?.reason??String(data.status??'cut off')});

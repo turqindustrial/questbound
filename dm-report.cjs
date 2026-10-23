@@ -69,6 +69,12 @@ else{
      console.log('  held across pauses ('+kinds+'): '+held.length+' turn requests, '+pct(held)+'% cached; '+Math.round(written/held.length)+' input tokens written to the cache each on average ('+Math.round(long/held.length)+' of them for 12 hours)'+(late.length?'; after a pause of 5 minutes or more: '+late.length+' requests, '+pct(late)+'% cached':'')+'.');}}
    line('in the cache order',avg.filter(u=>u.layout===2));line('before it',avg.filter(u=>!(u.layout>=2)));}}
 }
+// How long the Dungeon Master took to answer (usage lines carry ms, and firstMs for a streamed reply's first words,
+// from 2026-10-23): the median and the slowest tenth, by phase.
+{const timed=usage.filter(u=>u.mode==='turn'&&Number.isFinite(u.ms));if(timed.length){const q=(list,p)=>{const s=[...list].sort((a,b)=>a-b);return s.length?(s[Math.min(s.length-1,Math.floor(p*s.length))]/1000).toFixed(1)+' s':'-';};
+ console.log('\nReply time ('+timed.length+' timed turn requests): median '+q(timed.map(u=>u.ms),0.5)+', slowest tenth from '+q(timed.map(u=>u.ms),0.9)+'.');
+ const first=timed.filter(u=>Number.isFinite(u.firstMs));if(first.length)console.log('  First words on screen (streamed): median '+q(first.map(u=>u.firstMs),0.5)+', slowest tenth from '+q(first.map(u=>u.firstMs),0.9)+'.');
+ const phases={};for(const u of timed)(phases[u.phase??'turn']??=[]).push(u.ms);for(const [p,l] of Object.entries(phases))console.log('  '+p+': '+l.length+' requests, median '+q(l,0.5)+'.');}}
 // The host's ceilings (spending.cjs): how close today and the month are, and whether guests are paused.
 {const s=createSpending({dir,alerts:{raise:()=>false}}).summary(),w=standing(s);
  console.log('\nCeilings (US dollars a day unless said; change them in the files named, or write "off"):');
