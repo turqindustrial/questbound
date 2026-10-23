@@ -550,10 +550,10 @@ const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64
 // writer (no guest label), and only while background writing may spend: spending.cjs `background()` (the host's
 // ceilings and the guests' pause switch) when the module has it; without it, writing is paced by the library alone.
 // Tests pass a stand-in `library`.
-function loadLibrary(){if(require('./tale-library.cjs').revision!==5)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
+function loadLibrary(){if(require('./tale-library.cjs').revision!==6)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
 // The Written tales shelf (written-shelf.cjs) stays loaded too: tales written by hand and checked, served for good
 // (never retired), listed and started at no cost. Tests pass a stand-in `written`.
-function loadWritten(){if(require('./written-shelf.cjs').revision!==1)delete require.cache[require.resolve('./written-shelf.cjs')];return require('./written-shelf.cjs').shelf;}
+function loadWritten(){if(require('./written-shelf.cjs').revision!==2)delete require.cache[require.resolve('./written-shelf.cjs')];return require('./written-shelf.cjs').shelf;}
 function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
 // A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
 // adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and
@@ -564,6 +564,54 @@ function journeyCheck(story){
   const game=r.freshStoryGame(hero,JSON.parse(JSON.stringify({...story,id:'journey-check',status:'active'})),r.newAdventure(hero));
   return !!game.story.errand&&!!game.story.introduction&&(game.story.chapters?.length??0)>=2&&r.validAdventure(r.adventureSnapshot(hero,game,null,true),hero);
  }catch{return false;}
+}
+// A tale for a land, before one is written (2026-10-23, the host's words: "once the player completes the story or
+// decides to move to a new area, new potential stories should be written. every time a new story is written, it should
+// be added to the compendium of potential stories to save on data usage"). The land a tale is asked for beside:
+// context.land, else the land a next tale continues, when the game names it (adventure-generator.cjs landOf: a plain
+// name and one of the nine terrains).
+function taleLand(c){const {landOf}=require('./adventure-generator.cjs');return landOf(c.land)??landOf(c.continuing?.land)??landOf(c.continuing&&typeof c.continuing==='object'?{name:c.continuing.region,terrain:c.continuing.terrain}:null);}
+// A tale already written that suits the request: for the next tale in a region (continuing) or a tale in a land the
+// hero has reached (land), one of that land's terrain from the Written tales shelf, else from the compendium
+// (tale-library.cjs match); for an older game's Easy to get into or Let fate decide with nothing on offer, any tale in
+// the compendium. Never one this device has played (context.playedTales, library and shelf ids) nor one whose title the
+// hero has lived (previousTitles and the tale under way). The player's own idea and a chosen opening are always written.
+// Read only: {from, id} or null.
+function taleMatch(c,land,{tales,shelf}){
+ if(c.journey!==undefined||c.idea)return null;
+ const fallback=!c.continuing&&!land&&['easy','surprise'].includes(String(c.introId??'surprise'));
+ if(!c.continuing&&!land&&!fallback)return null;
+ const terrain=land?.terrain??null;if(!fallback&&!terrain)return null;
+ const exclude=(Array.isArray(c.playedTales)?c.playedTales:[]).filter(v=>typeof v==='string').slice(0,200);
+ const titles=[...(Array.isArray(c.previousTitles)?c.previousTitles:[]).slice(0,200),c.previousStory?.title].filter(v=>typeof v==='string');
+ try{const t=tales?.match?.({terrain,exclude,titles});if(t)return {from:'written',id:t.id};}catch{}
+ // An older game's Easy to get into or Let fate decide takes a journey on offer first (generate): the compendium only
+ // when none is.
+ try{if(fallback&&shelf?.list().length)return null;const j=shelf?.match?.({terrain,exclude,titles});if(j)return {from:'library',id:j.id};}catch{}
+ return null;
+}
+// Every tale the story writer writes for a player is written the ahead way (2026-10-23), so that any hero can play it
+// and it can join the compendium: no hero, no story so far, no earlier tale's places or people (only the land's name and
+// terrain), with orders in hand (an errand) and a pitch. Its brief is the library's own (the terrain and mood the
+// library has least of, a seed, the journeys on offer to differ from) with the land's terrain; the player's idea is the
+// tale's wish and a chosen opening its direction, in place of the seed.
+function sharedTale(body,land,shelf){
+ const c=body.context,introId=String(c.introId??'surprise'),own=!!c.idea||!['easy','surprise'].includes(introId);
+ let brief=null;try{brief=shelf?.brief?.()??null;}catch{}
+ if(!brief||typeof brief!=='object'){const t=require('./tale-library.cjs'),crypto=require('node:crypto'),seedIndex=crypto.randomInt(t.journeySeeds.length);brief={terrain:t.journeyTerrains[crypto.randomInt(t.journeyTerrains.length)],mood:t.journeyMoods[crypto.randomInt(t.journeyMoods.length)],seed:t.journeySeeds[seedIndex],seedIndex,others:[]};}
+ brief={...brief,terrain:land?.terrain??brief.terrain};if(own){delete brief.seed;delete brief.seedIndex;}
+ const context={mode:'adventure',introId,ahead:true,easyStart:true,libraryBrief:brief,choices:[],variation:Date.now()+'-'+Math.random(),...(land?{land:{...(land.name?{name:land.name}:{}),...(land.terrain?{terrain:land.terrain}:{})}}:{}),...(typeof c.idea==='string'?{idea:c.idea}:{}),...(c.job!==undefined?{job:c.job}:{})};
+ return {body:{input:'Create a fresh adventure.',context},brief};
+}
+// A tale written for a player joins the compendium (source 'player') when the game's rules accept it (journeyCheck);
+// the answer is then the player's own copy of it, as a journey start (its art id shared with every later player). A
+// tale the compendium refuses (the rules, or a title or land it already has) is still the player's: a failed add never
+// fails the tale.
+function keptTale(result,brief,shelf){
+ if(!result||typeof result!=='object'||!result.story)return result;
+ const {pitch,...rest}=result;if(!shelf?.add)return rest;
+ try{const added=shelf.add(result.story,{pitch,brief,source:'player',accept:journeyCheck});if(added?.ok){const copy=shelf.start(added.entry.id);if(copy)return {story:copy,ahead:true,journey:true,added:true};}}catch{}
+ return rest;
 }
 // The host's pause for the journey library (2026-10-22; the stories spec, Phase 0): while the file
 // .questbound-library-paused exists (any content; Questbound.cmd -PauseLibrary makes it, -ResumeLibrary removes it) no
@@ -641,7 +689,7 @@ function loadModeration(){if(require('./moderation.cjs').revision!==1)delete req
 // a tale of their own, or the description for a hero drafted by the AI.
 function typedByPlayer(body){
  const c=body.context;
- if(c.mode==='adventure')return typeof c.idea==='string'?c.idea:'';
+ if(c.mode==='adventure')return [typeof c.idea==='string'?c.idea:'',(()=>{try{return taleLand(c)?.name??'';}catch{return '';}})()].filter(Boolean).join('. ');
  if(c.mode==='art'||c.mode==='diagnostics'||c.mode==='moderate'||c.mode==='people-batch'||c.sceneTrigger)return '';
  return typeof body.input==='string'?body.input:'';
 }
@@ -773,9 +821,12 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
   // A written tale's start (a tale on the shelf by its id, or one by chance for a game from before the shelf asking for
   // Let fate decide or Easy to get into) costs no AI, so it spends no new-tale allowance; the host's ceilings and pause
   // still apply to it, as to everything a guest asks.
-  const writtenStart=body.context.mode==='adventure'&&!!tales&&!body.context.continuing&&(()=>{try{const j=body.context.journey;return j!==undefined?tales.has(String(j)):!body.context.idea&&['easy','surprise'].includes(String(body.context.introId??'surprise'))&&tales.list().length>0;}catch{return false;}})();
+  // A tale for a land (taleMatch) starts at once in the same way: a tale already written, no AI and no allowance.
+  const land=body.context.mode==='adventure'?taleLand(body.context):null;
+  const writtenStart=body.context.mode==='adventure'&&!!tales&&!body.context.continuing&&!land&&(()=>{try{const j=body.context.journey;return j!==undefined?tales.has(String(j)):!body.context.idea&&['easy','surprise'].includes(String(body.context.introId??'surprise'))&&tales.list().length>0;}catch{return false;}})();
+  const fit=body.context.mode==='adventure'&&!writtenStart?taleMatch(body.context,land,{tales,shelf}):null;
   if(guest&&spend){const verdict=spend.check(guest);if(!verdict.ok)throw Object.assign(Error(verdict.error),{httpStatus:verdict.status??503});
-    const kind=writtenStart?null:body.context.mode==='adventure'?'tale':body.context.mode==='character'?'hero':null,counted=kind&&spend.allow?spend.allow(guest,kind):null;
+    const kind=writtenStart||fit?null:body.context.mode==='adventure'?'tale':body.context.mode==='character'?'hero':null,counted=kind&&spend.allow?spend.allow(guest,kind):null;
     if(counted&&!counted.ok)throw Object.assign(Error(counted.error),{httpStatus:counted.status??429});}
   // While people play, the library of ready journeys is kept full (one journey at a time, in the background).
   const storyEffortNow=live?storyEffort(storyReasoning):storyReasoning;
@@ -785,7 +836,9 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     const effort=fetchImpl===fetch?storyEffort(storyReasoning):storyReasoning;
     // A tale that is not the next in a region may cast residents from the host's ready-made people.
     const castLib=people??(live?loadPeople():null);
-    const write=(reasoning,timeout)=>{const go=cast=>require('./adventure-generator.cjs').generateAdventure(body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,cast,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});return castLib&&!body.context.continuing?castFor(castLib).then(go):go(null);};
+    const shared=sharedTale(body,land,shelf);
+    const write=(reasoning,timeout)=>{const go=cast=>require('./adventure-generator.cjs').generateAdventure(shared.body,{apiKey,model:storyModel,reasoning,timeout,fetchImpl,safety,cast,onUsage:u=>recordUsage('adventure',storyModel,u,live,guest)});return castLib?castFor(castLib).then(go):go(null);};
+    const kept=result=>keptTale(result,shared.brief,shelf);
     // A written tale the player chose (or, for a game from before the shelf, a Short one by chance) starts at once:
     // their own copy, from the shelf, before any journey of the story writer's.
     if(writtenStart){const j=body.context.journey,copy=j!==undefined?tales.start(String(j)):tales.any('short');if(copy)return {story:copy,ahead:true,journey:true,written:true};}
@@ -795,13 +848,17 @@ async function generate(body,{apiKey,model,storyModel=model,reasoning='none',sto
     // A game from before the library, asking for Let fate decide or Easy to get into, gets any journey on offer (every
     // journey begins with orders in hand). Written openings, the next tale in a region and the player's own idea are
     // always written fresh.
-    if(shelf&&body.context.journey===undefined&&!body.context.continuing&&!body.context.idea&&['easy','surprise'].includes(String(body.context.introId??'surprise'))){const copy=shelf.any();try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend});}catch{}if(copy)return {story:copy,ahead:true,journey:true};}
+    if(shelf&&body.context.journey===undefined&&!body.context.continuing&&!land&&!body.context.idea&&['easy','surprise'].includes(String(body.context.introId??'surprise'))){const copy=shelf.any();try{topUpLibrary(shelf,{apiKey,storyModel,effort,fetchImpl,live,spend});}catch{}if(copy)return {story:copy,ahead:true,journey:true};}
+    // A tale for a land already written (the shelf's or the compendium's) starts at once, as a journey of its own.
+    if(fit){const copy=fit.from==='written'?tales.start(fit.id):shelf.start(fit.id);if(copy)return {story:copy,ahead:true,journey:true,matched:true,...(fit.from==='written'?{written:true}:{})};
+     // Gone meanwhile: it is written after all, and counted as a new tale.
+     if(guest&&spend?.allow){const counted=spend.allow(guest,'tale');if(counted&&!counted.ok)throw Object.assign(Error(counted.error),{httpStatus:counted.status??429});}}
     // Asked for with a job id, the tale is written in the background with the effort the host chose, for as long as
     // it takes (up to seven minutes; at high effort a tale takes about three); the game asks after it every few
     // seconds (storyJob above).
-    if(body.context.job!==undefined)return loadStoryJobs().start(body.context.job,()=>write(effort,420000).catch(e=>{recordWriteFailure('story-job',e,live,guest);throw e;}));
+    if(body.context.job!==undefined)return loadStoryJobs().start(body.context.job,()=>write(effort,420000).then(kept,e=>{recordWriteFailure('story-job',e,live,guest);throw e;}));
     // A browser on an earlier build waits on this one request: light thinking, so the tale arrives inside 80 seconds.
-    return write(['medium','high','xhigh'].includes(effort)?'low':effort);
+    return write(['medium','high','xhigh'].includes(effort)?'low':effort).then(kept);
   }
   if(body.context.mode==='character'){delete require.cache[require.resolve('./character-generator.cjs')];return require('./character-generator.cjs').generateCharacter(body,{apiKey,model:storyModel,reasoning:storyReasoning,fetchImpl,safety,onUsage:u=>recordUsage('character',storyModel,u,live,guest)});}
   return playTurn(body,{apiKey,model,reasoning,fetchImpl,onNarration,live,guest,safety,people,portraits,holdCache});
@@ -1301,4 +1358,4 @@ function createServer({apiKey=process.env.OPENAI_API_KEY,model=process.env.OPENA
   });
 }
 if(require.main===module){const port=Number(process.env.QUESTBOUND_DM_PORT??8083);createServer().listen(port,'127.0.0.1',()=>console.log('Questbound DM server ready on localhost:'+port+'. Live AI '+(process.env.OPENAI_API_KEY&&process.env.OPENAI_MODEL?'configured: '+process.env.OPENAI_MODEL+(process.env.OPENAI_STORY_MODEL&&process.env.OPENAI_STORY_MODEL!==process.env.OPENAI_MODEL?' for play, '+process.env.OPENAI_STORY_MODEL+' for stories and heroes.':'.'):'not configured.')));}
-module.exports={loadWritten,standingPrompt,heroPrompt,replySchemaFor,asFields,flatReply,cacheKeyFor,promptLayout,sceneParts,sceneMessages,turnRequest,requestParts,requestScene,phaseFields,hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,libraryPaused,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};
+module.exports={loadWritten,taleLand,taleMatch,sharedTale,keptTale,standingPrompt,heroPrompt,replySchemaFor,asFields,flatReply,cacheKeyFor,promptLayout,sceneParts,sceneMessages,turnRequest,requestParts,requestScene,phaseFields,hostJobOf,recordCreatureMiss,castFor,peopleToMeetFor,portraitsTaken,pooledIntroduce,introduceSchema,loadPeople,recordWriteFailure,cleanRemember,memoryInstructions,typedByPlayer,startLibrary,topUpLibrary,libraryPaused,journeyCheck,unusable,transient,tellingCut,castableSpell,castWords,distinctDialogue,echoes,turnEffort,storyEffort,questInstructions,liveModels,chosenModel,createServer,generate,validRequest,validRuling,checkedHp,partialNarration,streamedText,sceneFor,repairedDiscovery,repairedCreature,repairedIntroduce,repairedJson,replyShape,contractInstructions};

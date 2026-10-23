@@ -12,17 +12,29 @@
 // any day, so the library stays fresh without a burst of cost. Each new journey is given a terrain and a mood the
 // library has least of and a seed premise none on offer started from, and is told the others' pitches, so no two are
 // alike. A journey is offered only when the game's own rules accept it (dm-server.cjs journeyCheck).
+// The compendium (2026-10-23, the host's words: "once the player completes the story or decides to move to a new area,
+// new potential stories should be written. every time a new story is written, it should be added to the compendium of
+// potential stories to save on data usage"): a journey that retires from the list on offer is no longer deleted. It stays
+// in the compendium, never listed again but still started by its id and matched to a land (match: a tale for the next
+// tale in a region or a land beyond the map, so a tale already paid for is played again instead of a new one written).
+// Every tale the story writer writes for a player (dm-server.cjs: written the ahead way, so it suits any hero) is added
+// too (add, source 'player'), straight into the compendium: the list on offer stays the library's own varied ten. The
+// compendium keeps at most `compendium` tales; past that the retired ones least played go first (the longest unplayed
+// first among equals), never a journey on offer.
 // Journeys are kept on disk (.questbound-tales/, under QUESTBOUND_DATA when hosted) as journey-g<generation>-<uuid>.json,
 // with library-state.json (recent writes and seeds, the last failure) so a restart keeps the pace. Tales from an earlier
 // generation, and the old per-opening stock (<opening>-g4-<uuid>.json), are cleared away once when the library is made.
 // The running Dungeon Master keeps this module loaded between requests (it is not reloaded with dm-server.cjs); bump
 // `revision` (and the literal in dm-server.cjs loadLibrary) when it changes. Raise `generation` when the story writer's
 // output changes shape.
-const revision=5,generation=5;
+const revision=6,generation=5;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const day=86400000;
 // The library's numbers (see the report of 2026-10-13 for the cost reckoning).
-const librarySettings={size:10,floor:6,perDay:4,retirePlays:20,retireDays:14,graceDays:2,failurePause:10*60*1000};
+const librarySettings={size:10,floor:6,perDay:4,retirePlays:20,retireDays:14,compendium:500,failurePause:10*60*1000};
+// Where a tale came from: written ahead for the list on offer (entries from before the compendium have no source and are
+// these), or written for a player and kept for the next.
+const taleSources=['ahead','player'];
 const journeyTerrains=['plains','forest','hills','mountains','coast','marsh','desert','snow','caverns'];
 // The moods a journey can be written in, each with a line for the story writer.
 const journeyMoods=[
@@ -73,28 +85,40 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
  // Tales of an earlier generation and the old stock of tales written ahead per opening are never served.
  try{for(const f of fs.readdirSync(dir))if(/^[a-z]+-(?:g\d+-)?[0-9a-f-]{36}\.json(?:\.tmp)?$/.test(f)&&!current.test(f))fs.rmSync(path.join(dir,f),{force:true});}catch{}
  let filling=null;
+ const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.trim().toLowerCase()===b.trim().toLowerCase();
  const readState=()=>{try{const v=JSON.parse(fs.readFileSync(stateFile,'utf8'));if(v.generation!==generation)throw 0;return {full:v.full===true,writes:Array.isArray(v.writes)?v.writes.filter(Number.isFinite).slice(-40):[],seeds:Array.isArray(v.seeds)?v.seeds.filter(Number.isInteger).slice(-12):[],lastFailure:Number.isFinite(v.lastFailure)?v.lastFailure:-Infinity};}catch{return {full:false,writes:[],seeds:[],lastFailure:-Infinity};}};
  const writeJson=(file,value)=>{fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(file+'.tmp',JSON.stringify(value));fs.renameSync(file+'.tmp',file);};
  const saveState=state=>{try{writeJson(stateFile,{generation,full:state.full===true,writes:state.writes.slice(-40),seeds:state.seeds.slice(-12),lastFailure:Number.isFinite(state.lastFailure)?state.lastFailure:null});}catch{}};
  const fileOf=id=>path.join(dir,'journey-g'+generation+'-'+id+'.json');
- const sound=e=>!!e&&idPattern.test(String(e.id))&&!!e.story&&typeof e.story==='object'&&validPitch(e.pitch)&&Number.isFinite(e.offeredAt)&&Number.isInteger(e.plays);
+ const sound=e=>!!e&&idPattern.test(String(e.id))&&!!e.story&&typeof e.story==='object'&&!Array.isArray(e.story)&&validPitch(e.pitch)&&Number.isFinite(e.offeredAt)&&Number.isInteger(e.plays)&&(e.source===undefined||taleSources.includes(e.source));
+ // With up to 500 tales on disk, each file is read once and kept while its time and size stay the same.
+ const known=new Map();
  function entries(){
   let names=[];try{names=fs.readdirSync(dir).filter(f=>current.test(f));}catch{}
-  const list=[];for(const f of names){try{const e=JSON.parse(fs.readFileSync(path.join(dir,f),'utf8'));if(sound(e)&&f==='journey-g'+generation+'-'+e.id+'.json')list.push(e);else fs.rmSync(path.join(dir,f),{force:true});}catch{}}
+  const list=[];for(const f of names){try{const file=path.join(dir,f),st=fs.statSync(file),stamp=st.mtimeMs+':'+st.size,was=known.get(f);if(was&&was.stamp===stamp){list.push(was.entry);continue;}
+   const e=JSON.parse(fs.readFileSync(file,'utf8'));if(sound(e)&&f==='journey-g'+generation+'-'+e.id+'.json'){known.set(f,{stamp,entry:e});list.push(e);}else{known.delete(f);fs.rmSync(file,{force:true});}}catch{}}
+  for(const f of [...known.keys()])if(!names.includes(f))known.delete(f);
   return list;
  }
- // Retires journeys that have been played enough or offered long enough, and clears away retired ones after a grace
- // period (a player who had the card on screen can still begin it for a while).
+ // Written back after a change (a play counted, a retirement); the next read takes the file afresh.
+ const keep=e=>{try{writeJson(fileOf(e.id),e);}catch{}known.delete(path.basename(fileOf(e.id)));};
+ const onOffer=e=>e.retiredAt==null;
+ // Retires journeys that have been played enough or offered long enough. A retired journey stays in the compendium.
  function maintained(){
-  const t=now(),kept=[];
-  for(const e of entries()){
-   if(e.retiredAt==null&&(e.plays>=set.retirePlays||t-e.offeredAt>=set.retireDays*day)){e.retiredAt=t;try{writeJson(fileOf(e.id),e);}catch{}}
-   if(e.retiredAt!=null&&t-e.retiredAt>=set.graceDays*day){try{fs.rmSync(fileOf(e.id),{force:true});}catch{}continue;}
-   kept.push(e);
-  }
-  return kept;
+  const t=now(),all=entries();
+  for(const e of all)if(onOffer(e)&&(e.plays>=set.retirePlays||t-e.offeredAt>=set.retireDays*day)){e.retiredAt=t;keep(e);}
+  return all;
  }
- const offered=()=>maintained().filter(e=>e.retiredAt==null).sort((a,b)=>(a.offeredAt-b.offeredAt)||(a.id<b.id?-1:1));
+ // Past the compendium's size the retired tales least played go first, the longest unplayed first among equals; never a
+ // journey on offer, nor the tale just added (`spare`).
+ function trimmed(all,spare=null){
+  const over=all.length-set.compendium;if(over<=0)return all;
+  const last=e=>Number.isFinite(e.playedAt)?e.playedAt:Number.isFinite(e.retiredAt)?e.retiredAt:e.offeredAt;
+  const gone=new Set(all.filter(e=>!onOffer(e)&&e.id!==spare).sort((a,b)=>(a.plays-b.plays)||(last(a)-last(b))||(a.id<b.id?-1:1)).slice(0,over).map(e=>e.id));
+  for(const id of gone){try{fs.rmSync(fileOf(id),{force:true});}catch{}known.delete(path.basename(fileOf(id)));}
+  return all.filter(e=>!gone.has(e.id));
+ }
+ const offered=()=>maintained().filter(onOffer).sort((a,b)=>(a.offeredAt-b.offeredAt)||(a.id<b.id?-1:1));
  // Newest first, so a player who comes back sees what is new at the top.
  const list=(opts={})=>offered().reverse().map(e=>publicJourney(e,opts));
  // A copy of the journey for one player: a story of their own (its own id), which knows the journey it came from and
@@ -102,8 +126,8 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
  function start(id){
   if(!idPattern.test(String(id)))return null;
   const e=maintained().find(x=>x.id===id);if(!e)return null;
-  e.plays++;if(e.retiredAt==null&&e.plays>=set.retirePlays)e.retiredAt=now();
-  try{writeJson(fileOf(e.id),e);}catch{}
+  e.plays++;e.playedAt=now();if(onOffer(e)&&e.plays>=set.retirePlays)e.retiredAt=now();
+  keep(e);
   return {...JSON.parse(JSON.stringify(e.story)),id:crypto.randomUUID(),status:'active',libraryId:e.id,artId:artIdOf(e.id)};
  }
  // Any journey on offer (for a game from before the library, asking for Let fate decide or Easy to get into).
@@ -140,10 +164,9 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
   filling=Promise.resolve().then(()=>write(b)).then(result=>{
    const story=result?.story;if(!story||typeof story!=='object'||Array.isArray(story))throw Object.assign(Error('no story'),{kind:'no-story'});
    if(!accept(story))throw Object.assign(Error('the rules refused the tale'),{kind:'rejected'});
-   const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.trim().toLowerCase()===b.trim().toLowerCase();
    if(on.some(e=>same(e.story.title,story.title)||(story.region&&same(e.story.region,story.region))))throw Object.assign(Error('too like a journey on offer'),{kind:'too-alike'});
-   const t=now(),entry={id:crypto.randomUUID(),generation,at:new Date(t).toISOString(),offeredAt:t,plays:0,retiredAt:null,brief:{terrain:b.terrain,mood:b.mood,seedIndex:b.seedIndex},pitch:tidyPitch(result.pitch,story,b.mood),story};
-   writeJson(fileOf(entry.id),entry);
+   const t=now(),entry={id:crypto.randomUUID(),generation,at:new Date(t).toISOString(),offeredAt:t,plays:0,retiredAt:null,source:'ahead',brief:{terrain:b.terrain,mood:b.mood,seedIndex:b.seedIndex},pitch:tidyPitch(result.pitch,story,b.mood),story};
+   writeJson(fileOf(entry.id),entry);trimmed(entries(),entry.id);
    const after=readState();after.seeds.push(b.seedIndex);saveState(after);
    try{onStocked?.(entry);}catch{}
   // The host's pause (e.kind 'paused', dm-server.cjs libraryPaused) is not a failure: the attempt is not counted against
@@ -151,10 +174,35 @@ function createLibrary({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.q
   }).then(()=>true,e=>{const after=readState();if(e?.kind==='paused'){const at=after.writes.lastIndexOf(stamp);if(at>=0)after.writes.splice(at,1);}else after.lastFailure=now();saveState(after);try{onFailure?.(e);}catch{}return false;}).then(ok=>{filling=null;if(ok)topUp(write,{accept,onStocked,onFailure});});
   return true;
  }
+ // A tale written for a player kept in the compendium (or, with source 'ahead', put on offer). Refused, with its kind:
+ // not a story, one the game's rules do not accept (`accept`: dm-server.cjs journeyCheck), or one whose title or land
+ // is already in the compendium. Returns {ok:true, entry} or {ok:false, kind}.
+ function add(story,{pitch=null,brief=null,source='player',accept=()=>true}={}){
+  if(!story||typeof story!=='object'||Array.isArray(story))return {ok:false,kind:'no-story'};
+  if(!taleSources.includes(source))return {ok:false,kind:'source'};
+  try{if(!accept(story))return {ok:false,kind:'rejected'};}catch{return {ok:false,kind:'rejected'};}
+  const all=maintained();
+  if(all.some(e=>same(e.story.title,story.title)||(story.region&&same(e.story.region,story.region))))return {ok:false,kind:'too-alike'};
+  const t=now(),mood=brief?.mood&&typeof brief.mood==='object'?brief.mood:null;
+  const entry={id:crypto.randomUUID(),generation,at:new Date(t).toISOString(),offeredAt:t,plays:0,retiredAt:source==='player'?t:null,source,brief:{terrain:journeyTerrains.includes(brief?.terrain)?brief.terrain:journeyTerrains.includes(story.terrain)?story.terrain:null,mood,seedIndex:Number.isInteger(brief?.seedIndex)?brief.seedIndex:null},pitch:tidyPitch(pitch,story,mood),story:JSON.parse(JSON.stringify(story))};
+  try{writeJson(fileOf(entry.id),entry);}catch{return {ok:false,kind:'unwritten'};}
+  trimmed([...all,entry],entry.id);
+  return {ok:true,entry};
+ }
+ // A tale for a land: one in the compendium (on offer or retired) of that terrain (any terrain when none is given),
+ // never one this device has played (`exclude`, library ids) nor one whose title the hero has lived (`titles`, any
+ // case); the least played first, then by id, so every device and every retry agree. Read only: start counts the play.
+ // (No terrain is "near" another in the game's rules, so only the same terrain fits.)
+ function match({terrain=null,exclude=[],titles=[]}={}){
+  if(terrain!=null&&!journeyTerrains.includes(terrain))return null;
+  const out=new Set(Array.isArray(exclude)?exclude.map(String):[]),lived=new Set((Array.isArray(titles)?titles:[]).filter(v=>typeof v==='string').map(v=>v.trim().toLowerCase()));
+  const fits=maintained().filter(e=>(terrain==null||e.story.terrain===terrain)&&!out.has(e.id)&&!lived.has(String(e.story.title??'').trim().toLowerCase()));
+  return fits.sort((a,b)=>(a.plays-b.plays)||(a.id<b.id?-1:1))[0]??null;
+ }
  // Resolves once nothing is being written (a chain of journeys included).
  const settled=async()=>{while(filling)await filling;};
- const info=()=>{const all=maintained(),t=now();return {offered:all.filter(e=>e.retiredAt==null).length,retired:all.filter(e=>e.retiredAt!=null).length,writesToday:readState().writes.filter(w=>t-w<day).length,size:set.size};};
- return {list,start,any,brief,due,topUp,settled,busy:()=>!!filling,info,offered,settings:set};
+ const info=()=>{const all=maintained(),t=now();return {offered:all.filter(onOffer).length,retired:all.filter(e=>!onOffer(e)).length,compendium:all.length,fromPlayers:all.filter(e=>e.source==='player').length,writesToday:readState().writes.filter(w=>t-w<day).length,size:set.size,cap:set.compendium};};
+ return {list,start,any,brief,due,topUp,add,match,settled,busy:()=>!!filling,info,offered,settings:set};
 }
 const library=createLibrary();
-module.exports={revision,generation,librarySettings,journeyTerrains,journeyMoods,journeySeeds,tidyPitch,validPitch,chapterCount,coverSubject,publicJourney,artIdOf,createLibrary,library};
+module.exports={revision,generation,librarySettings,taleSources,journeyTerrains,journeyMoods,journeySeeds,tidyPitch,validPitch,chapterCount,coverSubject,publicJourney,artIdOf,createLibrary,library};

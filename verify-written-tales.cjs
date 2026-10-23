@@ -26,8 +26,8 @@ write('refused-tale.json',{...listed,id:'5c3b8e40-6d7f-4091-8cbd-2e3f4a5b6c7d',s
 write('plays.json','{}');
 (async()=>{
  const {createShelf,publicTale,revision,fileProblem}=require('./written-shelf.cjs');
- assert.equal(revision,1);
- assert.ok(read('dm-server.cjs').includes("function loadWritten(){if(require('./written-shelf.cjs').revision!==1)"),'the Dungeon Master reloads the shelf only when its revision changes');
+ assert.equal(revision,2);
+ assert.ok(read('dm-server.cjs').includes("function loadWritten(){if(require('./written-shelf.cjs').revision!==2)"),'the Dungeon Master reloads the shelf only when its revision changes');
  const refused=[];const shelf=createShelf({dir:shelfDir,onRefused:n=>refused.push(n),fresh:0});
 
  // ---- 1. The shelf: what passes, what is listed, what is refused (noted with mechanical fields only) ----
@@ -56,11 +56,17 @@ write('plays.json','{}');
  assert.equal(shelf.start(otherId),null,'an unlisted tale is not started');assert.equal(shelf.start('nope'),null);assert.equal(shelf.start('00000000-0000-4000-8000-000000000000'),null);
  assert.equal(shelf.any('short').libraryId,fixture.id);assert.equal(shelf.any('long').libraryId,fixture.id,'any length when the tier has none');
  assert.equal(shelf.has(fixture.id),true);assert.equal(shelf.has(otherId),false);
+ // A tale for a land (2026-10-23, match): a listed tale of that terrain, never one played on this device nor one whose
+ // title the hero has lived; read only (starts are counted by start).
+ {const t=fixture.story.terrain,was=shelf.plays()[fixture.id].plays;assert.equal(shelf.match({terrain:t}).id,fixture.id);assert.equal(shelf.match({terrain:t==='coast'?'snow':'coast'}),null,'only the same terrain');assert.equal(shelf.match({terrain:'lava'}),null);
+  assert.equal(shelf.match({terrain:t,exclude:[fixture.id]}),null,'not one played on this device');assert.equal(shelf.match({terrain:t,titles:['  '+fixture.story.title.toUpperCase()]}),null,'nor one the hero lived');
+  assert.equal(shelf.match({}).id,fixture.id,'any terrain when none is given');assert.equal(shelf.plays()[fixture.id].plays,was,'matching starts nothing');}
  // The rules accept the copy: it seats a hero into a valid adventure with its staging.
  {const r=require('./rules-engine.cjs').storyChecks();assert.equal(r.writtenCheck(copy).ok,true);}
  // Read again on a change (within 30 s live; at once here), and never retired: a tale stays on the shelf.
  write('hidden-copy.json',{...listed,id:otherId,slug:'hidden-copy',length:'medium',minutes:[120,180],listed:true,firstTale:undefined,order:2});
  assert.deepEqual(shelf.list().map(c=>c.slug),['kettle-camp','hidden-copy'],'the shelf\'s own order, never newest first');
+ assert.equal(shelf.match({terrain:fixture.story.terrain}).id,otherId,'the least started tale is matched first');
  assert.equal(fileProblem({...listed,pitch:{...listed.pitch,hook:'x'.repeat(141)}},'kettle-camp.json'),'pitch');
  {const lazy=createShelf({dir:shelfDir,fresh:30000,now:()=>1000});assert.equal(lazy.list().length,2);fs.rmSync(path.join(shelfDir,'hidden-copy.json'));assert.equal(lazy.list().length,2,'a change is read within 30 s, not on every request');}
 
@@ -88,6 +94,13 @@ write('plays.json','{}');
  assert.equal((await ask({mode:'adventure',introId:'easy'},{options:{written:createShelf({dir:path.join(tmp,'empty')})}})).story.title,'A Journey','with no written tales, a journey as before');
  // A journey id the shelf does not know goes to the story writer's library (and, gone from it, the usual 409).
  await assert.rejects(ask({mode:'adventure',journey:'11111111-2222-4333-8444-555555555555'}),e=>e.httpStatus===409);
+ // A tale for a land (2026-10-23): the next tale in a region, or a tale in a land the hero reaches, takes a written tale
+ // of that terrain first (dm-server.cjs taleMatch), at once and with no allowance spent; with none it is written.
+ spent.length=0;
+ {const next=extra=>dm.generate({input:'Create the next chapter of my character\'s journey in the same region.',guest,context:{mode:'adventure',introId:'surprise',continuing:{previousTitle:'Old'},land:{name:'The Kettle Wood',terrain:fixture.story.terrain},previousTitles:['Old'],choices:[],...extra}},{apiKey:null,model:'m',fetchImpl:noAi,written:shelf,library,spending:spend});
+  const here=await next({});assert.ok(here.written===true&&here.matched===true&&here.journey===true&&here.story.libraryId===fixture.id,'a written tale for the land');assert.deepEqual(spent,['check:'+guest],'no allowance spent');
+  spent.length=0;await assert.rejects(next({playedTales:[fixture.id]}),/no AI in checks/,'played on this device: written by the story writer');assert.deepEqual(spent,['check:'+guest,'allow:tale']);
+  spent.length=0;await assert.rejects(next({idea:'A wolf pack that hunts by lantern light',introId:'idea'}),/no AI in checks/,'the player\'s own idea is always written');}
 
  // ---- 3. A table's tale started by the written tale's id (campaigns.cjs unchanged) ----
  {const {createCampaigns}=require('./campaigns.cjs'),rules=require('./rules-engine.cjs').rules(),{createOperations}=require('./operations.cjs');

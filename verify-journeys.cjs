@@ -9,14 +9,15 @@ const {rulesSource}=require('./rules-files.cjs');
 // (AdventureIntros.js, journeyLibrary.js, App.js); a journey's own places and people are painted once for all its
 // players (worldArtRules.js). Stand-in writers only: nothing here calls the provider.
 const lib=require('./tale-library.cjs'),{createLibrary,librarySettings,journeyTerrains,journeyMoods,journeySeeds,tidyPitch,validPitch,coverSubject}=lib;
-const {generate,topUpLibrary,journeyCheck,startLibrary,libraryPaused}=require('./dm-server.cjs');
+const {generate,topUpLibrary,journeyCheck,startLibrary,libraryPaused,typedByPlayer}=require('./dm-server.cjs');
 const {generateAdventure}=require('./adventure-generator.cjs');
 const {journeyStory,journeyPitch}=require('./journey-fixtures.cjs');
+const crypto=require('node:crypto');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-journeys-'));
 const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 (async()=>{
  // ---- The numbers ----
- same(librarySettings,{size:10,floor:6,perDay:4,retirePlays:20,retireDays:14,graceDays:2,failurePause:600000},'ten on offer, refilled freely below six and four a day above, retired after twenty plays or fourteen days');
+ same(librarySettings,{size:10,floor:6,perDay:4,retirePlays:20,retireDays:14,compendium:500,failurePause:600000},'ten on offer, refilled freely below six and four a day above, retired after twenty plays or fourteen days into a compendium of at most 500');
  assert.ok(lib.revision>=1&&lib.generation>=5);assert.equal(journeyTerrains.length,9);assert.equal(journeyMoods.length,10);assert.ok(journeySeeds.length>=24&&new Set(journeySeeds).size===journeySeeds.length,'two dozen different seed premises');
  assert.ok(journeyMoods.every(m=>m.id&&m.label&&m.steer.length>30),'every mood tells the writer what it means');
 
@@ -51,10 +52,11 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
  assert.equal(a.title,shown[0].title);assert.equal(shelf.list().length,10,'a journey is not used up by being played');
  assert.equal(shelf.start('../etc'),null,'only journey ids');assert.equal(shelf.start('0f8fad5b-d9cb-469f-a165-70867728950e'),null);
  assert.ok(journeyCheck(a),'a copy is a tale the game\'s rules accept');
- // ---- Retirement: after twenty plays (with a grace period for a card still on screen), or fourteen days ----
+ // ---- Retirement: after twenty plays, or fourteen days; a retired journey stays in the compendium ----
  for(let i=0;i<18;i++)shelf.start(first);
- assert.ok(!shelf.list().some(j=>j.id===first),'played twenty times: retired');assert.ok(shelf.start(first),'still startable for a while by a player who had the card on screen');
- clock+=2*day+1;assert.equal(shelf.start(first),null,'gone after the grace period');assert.ok(!fs.existsSync(path.join(dir,'journey-g5-'+first+'.json')));
+ assert.ok(!shelf.list().some(j=>j.id===first),'played twenty times: retired');assert.ok(shelf.start(first),'still startable by a player who had the card on screen');
+ clock+=2*day+1;assert.ok(shelf.start(first)?.libraryId===first,'kept in the compendium: still started by its id');assert.ok(fs.existsSync(path.join(dir,'journey-g5-'+first+'.json')));assert.ok(!shelf.list().some(j=>j.id===first),'never listed again');
+ {const kept=shelf.info();assert.equal(kept.retired,1);assert.equal(kept.compendium,10);assert.equal(kept.cap,500);}
  // ---- Paced refill: freely below the floor, then at most four a day ----
  assert.equal(shelf.list().length,9);
  n=20;const paced=async b=>{briefs.push(b);const i=n++;return {story:journeyStory(i,{title:'Paced Tale '+i}),pitch:journeyPitch(i)};};
@@ -75,6 +77,30 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
  {const long=tidyPitch({hook:'A '.repeat(200),blurb:'B',mood:'',special:'S'.repeat(400)},journeyStory(0),journeyMoods[0]);assert.ok(validPitch(long)&&long.hook.length<=140&&long.special.length<=160);assert.equal(long.mood,'Mystery','a missing mood is the library\'s');assert.match(long.blurb,/Something has gone wrong/,'a blurb too short is the premise');
   const none=tidyPitch(null,journeyStory(1));assert.ok(validPitch(none),'a journey without a pitch still gets a card');assert.ok(!validPitch({hook:'x'}));}
  assert.equal(coverSubject({id:'x',story:{}}),null);
+ // ---- The compendium: add (and its refusals), match, the cap, older files ----
+ {const d=path.join(tmp,'compendium'),c=createLibrary({dir:d,now:()=>clock,random,size:2,floor:2,compendium:5});let i=0;
+  c.topUp(async()=>({story:journeyStory(i),pitch:journeyPitch(i++)}),{accept:journeyCheck});await c.settled();assert.equal(c.list().length,2);
+  same(c.add(null),{ok:false,kind:'no-story'});same(c.add([]),{ok:false,kind:'no-story'});assert.equal(c.add(journeyStory(2),{source:'elsewhere'}).kind,'source');
+  assert.equal(c.add({title:'Broken'},{accept:journeyCheck}).kind,'rejected','a tale the rules refuse');assert.equal(c.add(journeyStory(2),{accept:()=>{throw Error('x');}}).kind,'rejected');
+  assert.equal(c.add({...journeyStory(2),title:'the reed crown'}).kind,'too-alike','a title already in the compendium');assert.equal(c.add({...journeyStory(0),title:'Something New'}).kind,'too-alike','a land already in it');
+  const coast=c.add(journeyStory(2),{pitch:journeyPitch(2),brief:{terrain:'coast',mood:journeyMoods[2],seedIndex:4},accept:journeyCheck});
+  assert.ok(coast.ok&&coast.entry.source==='player'&&coast.entry.retiredAt===clock&&coast.entry.plays===0&&validPitch(coast.entry.pitch)&&coast.entry.brief.terrain==='coast'&&coast.entry.brief.seedIndex===4,'a player\'s tale goes straight into the compendium');
+  assert.equal(c.list().length,2,'not onto the list on offer');assert.ok(fs.existsSync(path.join(d,'journey-g5-'+coast.entry.id+'.json')));
+  {const copy=c.start(coast.entry.id);assert.ok(copy.libraryId===coast.entry.id&&copy.artId==='journey-'+coast.entry.id&&copy.status==='active');}
+  const woodA=c.add({...journeyStory(3),title:'The First Wood'},{accept:journeyCheck}).entry.id,woodB=c.add({...journeyStory(3),title:'The Second Wood',region:'Elderholt'},{accept:journeyCheck}).entry.id;
+  assert.equal(c.match({terrain:'coast'}).id,coast.entry.id,'a tale of the land\'s terrain');assert.equal(c.match({terrain:'coast',exclude:[coast.entry.id]}),null,'never one the device played');
+  assert.equal(c.match({terrain:'coast',titles:['  LANTERNS OVER AMBERSHORE ']}),null,'nor one whose title the hero lived');assert.equal(c.match({terrain:'volcano'}),null);assert.equal(c.match({terrain:'snow'}),null);
+  assert.equal(c.match({terrain:'marsh'}).id,c.list().find(j=>j.terrain==='marsh').id,'a journey on offer counts');
+  {const first=[woodA,woodB].sort()[0];assert.equal(c.match({terrain:'forest'}).id,first,'equal plays: by id');c.start(first);c.start(first);assert.equal(c.match({terrain:'forest'}).id,[woodA,woodB].find(x=>x!==first),'the least played first');}
+  // The cap (5 here): past it the retired tales least played go, never one on offer, never the one just added.
+  assert.equal(c.info().compendium,5);clock+=1000;
+  const plays=id=>JSON.parse(fs.readFileSync(path.join(d,'journey-g5-'+id+'.json'),'utf8')).plays,least=[woodA,woodB].find(x=>plays(x)===0);
+  const snow=c.add(journeyStory(5),{accept:journeyCheck});assert.ok(snow.ok);
+  assert.equal(c.info().compendium,5);assert.ok(!fs.existsSync(path.join(d,'journey-g5-'+least+'.json')),'the retired tale least played gave way');assert.equal(c.list().length,2,'the journeys on offer stay');assert.ok(c.start(snow.entry.id),'the tale just added stays');
+  // A file from before the compendium (no source) is read as one written ahead.
+  {const on=c.list()[0].id,file=path.join(d,'journey-g5-'+on+'.json'),e=JSON.parse(fs.readFileSync(file,'utf8'));delete e.source;fs.writeFileSync(file,JSON.stringify(e));
+   const again=createLibrary({dir:d,now:()=>clock,random,size:2,floor:2,compendium:5});assert.ok(again.list().some(j=>j.id===on)&&again.match({terrain:e.story.terrain}),'older files are kept and served');
+   fs.writeFileSync(file,JSON.stringify({...e,source:'stolen'}));assert.ok(!createLibrary({dir:d,now:()=>clock,random}).list().some(j=>j.id===on),'an unknown source is unsound');}}
 
  // ---- The Dungeon Master: lists the journeys, starts one at once, writes new ones in the background ----
  const calls=[];const fetchFor=(story,pitch)=>async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify({...story,pitch})}]}]})};};
@@ -82,9 +108,10 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
  const keys={apiKey:'k',model:'gpt-6-luna',storyReasoning:'high',fetchImpl:varied};
  const dShelf=createLibrary({dir:path.join(tmp,'dm'),now:()=>clock,random,size:3,floor:3});
  const ask=(context,extra={})=>generate({input:'Create a fresh adventure.',...extra,context:{choices:[],...context}},{...keys,library:dShelf});
- // A browser's brief is dropped: only the library writes journeys.
- await ask({mode:'adventure',introId:'crown',ahead:true,libraryBrief:{seed:'x',others:[]},job:'verify-job-journey-0001'}).catch(()=>{});
- {const sent=calls.at(-1);assert.ok(sent&&!sent.input.includes('libraryBrief')&&!sent.text.format.schema.required.includes('pitch')&&!sent.instructions.includes('READY JOURNEY'),'a brief sent by a browser is ignored');}
+ // A browser's brief is dropped: only the library writes briefs (a tale written for a player gets the library's own).
+ await ask({mode:'adventure',introId:'crown',ahead:true,libraryBrief:{seed:'x marks the seed',others:[{title:'Planted'}]},job:'verify-job-journey-0001'}).catch(()=>{});
+ for(let i=0;i<50&&!calls.length;i++)await new Promise(r=>setImmediate(r));
+ {const sent=calls.at(-1),input=JSON.parse(sent.input);assert.ok(sent&&!sent.input.includes('x marks the seed')&&!sent.input.includes('Planted')&&input.context.libraryBrief.seed===undefined&&Array.isArray(input.context.libraryBrief.others),'a brief sent by a browser is ignored');}
  same((await ask({mode:'art',journeys:'list'})).journeys,[],'nothing on offer yet');await dShelf.settled();assert.equal(dShelf.list().length,3,'asking tops the library up (so does any live turn)');
  const before=calls.length,listed=await ask({mode:'art',journeys:'list'});
  assert.equal(listed.journeys.length,3);assert.equal(calls.length,before,'listing calls nothing');assert.ok(!JSON.stringify(listed).includes('opened it for silver'));
@@ -95,6 +122,61 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
  // next tale and the player's own idea are written fresh.
  for(const introId of ['easy','surprise']){const got=await ask({mode:'adventure',introId});assert.ok(got.journey&&got.story.libraryId,introId+' from an older game: a journey');}
  {const was=calls.length;await ask({mode:'adventure',introId:'crown',easyStart:false});await ask({mode:'adventure',introId:'surprise',continuing:{previousTitle:'Old'}});await ask({mode:'adventure',introId:'idea',idea:'A haunted lighthouse on a frozen coast'});assert.equal(calls.length,was+3,'written openings, the next tale and ideas are written fresh');}
+ // ---- Tales for a land (2026-10-23): the next tale in a region, or a tale in a land the hero reaches, comes from the
+ // tales already written when one fits (the Written tales shelf first, then the compendium), at once and at no cost;
+ // otherwise it is written the ahead way (no hero, no story so far, the land's name and terrain), added to the compendium
+ // and started as a journey. The player's own idea is always written, and added too. ----
+ {const r=createLibrary({dir:path.join(tmp,'routing'),now:()=>clock,random,size:1,floor:1});
+  r.topUp(async()=>({story:journeyStory(0),pitch:journeyPitch(0)}),{accept:journeyCheck});await r.settled();
+  const marsh=r.list()[0].id,coast=r.add(journeyStory(2),{pitch:journeyPitch(2),accept:journeyCheck}).entry.id;
+  const asked=[],allowed=[];let k=20;const writer=async(url,options)=>{const body=JSON.parse(options.body);asked.push(body);k++;return fetchFor({...journeyStory(k,{title:'Written Tale '+k}),region:'Somewhere '+k},journeyPitch(k))(url,options);};
+  const guest='account-'+'ab'.repeat(16),spending={check:()=>({ok:true}),allow:(g,kind)=>{allowed.push(kind);return {ok:true};}};
+  const WID='0f8fad5b-d9cb-469f-a165-70867728951a',shelfStub={list:()=>[],has:()=>false,any:()=>null,match:({terrain,exclude})=>terrain==='marsh'&&!exclude.includes(WID)?{id:WID}:null,start:id=>id===WID?{...journeyStory(0,{title:'A Written Marsh Tale'}),id:crypto.randomUUID(),libraryId:WID,artId:'journey-'+WID,written:{slug:'marsh-tale',edition:1,length:'short'}}:null};
+  const hero={player:{name:'Kara Vell',species:'Human',class:'Fighter',level:3,backstory:'A secret past in Oldport.'},storySoFar:{tales:['Kara Vell saved the miller of Oldport.']},previousStory:{title:'Old Tale',premise:'The miller of Oldport.'},previousTitles:['Old Tale']};
+  const tell=(context,over={})=>generate({input:'Create the next chapter of my character\'s journey in the same region.',guest,context:{choices:[],mode:'adventure',introId:'surprise',...hero,...context}},{apiKey:'k',model:'m',storyReasoning:'none',fetchImpl:writer,library:r,written:shelfStub,spending,...over});
+  const next={continuing:{previousTitle:'Old Tale',places:['Oldport Mill'],people:[{name:'Old Miller'}],newStartBearing:'The new starting place lies a few miles north of Oldport.'}};
+  // A tale of the land's terrain from the compendium: at once, no request, no new-tale allowance.
+  const matched=await tell({...next,land:{name:'The Saltreach',terrain:'coast'}});
+  assert.ok(matched.matched===true&&matched.journey===true&&matched.written===undefined&&matched.story.libraryId===coast&&matched.story.artId==='journey-'+coast&&matched.story.id!==coast,'the next tale here is one already written for that land, as a copy of its own');
+  assert.equal(asked.length,0,'no request');assert.ok(!allowed.includes('tale'),'and no new-tale allowance spent');
+  // The Written tales shelf is tried first.
+  {const w=await tell({...next,land:{name:'The Fenlands',terrain:'marsh'}});assert.ok(w.matched&&w.written===true&&w.story.libraryId===WID,'a written tale of that terrain comes first');assert.equal(asked.length,0);}
+  {const w=await tell({land:{name:'The Fenlands',terrain:'marsh'},playedTales:[WID]});assert.ok(w.matched&&!w.written&&w.story.libraryId===marsh,'then the compendium (a journey on offer counts), once the device has played the written one');}
+  // Nothing fits (played on this device, or its title lived): written the ahead way, then added and started.
+  const fresh=await tell({...next,land:{name:'The Saltreach',terrain:'coast'},playedTales:['not-an-id',coast],previousTitles:['Old Tale','LANTERNS over ambershore']});
+  assert.equal(asked.length,1,'written');assert.ok(allowed.includes('tale'),'a tale written counts as one');
+  {const sent=asked[0],input=JSON.parse(sent.input),c=input.context;
+   assert.ok(c.ahead===true&&c.easyStart===true&&c.player===undefined&&c.storySoFar===undefined&&c.continuing===undefined&&c.previousStory===undefined&&c.previousTitles===undefined&&c.playedTales===undefined,'no hero, no story so far, no earlier tale reaches the writer');
+   assert.ok(!sent.input.includes('Kara')&&!sent.input.includes('Oldport'),'nothing of the hero or their past');
+   same(c.land,{name:'The Saltreach',terrain:'coast'});assert.equal(c.libraryBrief.terrain,'coast','the brief is the land\'s terrain');assert.ok(typeof c.libraryBrief.seed==='string'&&c.libraryBrief.mood?.label,'with the library\'s mood and a seed');
+   for(const part of ['WRITTEN AHEAD','LAND: context.land','READY JOURNEY','EASY TO GET INTO'])assert.ok(sent.instructions.includes(part),part);assert.ok(!sent.instructions.includes('STORY SO FAR')&&!sent.instructions.includes('CONTINUING:'));
+   for(const field of ['errand','pitch','introduction'])assert.ok(sent.text.format.schema.required.includes(field),field);}
+  assert.ok(fresh.added===true&&fresh.journey===true&&fresh.story.libraryId&&fresh.story.artId==='journey-'+fresh.story.libraryId,'added to the compendium and started as a journey');
+  assert.equal(fresh.story.region,'The Saltreach');assert.equal(fresh.story.terrain,'coast','set in the land asked for');
+  {const e=r.info();assert.equal(e.fromPlayers,2);assert.ok(!r.list().some(j=>j.id===fresh.story.libraryId),'never on the list on offer');assert.ok(r.match({terrain:'coast',exclude:[coast]}).id===fresh.story.libraryId,'and matched for the next player');}
+  // The player's own idea is always written (a coast tale fits, but they asked for their own), and added too.
+  {const was=asked.length,idea=await tell({introId:'idea',idea:'A lighthouse that eats the ships it guides',land:{name:'Gullwatch',terrain:'coast'}});
+   assert.equal(asked.length,was+1,'an idea is always written');const input=JSON.parse(asked.at(-1).input);
+   assert.ok(input.context.libraryBrief.seed===undefined&&input.creativeDirection.startsWith('The player\'s own idea: A lighthouse')&&asked.at(-1).instructions.includes('PLAYER\'S IDEA'),'the idea, not a seed, says what the tale is about');assert.ok(asked.at(-1).instructions.includes('never put into it a real person\'s name'),'a shared tale never carries a real person or a personal detail from the idea');
+   assert.ok(idea.added===true&&idea.story.libraryId,'and added to the compendium');}
+  // A chosen opening is written the same way (its own direction) and added, never matched.
+  {const was=asked.length,opening=await tell({introId:'crown',previousTitles:[]});assert.equal(asked.length,was+1);assert.equal(JSON.parse(asked.at(-1).input).context.libraryBrief.seed,undefined);assert.ok(opening.added);}
+  // The next tale with no land named: written (the library's own terrain), never matched blind.
+  {const was=asked.length,blind=await tell(next);assert.equal(asked.length,was+1);const c=JSON.parse(asked.at(-1).input).context;assert.ok(c.continuing===undefined&&c.land===undefined&&journeyTerrains.includes(c.libraryBrief.terrain));assert.ok(blind.story);}
+  // A failed add never fails the tale: the player still gets it, as before.
+  {const broken={...r,match:()=>null,add:()=>{throw Error('disk full');}},got=await tell({land:{name:'The Ironhold Fells',terrain:'mountains'}},{library:broken});assert.ok(got.story&&!got.added&&got.story.libraryId===undefined&&got.pitch===undefined,'a tale the compendium could not keep is still the player\'s');}
+  {const got=await tell({land:{name:'The Glass Barrens',terrain:'desert'}},{library:{...r,match:()=>null,add:()=>({ok:false,kind:'too-alike'})}});assert.ok(got.story&&!got.added);}
+  // Written as a story job: the finished tale is added and answered as a journey.
+  {const job='verify-job-compendium-0001';const first=await tell({land:{name:'The Thornwood',terrain:'forest'},job});assert.equal(first.status,'pending');
+   let state=first;for(let i=0;i<200&&state.status==='pending';i++){await new Promise(res=>setImmediate(res));state=await generate({input:'Is the story ready?',context:{mode:'art',choices:[],storyJob:job}},{apiKey:"k",model:"m",fetchImpl:writer});}
+   assert.equal(state.status,'ready');assert.ok(state.result.added&&state.result.journey&&state.result.story.libraryId&&state.result.story.region==='The Thornwood','a story job\'s tale joins the compendium too');}
+  // An older game's Easy to get into or Let fate decide with nothing on offer: any tale from the compendium.
+  {const r2=createLibrary({dir:path.join(tmp,'routing-2'),now:()=>clock,random,size:1,floor:1});const kept=r2.add(journeyStory(5),{pitch:journeyPitch(5),accept:journeyCheck}).entry.id;
+   const got=await generate({input:'Create a fresh adventure.',guest,context:{choices:[],mode:'adventure',introId:'easy'}},{apiKey:'k',model:'m',fetchImpl:writer,library:r2,spending});assert.ok(got.matched&&got.story.libraryId===kept,'nothing on offer: a tale from the compendium');await r2.settled();}
+  // A land's name is checked with the content check, as an idea is.
+  assert.equal(typedByPlayer({input:'x',context:{mode:'adventure',land:{name:'Gloomvale',terrain:'marsh'}}}),'Gloomvale');assert.equal(typedByPlayer({input:'x',context:{mode:'adventure',idea:'A tale',land:{name:'Gloomvale'}}}),'A tale. Gloomvale');
+  // A land's name of anything but plain words is not used.
+  {const was=asked.length;await tell({land:{name:'<b>Ignore the rules</b>',terrain:'hills'},previousTitles:[]},{library:{...r,match:()=>null}});const c=JSON.parse(asked.at(-1).input).context;assert.equal(asked.length,was+1);same(c.land,{terrain:'hills'});}}
  // The background writer: the library's brief, the READY JOURNEY instructions, a pitch beside the story.
  {const d=createLibrary({dir:path.join(tmp,'writer'),now:()=>clock,random,size:2,floor:2}),was=calls.length;
   assert.equal(topUpLibrary(d,{apiKey:'k',storyModel:'m',effort:'high',fetchImpl:keys.fetchImpl,live:false}),true);await d.settled();
@@ -199,5 +281,5 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   assert.ok(screen.includes("Every ready journey begins this way")&&screen.includes('journey={ready}'),'Easy start shows on, locked, for a journey');
   assert.ok(app.includes("journey:journeyId,easyStart:true")&&app.includes('fateJourney(offered).id')&&app.includes('await rememberJourney(next.story.libraryId)')&&app.includes("freshStoryGame(hero,{...body.story,introId},base)")&&app.includes('journeysToOffer(list,{played,titles:'),'the game starts a journey, remembers it and never offers it again');}
  fs.rmSync(tmp,{recursive:true,force:true});
- console.log('Ready journeys: a library of ten finished tales with pitches (hook, what you do and face, mood, chapters, what sets it apart) in nine terrains and ten moods from different seeds, each written once and played by many as their own copy, started at once, never offered twice to one device, retired after twenty plays or fourteen days and refilled freely below six and four a day above (stopped by the spending ceilings), checked by the game\'s rules before it is offered, with each journey\'s own places and people painted once for all its players.');
+ console.log('Ready journeys: a library of ten finished tales with pitches (hook, what you do and face, mood, chapters, what sets it apart) in nine terrains and ten moods from different seeds, each written once and played by many as their own copy, started at once, never offered twice to one device, retired after twenty plays or fourteen days and refilled freely below six and four a day above (stopped by the spending ceilings), checked by the game\'s rules before it is offered, with each journey\'s own places and people painted once for all its players; retired journeys and every tale written for a player kept in a compendium of up to 500, from which the next tale for a land is matched (after the Written tales shelf) before one is written the ahead way and added.');
 })().catch(e=>{console.error(e);try{fs.rmSync(tmp,{recursive:true,force:true});}catch{}process.exit(1);});

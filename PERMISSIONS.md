@@ -1,12 +1,14 @@
 # Questbound: Permissions agreement
 
-_Last updated 13 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 23 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Permissions agreement
 
 ### Your words go to an AI
 
 What you type, your hero and the state of your game are sent to the host's computer and from there to OpenAI, which writes the Dungeon Master's replies and paints missing pictures. OpenAI's moderation service checks what you type first, and the game holds back hateful, harassing or sexual messages. Type nothing you would not want processed that way: no personal, financial or health details, yours or anyone else's.
+
+New tales are written without your hero and kept in the game's library of tales, where other players may be offered them, never with your hero, your words, your idea's text or your progress.
 
 ### Saves in this browser
 

@@ -10,7 +10,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'questbound-tales-'));
 const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secret:'S',foe:'Bog hag',foeSpecies:'Hag',foeAppearance:'A bent green crone with river weed for hair.',locations:{inn:{name:'A',description:'a'},bridge:{name:'B',description:'b'},tower:{name:'C',description:'c'}},npcs:{keeper:{name:'Ivo',species:'Human',role:'r',motive:'m',appearance:'A tall man with a grey beard and a limp.',personality:'Gruff, slow to trust, quick to laugh.',regard:{stance:'wary',reason:'I lost a brother to your kind.'},ties:{other:'friend',foe:'enemy',note:'n'}},mara:{name:'Sera',species:'Elf',role:'r',motive:'m',appearance:'A slight elf with ink on her hands and a red scarf.',personality:'Curious and precise, always counting.',regard:{stance:'warm',reason:'Travellers bring news.'},ties:{other:'friend',foe:'neutral',note:'n'}}}};
 (async()=>{
  // ---- The library ----
- assert.equal(revision,5);assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("require('./tale-library.cjs').revision!=="+revision+')'),'the Dungeon Master reloads the library when its revision changes');assert.equal(generation,5,'tales written before the library (and before introductions) are cleared');
+ assert.equal(revision,6);assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("require('./tale-library.cjs').revision!=="+revision+')'),'the Dungeon Master reloads the library when its revision changes');assert.equal(generation,5,'tales written before the library (and before introductions) are cleared');
 
  // ---- The Dungeon Master: a ready journey starts at once; written openings, ideas and the next tale are written fresh ----
  const calls=[];const storyFetch=async(url,options)=>{const request=JSON.parse(options.body);calls.push(request);return {ok:true,json:async()=>({status:'completed',usage:{},output:[{content:[{type:'output_text',text:JSON.stringify(story)}]}]})};};
@@ -25,8 +25,8 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  // ---- The story writer: the player's own idea, and tales written before the hero is known ----
  const idea=calls.at(-1);assert.match(requestParts(idea).instructions,/PLAYER'S IDEA/);assert.match(requestParts(idea).instructions,/take only its mood/);assert.ok(idea.input.includes('haunted lighthouse'));assert.match(requestScene(idea).creativeDirection,/own idea: A haunted lighthouse/);
  await assert.rejects(ask({mode:'adventure',introId:'idea',idea:'  '}),/Write your idea/);
- const odd=await ask({mode:'adventure',introId:'idea',idea:'A cursed\u0000 bell\n\n tolls   at noon'});assert.ok(requestScene(calls.at(-1)).creativeDirection.endsWith('A cursed bell tolls at noon'),'one clean line');
- assert.ok(odd.story.npcs.keeper.regard,'a tale for a known hero keeps the people\'s view of their kind');
+ const odd=await ask({mode:'adventure',introId:'idea',idea:'A cursed\u0000 bell\n\n tolls   at noon'});assert.ok(requestScene(calls.at(-1)).creativeDirection.includes('own idea: A cursed bell tolls at noon Begin with the hero already on a plain errand'),'one clean line (and, written for anyone, it begins with orders in hand)');
+ assert.equal(odd.story.npcs.keeper.regard,undefined,'a tale written for a player is written ahead (it may join the compendium): the view of the hero\'s kind is left to the game');
  // Easy start with a written opening: written fresh, so it begins with orders in hand; Easy to get into and Let fate
  // decide (from a game before the library) are a ready journey, and every journey begins with orders in hand.
  taken.length=0;await ask({mode:'adventure',introId:'crown',easyStart:true});assert.equal(taken.length,0,'an easy start on a written opening is written fresh');

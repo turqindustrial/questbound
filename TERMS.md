@@ -1,6 +1,6 @@
 # Questbound: Terms of use and Licences and credits
 
-_Last updated 13 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
+_Last updated 23 October 2026. The same words are shown in the game under Settings → About. Written in legalText.js; `node verify-legal.cjs --write` regenerates this file._
 
 ## Terms of use
 
