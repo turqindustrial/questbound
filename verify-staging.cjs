@@ -129,6 +129,16 @@ const fightIt=game=>{let g=game,h=null;for(let i=0;i<60&&(g.stage==='combat'||g.
  // A beat carried by a request whose turn the game told (offline): the game's own line, beatTold.
  const offline=r.withBeatLine({narration:'You look about.'},g);assert.equal(offline.beatTold,'beat:b1');assert.ok(offline.narration.endsWith('The bell rings once.'),'the beat\'s own line after the telling');
  const offlineTold=settle(g,null,{question:'I look.',narration:offline.narration,dialogue:[],npcId:null,told:'game',beatTold:offline.beatTold}).game;assert.ok(offlineTold.pace.told.includes('b1'),'beatTold marks it told');
+ // Someone a beat brings in speaks in the very telling that carries it: the Dungeon Master was shown the scene with the
+ // beat applied (stagedPreview), so the turn stands and the line is kept (live on 2026-10-23 the ending that freed a
+ // captive refused the last blow at The Last Ferry's foe eleven times in a row: the freed boy spoke in the telling).
+ {const brought=copy(s=>{ch(s,0).beats=[{id:'b1',when:{reach:'Fernmoot Spring'},if:null,tell:'A runaway drops from the rafters.',line:'A runaway drops from the rafters.',then:{bring:'Nim Corley'}}];});
+  const g0=seat(brought),nim=person(g0,'Nim Corley');assert.ok(nim,'the fixture has Nim');
+  const moved=r.mapMoves(g0).find(m=>m.action.type==='travel'&&m.action.destination==='p2').action;
+  const heard=r.settleTurn({hero:kara,game:g0,health:null,action:moved,conversation:{question:'I travel there.',narration:'You go, and someone drops from the rafters.',dialogue:[{speakerId:nim,text:'Don\'t shoot!'}],npcId:null,beats:['beat:b1']},random:()=>0.5});
+  assert.ok(!heard.error,'a line from someone the beat brings never refuses the turn: '+heard.error);valid(heard.result.game);
+  assert.ok(JSON.stringify(heard.result.turn??heard.result.game.playback?.at(-1)).includes('Don\'t shoot!'),'and the line is kept');
+  const stranger=r.settleTurn({hero:kara,game:g0,health:null,action:moved,conversation:{question:'I travel there.',narration:'You go.',dialogue:[{speakerId:'n96',text:'Hello.'}],npcId:null},random:()=>0.5});assert.ok(stranger.error,'someone here neither before nor after still refuses it');}
  // A spared step is not told; told never holds a step that was spared.
  // Never in a fight: a beat whose moment comes while fighting waits for the fight's end, and is not carried meanwhile.
  const inFight=copy(s=>{ch(s,0).beats=[{id:'b1',when:{at:'The Log Slide'},if:null,tell:'Wolf-tracks everywhere.',line:'Wolf-tracks everywhere.',then:{}}];});
