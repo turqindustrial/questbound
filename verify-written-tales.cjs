@@ -26,8 +26,8 @@ write('refused-tale.json',{...listed,id:'5c3b8e40-6d7f-4091-8cbd-2e3f4a5b6c7d',s
 write('plays.json','{}');
 (async()=>{
  const {createShelf,publicTale,revision,fileProblem}=require('./written-shelf.cjs');
- assert.equal(revision,2);
- assert.ok(read('dm-server.cjs').includes("function loadWritten(){if(require('./written-shelf.cjs').revision!==2)"),'the Dungeon Master reloads the shelf only when its revision changes');
+ assert.equal(revision,3);
+ assert.ok(read('dm-server.cjs').includes("function loadWritten(){if(require('./written-shelf.cjs').revision!==3)"),'the Dungeon Master reloads the shelf only when its revision changes');
  const refused=[];const shelf=createShelf({dir:shelfDir,onRefused:n=>refused.push(n),fresh:0});
 
  // ---- 1. The shelf: what passes, what is listed, what is refused (noted with mechanical fields only) ----
@@ -68,6 +68,7 @@ write('plays.json','{}');
  assert.deepEqual(shelf.list().map(c=>c.slug),['kettle-camp','hidden-copy'],'the shelf\'s own order, never newest first');
  assert.equal(shelf.match({terrain:fixture.story.terrain}).id,otherId,'the least started tale is matched first');
  assert.equal(fileProblem({...listed,pitch:{...listed.pitch,hook:'x'.repeat(141)}},'kettle-camp.json'),'pitch');
+ assert.equal(fileProblem({...listed,firstTale:false},'kettle-camp.json'),null,'firstTale false is as good as absent (the checker accepts it; on 2026-10-23 the shelf refused The Siege of Dunscaur for it)');assert.equal(fileProblem({...listed,firstTale:'yes'},'kettle-camp.json'),'firstTale');
  {const lazy=createShelf({dir:shelfDir,fresh:30000,now:()=>1000});assert.equal(lazy.list().length,2);fs.rmSync(path.join(shelfDir,'hidden-copy.json'));assert.equal(lazy.list().length,2,'a change is read within 30 s, not on every request');}
 
  // ---- 2. The Dungeon Master: the listing, a written start first, no new-tale allowance for it ----
