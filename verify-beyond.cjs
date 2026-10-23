@@ -189,6 +189,13 @@ assert.equal(look('I want to leave this land.')?.sure??false,false);assert.equal
  // Unmistakable: the game sets out itself at once (2026-10-22); with no way named, the model is asked which way.
  assert.equal(out.actionId,'beyond-N','the game sets out itself');assert.equal(calls.length,1,'at once, without asking again');
  await generate({input:'We leave this country.',context:base},{apiKey:'test-only',model:'test-model',fetchImpl});assert.equal(calls.length,3);assert.match(requestParts(calls[2]).instructions,/LOOK AGAIN: .*beyond-N/);
+ // While the road out is watched, a far land the reply opens by discovery is the way beyond that way, so the watcher on
+ // the road is met (live on 2026-10-23 a discovery with a region walked the hero out of a Short tale's chapter 1).
+ {const ctx=r.dmContext(hero,barred,hp?.current??null,'We head north, beyond the edge of the map.');assert.equal(ctx.world.roadWatched,true,'the scene says the road out is watched');
+  assert.equal(r.dmContext(hero,r.newAdventure(hero),null,'x').world?.roadWatched,undefined,'and says nothing otherwise');
+  const far={narration:'You strike north for days.',dialogue:[],effects:[{discovery:{name:'Farhold',description:'A walled hill town on the far side of the moor, its gate shut against the wind.',kind:'settlement',bearing:'N',miles:120,travel:true,danger:'safe',feature:null,lair:null,region:{name:'The Northreach March',terrain:'hills'}}}],suggestions:[]};
+  const sent=await generate({input:'We head north, beyond the edge of the map.',context:ctx},{apiKey:'test-only',model:'test-model',fetchImpl:async()=>({ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(far)}]}]})})});
+  assert.equal(sent.actionId,'beyond-N','the way beyond, not a far land walked to');assert.equal(sent.discovery,null);}
  assert.ok(requestParts(calls[0]).instructions.includes('BEYOND THE MAP: the choices beyond-N'),'the Dungeon Master is told how lands beyond the map work');
  // ---- At the shared table the campaign server accepts the same moves ----
  const {resolveTurn}=require('./server-turn.cjs'),ask=async()=>({narration:'The road runs on for days.',actionId:null,suggestions:[]});

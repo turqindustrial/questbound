@@ -1082,6 +1082,11 @@ function replyReader(body,{choices,resolvingSpell,voices,offerable,recruitable,n
   // order the game resolves them is kept and the rest dropped, instead of refusing the whole reply.
   if(!ruling){let kept=false;const keep=v=>{if(v==null||kept)return null;kept=true;return v;};result.actionId=keep(result.actionId);castCommand=keep(castCommand);discovery=keep(discovery);check=keep(check);ambush=keep(ambush);}
   if((castCommand!==null&&(typeof castCommand!=='string'||castCommand.length>500||!/^I cast /i.test(castCommand)))||!validRuling(ruling)||(worldEvent!==null&&(typeof worldEvent!=='string'||!worldEvent.trim()||worldEvent.length>800))||[result.actionId,castCommand,ruling,check,discovery,ambush].filter(v=>v!==null).length>1||(ruling&&!body.context.pendingSpell))throw Error('The AI proposed an invalid ruling. Nothing was applied.');
+  // A land beyond the map opened by discovery (its region) while the tale keeps its road out watched (world.roadWatched,
+  // mapRules.js beyondBarred): the beyond choice that way, so the game's own road and the fight on arriving are what the
+  // hero meets (live on 2026-10-23 a far-land discovery walked the hero out of The Last Ferry's chapter 1 untouched).
+  if(discovery&&isObj(discovery.region)&&body.context.world?.roadWatched===true){const ways=choices.filter(c=>c.startsWith('beyond-')),way=ways.includes('beyond-'+discovery.bearing)?'beyond-'+discovery.bearing:ways[0];
+   if(way&&[result.actionId,castCommand,check,ambush].every(v=>v==null)){result.actionId=way;discovery=null;noted('discovery','a far land while the road out is watched: the way beyond');}}
   // A new place the map cannot take (the stories spec, Phase A9, 2026-10-22: asked again nine times in one rough session;
   // repairedDiscovery mends what it can first): a known place by its name, with a journey there on offer, is that journey;
   // anything else is left out, kept as words when the reply records nothing lasting of its own (worldEvent), and never a

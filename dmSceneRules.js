@@ -4,7 +4,7 @@
 // choices); the limits that keep one request inside its size however large the world grows.
 import {questState,storyText,storyIntroduction} from "./storyRules";
 import {npcLore,metPerson,npcScene} from "./npcRules";
-import {mapLocation,knownPlaceIds,placeName,travelRoute,currentRegion,mapRegions,regionOfPlace,mapState,placeCoordinates,distanceText,durationText,placeDescription,worldPlace,mapHasRoom,maxWorldPlaces,worldPlaces} from "./mapRules";
+import {mapLocation,knownPlaceIds,placeName,travelRoute,currentRegion,mapRegions,regionOfPlace,mapState,placeCoordinates,distanceText,durationText,placeDescription,worldPlace,mapHasRoom,maxWorldPlaces,worldPlaces,beyondBarred} from "./mapRules";
 import {npcTies,speciesRegard,canMeetPeople,libraryPeopleMet} from "./relationshipRules";
 import {foeLabel} from "./encounterRules";
 import {mapMoves} from "./dmChoiceRules";
@@ -125,7 +125,7 @@ export function storyWorld(context,hero,game,health,input){
     if(!inFull.has(id))return {id,name:placeName(game,id),distance:r?distanceText(r.feet):'unknown',minutes:r?.minutes??null,visited:visited.includes(id),...away};
     return {id,name:placeName(game,id),kind:worldPlace(game,id)?.kind??game.story.locations?.[id]?.kind??'starting place',description:briefText(placeDescription(game,id),id===here?300:120),distance:r?distanceText(r.feet):'unknown',bearing:wayTo(id),minutes:r?.minutes??null,visited:visited.includes(id),...(worldPlace(game,id)?.cleared?{cleared:true}:{}),...away};}),
    ...(others.length?{morePlaces:others.slice(0,placesByName).map(placeLine),...(others.length>placesByName?{morePlacesNotListed:others.length-placesByName}:{})}:{}),
-   canDiscover:['inn','bridge','tower','wild'].includes(game.stage)&&!game.pendingSpell&&!game.npcCombat?.active&&(health?.current??1)>0&&mapHasRoom(game),placesLeft:maxWorldPlaces-worldPlaces(game).length,
+   canDiscover:['inn','bridge','tower','wild'].includes(game.stage)&&!game.pendingSpell&&!game.npcCombat?.active&&(health?.current??1)>0&&mapHasRoom(game),...(beyondBarred(game)?{roadWatched:true}:{}),placesLeft:maxWorldPlaces-worldPlaces(game).length,
    // Other lands, in brief: how far the road is (to the nearest place there) and the places known there by name.
    ...(farLands.length?{farLands}:{}),
    // Lands on the map (every land travelled is kept).
