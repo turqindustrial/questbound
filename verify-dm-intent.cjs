@@ -9,6 +9,15 @@ const base={stage:'inn',enemyHP:16,foeFate:null,story:{foe:'Bandit Cutthroat'},w
  choices:[{id:'travel-bridge',label:'Travel to Overgrown Roadside'},{id:'travel-tower',label:'Travel to Lookout Rock'},{id:'travel-p1',label:'Travel to Tern Ferry'},{id:'long-rest',label:'Rest'},{id:'short-rest',label:'Short rest'},{id:'potion',label:'Drink a healing draught'}]};
 const quiet={narration:'The camp is quiet.',dialogue:[],recruitment:[],relationships:[],loot:null,introduce:null,actionId:null,castCommand:null,ruling:null,worldEvent:null,check:null,discovery:null,ambush:null,rewind:null,suggestions:[]};
 const look=(input,reply=quiet,context=base)=>secondLook({input,context},reply,{canDiscover:!!context.world?.canDiscover});
+// A written tale's choice the player's words make (the option's own words), when the reply recorded none: asked once.
+{const only=s=>'The player commits to: '+s+' (ONLY when their words or deeds commit to it.)';
+ const withChoice={...base,choices:[...base.choices,{id:'tale-choice:ness:hide',label:only('Hide her aboard and keep her secret')},{id:'tale-choice:ness:truth',label:only('Make her say why, aloud')},{id:'tale-choice:ness:leave',label:only('Leave her behind')}]};
+ const f=look('Say it aloud, Ness. Tell everyone why you rang the bell.',quiet,withChoice);
+ assert.ok(f&&f.kind==='tale choice'&&f.actionId==='tale-choice:ness:truth'&&f.sure===false&&f.note.includes('Make her say why, aloud'),'the option the words make is asked about, never settled by the game');
+ assert.equal(look('Hide her under the oilcloth and keep the secret aboard.',quiet,withChoice).actionId,'tale-choice:ness:hide');
+ assert.equal(look('I look at Ness and wonder what to do.',quiet,withChoice),null,'words that make no option are left alone');
+ assert.equal(look('Say it aloud, Ness. Tell everyone why you rang the bell.',{...quiet,actionId:'tale-choice:ness:truth'},withChoice),null,'a reply that recorded it is left alone');
+ assert.equal(look('Do not say it aloud, Ness, why you did it.',quiet,withChoice),null,'a negated one is left alone');}
 // What is true now, in plain sentences.
 let now=situation(base);
 assert.ok(now[0]==='The player is at Caravan Camp.'&&now.some(l=>l.startsWith('No fight is in progress'))&&now.some(l=>l==='Bandit Cutthroat is not at Caravan Camp and is not attacking the player.'));
