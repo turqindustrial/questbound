@@ -55,8 +55,10 @@ export function exitLabelBoxes(exits,exitNames,w,h){
 }
 // A smooth line through points (quadratic curves through the midpoints).
 const through=points=>points.length<2?'':'M'+n(points[0].x)+' '+n(points[0].y)+points.slice(1,-1).map((p,i)=>{const q=points[i+2];return 'Q'+n(p.x)+' '+n(p.y)+' '+n((p.x+q.x)/2)+' '+n((p.y+q.y)/2);}).join('')+'L'+n(points.at(-1).x)+' '+n(points.at(-1).y);
-export function regionMapSvg({w,h,seed,terrain='plains',ids,at,links,exits=[],exitNames={},labels,kinds,icons,here,visited=new Set(),selected=null,lairs=new Set(),cleared=new Set(),distances={},title='',avoid=[]}){
- const theme=mapThemes[terrain]??mapThemes.plains,[p0,p1,p2]=theme.paper,paper=p0;
+export function regionMapSvg({w,h,seed,terrain='plains',ids,at,links,exits=[],exitNames={},labels,kinds,icons,here,visited=new Set(),selected=null,lairs=new Set(),cleared=new Set(),distances={},title='',avoid=[],outside=[],city=false,bar=null,nameSize=13.5}){
+ // A city sheet (mapLayout.js cityLayout) is drawn to scale: roofs over the open ground, no mountain ranges or woods
+ // between its streets, a scale bar, and the places outside it as small pointers at the edge.
+ const base=mapThemes[terrain]??mapThemes.plains,theme=city?{...base,wild:['house','house','round','grass','house','stone'],ranges:0,woods:0,river:base.river?Math.min(.5,base.river):0,dense:.55}:base,[p0,p1,p2]=theme.paper,paper=p0;
  const random=seededRandom('region:'+seed+':'+terrain),land=seededRandom('land:'+seed+':'+terrain),parts=[];
  // Paper: warm in the middle, burnt at the edges, with stains and a grain.
  parts.push(`<defs><radialGradient id="qm-paper" cx="50%" cy="46%" r="75%"><stop offset="0" stop-color="${p0}"/><stop offset=".62" stop-color="${p1}"/><stop offset="1" stop-color="${p2}"/></radialGradient><radialGradient id="qm-stain" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="rgba(120,84,40,.2)"/><stop offset="1" stop-color="rgba(120,84,40,0)"/></radialGradient><radialGradient id="qm-water" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="rgba(93,134,148,.42)"/><stop offset="1" stop-color="rgba(93,134,148,0)"/></radialGradient><filter id="qm-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 .23  0 0 0 0 .16  0 0 0 0 .08  0 0 0 .5 -.12"/></filter></defs>`);
@@ -65,7 +67,7 @@ export function regionMapSvg({w,h,seed,terrain='plains',ids,at,links,exits=[],ex
  parts.push(`<rect width="${w}" height="${h}" filter="url(#qm-grain)" opacity=".55"/>`);
  // Keep-clear areas: markers, names, the compass, the title and the roads out.
  const exitLabels=exitLabelBoxes(exits,exitNames,w,h);
- const blocked=[...ids.map(id=>({x:at[id].x-21,y:at[id].y-21,w:42,h:42})),...Object.values(labels).map(l=>({x:l.x-3,y:l.y-3,w:l.w+6,h:l.h+6})),{x:w-62,y:0,w:62,h:66},...avoid,...(title?[{x:8,y:h-30,w:title.length*8.2+14,h:24}]:[]),...exitLabels.map(e=>({x:e.lx-2,y:e.ly-2,w:e.tw+4,h:16}))];
+ const blocked=[...ids.map(id=>({x:at[id].x-21,y:at[id].y-21,w:42,h:42})),...Object.values(labels).map(l=>({x:l.x-3,y:l.y-3,w:l.w+6,h:l.h+6})),{x:w-62,y:0,w:62,h:66},...avoid,...(title?[{x:8,y:h-30,w:title.length*8.2+14,h:24}]:[]),...exitLabels.map(e=>({x:e.lx-2,y:e.ly-2,w:e.tw+4,h:16})),...outside.map(o=>({x:o.x-17,y:o.y-17,w:34,h:34})),...(bar?[{x:10,y:8,w:Math.max(bar.px,bar.text.length*5.4)+16,h:30}]:[])];
  const hits=(x,y,rw,rh)=>blocked.some(b=>x+rw>b.x&&x-rw<b.x+b.w&&y+rh>b.y&&y-rh<b.y+b.h);
  const free=(x,y,r=9)=>x>12&&x<w-12&&y>16&&y<h-10&&!hits(x,y,r,r);
  const clearance=(x,y)=>Math.min(...ids.map(id=>Math.hypot(at[id].x-x,at[id].y-y)),9999);
@@ -110,6 +112,7 @@ export function regionMapSvg({w,h,seed,terrain='plains',ids,at,links,exits=[],ex
  const written=[];
  for(const c of curves){const text=distances[c.a+'-'+c.b];if(!text||c.len<74)continue;const half=text.length*2.9+3;if(hits(c.mx,c.my,half,7))continue;written.push([c,text]);blocked.push({x:c.mx-half,y:c.my-7,w:half*2,h:14});}
  for(const c of curves)for(const t of [.2,.35,.5,.65,.8]){const u=1-t;blocked.push({x:u*u*c.p.x+2*u*t*c.cx+t*t*c.q.x-7,y:u*u*c.p.y+2*u*t*c.cy+t*t*c.q.y-7,w:14,h:14});}
+ for(const o of outside)if(o.via&&at[o.via])for(const t of [.25,.5,.75]){const p=at[o.via];blocked.push({x:p.x+(o.x-p.x)*t-7,y:p.y+(o.y-p.y)*t-7,w:14,h:14});}
  for(const e of exits)for(const t of [.25,.5,.75]){const p=at[e.from];blocked.push({x:p.x+(e.x-p.x)*t-7,y:p.y+(e.y-p.y)*t-7,w:14,h:14});}
  // Water lies under everything near a watery place.
  for(const id of ids)if(kinds[id]==='water')parts.push(`<ellipse cx="${n(at[id].x)}" cy="${n(at[id].y+4)}" rx="46" ry="30" fill="url(#qm-water)"/>`);
@@ -144,17 +147,61 @@ export function regionMapSvg({w,h,seed,terrain='plains',ids,at,links,exits=[],ex
   parts.push(`<g font-family="'EB Garamond', Georgia, serif" font-style="italic" font-size="11.5" font-weight="600" fill="${ink}" stroke="${paper}" stroke-width="2.8" paint-order="stroke" stroke-linejoin="round">${exitLabels.map(e=>`<text x="${n(e.lx+4)}" y="${n(e.ly+11)}">${esc(e.text)}</text>`).join('')}</g>`);
  }
  parts.push(`<g font-family="'EB Garamond', Georgia, serif" font-style="italic" font-size="10.5" fill="${ink}" stroke="${paper}" stroke-width="2.6" paint-order="stroke" text-anchor="middle" opacity=".9">${written.map(([c,text])=>`<text x="${n(c.mx)}" y="${n(c.my+3.5)}">${esc(text)}</text>`).join('')}</g>`);
+ // Places outside a city: a dotted road from where it leaves the city, a small marker, and at the sheet's edge an
+ // arrowhead pointing on towards the place.
+ if(outside.length){
+  parts.push(`<g fill="none" stroke="${ink}" stroke-linecap="round" stroke-width="1.4" stroke-dasharray="2 5" opacity=".6">${outside.filter(o=>o.via&&at[o.via]).map(o=>`<path d="M${n(at[o.via].x)} ${n(at[o.via].y)}L${n(o.x)} ${n(o.y)}"/>`).join('')}</g>`);
+  for(const o of outside){
+   const isHere=o.id===here,seen=visited.has(o.id)||isHere,icon=iconPaths[icons[o.id]]??iconPaths.compass,color=isHere?'#f8e9c4':ink;
+   parts.push(`<g transform="translate(${n(o.x)} ${n(o.y)})">${o.edge?`<path transform="rotate(${n(o.angle)})" d="M19 0L11.5 -4.6L13.5 0L11.5 4.6Z" fill="${ink}" opacity=".85"/>`:''}${o.id===selected?`<circle r="15.5" fill="none" stroke="${ink}" stroke-width="1.2" stroke-dasharray="3 3"/>`:''}<circle r="10.5" fill="${isHere?red:'#e6d6ad'}" stroke="${isHere?'#4a160c':ink}" stroke-width="1.2"${seen?'':' stroke-dasharray="2.6 2.2"'}/><g transform="translate(-6 -6) scale(.5)" fill="none" stroke="${color}" style="color:${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity=".8">${icon.svg}</g></g>`);
+  }
+ }
  // Markers: a place you stand in is red; one you have not seen yet is drawn dashed.
  for(const id of ids){
   const p=at[id],isHere=id===here,seen=visited.has(id)||isHere,icon=iconPaths[icons[id]]??iconPaths.compass,color=isHere?'#f8e9c4':ink;
   parts.push(`<g transform="translate(${n(p.x)} ${n(p.y)})">${id===selected?`<circle r="19.5" fill="none" stroke="${ink}" stroke-width="1.3" stroke-dasharray="3 3"/>`:''}${isHere?`<circle r="18.5" fill="none" stroke="${red}" stroke-width="1" opacity=".6"/>`:''}<circle r="14.5" fill="${isHere?red:seen?'#f1e4bf':'#dfcd9f'}" stroke="${isHere?'#4a160c':ink}" stroke-width="1.5"${seen?'':' stroke-dasharray="3 2.6"'}/><g transform="translate(-8.4 -8.4) scale(.7)" fill="none" stroke="${color}" style="color:${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" opacity="${seen?1:.6}">${icon.svg}</g>${lairs.has(id)?`<circle cx="11" cy="-11" r="4.6" fill="${red}" stroke="${paper}" stroke-width="1.4"/>`:cleared.has(id)?`<circle cx="11" cy="-11" r="4.6" fill="#4f7d5a" stroke="${paper}" stroke-width="1.4"/>`:''}</g>`);
  }
  // Names, in a mapmaker's italic hand with the paper showing around the letters.
+ parts.push(`<g font-family="'EB Garamond', Georgia, serif" font-style="italic" font-weight="600" font-size="${nameSize}" stroke="${paper}" stroke-width="3.2" paint-order="stroke" stroke-linejoin="round">${Object.entries(labels).map(([id,l])=>{const x=l.align==='center'?l.x+l.w/2:l.align==='left'?l.x+2:l.x+l.w-2,anchor=l.align==='center'?'middle':l.align==='left'?'start':'end';
+  return `<text x="${n(x)}" y="${n(l.y+11.5*nameSize/13.5)}" text-anchor="${anchor}" fill="${id===here?red:ink}"${id===here?' font-weight="700"':''}>${l.lines.map((line,i)=>`<tspan x="${n(x)}" dy="${i?n(15*nameSize/13.5):0}">${esc(line)}</tspan>`).join('')}</text>`;}).join('')}</g>`);
+ parts.push(compass(w-32,36,paper));
+ // A scale bar on a sheet drawn to scale.
+ if(bar)parts.push(`<g transform="translate(18 28)"><path d="M0 0v6h${n(bar.px)}v-6M${n(bar.px/2)} 3v3" fill="none" stroke="${ink}" stroke-width="1.3" opacity=".85"/><text x="0" y="-4" font-family="'EB Garamond', Georgia, serif" font-style="italic" font-size="11" fill="${ink}" stroke="${paper}" stroke-width="2.4" paint-order="stroke">${esc(bar.text)}</text></g>`);
+ if(title)parts.push(`<text x="14" y="${h-14}" font-family="Cinzel, Georgia, serif" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="${ink}" stroke="${paper}" stroke-width="2.4" paint-order="stroke" opacity=".8">${esc(title.toUpperCase())}</text>`);
+ // A ruled border, as on a printed sheet.
+ parts.push(`<rect x="4.5" y="4.5" width="${w-9}" height="${h-9}" fill="none" stroke="${ink}" stroke-width="1.3" opacity=".7"/><rect x="8" y="8" width="${w-16}" height="${h-16}" fill="none" stroke="${ink}" stroke-width=".5" opacity=".55"/>`);
+ return parts.join('');
+}
+// Every land the hero knows on one sheet (mapLayout.js landsLayout): each land a patch of its own country's paper with
+// a small drawing of its terrain, the roads between lands with their miles, the land the hero is in marked in red, a
+// land only heard of drawn dashed. Labels come from regionLabels with the lands' names.
+const terrainGlyph={plains:'grass',forest:'tree',hills:'hill',mountains:'peak',coast:'wave',marsh:'reed',desert:'dune',snow:'snowpeak',caverns:'stalag'};
+export function landsMapSvg({w,h,seed,ids,at,roads=[],labels={},terrains={},here=null,visited=new Set(),selected=null,radius=16,title=''}){
+ const paper=mapThemes.plains.paper[0],[p0,p1,p2]=mapThemes.plains.paper,random=seededRandom('lands:'+seed),parts=[];
+ parts.push(`<defs><radialGradient id="ql-paper" cx="50%" cy="46%" r="75%"><stop offset="0" stop-color="${p0}"/><stop offset=".62" stop-color="${p1}"/><stop offset="1" stop-color="${p2}"/></radialGradient><filter id="ql-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="11"/><feColorMatrix values="0 0 0 0 .23  0 0 0 0 .16  0 0 0 0 .08  0 0 0 .5 -.12"/></filter></defs>`);
+ parts.push(`<rect width="${w}" height="${h}" fill="url(#ql-paper)"/><rect width="${w}" height="${h}" filter="url(#ql-grain)" opacity=".5"/>`);
+ const blocked=[...ids.map(id=>({x:at[id].x-radius-4,y:at[id].y-radius-4,w:2*radius+8,h:2*radius+8})),...Object.values(labels).map(l=>({x:l.x-3,y:l.y-3,w:l.w+6,h:l.h+6})),{x:w-62,y:0,w:62,h:66},...(title?[{x:8,y:h-30,w:title.length*8.2+14,h:24}]:[])];
+ const hits=(x,y,rw,rh)=>blocked.some(b=>x+rw>b.x&&x-rw<b.x+b.w&&y+rh>b.y&&y-rh<b.y+b.h);
+ // Roads between lands, with their miles where there is room beside them.
+ parts.push(`<g fill="none" stroke="${ink}" stroke-linecap="round" stroke-width="1.4" stroke-dasharray="7 4" opacity=".55">${roads.filter(r=>at[r.a]&&at[r.b]).map(r=>`<path d="M${n(at[r.a].x)} ${n(at[r.a].y)}L${n(at[r.b].x)} ${n(at[r.b].y)}"/>`).join('')}</g>`);
+ const miles=[];
+ for(const r of roads){const p=at[r.a],q=at[r.b];if(!p||!q)continue;const text=(r.miles>=10?Math.round(r.miles):r.miles)+' mi',half=text.length*2.9+3,mx=(p.x+q.x)/2,my=(p.y+q.y)/2;if(Math.hypot(p.x-q.x,p.y-q.y)<2*radius+2*half+8||hits(mx,my,half,7))continue;miles.push(`<text x="${n(mx)}" y="${n(my+3.5)}">${esc(text)}</text>`);blocked.push({x:mx-half,y:my-7,w:half*2,h:14});}
+ parts.push(`<g font-family="'EB Garamond', Georgia, serif" font-style="italic" font-size="10.5" fill="${ink}" stroke="${paper}" stroke-width="2.6" paint-order="stroke" text-anchor="middle" opacity=".9">${miles.join('')}</g>`);
+ // A scattering of country across the open paper.
+ const drawn=[];
+ for(let i=0,made=0;i<120&&made<Math.round(w*h/9000);i++){const x=14+random()*(w-28),y=20+random()*(h-34),kind=['grass','hill','round','grass'][Math.floor(random()*4)];if(x<12||x>w-12||y<16||y>h-10||hits(x,y-4,8,8))continue;drawn.push([y,glyphs[kind](x,y,.7+random()*.3,paper)]);blocked.push({x:x-8,y:y-12,w:16,h:14});made++;}
+ parts.push(`<g fill="none" stroke="${ink}" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" opacity=".45">${drawn.sort((a,b)=>a[0]-b[0]).map(d=>d[1]).join('')}</g>`);
+ // The lands: a rough patch each, its own terrain's paper and drawing.
+ for(const id of ids){
+  const p=at[id],local=seededRandom('land:'+seed+':'+id),theme=mapThemes[terrains[id]]??mapThemes.plains,isHere=id===here,seen=visited.has(id)||isHere,points=[];
+  for(let i=0;i<11;i++){const a=i/11*Math.PI*2,r=radius*(.84+local()*.3);points.push({x:p.x+Math.cos(a)*r,y:p.y+Math.sin(a)*r*.86});}
+  const outline='M'+points.map(q=>n(q.x)+' '+n(q.y)).join('L')+'Z',glyph=glyphs[terrainGlyph[terrains[id]]??'grass'];
+  parts.push(`<g>${id===selected?`<circle cx="${n(p.x)}" cy="${n(p.y)}" r="${n(radius+6)}" fill="none" stroke="${ink}" stroke-width="1.3" stroke-dasharray="3 3"/>`:''}<path data-land="${esc(id)}" d="${outline}" fill="${theme.paper[1]}" stroke="${isHere?red:ink}" stroke-width="${isHere?2.2:1.4}"${seen?'':' stroke-dasharray="3 2.6"'} opacity="${seen?1:.75}"/><g fill="none" stroke="${ink}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity=".7">${glyph(p.x,p.y+radius*.35,Math.max(.6,radius/18),theme.paper[1])}</g>${isHere?`<circle cx="${n(p.x+radius*.62)}" cy="${n(p.y-radius*.62)}" r="5.2" fill="${red}" stroke="${paper}" stroke-width="1.5"/>`:''}</g>`);
+ }
  parts.push(`<g font-family="'EB Garamond', Georgia, serif" font-style="italic" font-weight="600" font-size="13.5" stroke="${paper}" stroke-width="3.2" paint-order="stroke" stroke-linejoin="round">${Object.entries(labels).map(([id,l])=>{const x=l.align==='center'?l.x+l.w/2:l.align==='left'?l.x+2:l.x+l.w-2,anchor=l.align==='center'?'middle':l.align==='left'?'start':'end';
   return `<text x="${n(x)}" y="${n(l.y+11.5)}" text-anchor="${anchor}" fill="${id===here?red:ink}"${id===here?' font-weight="700"':''}>${l.lines.map((line,i)=>`<tspan x="${n(x)}" dy="${i?15:0}">${esc(line)}</tspan>`).join('')}</text>`;}).join('')}</g>`);
  parts.push(compass(w-32,36,paper));
  if(title)parts.push(`<text x="14" y="${h-14}" font-family="Cinzel, Georgia, serif" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="${ink}" stroke="${paper}" stroke-width="2.4" paint-order="stroke" opacity=".8">${esc(title.toUpperCase())}</text>`);
- // A ruled border, as on a printed sheet.
  parts.push(`<rect x="4.5" y="4.5" width="${w-9}" height="${h-9}" fill="none" stroke="${ink}" stroke-width="1.3" opacity=".7"/><rect x="8" y="8" width="${w-16}" height="${h-16}" fill="none" stroke="${ink}" stroke-width=".5" opacity=".55"/>`);
  return parts.join('');
 }

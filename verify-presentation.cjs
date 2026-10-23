@@ -56,7 +56,7 @@ assert.ok(dm.includes("resetKey={lastTurnId+':'+spellsOpen+':'+attackOpen+':'+ca
  assert.ok(row.includes('<View style={s.switchCell}>{tabSwitch}</View>')&&!/row\(\[\.\.\.tabButtons/.test(dm)&&!/\{tabButtons\}\{ideaChips\}/.test(dm),'the tabs do not take the one row of chips');
  assert.ok(/short&&\{minHeight:0,height:chipH/.test(dm)&&dm.includes('numberOfLines={short?1:2}'),'a suggestion is one chip high on a short screen');}
 assert.ok(/actionTight:\{[^}]*maxWidth:'100%'/.test(dm),'a long story chip takes a row at most on a phone');
-assert.ok(map.includes('<WrapRow rows={1} openRows={4} rowHeight={34}')&&/regionTab:\{[^}]*height:34/.test(map),'the row of lands is one line with More (opened, four lines that scroll)');
+assert.ok(map.includes('<WrapRow rows={1} openRows={4} rowHeight={36}')&&/regionTab:\{[^}]*height:36/.test(map),'the row of lands is one line with More (opened, four lines that scroll), its tabs 36 pixels tall to tap');
 assert.ok(party.includes('<WrapRow rows={2} rowHeight={48}')&&!party.includes('ScrollView'),'the party cards wrap');
 const seg=ui.slice(ui.indexOf('export function Segmented'),ui.indexOf('export function',ui.indexOf('export function Segmented')+10));
 assert.ok(!seg.includes("flexWrap:'nowrap'")&&seg.includes('numberOfLines={narrow?2:1}')&&seg.includes('pairs&&s.segPair'),'Segmented wraps instead of cutting labels');

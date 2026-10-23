@@ -59,4 +59,16 @@ assert.ok(read('CharacterBuilder.js').includes('option:{flexGrow:1,flexShrink:1,
 assert.ok(read('QuickHeroes.js').includes('card:{flexGrow:1,flexShrink:1,minWidth:0,flexBasis:260,'),'hero cards shrink to a narrow phone');
 assert.ok(read('Inventory.js').includes('slot:{flexGrow:1,flexShrink:1,flexBasis:260,minWidth:0,'),'equipment slots shrink to the side column of a phone held sideways');
 assert.ok(read('CharacterBuilder.js').includes('progressHit:{flex:1,paddingVertical:12}'),'the builder\'s step track is tall enough to tap');
-console.log('Fit: the page fills the screen (viewport-fit=cover, Home Screen tags, manifest), insets kept clear by every frame and dialog, bars reach the edges, theme-coloured browser bars, the invite page fits 320 px, iPhone help.');
+// ---- The map: city, whole land and all lands (2026-10-23) ----
+// Measured in headless Chrome at 320x568, 375x812, 812x375, 768x1024 and 1400x860 by C:/Users/itsbr/qb-work/notes/map/map-ui.cjs.
+{const map=read('AdventureMap.js');
+ assert.ok(/viewRow:{flexDirection:'row',flexWrap:'wrap'/.test(map)&&/viewTab:{[^}]*minHeight:36/.test(map),'the map views wrap on a narrow phone and are 36 pixels tall to tap');
+ assert.ok(/roseCell:{width:38,height:36/.test(map)&&/tool:{width:38,height:38/.test(map),'the compass of ways out and the zoom buttons are big enough to tap');
+ assert.ok(map.includes("dataSet={{qb:'map-tool',tip:label}}"),'the zoom buttons say what they do on hover');
+ assert.ok(map.includes('zoomed=W>w+1||H>h+1,vw=zoomed?w-48:w')&&map.includes('{zoomed&&<View style={s.gutter}/>}')&&map.includes('keepOut:zoom===0?[cornerOf(W,H)]:[]'),'zoomed, the zoom buttons sit in a strip of their own; at full view no place sits under them');
+ assert.ok(map.includes('for(const k of [1,1.2,1.4,1.6,1.8,2]){const H=Math.round(base*k);if(named(w,H,true))return {h:H,start:0};}'),'a city sheet grows taller (the page scrolls) until every district is named, before it opens zoomed');
+ assert.ok(map.includes('const base=landsSheetScale(count,w,h)'),'with many lands the all-lands sheet is larger than its frame and scrolls inside it');
+ assert.ok(map.includes('const rows=(views.length>1&&!shortWin?44:0)')&&map.includes('-rows,Math.round(bigW*.8))'),'the full map leaves room for the views and the row of lands');
+ assert.ok(map.includes('{shortWin&&viewTabs(true)}'),'on a short screen the views sit beside the full map’s heading');
+ assert.ok(!/position:'fixed'/.test(map),'nothing on the map is fixed to the window');}
+console.log('Fit: the page fills the screen (viewport-fit=cover, Home Screen tags, manifest), insets kept clear by every frame and dialog, bars reach the edges, theme-coloured browser bars, the invite page fits 320 px, iPhone help, and the map’s views fit a phone.');
