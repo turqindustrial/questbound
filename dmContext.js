@@ -100,9 +100,17 @@ export function commitDmTurn(hero,game,health,action,conversation,random=Math.ra
   // Someone new the Dungeon Master brought into the scene, where the turn left the player; the lines this reply gives
   // them (speaker "new") are theirs. The turn's playback uses the rewritten conversation.
   if(conversation.introduce){
-    const met=introducePerson(result.game,conversation.introduce,hero);if(met.error)return {game,health,error:met.error};
+    const met=introducePerson(result.game,conversation.introduce,hero);
+    // The move itself took the scene somewhere nobody can be met (a fight on arriving, another place): the meeting is
+    // left out with their lines, never the whole turn (the server cannot know how the road will end; live on
+    // 2026-10-23 a walk past the map's edge that met a fight on arrival refused the turn at a shared table).
+    const moved=result.game.stage!==game.stage||mapLocation(result.game)!==mapLocation(game)||!game.wildFight&&!!result.game.wildFight||!game.npcCombat?.active&&!!result.game.npcCombat?.active;
+    if(met.error&&moved){conversation={...conversation,introduce:null,dialogue:(conversation.dialogue??[]).filter(l=>l.speakerId!=='new')};result={...result,conversation};}
+    else if(met.error)return {game,health,error:met.error};
+    else{
     conversation={...conversation,dialogue:(conversation.dialogue??[]).map(l=>l.speakerId==='new'?{...l,speakerId:met.id}:l)};
     result={...result,game:{...met.game,log:[...met.lines,...met.game.log].slice(0,40)},events:[...(result.events??[]),...met.lines],conversation,introduced:met.id};
+    }
   }
   // Facts the Dungeon Master asked the game to keep (a promise, a secret, a name, a plan), or one it settled.
   if(Array.isArray(conversation.remember)&&conversation.remember.length)result={...result,game:rememberFacts(result.game,conversation.remember,{newId:result.introduced??null}).game};

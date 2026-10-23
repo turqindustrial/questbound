@@ -118,6 +118,19 @@ function unrecordedJoin(context,reply){
  }
  return null;
 }
+// The one open tale choice option (tale-choice:<choice>:<option>, its label after "The player commits to: ") whose own
+// words the player's message mostly says: at least two of its words, and half of them or more; none when two options
+// fit, or none does. Little words and pronouns do not count.
+const choiceStop=new Set(['her','his','him','she','they','them','their','you','your','its','our','with','from','into','that','this','what','will','who']);
+function taleChoiceNamed(text,context){
+ const said=new Set(wordsOf(text)),fits=[];
+ for(const c of Array.isArray(context?.choices)?context.choices:[]){
+  if(typeof c?.id!=='string'||!c.id.startsWith('tale-choice:')||typeof c.label!=='string')continue;
+  const label=c.label.replace(/^The player commits to:\s*/,'').replace(/\s*\(ONLY when[\s\S]*$/,'').trim(),words=[...new Set(wordsOf(label))].filter(w=>!choiceStop.has(w));
+  const hit=words.filter(w=>said.has(w)).length;if(words.length&&hit>=2&&hit*2>=words.length)fits.push({id:c.id,label:label.slice(0,80),share:hit/words.length});
+ }
+ return fits.length===1?fits[0]:null;
+}
 function secondLook(body,reply,{canDiscover=false}={}){
  const context=body?.context??{},text=tidyInput(body?.input);
  // Arriving somewhere people live (a town, a camp, a landing, a crossing, a shrine) and finding nobody named there:
@@ -162,6 +175,13 @@ function secondLook(body,reply,{canDiscover=false}={}){
   note:'Your last reply closed nothing. The player\'s message may settle the lead "'+String(lead.title).slice(0,80)+'", and lead-done:'+lead.id+' is on offer. If this message completes it (the thing is handed over, the truth is told to the one who asked, the matter is settled for good or ill), select actionId lead-done:'+lead.id+' in this reply; the telling of the moment follows. If it only moves the errand along, answer as you did.'};
  if(none&&!asking&&!negated(text))for(const [id,pattern,what] of plainChoices)if(offers(context,id)&&pattern.test(text))return {kind:'offered choice',actionId:id,sure:plain,say:hero?hero+' '+{'short-rest':'takes a short rest.','long-rest':'settles down to rest.','potion':'drinks a healing draught.','loot':'searches the fallen.'}[id]:{'short-rest':'You take a short rest.','long-rest':'You settle down to rest.','potion':'You drink a healing draught.','loot':'You search the fallen.'}[id],
   note:'Your last reply started no game action. The player\'s message reads as '+what+', and '+id+' is on offer. Select actionId '+id+' unless the message is plainly not doing so now.'};
+ // A written tale's choice the player's words make (its option's own words, as Say offers them), which the reply did
+ // not record: the model is asked once whether this is the decision (never settled by the game: live on 2026-10-23
+ // "Say it aloud, Ness. Tell everyone why you rang the bell." made The Last Ferry's "Make her say why, aloud" and the
+ // reply recorded nothing, so the choice lapsed to fate at the tale's end).
+ const choice=none&&!negated(text)?taleChoiceNamed(text,context):null;
+ if(choice)return {kind:'tale choice',actionId:choice.id,sure:false,
+  note:'Your last reply recorded no choice. The player\'s message reads as making the tale\'s choice "'+choice.label+'", and '+choice.id+' is on offer. If their words or deeds commit to it now, select actionId '+choice.id+' and tell what it means in the scene; if they are only weighing it, answer as before.'};
  return null;
 }
 // Whether the reply's own telling already tells the very move the game now starts (setting out for that place, resting,

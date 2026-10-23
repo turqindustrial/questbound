@@ -4,7 +4,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // attacks every round, can be attacked or targeted with a spell by name (or by its own chip), runs when the leader
 // falls, and comes back with a lair's owner if the hero flees.
 const source=rulesSource({extra:['worldArtRules.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,dmCommand,dmContext,dmChoices,quickActions,validAdventure,adventureSnapshot,recordedTurn,livingAllies,startWildFight})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,hostileEncounterGame,newAdventure,adventureStep,dmCommand,dmContext,dmChoices,quickActions,validAdventure,adventureSnapshot,recordedTurn,livingAllies,startWildFight,commitDmTurn})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
 const camp=hero=>{const g={...r.hostileEncounterGame(hero,r.newAdventure(hero),()=>0),stage:'inn'};delete g.openingAttackAvailable;return g;};
 const kara=r.readyHero('fighter');let hp={current:12,temp:0};
@@ -16,6 +16,14 @@ assert.equal(arrive.error,undefined);let g=arrive.game;
 assert.equal(g.stage,'combat');same(r.livingAllies(g).map(a=>[a.name,a.template,a.hp]),[['War Hound','wolf',g.foeAllies[0].maximum]]);
 assert.ok(arrive.events.some(t=>/Red Maddock bursts out at Cutthroat Hollow, a War Hound at its side!/.test(t)));
 assert.ok(valid(kara,g,hp),'A fight with two creatures saves');
+// A reply that walks the hero to a place revealed and brings someone in, when the road ends in a fight on arriving: the
+// meeting is left out with their lines, never the whole turn (live on 2026-10-23 at a shared table: "No one new can be
+// met here right now."). Where nothing moved, a meeting the game cannot make still refuses the reply.
+{const stranger={name:'Wenna Holt',role:'A charcoal burner.',appearance:'A soot-streaked woman with a long hooked pole.',species:'Human',gender:'woman',personality:'Blunt.',toughness:'common',attitude:'indifferent',foe:'neutral',tie:null};
+ const walked=r.commitDmTurn(kara,camp(kara),hp,{type:'discover',place:lair,travel:true},{question:'We head east.',narration:'You head east into the ravine.',dialogue:[{speakerId:'new',text:'Turn back!'}],introduce:stranger,npcId:null},()=>0.5);
+ assert.ok(!walked.error,'the turn stands: '+walked.error);assert.equal(walked.game.stage,'combat');assert.ok(!walked.introduced&&!Object.values(walked.game.people??{}).some(p=>p.name==='Wenna Holt'),'nobody is met in the fight');
+ assert.ok(!(walked.conversation?.dialogue??[]).some(l=>l.speakerId==='new'),'and their lines go with them');
+ const inFight=r.commitDmTurn(kara,g,hp,null,{question:'Who is that?',narration:'Steel rings.',dialogue:[],introduce:stranger,npcId:null},()=>0.5);assert.ok(inFight.error,'in a fight already under way, a meeting still refuses the reply');}
 // ---- Choosing a target ----
 assert.ok(r.dmChoices(kara,g).some(c=>c.id==='ally-attack:0:Greatsword'));
 const chip=r.quickActions(kara,g).find(a=>a.key==='ally-attack:0:Greatsword');assert.equal(chip.label,'Hit Hound');
