@@ -554,7 +554,7 @@ const guestOf=body=>typeof body?.guest==='string'&&/^(?:account-)?[a-f0-9]{16,64
 function loadLibrary(){if(require('./tale-library.cjs').revision!==6)delete require.cache[require.resolve('./tale-library.cjs')];return require('./tale-library.cjs').library;}
 // The Written tales shelf (written-shelf.cjs) stays loaded too: tales written by hand and checked, served for good
 // (never retired), listed and started at no cost. Tests pass a stand-in `written`.
-function loadWritten(){if(require('./written-shelf.cjs').revision!==2)delete require.cache[require.resolve('./written-shelf.cjs')];return require('./written-shelf.cjs').shelf;}
+function loadWritten(){if(require('./written-shelf.cjs').revision!==3)delete require.cache[require.resolve('./written-shelf.cjs')];return require('./written-shelf.cjs').shelf;}
 function backgroundAllowed(spend){try{return !spend||typeof spend.background!=='function'||spend.background().ok!==false;}catch{return false;}}
 // A journey is offered only when the game's own rules accept it: the tale seats a hero (a ready-made Fighter) and the
 // adventure that results is valid, with its introduction, its errand (every journey starts with orders in hand) and

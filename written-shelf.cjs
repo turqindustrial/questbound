@@ -12,7 +12,7 @@
 // in dm-server.cjs loadWritten) when it changes.
 // A tale for a land (match, 2026-10-23: the next tale in a region or in a land beyond the map is taken from the shelf or
 // the compendium before a new one is written): a listed tale of that terrain the device has not played.
-const revision=2;
+const revision=3;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const writtenIdPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const writtenSlugPattern=/^[a-z0-9-]{3,28}$/;
@@ -38,7 +38,7 @@ function fileProblem(tale,name){
  if(!writtenDifficulties.includes(tale.difficulty))return 'difficulty';
  if(!['any','together'].includes(tale.party))return 'party';
  if(!Array.isArray(tale.levels)||tale.levels.length!==2||!tale.levels.every(l=>Number.isInteger(l)&&l>=1&&l<=20)||tale.levels[0]>tale.levels[1])return 'levels';
- if(tale.firstTale!==undefined&&tale.firstTale!==true)return 'firstTale';
+ if(tale.firstTale!==undefined&&typeof tale.firstTale!=='boolean')return 'firstTale';
  if(tale.notes!==undefined&&(!Array.isArray(tale.notes)||tale.notes.length>3||!tale.notes.every(n=>line(n,20))))return 'notes';
  if(!plain(tale.pitch)||!Object.entries(pitchLimits).every(([k,max])=>line(tale.pitch[k],max)))return 'pitch';
  if(!plain(tale.story)||!plain(tale.story.staging)||!line(tale.story.title,100))return 'story';
