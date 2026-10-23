@@ -117,7 +117,7 @@ write('plays.json','{}');
   assert.ok(rules.validAdventure(begun.snapshot,JSON.parse(begun.snapshot.character)),'a valid table');}
 
  // ---- 4. The device: cards, records, the default choice, Let fate decide, the completion card ----
- const helpers=vm.runInNewContext(rulesSource({extra:['shelfRules.js']})+'\n({cleanWritten,cleanTaleRecords,nextTaleRecord,shelfStatus,shelfDefault,shelfTab,shelfTabFor,shelfTiersShown,shelfLived,fateWritten,shelfFinishCard,writtenChoice,writtenIdOf,readyHero,newAdventure,freshStoryGame,taleQuestView,taleSayLines})',{AsyncStorage:{}});
+ const helpers=vm.runInNewContext(rulesSource({extra:['shelfRules.js']})+'\n({cleanWritten,cleanTaleRecords,nextTaleRecord,shelfStatus,shelfDefault,shelfTab,shelfTabFor,shelfTiersShown,shelfLived,fateWritten,shelfFinishCard,taleEndCard,landTaleCard,writtenChoice,writtenIdOf,readyHero,newAdventure,freshStoryGame,taleQuestView,taleSayLines})',{AsyncStorage:{}});
  {const h=helpers,medium={...both.written[0],id:otherId,slug:'hidden-copy',length:'medium',order:2,firstTale:false,title:'Another'},long={...medium,id:'6d4c9f51-7e80-41a2-9dce-3f4a5b6c7d8e',slug:'long-one',length:'long',order:3,title:'Long One'};
   const sent=[{...long,secret:'no',staging:{v:1}},both.written[0],medium,{id:'bad',length:'short',title:'x',hook:'y'},{...medium}];
   const clean=h.cleanWritten(sent);same(clean.map(c=>c.slug),['kettle-camp','hidden-copy','long-one'],'malformed and repeated cards dropped, the shelf\'s order kept');assert.equal(clean[2].secret,undefined);assert.equal(clean[2].staging,undefined);
@@ -193,10 +193,19 @@ write('plays.json','{}');
  // ---- 7. The screens: the shelf first, Easy start hidden for a written tale, nothing sideways ----
  {const screen=read('AdventureIntros.js'),app=read('App.js');
   assert.ok(screen.includes('function TaleShelf')&&screen.includes('function TaleCard')&&screen.includes("{shelfOn&&<TaleShelf ")&&screen.includes('More journeys from the story writer')&&screen.includes('Or write a new one'),'written tales first; the journeys folded under them');
-  assert.ok(screen.includes("selected!=='hostile'&&!writtenChosen&&!(shelfOn&&selected==='surprise')&&<EasyStart"),'Easy start hidden for a written tale, and for Let fate decide among them');
+  assert.ok(!screen.includes('<EasyStart'),'no Easy start switch: a written tale never had one, and every other tale now begins with orders in hand');
   assert.ok(screen.includes("screenWidth<360?'':' '+cards.filter(c=>c.length===t).length")&&!/horizontal|overflowX/.test(screen),'counts hidden under 360 px; nothing scrolls sideways');
   assert.ok(app.includes("['Home','Adventure Opening'].includes(screen)")&&app.includes('refreshShelf('),'the shelf is fetched on the title screen too');
-  assert.ok(app.includes('noteTaleRecord(game,hero,{seconds:deviceSeconds()})')&&app.includes('<TaleFinished '),'progress per tale, and the completion card');}
+  assert.ok(app.includes('noteTaleRecord(game,hero,{seconds:deviceSeconds()})')&&app.includes('<TaleFinished '),'progress per tale, and the completion card');
+  // The 2026-10-23 campaign: the card for every tale (a written one's, and one of the story writer's: taleEndCard), with
+  // the next tale here begun at once, the shelf and somewhere new; at a table only its host chooses; and "A tale waits in
+  // <Land>" on a first arrival in a land beyond (sequelRules.js landTaleOffer, verify-tales-ahead.cjs).
+  assert.ok(app.includes("if(!story.written){if(finished&&story.introId!=='hostile')setTaleDone({...taleEndCard(game,")&&app.includes("{key:'here',label:'Next tale here'")&&app.includes("{key:'shelf',label:'Written tales'")&&app.includes("{key:'new',label:'Somewhere new'")&&app.includes("{key:'choose',label:'Choose the next tale'"),'what next for every tale');
+  assert.ok(app.includes('<TaleFinished kind="waits" card={landTaleCard(landOffer,game)}')&&app.includes("table.joined?null:landTaleOffer(game,{dismissed:landNots})")&&app.includes('playCharacter(true,{here:true})'),'a tale waits in a land reached, solo');
+  {const card=read('TaleFinished.js');assert.ok(card.includes("flexWrap:'wrap'")&&card.includes("flexBasis:'auto'")&&card.includes("maxWidth:460")&&!/horizontal|overflowX/.test(card),'its buttons wrap to a new row on a narrow phone, never cut short or sideways');}
+  {const h=helpers,end=h.taleEndCard({story:{title:'The Reed Crown',status:'complete'}});assert.equal(end.line,'You finished The Reed Crown.');assert.match(end.next,/Every land and everyone you know comes with you/);
+   assert.equal(h.taleEndCard({story:{title:'X'}},{table:'member'}).next,'The table’s host chooses the next tale.');
+   const waits=h.landTaleCard({name:'The Ashfold'},{story:{title:'The Reed Crown',status:'active'}});assert.equal(waits.title,'A tale waits in The Ashfold');assert.match(waits.next,/^The Reed Crown is left unfinished\. /);}}
  fs.rmSync(tmp,{recursive:true,force:true});
  console.log('Written tales: the shelf serves only listed tales its checks and the rules accept (refusals noted without the tale\'s words, each once), lists cards without secrets in its own order, starts a tagged copy of its own each time (counted, never retired), reads changes within half a minute; the Dungeon Master lists {journeys, written}, starts a written tale before any journey and spends no new-tale allowance on it (the ceilings still hold), gives older games a Short tale; a table begins one by its id; the device keeps its cards, records and endings, chooses Start here, lets fate pick an unplayed tale of the open tab and words the completion card; written tales are counted in version 2 records named in the privacy policy; and no tale reaches the game\'s bundle.');
 })().catch(e=>{console.error(e);fs.rmSync(tmp,{recursive:true,force:true});process.exit(1);});

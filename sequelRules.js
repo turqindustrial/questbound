@@ -1,5 +1,5 @@
 import {npcIdsOf,npcLore,isPersonId,maxPeople,personToughness,coreNpcIds,npcClassOf,classedStats,metPerson} from './npcRules';
-import {coreIds,bearings,worldPlaces,worldLinks,placeCoordinates,placeKinds,maxWorldPlaces,maxRegions,mapRegions,homeRegion} from './mapRules';
+import {coreIds,bearings,worldPlaces,worldLinks,placeCoordinates,placeKinds,maxWorldPlaces,maxRegions,mapRegions,homeRegion,currentRegion} from './mapRules';
 import {stagingNameKey} from './stagingRules';
 import {libraryPeopleMet} from './relationshipRules';
 import {appendJournal,appendStoryLog} from './journalRules';
@@ -20,6 +20,29 @@ export const sequelMiles={near:[4,7],far:[60,200]};
 export function nextTalePlacement(random=Math.random,{far=false}={}){
  const [low,high]=sequelMiles[far?'far':'near'];
  return {bearing:sequelBearings[Math.floor(random()*sequelBearings.length)%sequelBearings.length],miles:Math.round((low+random()*(high-low))*10)/10};
+}
+// The land where the hero stands, as a next tale asks for it (dm-server.cjs taleLand): its name and terrain.
+export function landHere(game){
+ const land=mapRegions(game).find(r=>r.id===currentRegion(game))??homeRegion(game);
+ return {id:land.id,name:land.name,terrain:land.terrain};
+}
+// "A tale waits in <Land>" (the 2026-10-23 campaign, the host's words: "once the player completes the story or decides
+// to move to a new area, new potential stories should be written"): offered while the hero stands in a land first reached
+// in this tale (its "Set out for a new land" line in the story log since the tale began: beyond the map, or a far land
+// the Dungeon Master opened), never the home land, a land the tale itself spoke of from the start (story.lands) or a
+// land of an earlier tale; only out of a fight, alive, with nothing waiting on the hero, and never at a shared table
+// (the table's host chooses its tales). `dismissed`: keys (taleWaitsKey) the player answered Not now. The land, or null.
+export const taleWaitsKey=(game,land)=>String(game?.story?.id??'')+'|'+String(land?.name??'').trim().toLowerCase();
+export function landTaleOffer(game,{dismissed=[]}={}){
+ const s=game?.story;
+ if(!s||s.introId==='hostile'||game.party||game.turnOrder||game.pendingSpell||game.wildFight||game.npcCombat?.active||game.dungeon?.active||['dying','dead','combat','defeat'].includes(game.stage))return null;
+ const land=landHere(game);if(land.id==='home')return null;
+ const name=land.name.trim().toLowerCase();
+ if((Array.isArray(s.lands)?s.lands:[]).some(l=>typeof l?.name==='string'&&l.name.trim().toLowerCase()===name))return null;
+ const log=Array.isArray(game.storyLog)?game.storyLog:[],start=log.map(e=>e?.kind).lastIndexOf('story');
+ if(!log.slice(start+1).some(e=>e?.kind==='place'&&e.text===('Set out for a new land: '+land.name+'.').slice(0,150)))return null;
+ const key=taleWaitsKey(game,land);
+ return dismissed.includes(key)?null:{name:land.name,terrain:land.terrain,key};
 }
 // What a new story starts from: the hero's own things, nothing tied to the old region, and the hero's whole story so far
 // (memoryRules.js: the tale just ended is closed into the chronicle; next tales and new lands alike keep it).

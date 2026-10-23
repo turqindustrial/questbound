@@ -121,3 +121,16 @@ export function shelfFinishCard(card,record,game,{tiers=null}={}){
   ending:ending?'Ending found: '+String(ending).replace(/[.\s]+$/,'')+(endings&&r?.endings.length?' ('+r.endings.length+' of '+endings+')':'')+'.':null,
   next:next?'Try a '+next+' tale next?':'Try another written tale?',nextTier:shown};
 }
+// The card shown when a tale of the story writer's is finished (TaleFinished.js, the 2026-10-23 campaign): which tale,
+// and what next. At a shared table only its host chooses the next tale (`table`: 'host' or 'member').
+export function taleEndCard(game,{table=null}={}){
+ const title=shelfText(game?.story?.title,100);
+ return {title:'Tale complete',line:title?'You finished '+title+'.':'You finished the tale.',ending:null,
+  next:table==='member'?'The table’s host chooses the next tale.':table==='host'?'Choose the table’s next tale: every hero and every land you know comes along.':'Another tale waits here, or set out somewhere new. Every land and everyone you know comes with you.',nextTier:null};
+}
+// "A tale waits in <Land>" (sequelRules.js landTaleOffer): the land reached, and what beginning a tale there leaves.
+export function landTaleCard(offer,game){
+ const name=shelfText(offer?.name,60)||'this land',title=shelfText(game?.story?.title,100),open=game?.story?.status==='active';
+ return {title:'A tale waits in '+name,line:'Folk here have troubles of their own. Begin a tale where you stand?',ending:null,
+  next:(open&&title?title+' is left unfinished. ':'')+'Every land and everyone you know comes with you.',nextTier:null};
+}

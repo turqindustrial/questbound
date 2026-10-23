@@ -38,6 +38,12 @@ export async function rememberJourney(id,store=storage){
  if(!journeyId.test(String(id)))return;
  try{const v=await journeyStore(store),played=(await playedJourneys(store)).filter(x=>x!==id),tales=cleanTaleRecords(v.tales);await store.setItem(journeyKey,JSON.stringify({played:[...played,id].slice(-200),...(Object.keys(tales).length?{tales}:{})}));}catch{}
 }
+// Every tale this device has begun, for a tale asked for beside a land (the compendium and the shelf match one it has not
+// played): the journeys played and the written tales it has a record of, the most recent 200.
+export async function playedTales(store=storage){
+ const [played,tales]=await Promise.all([playedJourneys(store),taleRecords(store)]);
+ return [...new Set([...Object.entries(tales).sort((a,b)=>a[1].at-b[1].at).map(([id])=>id),...played])].slice(-200);
+}
 // The device's records of written tales (the last 200), by tale id.
 export async function taleRecords(store=storage){return cleanTaleRecords((await journeyStore(store)).tales);}
 // Keeps the record after a turn of a written tale; returns the records when one changed, else null.
@@ -53,6 +59,11 @@ export async function noteTaleRecord(game,hero,{seconds=null,store=storage}={}){
 export const shelfKey='questbound.shelf.v1';
 export function savedShelfTab(){try{const v=JSON.parse(globalThis.localStorage?.getItem(shelfKey)??'{}');return typeof v?.tab==='string'?v.tab:null;}catch{return null;}}
 export function saveShelfTab(tab){try{globalThis.localStorage?.setItem(shelfKey,JSON.stringify({tab}));}catch{}}
+// "A tale waits in <Land>" answered Not now (sequelRules.js taleWaitsKey: the tale and the land), per device, the last
+// 100, guarded: storage that refuses just means the card may show again.
+export const landTalesKey='questbound.landtales.v1';
+export function dismissedLandTales(){try{const v=JSON.parse(globalThis.localStorage?.getItem(landTalesKey)??'{}');return Array.isArray(v?.not)?v.not.filter(k=>typeof k==='string').slice(-100):[];}catch{return [];}}
+export function dismissLandTale(key){const not=[...dismissedLandTales().filter(k=>k!==key),String(key).slice(0,200)].slice(-100);try{globalThis.localStorage?.setItem(landTalesKey,JSON.stringify({not}));}catch{}return not;}
 // Asks the Dungeon Master what is on the shelf (a quick look, like an illustration): the written tales and the ready
 // journeys. Null when it cannot say (none reachable): the screen then offers the written openings as before. An older
 // Dungeon Master sends only journeys, and `written` is then empty.

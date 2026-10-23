@@ -3,7 +3,7 @@ const {rulesSource}=require('./rules-files.cjs');
 // The long tale: a story told in chapters, with leads, landmarks and lands beyond its own country; the Dungeon
 // Master moves it on one chapter at a time, levels are earned along the way, and old stories play as they did.
 const source=rulesSource({extra:['worldArtRules.js']});
-const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,validStory,questState,currentGoal,levelUpReady,foeForLevel,storyFoeStats,dmChoices,offeredChoices,dmContext,commitDmTurn,adventureStep,quickActions,mapRegions,regionOfPlace,worldPlaces,travelRoute,withStoryLog,joinRegion,carriedBase,maxLandmarks,maxWorldPlaces,withExperience,heroXp,xpForLevel,truthText})',{AsyncStorage:{},weaponIcon:()=>'sword'});
+const r=vm.runInNewContext(source+'\n({readyHero,newAdventure,freshStoryGame,validAdventure,adventureSnapshot,validStory,questState,currentGoal,levelUpReady,foeForLevel,storyFoeStats,dmChoices,offeredChoices,dmContext,commitDmTurn,adventureStep,quickActions,mapRegions,regionOfPlace,worldPlaces,travelRoute,withStoryLog,joinRegion,carriedBase,maxLandmarks,maxWorldPlaces,withExperience,heroXp,xpForLevel,truthText,taleArc,arcCut})',{AsyncStorage:{},weaponIcon:()=>'sword'});
 const hero=r.readyHero('fighter'),hp=null;
 const person=(name,gender)=>({name,species:'Human',gender,role:'A resident of the refuge.',motive:'Wants the road safe.',appearance:'A weathered face under a wool hood, with a scar across one brow.',personality:'Plain-spoken and watchful.',regard:{stance:'curious',reason:'I have never met one of your kind.'},ties:{other:'friend',foe:'enemy',note:'They share the refuge.'}});
 const written={id:'saga-1',status:'active',title:'The Seal Beneath the Snow',premise:'An heir is missing and a pretender marches.',opening:'A seal is pressed into your hand at the gate.',objective:'Find the heir and settle the succession.',resolution:'The truth of the succession is known and the war averted or faced.',secret:'The heir chose to vanish.',foe:'Kestrel of the Notch',foeSpecies:'Human',foeAppearance:'A lean swordsman in a grey cloak with a hawk mask.',foeDamageType:'Slashing',region:'Veyr',terrain:'mountains',
@@ -61,6 +61,20 @@ assert.equal(context.quest.openLeads.length,2);assert.equal(context.quest.levelE
  // review, 2026-10-22).
  const closing=sceneFor({input:'',context:{...JSON.parse(JSON.stringify(context)),engineResolved:['Chapter 1 complete: '+written.chapters[0].title+'. '+written.chapters[0].turn,'Chapter 2 begins.']}}).context;assert.equal(closing.quest.truth,undefined,'no next chapter\'s truth in the telling of a chapter closed');assert.equal(closing.quest.next,undefined);
  assert.equal(sceneFor({input:'',context:{...JSON.parse(JSON.stringify(context)),engineResolved:['You travel to the ford.']}}).context.quest.truth,written.chapters[0].turn,'other tellings read it as before (one cached part a chapter changes)');
+ // The tale's road (quest.arc, the 2026-10-23 campaign, the host: "each pre made story should have a clearly written plot
+ // line for the DM to work off of, but should be freely explorable by the player"): a line a chapter, title and goal,
+ // the one under way marked (now), earlier ones (done); never a truth, the secret, the resolution or an ending; out of a
+ // fight only; and the standing prompt says to steer toward it and never skip ahead.
+ {const arc=context.quest.arc;assert.equal(arc.length,written.chapters.length,'a line a chapter');
+  assert.equal(arc[0],'1. '+written.chapters[0].title+': '+written.chapters[0].goal+' (now)');assert.equal(arc[1],'2. '+written.chapters[1].title+': '+written.chapters[1].goal);
+  const text=JSON.stringify(arc);for(const c of written.chapters)assert.ok(!text.includes(c.turn.slice(0,24)),'no chapter truth in the road: '+c.turn.slice(0,24));
+  for(const hidden of [written.secret,written.resolution])assert.ok(!text.includes(hidden.slice(0,20)),'never the secret or the resolution');
+  assert.deepEqual(JSON.parse(JSON.stringify(read.quest.arc)),JSON.parse(JSON.stringify(arc)),'read out of a fight');assert.equal(fighting.quest?.arc,undefined,'not in a fight');
+  const on=r.taleArc({...written,chapter:2});assert.ok(on[0].endsWith(' (done)')&&on[1].endsWith(' (done)')&&on[2].endsWith(' (now)')&&!on[3].endsWith(')'),'earlier chapters done, the one under way now');
+  assert.equal(r.taleArc({...written,chapters:written.chapters.slice(0,1)}),null,'a tale of one chapter has no road');
+  const cut=r.arcCut('A very long goal that keeps going '.repeat(8),120);assert.ok(cut.length<=120&&cut.endsWith('…')&&!/\s…$/.test(cut),'cut at a word: '+cut);
+  assert.ok(r.taleArc({...written,chapters:written.chapters.map(c=>({...c,title:'T'.repeat(90),goal:'word '.repeat(60)}))}).every(l=>l.length<=200),'titles to 60 and goals to 120');
+  assert.ok(standingPrompt.includes('quest.arc: the road the tale means to take; steer toward (now), never tell, skip to or count as reached a later chapter; the player may wander anywhere.'),'steer toward the chapter under way');}
  assert.ok(!standingPrompt.includes('Pace it like a campaign'),'paced by the tale\'s length');}
 assert.equal(r.dmContext(hero,plain,hp).quest,undefined);
 // The chips never offer to move the tale on: that is the Dungeon Master's call.

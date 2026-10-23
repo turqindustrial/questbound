@@ -155,6 +155,15 @@ const strictProblems=(s,at,out=[])=>{
   assert.ok(!/:null[,}]|:\[\][,}]|:\{\}[,}]|:""[,}]/.test(JSON.stringify(body.context)),label+': nothing empty is sent');}
  {const s=requestScene(at('fighter: town')),keys=Object.keys(s.context);const sofar=keys.includes('memory')?'memory':'journal';assert.ok(keys.indexOf('story')<keys.indexOf('world')&&(keys.indexOf(sofar)<0||keys.indexOf('world')<keys.indexOf(sofar))&&(keys.indexOf(sofar)<0||keys.indexOf(sofar)<keys.indexOf('choices'))&&keys.indexOf('world')<keys.indexOf('choices'),'what lasts the tale, then the land, then the story so far, then this turn');
   assert.equal(s.input,'I look around the market.');}
+ // The tale's road (quest.arc, the 2026-10-23 campaign: "a clearly written plot line for the DM to work off of"): a line
+ // a chapter in what lasts the tale (it changes once a chapter, so two calm turns still share that part), read out of
+ // fights only, never with a chapter's truth.
+ {const lasting=label=>at(label).input.filter(m=>m.role==='user').find(m=>m.content.startsWith('Scene: what lasts the tale.'))?.content??'';
+  const town=JSON.parse(lasting('fighter: town').slice(lasting('fighter: town').indexOf('\n')+1)).context;
+  assert.ok(Array.isArray(town.quest?.arc)&&town.quest.arc.length===town.quest.of&&/^1\. [^:]+: .+ \(now\)$/.test(town.quest.arc[0])&&/^2\. [^:]+: .+[^)]$/.test(town.quest.arc[1]),'the tale\'s road in what lasts the tale: '+JSON.stringify(town.quest?.arc));
+  assert.equal(lasting('fighter: conversation'),lasting('fighter: town again'),'two calm turns share it');
+  for(const label of ['fighter: fight','fighter: fight, words','long life: fight, words'])assert.ok(!('arc' in (sceneOf(label).quest??{})),label+': no road in a fight');
+  for(const [i,line] of town.quest.arc.entries())assert.ok(!line.includes(String(f.game.story.chapters[i].turn).slice(0,30))&&line.length<=200,'never a truth, and short: '+line);}
 
  // ---- 4. Only what the moment needs ----
  {const fq=at('fighter: town');assert.ok(!/spellReference|rulesReference/.test(JSON.stringify(fq.input)),'a fighter\'s request has no spell reference');assert.ok(/spellReference/.test(JSON.stringify(at('wizard: town').input)),'a wizard\'s has theirs');
@@ -250,7 +259,7 @@ const strictProblems=(s,at,out=[])=>{
    {const {lengthNote}=require('./dm-instructions.cjs');assert.match(lengthNote({context:{storyPreferences:{length:'brief'},taleNow:{beat:{kind:'beat',tell:'x'}}}}),/up to four when a STORY BEAT is told/);assert.doesNotMatch(lengthNote({context:{storyPreferences:{length:'brief'}}}),/STORY BEAT/);}}
   // Measured on 2026-10-22: the fixture's calm turn 2097 tokens (its story, four people at the camp and the chapter's
   // where and agenda are fuller than the ready journey's: about 100 of them the written chapter's own) and a fight's 989.
-  const budgets={'written: calm':2270,'written: fight, words':1070,'fighter: to the mill':775,'fighter: town':1420,'fighter: conversation':1360,'fighter: fight':865,'fighter: fight, words':880,'fighter: brawl':1435,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
+  const budgets={'written: calm':2270,'written: fight, words':1070,'fighter: to the mill':775,'fighter: town':1469,'fighter: conversation':1409,'fighter: fight':865,'fighter: fight, words':880,'fighter: brawl':1435,'party: fight, words':900,'wizard: town':1640,'long life: town':4330,'long life: fight, words':1050};
   const measured={standing:tokens(standingPrompt),schema:tokens(JSON.stringify(replySchemaFor()))};
   for(const label of Object.keys(budgets))measured[label]=sceneTokens(at(label));
   if(process.argv.includes('--tokens'))console.log(JSON.stringify(measured));
@@ -270,7 +279,12 @@ const strictProblems=(s,at,out=[])=>{
   // Raised again on 2026-10-23 by one sentence in BEYOND THE MAP (the host: every tale lets the hero leave the map,
   // "by easy travel, or by overcoming some sort of obstacle"; a written tale's road out is watched and fought through):
   // 9184 → 9206, the budget raised by that much (9185 → 9207) and no more.
-  assert.ok(measured.standing<=9207,'the standing prompt within 9207 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A, 9015 before written tales, 9159 before their review, 9184 before the watched road): '+measured.standing);
+  // Raised again on 2026-10-23 by one sentence in THE LONG TALE (the host: "each pre made story should have a clearly
+  // written plot line for the DM to work off of, but should be freely explorable by the player"; quest.arc): 9206 → 9243,
+  // the budget raised by that much (9207 → 9244) and no more. The arc itself (a line a chapter, in what lasts the tale, out
+  // of fights) adds 49 tokens to the ready journey's town and conversation turns: those two budgets raised by exactly that
+  // (1420 → 1469, 1360 → 1409; the conversation's was exceeded, the town's left a single token).
+  assert.ok(measured.standing<=9244,'the standing prompt within 9244 tokens (13618 before 2026-10-21, 8853 after its first pass, 8487 before the tellings written ahead, 8660 before Phase A, 9015 before written tales, 9159 before their review, 9184 before the watched road, 9206 before the tale’s road):'+measured.standing);
   assert.ok(measured.schema<=2800,'the reply schema within 2800 tokens (2021 with every effect spelled out, 2226 before the tellings written ahead): '+measured.schema);
   // The reply that changes nothing (the most common): its skeleton, what the model writes besides its words, is held too.
   measured.skeleton=tokens(JSON.stringify({narration:'',dialogue:[],effects:[],suggestions:[]}));

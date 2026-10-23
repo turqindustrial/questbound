@@ -152,4 +152,11 @@ for(const file of ['public/manifest.json','public/index.html','fullscreen.js','p
  assert.match(renderToStaticMarkup(React.createElement(Pressable,{accessibilityRole:'switch','aria-checked':false})),/aria-checked="false"/,'aria-checked reaches the page');
  const ui=fs.readFileSync('ui.js','utf8'),toggle=ui.slice(ui.indexOf('export function Toggle'),ui.indexOf('export function KeyHint'));assert.ok(toggle.includes('aria-checked={!!value}'),'Toggle says whether it is on');
  assert.ok(fs.readFileSync('Adventure.js','utf8').includes('aria-checked={!!(l.done||l.noted)}'),'a lead\'s circle says whether it is ticked');}
+// The cards at the top of the play screen (TaleFinished.js; the 2026-10-23 campaign): a tale finished and "A tale waits in
+// <Land>". They sit under the HUD on a layer that lets taps through around them, at most 460 px wide, their buttons
+// each as wide as its words, wrapping to a new row on a 320 px phone (never sideways), with Not now / Close as a 36 px target.
+{const card=fs.readFileSync('TaleFinished.js','utf8'),app=fs.readFileSync('App.js','utf8');
+ assert.ok(/layer:{position:'absolute'[^}]*pointerEvents:'box-none'}/.test(card)&&card.includes("maxWidth:460")&&card.includes("row:{flexDirection:'row',flexWrap:'wrap'")&&card.includes("flexBasis:'auto',minWidth:0")&&card.includes('close:{width:36,height:36'),'the tale cards fit any phone');
+ assert.ok(card.includes("dataSet={{qb:'plate',tale:kind}}")&&card.includes("kind==='waits'?'Not now':'Close'"),'one card, two kinds');
+ assert.ok(app.includes('top={wideGame?76:68} actions={doneActions}')&&app.includes('<TaleFinished kind="waits"')&&app.includes('&&!landCard&&<SessionRating'),'under the HUD, one card at a time');}
 console.log('Presentation: tips and primer roll, nothing scrolls sideways in '+sources.length+' files, the valley painting, and the emblem in seven places.');

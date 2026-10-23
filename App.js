@@ -1,6 +1,6 @@
 import {findDmEndpoint,writeStory} from './dmConnection';
-import {loadShelf,playedJourneys,journeysToOffer,rememberJourney,taleRecords,noteTaleRecord,savedShelfTab,saveShelfTab} from './journeyLibrary';
-import {shelfDefault,shelfTabFor,shelfTab as shelfTabCards,writtenChoice,shelfFinishCard,shelfTiersShown} from './shelfRules';
+import {loadShelf,playedJourneys,playedTales,journeysToOffer,rememberJourney,taleRecords,noteTaleRecord,savedShelfTab,saveShelfTab,dismissedLandTales,dismissLandTale} from './journeyLibrary';
+import {shelfDefault,shelfTabFor,shelfTab as shelfTabCards,writtenChoice,shelfFinishCard,shelfTiersShown,taleEndCard,landTaleCard} from './shelfRules';
 import TaleFinished from './TaleFinished';
 import {sequelPlacement,taleChoice,taleRequest,taleRepeats,taleHistory,playScreenFor,tableSnapshot} from './startTale';
 import SceneTransitionProvider,{useSceneTransition} from './SceneTransition';
@@ -57,7 +57,7 @@ import {agreementStatus,acceptAgreement} from './agreementRules';
 import {accountState,bootstrapAccount,accountsRequired,accountsNeeded,accountsOffered} from './accountRules';
 import {currentProfile,subscribeProfile} from './playerStorage';
 import {deathIsFinal} from './deathRules';
-import {carriedBase,joinRegion,canContinueRegion} from './sequelRules';
+import {carriedBase,joinRegion,canContinueRegion,landHere,landTaleOffer} from './sequelRules';
 import {levelCompanions} from './followerRules';
 import FeedbackSheet,{deviceLabel,useFeedbackRequests} from './Feedback';
 import {feedbackDetails,feedbackSummary,pageBuild} from './feedbackRules';
@@ -91,6 +91,9 @@ function QuestboundApp() {
   usePageWheel(scrollRef);
   const transition=useSceneTransition();
   const [creatingStory,setCreatingStory]=useState(false),[newStoryRequested,setNewStoryRequested]=useState(false);
+  // While a new tale is being written (not one already written, which starts at once): the story cover, and the place the
+  // next tale is set beside (StoryLoading.js).
+  const [taleWriting,setTaleWriting]=useState(false),[taleNear,setTaleNear]=useState(null);
   const storyLock=useRef(false);
   const [selectedIntro,setSelectedIntro]=useState('easy'),[showReady,setShowReady]=useState(false),[idea,setIdea]=useState('');
   const [screen, setScreenState] = useState('Home');
@@ -188,56 +191,72 @@ function QuestboundApp() {
     if(table.joined){try{await table.edit({kind:'portrait',portrait:portrait??null});}catch(e){setError(e.message);}return;}
     try{await saveCharacter(next);setHero(next);setForm(f=>({...f,portrait}));}catch{setError('Your new portrait could not be saved. Try again.');}
   }
-  async function playCharacter(begin=false){
+  // `here`: a tale beside where the hero stands, begun from the play screen (the What next card, or "A tale waits in
+  // <Land>"), with no New Adventure screen between.
+  async function playCharacter(begin=false,{here=false}={}){
     if(storyLock.current||loading||storageError||adventureBlocked||!hero||(heroFallen&&!table.joined))return;
     if(table.joined){if(begin===true&&tableTale)await beginTableTale();return;}
-    if(!newStoryRequested&&hasTale(game)){setCharacterChosen(true);setScreen('Adventure');return;}
-    if(begin!==true){setScreen('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});return;}
-    storyLock.current=true;setCreatingStory(true);setError('');
-    let waiting=false;
+    if(!here){
+      if(!newStoryRequested&&hasTale(game)){setCharacterChosen(true);setScreen('Adventure');return;}
+      if(begin!==true){setScreen('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});return;}
+    }
+    storyLock.current=true;setCreatingStory(true);setError('');setHereError('');
+    let waiting=false,slow=null;
     try{
       let next;
-      // The next chapter in the same region: the story writer is told what the hero leaves behind, and the old
-      // region joins the new map a few miles away.
-      const continuing=continuingNow,{bearing,miles}=sequelPlacement();
+      // The next tale of a hero with a story (the 2026-10-23 campaign): every land, place and person of the campaign comes
+      // along, joined at the place where the hero stands. Beside it (the next tale here, or a tale waiting in a land the
+      // hero has reached) the Dungeon Master starts a tale already written for that land, else writes one, and the
+      // earlier world lies a few miles off; anywhere else (somewhere new, a written tale, a ready journey, the hero's own
+      // idea), days away down a road.
+      const lived=characterChosen&&!!game.story,continuing=lived&&(here||continuingNow),{bearing,miles}=sequelPlacement(Math.random,{far:!continuing});
+      setTaleNear(continuing?placeName(game,mapLocation(game)):null);
       const base=newAdventure(hero,characterChosen?carriedBase(game):undefined);
       if(selectedIntro==='hostile'&&!continuing){noteTale('hostile',null);next=hostileEncounterGame(hero,base);}
       else{
-      // The opening, the player's idea and any ready journey (startTale.js).
-      const {wish,start,journeyId,introId,written}=taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer,written:shelfFor()});
+      // The opening, the player's own wish and any ready journey (startTale.js). Every tale begins with orders in hand.
+      const {wish,start,journeyId,introId,written}=taleChoice({selectedIntro,continuing,idea:here?'':idea,easyStart:true,journeysOnOffer,written:shelfFor()});
       // A written tale is counted as w-<slug> (play-metrics.cjs).
       if(written)noteTale('w-'+(written.slug??'tale'),null);else noteTale(continuing?'next':start.introId,!!start.easyStart);noteStoryWait('start');waiting=true;
-      const endpoint=await findDmEndpoint();
-      const {ok,status,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen,continuing,bearing,wish,journeyId,introId,start,written}));
+      const endpoint=await findDmEndpoint(),land=continuing?landHere(game):null,begun=land?[...await playedTales(),...(game.story?.libraryId?[game.story.libraryId]:[])]:[];
+      // Only a tale being written shows the story cover (the first answer says it is under way, or none has come in three
+      // seconds); a tale already written starts at once.
+      slow=setTimeout(()=>setTaleWriting(true),3000);
+      const {ok,status,body}=await writeStory(endpoint,taleRequest({game,continuing,wish,journeyId,introId,start,written,land,playedTales:begun}),{onWriting:()=>setTaleWriting(true)});
+      clearTimeout(slow);
       // A journey that has just left the library (or a written tale taken off the shelf): the shelf is asked for again.
       if(!ok){if(journeyId&&status===409)refreshShelf();throw Error(body.error||'The story could not be created.');}
       next=freshStoryGame(hero,{...body.story,introId},base);
       if(taleRepeats(game,next))throw Error('The DM repeated the previous story. Try again; your adventure is unchanged.');
       }
-      if(characterChosen&&game.story)next=joinRegion(next,game,{sameRegion:continuing,bearing,miles});
+      // The Skirmish is a practice fight outside the campaign: only the hero's companions and pack come along to or from it.
+      if(lived)next=joinRegion(next,game,{sameRegion:game.story.introId!=='hostile'&&next.story.introId!=='hostile',bearing,miles,anchor:mapLocation(game)});
       next.storyHistory=taleHistory(game,next);
       await transition.prepare(sceneArtSubjects(next));
       await saveAdventure(adventureSnapshot(hero,next,null,true),hero);
-      // A journey played on this device is never offered here again.
+      // A journey or tale begun on this device (a ready journey, a written tale, or a tale the compendium matched or kept
+      // for this land) is never offered here again.
       if(next.story?.libraryId)await rememberJourney(next.story.libraryId);
       if(waiting)noteStoryWait('done');waiting=false;
-      setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);setIdea('');setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
-    }catch(e){if(waiting)noteStoryWait('failed');setError(e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message);}
-    finally{storyLock.current=false;setCreatingStory(false);}
+      setTaleDone(null);setGame(next);setHealth(null);setCharacterChosen(true);setNewStoryRequested(false);if(!here)setIdea('');setScreenState('Adventure');scrollRef.current?.scrollTo({y:0,animated:false});
+    }catch(e){if(waiting)noteStoryWait('failed');const said=e.name==='TimeoutError'?'Story creation timed out. Your current adventure is unchanged; try again.':e.message;setError(said);if(here)setHereError(said);}
+    finally{clearTimeout(slow);storyLock.current=false;setCreatingStory(false);setTaleWriting(false);}
   }
   // The table's host begins a tale for everyone (campaigns.cjs tale): a ready journey by its id (Let fate decide picks
   // one), or a tale written on this device first (Your own tale, or a written opening when no journeys are on offer).
   async function beginTableTale(){
-    storyLock.current=true;setCreatingStory(true);setError('');
-    let waiting=false;
+    storyLock.current=true;setCreatingStory(true);setError('');setTaleNear(null);
+    let waiting=false,slow=null;
     try{
-      const {wish,start,journeyId,introId,written}=taleChoice({selectedIntro,continuing:false,idea,easyStart:storyPreferences().easyStart,journeysOnOffer,written:shelfFor()});
+      const {wish,start,journeyId,introId,written}=taleChoice({selectedIntro,continuing:false,idea,easyStart:true,journeysOnOffer,written:shelfFor()});
       if(selectedIntro==='hostile')throw Error('A table plays a tale: choose a ready journey or your own tale.');
       if(written)noteTale('w-'+(written.slug??'tale'),null);else noteTale(start.introId,!!start.easyStart);
       let payload={journey:journeyId};
       if(!journeyId){noteStoryWait('start');waiting=true;
         const endpoint=await findDmEndpoint();
-        const {ok,body}=await writeStory(endpoint,taleRequest({hero,game,characterChosen:true,continuing:false,bearing:'N',wish,journeyId:null,introId,start}));
+        slow=setTimeout(()=>setTaleWriting(true),3000);
+        const {ok,body}=await writeStory(endpoint,taleRequest({game,continuing:false,wish,journeyId:null,introId,start}),{onWriting:()=>setTaleWriting(true)});
+        clearTimeout(slow);
         if(!ok)throw Error(body.error||'The story could not be created.');
         payload={story:body.story,introId};noteStoryWait('done');waiting=false;}
       const data=await table.startTale({...payload,replace:taleReplace});
@@ -246,7 +265,7 @@ function QuestboundApp() {
       setTaleReplace(false);setIdea('');setNewStoryRequested(false);setCharacterChosen(true);setScreenState((data?.members?.length??0)>1?'Adventure':'Multiplayer');scrollRef.current?.scrollTo({y:0,animated:false});
     }catch(e){if(waiting)noteStoryWait('failed');setError(e.name==='TimeoutError'?'The tale took too long to start. The table is unchanged; try again.':e.message);
       if(/left the library/.test(String(e.message)))refreshShelf();}
-    finally{storyLock.current=false;setCreatingStory(false);}
+    finally{clearTimeout(slow);storyLock.current=false;setCreatingStory(false);setTaleWriting(false);}
   }
   // The hero a player brings to a shared table (SharedTable.js): their current hero, one from their roster or a
   // ready-made one. A hero other than the current one becomes this device's hero first (the current one waits in the
@@ -393,7 +412,7 @@ function QuestboundApp() {
   // On Home the title screen's own sheet answers requests to open feedback (in play, GameHud's does).
   useFeedbackRequests(request=>{setFeedbackRequest(request??{});setFeedbackOpen(true);},home);
   // Full-screen covers: while a tale is written or the agreement is asked, the scenery underneath holds still.
-  const storyCover=creatingStory&&(selectedIntro!=='hostile'||continuingNow),agreementShown=launched&&!agreed&&screen!=='Legal';
+  const storyCover=creatingStory&&taleWriting,agreementShown=launched&&!agreed&&screen!=='Legal';
   useEffect(()=>{setCovered('story',storyCover);return()=>setCovered('story',false);},[storyCover]);
   useEffect(()=>{setCovered('agreement',agreementShown);return()=>setCovered('agreement',false);},[agreementShown]);
   // Anonymous play counts (playMetrics.js): where this session is, as one word from a fixed list; sent when the page
@@ -433,13 +452,36 @@ function QuestboundApp() {
   // after the card was made still holds it back).
   const feedPlaying=useFeedPlaying(),[taleShown,setTaleShown]=useState(false);
   useEffect(()=>{if(!taleDone||feedPlaying){setTaleShown(false);return;}const t=setTimeout(()=>setTaleShown(true),1500);return()=>clearTimeout(t);},[taleDone,feedPlaying]);
+  // Every tale finished here gets the card with what next (the 2026-10-23 campaign): a written tale's (shelfFinishCard,
+  // once its record is kept), and one of the story writer's (taleEndCard). Never for the Skirmish, a practice fight.
   useEffect(()=>{
-    const story=game?.story;if(!story?.written||!hero)return;
-    noteTaleState(game);
+    const story=game?.story;if(!story||!hero)return;
     const was=taleStatus.current;taleStatus.current=story.id+':'+story.status;
+    const finished=story.status==='complete'&&was===story.id+':active';
+    if(!story.written){if(finished&&story.introId!=='hostile')setTaleDone({...taleEndCard(game,{table:table.joined?(table.role==='owner'?'host':'member'):null}),written:false});return;}
+    noteTaleState(game);
     noteTaleRecord(game,hero,{seconds:deviceSeconds()}).then(all=>{if(!all)return;setTaleRecs(all);
-      if(story.status==='complete'&&was===story.id+':active'){const card=(writtenOnShelf??[]).find(c=>c.id===story.libraryId)??null;setTaleDone(shelfFinishCard(card,all[story.libraryId],game,{tiers:writtenOnShelf?.length?shelfTiersShown(writtenOnShelf):null}));}});
+      if(finished){const card=(writtenOnShelf??[]).find(c=>c.id===story.libraryId)??null;setTaleDone({...shelfFinishCard(card,all[story.libraryId],game,{tiers:writtenOnShelf?.length?shelfTiersShown(writtenOnShelf):null}),written:true});}});
   },[game?.story?.id,game?.story?.chapter,game?.story?.status,game?.pace?.ending,hero?.name]);
+  // "A tale waits in <Land>" (sequelRules.js landTaleOffer): while the hero stands in a land first reached in this tale,
+  // out of a fight, solo (at a shared table its host chooses the tales). Not now is remembered on this device for that
+  // land of that tale (journeyLibrary.js dismissedLandTales); Begin starts a tale beside where the hero stands.
+  const [landNots,setLandNots]=useState(()=>dismissedLandTales()),[hereError,setHereError]=useState('');
+  const landOffer=React.useMemo(()=>table.joined?null:landTaleOffer(game,{dismissed:landNots}),[game,landNots,table.joined]);
+  const [landShown,setLandShown]=useState(false);
+  useEffect(()=>{if(!landOffer||feedPlaying){setLandShown(false);return;}const t=setTimeout(()=>setLandShown(true),1500);return()=>clearTimeout(t);},[landOffer?.key,feedPlaying]);
+  useEffect(()=>{setHereError('');},[landOffer?.key,taleDone]);
+  const landCard=!!landOffer&&playing&&landShown&&!taleDone&&!rating&&!typingPlay;
+  const notNow=()=>{if(!landOffer)return;setLandNots(dismissLandTale(landOffer.key));};
+  // What next, on the card: the next tale here (begun at once), the Written tales shelf (the length the card suggests
+  // opens, with its first tale not yet finished here chosen), or somewhere new. At a shared table only its host chooses.
+  const openShelf=()=>{const t=taleDone?.nextTier;setTaleDone(null);setContinueRegion(false);
+    if(t&&(writtenOnShelf??[]).some(c=>c.length===t)){setShelfTabState(t);saveShelfTab(t);const cards=shelfTabCards(writtenOnShelf,t,taleRecs),first=cards.find(c=>!taleRecs[c.id]?.finished)??cards[0];if(first)setSelectedIntro(writtenChoice(first.id));}
+    setNewStoryRequested(true);setError('');setScreen('Adventure Opening');};
+  const doneActions=!taleDone?[]:table.joined?(table.role==='owner'?[{key:'choose',label:'Choose the next tale',icon:'scroll',primary:true,onPress:()=>{setTaleDone(null);setTaleReplace(false);setError('');setScreenState('Adventure Opening');scrollRef.current?.scrollTo({y:0,animated:false});}}]:[])
+    :[...(canContinue?[{key:'here',label:'Next tale here',icon:'map',primary:!taleDone.written,onPress:()=>playCharacter(true,{here:true})}]:[]),
+      ...(writtenOnShelf?.length?[{key:'shelf',label:'Written tales',icon:'scroll',primary:!!taleDone.written,onPress:openShelf}]:[]),
+      {key:'new',label:'Somewhere new',icon:'compass',onPress:()=>{setTaleDone(null);setContinueRegion(false);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}}];
   const homeNotice=(loading||!!storageError||saveProblem)&&<>{loading&&<Text style={s.note}>Loading saved character…</Text>}{!!storageError&&<Text accessibilityRole="alert" style={s.error}>{storageError}</Text>}{saveProblem&&<Text accessibilityLiveRegion="polite" style={[s.saveStatus,{color:tint('#ffd49a')}]}>{saveStatus}</Text>}{saveStatus.startsWith('Adventure not saved')&&button('Retry adventure save',()=>setSaveRetry(value=>value+1))}</>;
   return <View dataSet={{qb:'root'}} style={s.root}>
   <View dataSet={{qb:'stage'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none'}]}>
@@ -487,12 +529,11 @@ function QuestboundApp() {
   </EncounterProvider>
   {!!unveil&&<View key={unveil} dataSet={{qb:'unveil'}} style={[StyleSheet.absoluteFillObject,{pointerEvents:'none',zIndex:55}]}/>}
   <CinematicLayer levelReady={inGame&&!!hero&&levelUpReady(game,hero)}/>
-  {!!taleDone&&playing&&taleShown&&<TaleFinished card={taleDone} top={wideGame?76:68} onClose={()=>setTaleDone(null)} onShelf={()=>{const t=taleDone.nextTier;setTaleDone(null);setContinueRegion(false);
-    // The length the card suggests opens, with its first tale not yet finished here chosen.
-    if(t&&(writtenOnShelf??[]).some(c=>c.length===t)){setShelfTabState(t);saveShelfTab(t);const cards=shelfTabCards(writtenOnShelf,t,taleRecs),first=cards.find(c=>!taleRecs[c.id]?.finished)??cards[0];if(first)setSelectedIntro(writtenChoice(first.id));}
-    setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}} onContinue={canContinue&&!table.joined?()=>{setTaleDone(null);setContinueRegion(true);setNewStoryRequested(true);setError('');setScreen('Adventure Opening');}:null}/>}
-  {rating&&!(taleDone&&playing)&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
-  {storyCover&&<StoryLoading introId={continuingNow?'surprise':/^(?:journey|written):/.test(String(selectedIntro))?'easy':selectedIntro} near={continuingNow?game.story?.locations?.inn?.name??null:null}/>}
+  {!!taleDone&&playing&&taleShown&&<TaleFinished card={taleDone} top={wideGame?76:68} actions={doneActions} busy={creatingStory} error={hereError} onClose={()=>setTaleDone(null)}/>}
+  {landCard&&<TaleFinished kind="waits" card={landTaleCard(landOffer,game)} top={wideGame?76:68} busy={creatingStory} error={hereError} onClose={notNow}
+    actions={[{key:'begin',label:'Begin',icon:'play',primary:true,onPress:()=>playCharacter(true,{here:true})},{key:'later',label:'Not now',icon:'back',onPress:notNow}]}/>}
+  {rating&&!(taleDone&&playing)&&!landCard&&<SessionRating key={rating.id} moment={rating.moment} top={playing?(wideGame?76:68):64} onClose={()=>setRating(null)}/>}
+  {storyCover&&<StoryLoading introId={taleNear?'surprise':/^(?:journey|written):/.test(String(selectedIntro))?'easy':selectedIntro} near={taleNear}/>}
   <Agreement visible={agreementShown} onAccept={()=>{acceptAgreement();setAgreed(true);playSound('open');}} onLegal={tab=>openLegal(tab,'Home')}/>
   {!launched&&<LaunchScreen ready={!loading} onBegin={()=>{setLaunched(true);startPerfWatch();}}/>}
   </View>;

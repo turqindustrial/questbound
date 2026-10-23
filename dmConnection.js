@@ -33,10 +33,12 @@ export async function readTurn(response,onNarration){
 // The job id is drawn from the browser's secure random source, so nobody can guess another player's tale.
 const secureRandom=()=>{try{return globalThis.crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;}catch{return Math.random();}};
 const newJobId=(random=secureRandom)=>Array.from({length:24},()=>'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random()*36)]).join('');
-export async function writeStory(endpoint,payload,{fetchImpl=fetch,now=Date.now,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),every=3000,limit=480000,random=secureRandom}={}){
+export async function writeStory(endpoint,payload,{fetchImpl=fetch,now=Date.now,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),every=3000,limit=480000,random=secureRandom,onWriting=null}={}){
  const job=newJobId(random),started=now();
  const first=await askDm(endpoint,{...payload,context:{...payload.context,job}},{fetchImpl,now,pause});
  if(!first.ok||first.body?.story||first.body?.status===undefined)return first;
+ // A tale already written (the shelf's, the compendium's) comes back at once; only a tale being written is waited on.
+ try{onWriting?.();}catch{}
  let state=first.body,misses=0;
  for(;;){
   if(state?.status==='ready')return state.result?.story?{ok:true,status:200,body:state.result}:{ok:false,status:502,body:{error:'The story came back incomplete. Your adventure is unchanged; try again.'}};

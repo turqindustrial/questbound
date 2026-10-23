@@ -1,19 +1,19 @@
-import React,{useState,useEffect} from 'react';
+import React,{useState} from 'react';
 import {View,Text,TextInput,Pressable,StyleSheet,useWindowDimensions} from 'react-native';
 import allIntros from './adventureIntros.json';
-import {GameButton,Ornament,ScreenTitle,Crest,Toggle,Segmented} from './ui';
+import {GameButton,Ornament,ScreenTitle,Crest,Segmented} from './ui';
 import Icon from './Icon';
 import {playSound} from './audio';
 import {fonts,colors,type,tint} from './theme';
 import {NarratorChoice,LengthChoice} from './StoryControls';
-import {storyPreferences,setStoryPreferences,subscribeStoryPreferences} from './storyPreferences';
 import DynamicArt from './DynamicArt';
 import {shelfTierWords,shelfDifficulties,shelfTab,shelfTiersShown,shelfTabFor,shelfStatus,shelfFresh,shelfLived,writtenChoice} from './shelfRules';
 const icons={hostile:'swords',surprise:'compass',idea:'quill',easy:'flag',crown:'crown',drowned:'wave',sunforge:'flame',winter:'frost',deep:'door',names:'eye',oath:'shield'};
-// With a story behind them, a hero can carry on in the same region (the next chapter) or set out somewhere new.
+// With a story behind them, a hero can carry on where they stand (the next tale here) or set out somewhere new; either
+// way every land of the campaign stays on the map (sequelRules.js joinRegion).
 function Continuation({continuation,continuing,onContinuing,busy}){
  // With written tales on the shelf, Somewhere new is where they are (the shelf shows once it is chosen).
- return <View style={s.choice}>{[[true,'map','Continue in this region','The next tale begins a few miles from '+continuation.place+'. Everyone you met, the places you found, every grudge and debt, your companions and your pack come with you, and the country you know keeps its own map.'],[false,'compass',continuation.shelf?'Somewhere new: a written tale or a new one':'Somewhere new','Leave '+continuation.place+' behind'+(continuation.shelf?' for a written tale, ready at once, or a new one':'')+'. Your companions and your pack come with you; the rest of the world is new.']].map(([value,icon,title,copy])=>{const chosen=continuing===value;return <Pressable key={title} accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onContinuing(value);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:'gold'}} style={[s.card,s.option,chosen&&s.selected]}>
+ return <View style={s.choice}>{[[true,'map','Continue in this region','The next tale begins a few miles from '+continuation.place+(continuation.land?', in '+continuation.land:'')+'. If a tale is already written for this land, it starts at once. Everyone you met, the places you found, every grudge and debt, your companions and your pack come with you.'],[false,'compass',continuation.shelf?'Somewhere new: a written tale or a new one':'Somewhere new','Set out days down the road from '+continuation.place+(continuation.shelf?', for a written tale, ready at once, or a new one':'')+'. Every land you know stays on your map, and you can travel back.']].map(([value,icon,title,copy])=>{const chosen=continuing===value;return <Pressable key={title} accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onContinuing(value);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:'gold'}} style={[s.card,s.option,chosen&&s.selected]}>
   <View style={s.top}><Crest icon={icon} size={40} color={colors.goldBright}/><Text style={[s.title,{flex:1,fontSize:19}]}>{title}</Text>{chosen&&<View style={s.check}><Icon name="check" size={16} color={tint('#fff4f5')} strokeWidth={2.4}/></View>}</View>
   <Text style={s.copy}>{copy}</Text></Pressable>;})}</View>;
 }
@@ -28,13 +28,9 @@ function IdeaBox({idea,onIdea,busy,optional=false}){
   <Text style={s.ideaNote}>{idea.length}/{ideaLimit}. Tales stay in Questbound’s own world: name a book or film and you get its mood, with people and places of the tale’s own.</Text>
  </View>;
 }
-// Easy start (storyPreferences.js, per device, on unless turned off): any tale but the Skirmish begins with the hero's
-// orders in hand. Easy to get into always begins that way, so the switch shows on and cannot be turned off there.
-function EasyStart({always=false,busy,journey=false}){
- const [prefs,setPrefs]=useState(storyPreferences);
- useEffect(()=>{setPrefs(storyPreferences());return subscribeStoryPreferences(setPrefs);},[]);
- return <Toggle value={always||prefs.easyStart!==false} disabled={always||busy} onChange={on=>{playSound(on?'select':'tick');setStoryPreferences({easyStart:on});}} label="Easy start" description={journey?'Every ready journey begins this way: someone in charge gives you a clear first errand, and chapter 1 is that errand.':always?'Easy to get into always begins this way: someone in charge gives you a clear first errand, and chapter 1 is that errand.':'Begin with your orders in hand: someone in charge gives you a clear first errand, and chapter 1 is that errand.'} style={s.easy}/>;
-}
+// Every tale begins with the hero's orders in hand (the 2026-10-23 campaign: the Dungeon Master writes every tale with an
+// errand, so that it can join the compendium), so there is no Easy start switch any more: it would change nothing. A
+// written tale and the Skirmish never had one.
 // ---------- Ready journeys ----------
 // The library's journeys (tale-library.cjs, journeyLibrary.js): each a long tale already written, with a pitch to
 // compare (its hook, what you will do and face, its mood, its length and what sets it apart) and, once painted, the
@@ -139,14 +135,13 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
  // written openings and Easy to get into (every journey is one) are offered only when the library cannot be reached.
  const shelfOn=!continuing&&Array.isArray(written?.cards)&&written.cards.length>0,writtenChosen=String(selected).startsWith('written:');
  const library=Array.isArray(journeys)&&journeys.length>0,shown=library||shelfOn?intros.filter(i=>i.idea||i.id==='surprise'||i.local):intros;
- const ready=library&&(selected==='surprise'||String(selected).startsWith('journey:'));
  // The story writer's journeys sit folded under the written tales (opened by the player, or when one is chosen).
  const [moreOpen,setMoreOpen]=useState(false),moreShown=moreOpen||String(selected).startsWith('journey:');
  const firstTale=shelfOn&&!Object.keys(written.records??{}).length?written.cards.find(c=>c.firstTale)??null:null;
  if(continuation&&continuing)return <View><ScreenTitle eyebrow="Next tale" icon="map" title="Where does your story go next?" sub={'After '+continuation.title+'.'}/>
   <Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>
   <IdeaBox idea={idea} onIdea={onIdea} busy={busy} optional/>
-  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/><EasyStart busy={busy}/></View>
+  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/></View>
   <View style={s.begin}>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<GameButton variant="primary" icon={busy?'quill':'play'} label={busy?'One moment…':'Begin the next tale'} disabled={busy} onPress={onStart} style={{marginTop:0}}/></View>
   <Ornament/><Text style={s.note}>Starting replaces your current adventure only after the new story has been created and saved.</Text></View>;
  return <View>{forTable?<ScreenTitle eyebrow="The shared table" icon="people" title="Choose the table’s tale" sub={shelfOn?'Every hero at the table begins it together, each with what they carry. Written tales start at once.':'Every hero at the table begins it together, each with what they carry. Pick a ready journey to start at once, or bring your own idea.'}/>:<ScreenTitle style={shelfOn&&narrow?{marginBottom:6}:null} eyebrow={shelfOn&&narrow?null:"New adventure"} icon="compass" title="Where does your story begin?" sub={shelfOn?(narrow?null:'Written tales start at once. Or bring your own idea.'):'Choose a tale, or bring your own idea. Each is yours alone: a long story told in chapters, with its own country, people, side errands and roads to other lands.'}/>}
@@ -156,9 +151,9 @@ export default function AdventureIntros({selected,onSelect,onStart,busy,error,co
   {!!continuation&&shelfOn&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
   {shelfOn&&<TaleShelf written={written} selected={selected} onSelect={onSelect} onStart={onStart} busy={busy} error={error} narrow={narrow}/>}
   {!shelfOn&&!continuation&&!forTable&&firstTime()&&library&&<Text style={s.first}>First time here? Pick any <Text style={s.firstStrong}>ready journey</Text> below: each starts at once, with your orders in hand and a clear first errand. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
-  {!shelfOn&&!continuation&&!forTable&&firstTime()&&!library&&<Text style={s.first}>First time here? Keep <Text style={s.firstStrong}>Easy start</Text> on and any tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
+  {!shelfOn&&!continuation&&!forTable&&firstTime()&&!library&&<Text style={s.first}>First time here? Every tale begins with your orders in hand and a clear first errand; <Text style={s.firstStrong}>Easy to get into</Text> is ready the fastest. For a two-minute practice fight instead, choose <Text style={s.firstStrong}>Skirmish</Text> at the end of the list. Rather keep each turn short? Switch on <Text style={s.firstStrong}>Not so wordy</Text> just below.</Text>}
   {!!continuation&&!shelfOn&&<Continuation continuation={continuation} continuing={continuing} onContinuing={onContinuing} busy={busy}/>}
-  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/>{selected!=='hostile'&&!writtenChosen&&!(shelfOn&&selected==='surprise')&&<EasyStart always={selected==='easy'||ready} journey={ready} busy={busy}/>}</View>
+  <View style={s.narrator}><NarratorChoice compact/><LengthChoice style={s.easy}/></View>
   {shelfOn&&<View style={s.shelfHead}><Icon name="quill" size={14} color={colors.goldMid}/><Text style={s.shelfTitle}>Or write a new one</Text></View>}
  {/* The Begin button sits right under the chosen opening, so a phone player never scrolls to find it. */}
  {shown.map(listed=>{const intro=shelfOn&&listed.id==='surprise'?{...listed,...fateWrittenCopy}:library&&listed.id==='surprise'?{...listed,...fateCopy}:listed,chosen=selected===intro.id,hot=!!intro.local,quick=(library||shelfOn)&&intro.id==='surprise';return <React.Fragment key={intro.id}><Pressable accessibilityRole="radio" accessibilityState={{checked:chosen,disabled:busy}} disabled={busy} onPress={()=>{if(!chosen)playSound('select');onSelect(intro.id);}} onHoverIn={()=>playSound('tick')} dataSet={{qb:'card',selected:String(chosen),tone:hot?'hot':'gold'}} style={[s.card,chosen&&s.selected,hot&&s.combat,chosen&&hot&&{borderColor:colors.bloodBright}]}>

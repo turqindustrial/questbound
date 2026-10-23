@@ -345,7 +345,8 @@ function briefer(scene,body){
   // doing, how far the tale has come and a foe beyond reach are read out of fights.
   if(fight||closed){delete q.truth;delete q.next;delete q.where;}
   else{if(typeof q.truth!=='string'&&typeof q.revealedWhenAchieved==='string')q.truth=truthOf(q.revealedWhenAchieved);if(isObj(q.next))q.next=typeof q.next.title==='string'?q.next.title:null;}
-  if(fight){delete q.agenda;delete q.pace;delete q.bossLater;}
+  // The tale's road (quest.arc: each chapter's title and goal, the 2026-10-23 campaign) is read out of fights only.
+  if(fight){delete q.agenda;delete q.pace;delete q.bossLater;delete q.arc;}
   delete q.revealedWhenAchieved;delete q.leadsSeenThrough;if(q.finalChapter===false)delete q.finalChapter;
   if(fight)delete q.openLeads;else if(Array.isArray(q.openLeads))q.openLeads=q.openLeads.map(l=>isObj(l)?{...l,hook:cut(l.hook,briefLimits.hook)}:l);
   scene.quest=q;}

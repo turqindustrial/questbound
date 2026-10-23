@@ -17,7 +17,7 @@ import {npcIdsOf,npcLore,mentionsName} from './npcRules';
 export const memoryLimits={activeBeats:14,closedBeats:8,taleBeats:4,fullTales:4,longSummaries:30,tales:120,openFacts:40,settledFacts:20,factsPerTurn:2,budget:4500};
 const memText=(text,max=160)=>{const t=String(text??'').replace(/\s+/g,' ').trim();return t.length>max?t.slice(0,max-1).trimEnd()+'…':t;};
 const memList=names=>names.length<=1?names.join(''):names.slice(0,-1).join(', ')+' and '+names.at(-1);
-const memTaleStart=/^(.*): (?:the tale began at|a new tale began nearby, at|a new tale began, far away, at) (.*?)\.?$/;
+const memTaleStart=/^(.*): (?:the tale began at|a new tale began nearby, at|a new tale began, far away, at|a new tale began, days down the road, at) (.*?)\.?$/;
 const freshFolded=()=>({met:[],metN:0,places:[],placesN:0,fights:0,won:0,fled:0,gold:0,finds:0,rests:0,more:0});
 const freshChapter=(n,title='')=>({n,title:memText(title,100),done:false,beats:[],folded:freshFolded()});
 // How much a line of the story matters when there is no room to keep them all (storyLog.js wording).

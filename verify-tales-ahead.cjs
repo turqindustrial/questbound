@@ -75,8 +75,10 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  assert.ok(screen.includes('function IdeaBox')&&screen.includes('ideaReady(idea)')&&screen.includes('<NarratorChoice compact/>'),'the idea box, its gate and the narrator choice');
  assert.ok(app.includes("...(wish?{idea:wish}:{})")&&app.includes("selectedIntro==='idea'&&!wish"),'the idea reaches the story writer');
  // Easy start: a per-device switch on the New Adventure and next-tale screens, on unless turned off, hidden for the Skirmish.
- assert.ok(screen.includes('function EasyStart')&&screen.includes("label=\"Easy start\"")&&(screen.match(/<EasyStart /g)??[]).length===2&&screen.includes("selected!=='hostile'"),'the Easy start switch on both screens, not for the Skirmish');
- assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart})")&&app.includes("taleChoice({selectedIntro,continuing,idea,easyStart:storyPreferences().easyStart,journeysOnOffer,written:shelfFor()})")&&app.includes("introId=journeyId?'easy':start.introId")&&app.includes("...(written?{journey:journeyId}:journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId},base)"),'the game sends the easy start and keeps the opening it asked for');
+ // Easy start (the switch, 2026-10-10 to 2026-10-23): every tale the story writer writes now begins with orders in hand
+ // (dm-server.cjs sharedTale), a written tale and the Skirmish never had one, so the switch is gone from both screens.
+ assert.ok(!screen.includes('function EasyStart')&&!screen.includes('<EasyStart')&&screen.includes('Every tale begins with your orders in hand'),'no Easy start switch: it would change nothing');
+ assert.ok(app.includes("taleStart({selected:selectedIntro,continuing,easyStart})")&&app.includes("taleChoice({selectedIntro,continuing,idea:here?'':idea,easyStart:true,journeysOnOffer,written:shelfFor()})")&&app.includes("introId=journeyId?'easy':start.introId")&&app.includes("...(written?{journey:journeyId}:journeyId?{journey:journeyId,easyStart:true}:start.easyStart?{easyStart:true}:{})")&&app.includes("freshStoryGame(hero,{...body.story,introId},base)"),'the game sends the easy start and keeps the opening it asked for');
  // startTale.js builds the story writer's request from the choice (App.playCharacter only sends it): run here with the
  // rules, storyPreferences.js's taleStart and journeyLibrary.js's fateJourney beside it.
  {const {rulesSource}=require('./rules-files.cjs'),strip=f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'');
@@ -95,10 +97,59 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
   assert.equal(st.taleChoice({selectedIntro:'surprise',continuing:false,idea:'',easyStart:true,journeysOnOffer:offer}).journeyId,offer[0].id,'Let fate decide takes a journey on offer');
   assert.equal(st.taleChoice({selectedIntro:'journey:'+offer[0].id,continuing:true,idea:'',easyStart:true,journeysOnOffer:offer}).journeyId,null,'never a journey for the next tale');
   const asked=st.taleRequest({hero:kara,game:fresh,characterChosen:false,continuing:false,bearing:'N',...ready});
-  assert.equal(asked.input,'Create a fresh adventure for my character.');assert.equal(asked.context.journey,offer[0].id);assert.equal(asked.context.easyStart,true);assert.equal(asked.context.introId,'easy');assert.equal(asked.context.storySoFar,undefined,'no story so far with a ready journey');assert.equal(asked.context.player.name,kara.name);
+  assert.equal(asked.input,'Create a fresh adventure for my character.');assert.equal(asked.context.journey,offer[0].id);assert.equal(asked.context.easyStart,true);assert.equal(asked.context.introId,'easy');assert.equal(asked.context.storySoFar,undefined,'no story so far with a ready journey');assert.equal(asked.context.player,undefined,'nor the hero: every tale is written for any hero (2026-10-23)');
   const lived={...fresh,story:{title:'The Reed Crown'},storyHistory:['Old Tale']};
   assert.ok(st.taleRepeats(lived,{story:{title:'the reed crown'}})&&!st.taleRepeats(lived,{story:{title:'New Tale'}}),'a tale already lived is caught, whatever its case');
   assert.equal(JSON.stringify(st.taleHistory(lived,{story:{title:'New Tale'}})),'["Old Tale","The Reed Crown","New Tale"]');}
+
+ // ---- The next tale here, and a tale waiting in a land reached (the 2026-10-23 campaign) ----
+ // The host: "once the player completes the story or decides to move to a new area, new potential stories should be
+ // written ... the map should progress to a new set of locations if the player leaves the borders of the current map.
+ // all areas traveled in a single campaign should be remembered so they can be returned to." A hero walks off the map
+ // into a land beyond; "A tale waits in <Land>" is offered there (sequelRules.js landTaleOffer); the request carries that
+ // land and the tales this device has begun (startTale.js taleRequest, as App.js playCharacter sends it); the Dungeon
+ // Master answers with a tale already written for that land; and the tale begins beside where the hero stands, the
+ // earlier world a few miles off and joined at that place (sequelRules.js joinRegion, near, anchored there).
+ {const {rulesSource}=require('./rules-files.cjs'),{journeyStory}=require('./journey-fixtures.cjs'),strip=f=>fs.readFileSync(f,'utf8').replace(/^\s*import .*;\r?\n/gm,'').replace(/export /g,'');
+  const c=vm.runInNewContext(rulesSource()+'\n({readyHero,newAdventure,freshStoryGame,adventureStep,withStoryLog,landHere,landTaleOffer,taleWaitsKey,joinRegion,mapLocation,placeCoordinates,worldPlaces,worldPlace,travelRoute,validAdventure,adventureSnapshot,carriedBase,nextTalePlacement,currentRegion,placeName})',{AsyncStorage:{}});
+  const st=vm.runInNewContext(strip('startTale.js')+'\n({sequelPlacement,taleRequest})',{nextTalePlacement:c.nextTalePlacement,Math,Date});
+  const hero=c.readyHero('fighter'),hp={current:12,temp:0},plainOf=x=>JSON.parse(JSON.stringify(x));
+  let g=plainOf(c.freshStoryGame(hero,{...journeyStory(0),id:'campaign-first',status:'active'},c.newAdventure(hero)));
+  assert.equal(c.landTaleOffer(g),null,'never in the home land');
+  const out=c.adventureStep(g,hp,hero,{type:'beyond',bearing:'E'},()=>0.9);assert.equal(out.error,undefined,out.error);
+  const there=plainOf(c.withStoryLog(g,out.game,hero,{action:{type:'beyond',bearing:'E'}})),land=c.landHere(there),stand=c.mapLocation(there);
+  assert.ok(land.id!=='home'&&land.name&&land.terrain,'the hero stands in a land beyond: '+JSON.stringify(land));
+  const offer=c.landTaleOffer(there);assert.ok(offer&&offer.name===land.name&&offer.key===c.taleWaitsKey(there,land),'a tale waits there');
+  assert.equal(c.landTaleOffer(there,{dismissed:[offer.key]}),null,'Not now, for that land of that tale');
+  for(const busy of [{stage:'combat'},{stage:'dying'},{party:{members:{}}},{turnOrder:{order:[]}},{wildFight:{place:stand}},{story:{...there.story,introId:'hostile'}}])assert.equal(c.landTaleOffer({...there,...busy}),null,'never in a fight, dying, at a table or in the Skirmish: '+Object.keys(busy)[0]);
+  assert.equal(c.landTaleOffer({...there,storyLog:[...there.storyLog,{id:999,kind:'story',text:'A newer tale: the tale began at X.'}]}),null,'a land reached in an earlier tale is not new');
+  assert.equal(c.landTaleOffer({...there,story:{...there.story,lands:[{name:land.name}]}}),null,'nor a land the tale spoke of from the start');
+  // The request: that land and the tales begun here; no hero and no story so far (every tale may join the compendium).
+  const played=['0f8fad5b-d9cb-469f-a165-70867728950e'],asked=st.taleRequest({game:there,continuing:true,wish:null,journeyId:null,introId:'surprise',start:{introId:'surprise',easyStart:true},land,playedTales:played});
+  assert.deepEqual(plainOf(asked.context.land),{name:land.name,terrain:land.terrain});assert.deepEqual(plainOf(asked.context.playedTales),played);
+  assert.ok(asked.context.continuing===undefined&&asked.context.storySoFar===undefined&&asked.context.player===undefined,'no region summary, story so far or hero');
+  assert.equal(st.taleRequest({game:there,continuing:false,wish:null,journeyId:null,introId:'easy',start:{introId:'easy',easyStart:true}}).context.land,undefined,'somewhere new names no land');
+  assert.equal(st.taleRequest({game:there,continuing:true,wish:null,journeyId:null,introId:'surprise',start:{introId:'surprise',easyStart:true},land,playedTales:Array.from({length:250},(_,i)=>'id'+i)}).context.playedTales.length,200,'at most 200 tales begun');
+  // The Dungeon Master matches a tale already written for that land (no AI), never one begun here.
+  const kept='6d4c9f51-7e80-41a2-9dce-3f4a5b6c7d8e',looked=[];
+  const lib={list:()=>[],any:()=>null,brief:()=>null,add:()=>({ok:false}),match:q=>{looked.push(q);return q.terrain===land.terrain&&!q.exclude.includes(kept)?{id:kept}:null;},start:id=>id===kept?{...journeyStory(1),id:'copy-of-'+kept,status:'active',libraryId:kept,artId:'journey-'+kept}:null};
+  let wrote=0;const got=await generate(asked,{apiKey:'k',model:'m',fetchImpl:async()=>{wrote++;throw Error('no AI here');},library:lib});
+  assert.ok(got.matched===true&&got.story.libraryId===kept&&wrote===0,'a tale already written for that land starts at once');assert.deepEqual(plainOf(looked.at(-1).exclude),played,'never one begun on this device');
+  // It begins beside where the hero stands: the earlier world a few miles off, joined at that place, every land kept.
+  const place=st.sequelPlacement(()=>0.5);assert.ok(place.miles>=4&&place.miles<=7);
+  const next=c.freshStoryGame(hero,{...got.story,introId:'surprise'},c.newAdventure(hero,c.carriedBase(there)));
+  const joined=plainOf(c.joinRegion(next,there,{sameRegion:true,...place,anchor:stand}));
+  const standName=c.placeName(there,stand),anchored=c.worldPlaces(joined).find(p=>p.name===standName);assert.ok(anchored,'the place where the hero stood is on the new map');
+  const from=c.placeCoordinates(joined,'inn'),miles=Math.hypot(anchored.x-from.x,anchored.y-from.y)/5280;assert.ok(Math.abs(miles-place.miles)<0.2,'a few miles off: '+miles);
+  assert.ok(c.travelRoute(joined,'inn',anchored.id),'with a road to it');
+  const lands=new Set(c.worldPlaces(joined).map(p=>p.region).filter(Boolean)),names=[...lands].map(id=>joined.world.regions.find(r=>r.id===id)?.name);
+  assert.ok(names.includes(land.name)&&names.includes(there.story.region),'every land of the campaign kept: '+names.join(', '));
+  assert.ok(c.validAdventure(c.adventureSnapshot(hero,joined,null,true),hero),'and the game is sound');
+  assert.equal(c.landTaleOffer(joined),null,'a new tale: nothing waits until a new land is reached');
+  // App.js sends it that way (playCharacter: near beside where the hero stands, far otherwise), and the screens offer it.
+  const app=fs.readFileSync('App.js','utf8');
+  assert.ok(app.includes("continuing=lived&&(here||continuingNow),{bearing,miles}=sequelPlacement(Math.random,{far:!continuing})")&&app.includes('land=continuing?landHere(game):null')&&app.includes('playedTales:begun')&&app.includes("anchor:mapLocation(game)})")&&app.includes('if(next.story?.libraryId)await rememberJourney(next.story.libraryId)'),'the game asks beside the land where the hero stands and joins every land there');
+  assert.ok(app.includes("{onWriting:()=>setTaleWriting(true)}")&&app.includes('const storyCover=creatingStory&&taleWriting'),'the story cover only while a tale is being written');}
 
  // ---- Narrators ----
  const prefs=vm.runInNewContext(fs.readFileSync('storyPreferences.js','utf8').replace(/export /g,'')+'\n({narrators,narratorOf,storyPreferences,setStoryPreferences})',{globalThis:{localStorage:{store:{},getItem(k){return this.store[k]??null;},setItem(k,v){this.store[k]=v;}}},JSON,Set});

@@ -13,6 +13,17 @@ import {stagingQuest,taleNow,leadOpenNow,stagingAdvanceOpen} from "./stagingRule
 export const briefText=(t,n)=>{t=String(t??'');return t.length>n?t.slice(0,n-1).trimEnd()+'…':t;};
 // The chapter's truth (its `turn`: what the chapter uncovers) as the Dungeon Master reads it, at most 200 characters,
 // cut at a sentence where one ends far enough in (the stories spec, Phase A1: "tell the find where it is found").
+// The tale's road for the Dungeon Master (quest.arc, the 2026-10-23 campaign, the host's words: "each pre made story should
+// have a clearly written plot line for the DM to work off of, but should be freely explorable by the player"): one line
+// a chapter, "1. <title>: <goal> (done)", "2. <title>: <goal> (now)", "3. <title>: <goal>", titles cut to 60 and goals to
+// 120 at a word. Never a chapter's truth, the secret, the staging, an ending or the resolution. A tale of one chapter has
+// none (quest.title and quest.goal say it all).
+export const arcCut=(t,n)=>{t=String(t??'').replace(/\s+/g,' ').trim();if(t.length<=n)return t;const head=t.slice(0,n-1),space=head.lastIndexOf(' ');return (space>=n/2?head.slice(0,space):head).replace(/[\s,;:.\-–—]+$/,'')+'…';};
+export function taleArc(story){
+ const chapters=Array.isArray(story?.chapters)?story.chapters:[];if(chapters.length<2)return null;
+ const now=Math.max(0,Math.min(chapters.length-1,Number.isInteger(story.chapter)?story.chapter:0)),done=story.status==='complete';
+ return chapters.map((c,i)=>(i+1)+'. '+arcCut(c?.title,60)+': '+arcCut(c?.goal,120)+(done||i<now?' (done)':i===now?' (now)':''));
+}
 export const truthText=t=>{t=String(t??'').replace(/\s+/g,' ').trim();if(t.length<=200)return t;const head=t.slice(0,200),end=Math.max(head.lastIndexOf('. '),head.lastIndexOf('! '),head.lastIndexOf('? '));return end>=80?head.slice(0,end+1):briefText(t,200);};
 // One line per skill ("Arcana: Intelligence +5 (trained)"), as the Dungeon Master reads it, so a request has room for
 // the story so far (memoryRules.js). Outside fights and rulings only the defenses of the people here are sent, and the
@@ -81,7 +92,7 @@ export function storyWorld(context,hero,game,health,input){
   // A written tale's truth is in the scene only while the Dungeon Master may tell it (story-advance offered:
   // stagingAdvanceOpen); else it reaches the Dungeon Master as the STORY BEAT that closes the chapter (taleNow).
   const staged=stagingQuest(game),openLeads=q.openLeads.filter(l=>leadOpenNow(game,l.id)),truth=!staged||stagingAdvanceOpen(game);
-  if(q.current||q.leads.length)context.quest={...(q.current?{chapter:q.number,of:q.chapters,title:q.current.title,goal:q.current.goal,...(truth?{truth:truthText(q.current.turn),revealedWhenAchieved:q.current.turn}:{}),finalChapter:q.last,next:q.next?{title:q.next.title,goal:q.next.goal}:null}:{}),...(staged??{}),openLeads:openLeads.map(l=>({id:l.id,title:l.title,hook:l.hook,...(l.noted?{ticked:true}:{})})),leadsSeenThrough:q.leads.filter(l=>l.done).map(l=>l.title)};
+  if(q.current||q.leads.length)context.quest={...(q.current?{chapter:q.number,of:q.chapters,title:q.current.title,goal:q.current.goal,...(truth?{truth:truthText(q.current.turn),revealedWhenAchieved:q.current.turn}:{}),finalChapter:q.last,next:q.next?{title:q.next.title,goal:q.next.goal}:null,...(()=>{const arc=taleArc(game.story);return arc?{arc}:{};})()}:{}),...(staged??{}),openLeads:openLeads.map(l=>({id:l.id,title:l.title,hook:l.hook,...(l.noted?{ticked:true}:{})})),leadsSeenThrough:q.leads.filter(l=>l.done).map(l=>l.title)};
   {const now=taleNow(game);if(now)context.taleNow=now;}context.nearbyNPCs=game.stage==='inn'?Object.entries(game.story.npcs).map(([id,n])=>({id,name:n.name,voice:n.role+' '+n.motive+' '+(n.personality??''),appearance:n.appearance??null})):game.stage==='combat'?[{name:foeLabel(game),voice:'The current threat.'}]:[];context.npcSocialState=context.npcSocialState.map(n=>({...n,name:npcLore(game,n.id)?.name??n.name,role:npcLore(game,n.id)?.role??null,livesAt:game.people?.[n.id]?placeName(game,game.people[n.id].home):null,metHero:metPerson(game,n.id),ties:npcTies(game,n.id),regardsYourKind:(r=>r.stance==='indifferent'?null:r.stance)(speciesRegard(game,n.id,hero))}));
   // People not here are told in brief (peopleAway), so a world of many people still fits in one request (the Dungeon
   // Master's server reads the same brief): who and where they are, how they feel, and their last two memories.
