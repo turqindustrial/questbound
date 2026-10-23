@@ -157,7 +157,7 @@ const day=86400000,same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b
   // The player's own idea is always written (a coast tale fits, but they asked for their own), and added too.
   {const was=asked.length,idea=await tell({introId:'idea',idea:'A lighthouse that eats the ships it guides',land:{name:'Gullwatch',terrain:'coast'}});
    assert.equal(asked.length,was+1,'an idea is always written');const input=JSON.parse(asked.at(-1).input);
-   assert.ok(input.context.libraryBrief.seed===undefined&&input.creativeDirection.startsWith('The player\'s own idea: A lighthouse')&&asked.at(-1).instructions.includes('PLAYER\'S IDEA'),'the idea, not a seed, says what the tale is about');
+   assert.ok(input.context.libraryBrief.seed===undefined&&input.creativeDirection.startsWith('The player\'s own idea: A lighthouse')&&asked.at(-1).instructions.includes('PLAYER\'S IDEA'),'the idea, not a seed, says what the tale is about');assert.ok(asked.at(-1).instructions.includes('never put into it a real person\'s name'),'a shared tale never carries a real person or a personal detail from the idea');
    assert.ok(idea.added===true&&idea.story.libraryId,'and added to the compendium');}
   // A chosen opening is written the same way (its own direction) and added, never matched.
   {const was=asked.length,opening=await tell({introId:'crown',previousTitles:[]});assert.equal(asked.length,was+1);assert.equal(JSON.parse(asked.at(-1).input).context.libraryBrief.seed,undefined);assert.ok(opening.added);}
