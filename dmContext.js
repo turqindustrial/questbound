@@ -106,8 +106,17 @@ export function commitDmTurn(hero,game,health,action,conversation,random=Math.ra
   }
   // Facts the Dungeon Master asked the game to keep (a promise, a secret, a name, a plan), or one it settled.
   if(Array.isArray(conversation.remember)&&conversation.remember.length)result={...result,game:rememberFacts(result.game,conversation.remember,{newId:result.introduced??null}).game};
-  const present=npcScene(result.game).filter(n=>n.present&&n.hp>0).map(n=>n.id);
-  if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId)))return {game,health,error:'The reply included a character who cannot join this conversation.'};
+  // Only those still here once the move is made are heard: a reply that walks the hero away (or a fight that drops
+  // someone) keeps the lines of those who come along and loses the rest, never the whole turn (the server checked the
+  // speakers against who was here before the move, which it cannot see past; live on 2026-10-23 farewells from people
+  // left at the starting place refused three turns in a row).
+  // Someone who was here neither before nor after it (a companion waiting elsewhere) still refuses the reply.
+  const present=npcScene(result.game).filter(n=>n.present&&n.hp>0).map(n=>n.id),before=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>n.id);
+  if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId)&&!before.includes(line.speakerId)))return {game,health,error:'The reply included a character who cannot join this conversation.'};
+  if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId))){
+    conversation={...conversation,dialogue:conversation.dialogue.filter(line=>present.includes(line.speakerId))};
+    result={...result,conversation};
+  }
   return result.game===stepped?result:{...result,stepped};
 }
 function resolveDmTurn(hero,game,health,action,conversation,random){

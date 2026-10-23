@@ -685,7 +685,8 @@ const promptLayout=3,cacheBuckets=8;
 //    ttl (30 minutes by default, 12 hours on request in the Responses API) at breakpoints. The implicit breakpoint is
 //    the end of the last user message (this turn's part, new every turn), and the guide's gotcha is exactly what was
 //    measured: "without a breakpoint after static content, a changing suffix can prevent reuse of the shared prefix".
-//    So two explicit breakpoints are added (prompt_cache_breakpoint on a content block; a request may write four):
+//    So explicit breakpoints are added (prompt_cache_breakpoint on a content block; a request may write four; a third,
+//    after what lasts the tale, since 2026-10-23: see below):
 //    after this hero's features (the instructions, schema and hero, the same for every turn: held 12 hours, written at
 //    2.5 times the input price once and read at a tenth after), and after the last part of the scene that does not
 //    change from turn to turn (what lasts the tale, the land, who is here: the request's own 30 minutes). Tokens
@@ -711,6 +712,11 @@ function cacheHoldFor(model,setting){
   if(input[0]?.role==='developer'&&typeof input[0].content==='string')input[0].content=block(input[0].content,long?{mode:'explicit',ttl:'12h'}:{mode:'explicit'});
   // The last part before this turn's that stays from turn to turn (the story so far changes with every turn's journal).
   const steady=users.slice(0,-1).filter(i=>typeof input[i].content==='string'&&!input[i].content.startsWith('Scene: the story so far.')).at(-1);
+  // And after what lasts the tale, the third and last explicit one (the implicit one is the fourth): who is here changes
+  // on most talking turns (memories, attitudes) and the land with every journey, and one breakpoint after them lost the
+  // whole scene each time (live on 2026-10-23, consecutive turns cached only the instructions, schema and hero).
+  const lasting=users.slice(0,-1).find(i=>i!==steady&&typeof input[i].content==='string'&&input[i].content.startsWith('Scene: what lasts the tale.'));
+  if(lasting!==undefined)input[lasting].content=block(input[lasting].content,{mode:'explicit'});
   if(steady!==undefined)input[steady].content=block(input[steady].content,{mode:'explicit'});
   return {...q,input};
  }};

@@ -90,7 +90,17 @@ const outcomes={success:{narration:'Halfway down, a name leaps out: Edda Marsh, 
   assert.equal(p.asked.length,1);
   const seen=r.adventureSnapshot(kara,plain({...town.game,map:{...town.game.map,visited:['inn','tower']}}),null,true);
   const q=await play(seen,{question:'Back to the chapel, then.'},(qq,c)=>c.engineResolved?{narration:'(asked)'}:{narration:'Tilda waves you off.',dialogue:[{speakerId:'n1',text:'Mind the reeds!'}],actionId:'travel-tower'});
-  assert.equal(q.asked.length,1,'a journey back is told by the reply that chose it');assert.equal(q.out.snapshot.game.stage,'tower');assert.ok(!q.out.turn.events.some(e=>e.kind==='dialogue'&&e.speakerId==='n1'),'a line from someone left behind is dropped, not refused');}
+  assert.equal(q.asked.length,1,'a journey back is told by the reply that chose it');assert.equal(q.out.snapshot.game.stage,'tower');assert.ok(!q.out.turn.events.some(e=>e.kind==='dialogue'&&e.speakerId==='n1'),'a line from someone left behind is dropped, not refused');
+  // An ordinary turn that walks the hero somewhere new, with a farewell from someone left behind and a word from the
+  // keeper here too (live on 2026-10-23 this refused the whole turn, three times in a row): the journey stands, and only
+  // lines from those still with the hero are kept.
+  const fresh2=r.adventureSnapshot(kara,plain({...town.game,map:{...town.game.map,visited:['inn']}}),null,true);
+  const n=await play(fresh2,{question:'I set out for the chapel.'},(qq,c)=>c.engineResolved?{narration:'The chapel looms out of the rain.'}:{narration:'Tilda waves you off.',dialogue:[{speakerId:'n1',text:'Mind the reeds!'},{speakerId:'keeper',text:'Come back with news.'}],actionId:'travel-tower'});
+  assert.ok(!n.out.error,'a farewell from someone left behind never refuses the turn: '+n.out.error);assert.equal(n.out.snapshot.game.stage,'tower','the journey stands');
+  assert.ok(!n.out.turn.events.some(e=>e.kind==='dialogue'&&['n1','keeper'].includes(e.speakerId)),'lines from those left behind are dropped');
+  // On the device the same commit: the same rule, the conversation as heard.
+  const solo=r.commitDmTurn(kara,fresh2.game,null,{type:'travel',destination:'tower'},{question:'I set out for the chapel.',narration:'Tilda waves you off.',dialogue:[{speakerId:'n1',text:'Mind the reeds!'}]},()=>0.5);
+  assert.ok(!solo.error,'commitDmTurn keeps the move: '+solo.error);assert.deepEqual(solo.conversation.dialogue,[],'and drops the line');}
  // ---- 5. An offer taken up that the reply chose: told by it ----
  {const offered=r.adventureSnapshot(kara,plain({...town.game,joinOffers:{n1:{reason:'She wants to see the barrow.',terms:'',class:'Fighter'}}}),null,true);
   const choice=r.dmChoices(kara,offered.game,null).find(c=>c.id==='join:n1');assert.ok(choice,'the offer stands');
@@ -130,8 +140,9 @@ const outcomes={success:{narration:'Halfway down, a name leaps out: Edda Marsh, 
   const run=async(model,holdCache,fetchImpl)=>generate({input:'I look around.',context:ctx},{apiKey:'k',model,holdCache,fetchImpl:fetchImpl??(async(u,o)=>{sent.push(JSON.parse(o.body));return answer({});})});
   await run('gpt-6-luna','12h');let q=sent.at(-1);
   assert.deepEqual(q.input[0].content[0].prompt_cache_breakpoint,{mode:'explicit',ttl:'12h'},'the hero\'s features close the part held 12 hours');assert.equal(q.input[0].content[0].type,'input_text');
-  const marked=q.input.filter(m=>Array.isArray(m.content)&&m.content.some(b=>b.prompt_cache_breakpoint));assert.equal(marked.length,2,'two explicit breakpoints (the implicit one is the third of four)');
-  const steady=marked[1];assert.equal(steady.role,'user');assert.ok(!steady.content[0].text.startsWith('Scene: the story so far.')&&!steady.content[0].text.startsWith('Scene: this turn'),'the second after the scene that lasts from turn to turn');assert.deepEqual(steady.content[0].prompt_cache_breakpoint,{mode:'explicit'});
+  const marked=q.input.filter(m=>Array.isArray(m.content)&&m.content.some(b=>b.prompt_cache_breakpoint));assert.equal(marked.length,3,'three explicit breakpoints (the implicit one is the fourth of four)');
+  assert.ok(marked[1].content[0].text.startsWith('Scene: what lasts the tale.'),'the second after what lasts the tale (who is here changes on most turns)');assert.deepEqual(marked[1].content[0].prompt_cache_breakpoint,{mode:'explicit'});
+  const steady=marked[2];assert.equal(steady.role,'user');assert.ok(!steady.content[0].text.startsWith('Scene: the story so far.')&&!steady.content[0].text.startsWith('Scene: this turn'),'the second after the scene that lasts from turn to turn');assert.deepEqual(steady.content[0].prompt_cache_breakpoint,{mode:'explicit'});
   assert.ok(!('prompt_cache_retention' in q)&&!('prompt_cache_options' in q),'the request\'s own ttl (30 minutes) is left as it is');
   assert.deepEqual(requestParts(q).scene,requestParts((await (async()=>{await run('gpt-6-luna','off');return {};})(),sent.at(-1))).scene,'the scene reads the same with or without breakpoints');
   assert.ok(sent.at(-1).input.every(m=>typeof m.content==='string'),'off: plain messages');
