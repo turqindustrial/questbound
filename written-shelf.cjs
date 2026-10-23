@@ -10,7 +10,9 @@
 // diagnostics with mechanical fields only (its file name, why, how many problems). The folder is read again within 30 s
 // of a change. The running Dungeon Master keeps this module loaded between requests: bump `revision` (and the literal
 // in dm-server.cjs loadWritten) when it changes.
-const revision=1;
+// A tale for a land (match, 2026-10-23: the next tale in a region or in a land beyond the map is taken from the shelf or
+// the compendium before a new one is written): a listed tale of that terrain the device has not played.
+const revision=2;
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const writtenIdPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const writtenSlugPattern=/^[a-z0-9-]{3,28}$/;
@@ -128,9 +130,19 @@ function createShelf({dir=path.join(process.env.QUESTBOUND_DATA||__dirname,'.que
   const all=listed(),pool=all.filter(e=>e.length===length),from=pool.length?pool:all;
   return from.length?start(from[Math.floor(random()*from.length)%from.length].id):null;
  }
+ // A listed tale for a land: of that terrain (any when none is given), never one this device has played (`exclude`, its
+ // ids) nor one whose title the hero has lived (`titles`, any case); the least started first, then the shelf's order.
+ // Read only: start counts the play.
+ function match({terrain=null,exclude=[],titles=[]}={}){
+  if(terrain!=null&&!writtenTerrains.includes(terrain))return null;
+  const out=new Set(Array.isArray(exclude)?exclude.map(String):[]),lived=new Set((Array.isArray(titles)?titles:[]).filter(v=>typeof v==='string').map(v=>v.trim().toLowerCase()));
+  const started=readPlays(),count=id=>Number.isInteger(started[id]?.plays)?started[id].plays:0;
+  const fits=listed().filter(e=>(terrain==null||e.story.terrain===terrain)&&!out.has(e.id)&&!lived.has(String(e.story.title??'').trim().toLowerCase()));
+  return fits.sort((a,b)=>(count(a.id)-count(b.id))||(a.order-b.order)||(a.id<b.id?-1:1))[0]??null;
+ }
  const plays=()=>readPlays();
  const info=()=>{const all=entries();return {tales:all.length,listed:all.filter(e=>e.listed).length,refused:[...verdicts.values()].filter(v=>!v.entry).length};};
- return {list,start,any,has,plays,info,refresh:scan};
+ return {list,start,any,match,has,plays,info,refresh:scan};
 }
 const shelf=createShelf({onRefused:diagnosticsNote});
 module.exports={revision,createShelf,shelf,publicTale,coverSubject,copyOf,fileProblem,writtenIdPattern,writtenTiers};

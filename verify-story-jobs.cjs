@@ -36,7 +36,7 @@ const story={title:'T',premise:'P',opening:'O',objective:'J',resolution:'R',secr
  assert.deepEqual(request.reasoning,{effort:'high'},'In the background the writer thinks as hard as the host chose');assert.equal(request.max_output_tokens,40000);assert.equal(calls,1);
  // Asked for as a stream (Node's own fetch would give up on a tale whose answer took more than 300 s to begin), and a
  // job that fails is noted in the diagnostics with its kind (dm-server.cjs recordWriteFailure; checked in verify-dm-stream.cjs).
- assert.equal(request.stream,true,'a tale is streamed');assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("loadStoryJobs().start(body.context.job,()=>write(effort,420000).catch(e=>{recordWriteFailure('story-job',e,live,guest);throw e;}))"),'a failed story job is noted');
+ assert.equal(request.stream,true,'a tale is streamed');assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("loadStoryJobs().start(body.context.job,()=>write(effort,420000).then(kept,e=>{recordWriteFailure('story-job',e,live,guest);throw e;}))"),'a failed story job is noted, and a finished one offered to the compendium (verify-journeys.cjs)');
  assert.equal((await ask({mode:'art',storyJob:'verify-job-never-started'})).status,'unknown');
  assert.equal((await ask({mode:'adventure',introId:'crown',job:'no'})).status,'failed','A malformed job id is refused');
  // A browser on an earlier build waits on one request: light thinking, so the tale arrives in time.

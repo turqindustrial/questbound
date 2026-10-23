@@ -37,6 +37,9 @@ assert.ok(fs.readFileSync('feedbackRules.js','utf8').includes('(g.storyLog??[]).
  assert.ok(notes.includes("guest:null,kind:'session'")&&text(privacyPolicy).includes('no label for your browser')&&text(privacyPolicy).includes('your answer (Great, Good, Okay or Rough)'),'a session rating carries no label and the policy says so');
  assert.ok(text(permissionsAgreement).includes('Anonymous play counts')&&text(permissionsAgreement).includes('session ratings'),'the agreement names the counts and the ratings');}
 assert.ok(fs.readFileSync('dm-server.cjs','utf8').includes("recordUsage('turn'")&&text(privacyPolicy).includes('never the words themselves'));
+// Tales the story writer writes for a player join the compendium (2026-10-23, dm-server.cjs sharedTale and keptTale):
+// written without the hero, kept and offered to other players, never with the hero, words, idea's text or progress.
+{const dm=fs.readFileSync('dm-server.cjs','utf8');assert.ok(dm.includes("shelf.add(result.story,{pitch,brief,source:'player',accept:journeyCheck})")&&dm.includes("const context={mode:'adventure',introId,ahead:true,easyStart:true,")&&text(privacyPolicy).includes('it writes it without your hero, so that anyone could play it')&&text(privacyPolicy).includes('may be offered to other players')&&text(privacyPolicy).includes('never your hero, your words, the text of your idea, your progress')&&text(permissionsAgreement).includes('other players may be offered them'),'the texts say tales written for a player may be offered to others');}
 // The content check and table moderation (moderation.cjs, campaigns.cjs, tableMutes.js; the host, 2026-10-13): the
 // texts say typed words and table names go to OpenAI's moderation service, what a report carries, the pause, mutes and bans.
 {const mod=fs.readFileSync('moderation.cjs','utf8'),camp=fs.readFileSync('campaigns.cjs','utf8');
