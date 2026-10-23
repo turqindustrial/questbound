@@ -29,7 +29,7 @@ import {spellDamageMax} from "./spellDamageRules";
 import {guidanceBonus} from "./spellBuffRules";
 import {mapMoves,shortRestsLeft,dmChoices,offeredChoices} from "./dmChoiceRules";
 import {briefText,skillLine,withNamedJourneys,storyWorld} from "./dmSceneRules";
-import {stagingObjective} from "./stagingRules";
+import {stagingObjective,stagedPreview} from "./stagingRules";
 // The other players' heroes in a party at the shared table (partyRules.js): who they are and how they stand, never
 // what they will do (their own players decide that).
 export function partyOthers(game){
@@ -111,7 +111,12 @@ export function commitDmTurn(hero,game,health,action,conversation,random=Math.ra
   // speakers against who was here before the move, which it cannot see past; live on 2026-10-23 farewells from people
   // left at the starting place refused three turns in a row).
   // Someone who was here neither before nor after it (a companion waiting elsewhere) still refuses the reply.
-  const present=npcScene(result.game).filter(n=>n.present&&n.hp>0).map(n=>n.id),before=npcScene(game).filter(n=>n.present&&n.hp>0).map(n=>n.id);
+  // "After" is the scene the Dungeon Master was shown: in a written tale the move's beats are applied to the preview
+  // (stagingRules.js stagedPreview) before the request is built, and to the turn only later, in settleTurn (withBeats);
+  // so a person a beat brings in (a captive freed by the ending, someone sent for) is here (live on 2026-10-23 the
+  // last blow at The Last Ferry's foe was refused eleven times in a row: the freed boy spoke in the telling).
+  const here=g=>npcScene(g).filter(n=>n.present&&n.hp>0).map(n=>n.id),staged=(()=>{if(!result.game?.story?.staging)return [];try{const s=stagedPreview(game,result,hero,action);return s?.game&&!s.error?here(s.game):[];}catch{return [];}})();
+  const present=[...new Set([...here(result.game),...staged])],before=here(game);
   if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId)&&!before.includes(line.speakerId)))return {game,health,error:'The reply included a character who cannot join this conversation.'};
   if((conversation.dialogue??[]).some(line=>!present.includes(line.speakerId))){
     conversation={...conversation,dialogue:conversation.dialogue.filter(line=>present.includes(line.speakerId))};
